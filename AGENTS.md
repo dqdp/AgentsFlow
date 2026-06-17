@@ -74,6 +74,7 @@ Before adding or changing a workflow:
 3. Specify supported strictness profiles and review topology.
 4. Reference gate manifests rather than prose-only gate names.
 5. Keep project-specific commands out of upstream workflow definitions.
+6. If the workflow has an implementation phase, frame it with a preceding red-capture (failing-test) phase and a following green-verify phase (ADR-0017).
 
 Before adding a skill:
 
@@ -95,6 +96,7 @@ Before adding a script:
 - Do not hard-code project-specific commands into upstream workflow definitions.
 - A real workflow-run gate is executable only after it is bound to a deterministic project-level runner.
 - Upstream gate manifests are gate contracts/templates plus generic validation helpers.
+- An implementation phase must be framed by a red-capture phase (tests run against the not-yet-implemented state, failing run captured) and a green-verify phase (same tests re-run, passing run captured). `validate_repo.py` is to reject an implementation phase missing this framing (ADR-0017; not yet implemented). See `docs/adr/ADR-0017-test-framed-implementation-phase.md`.
 
 ## Project application / initialization rules
 

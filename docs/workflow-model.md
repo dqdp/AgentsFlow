@@ -51,6 +51,10 @@ supported_profiles:
   review_topologies: []
 ```
 
+A phase sequence carries one structural constraint: any phase of `kind:
+implementation` must be preceded by a red-capture (failing-test) phase and followed
+by a green-verify phase; `validate_repo.py` is to enforce this (ADR-0017; not yet implemented).
+
 ## Current workflows
 
 | Workflow | Purpose |

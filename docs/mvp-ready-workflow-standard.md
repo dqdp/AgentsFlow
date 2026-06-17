@@ -47,7 +47,8 @@ Each MVP workflow must have:
 - review-cycle policy where applicable;
 - behavior bindings for required acceptance scenarios where applicable;
 - at least one validated example or project-overlay example;
-- repo-validation coverage.
+- repo-validation coverage;
+- for workflows with an implementation phase, a red-capture (failing-test) phase before implementation and a green-verify phase after it (ADR-0017).
 
 ## v0.2 Definition of Done
 
@@ -109,7 +110,8 @@ Reference end-to-end development workflow:
 
 ```text
 intake -> repository grounding -> contract -> behavior bindings -> plan gate
--> implementation -> verification gate -> review -> finding validation -> fusion -> final decision
+-> red capture (contract scenarios as executable tests, failing run) -> implementation
+-> verification gate (green re-run) -> review -> finding validation -> fusion -> final decision
 ```
 
 ### bugfix-regression-capture
@@ -126,6 +128,10 @@ Default rule:
 ```text
 No fix without captured regression unless the workflow explicitly records why reproduction is impossible.
 ```
+
+This reproduce-before-fix rule is the bugfix instance of the test-framed
+implementation discipline (ADR-0017): the failing (red) run is captured before the
+fix, and the regression gate confirms the green re-run after.
 
 ### review-only-fusion
 

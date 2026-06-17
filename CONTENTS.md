@@ -25,6 +25,7 @@ Generated for AgentsFlow v0.1.13.
 - docs/adr/ADR-0014-project-initialization-and-research-assignment.md
 - docs/adr/ADR-0015-legacy-adoption-modes.md
 - docs/adr/ADR-0016-external-reviewer-provider-interface.md
+- docs/adr/ADR-0017-test-framed-implementation-phase.md
 - docs/architecture.md
 - docs/bdd-style-guide.md
 - docs/behavior-binding-model.md

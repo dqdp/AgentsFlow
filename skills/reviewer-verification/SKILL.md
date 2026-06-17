@@ -21,7 +21,7 @@ Independently review test adequacy, impact map, evidence quality, and regression
 
 1. Check scenario coverage.
 2. Check required tests.
-3. Detect weakened/missing tests.
+3. Detect weakened/missing tests, and confirm the red→green evidence pair exists for test-bound acceptance scenarios (a captured failing run before implementation, passing run after — ADR-0017); a test only ever green, or never run against broken code, is a finding.
 4. Check evidence gaps.
 5. Classify issues.
 

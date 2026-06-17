@@ -133,6 +133,10 @@ needs-more-evidence
 
 not `pass`.
 
+For implementation workflows, an absent captured failing run (red) for a required
+scenario is itself a missing-mandatory-evidence condition (ADR-0017): a green-only
+evidence bundle is an evidence gap, not a pass.
+
 ## Default loop exit criterion
 
 The default AgentsFlow exit criterion for review cycles is:

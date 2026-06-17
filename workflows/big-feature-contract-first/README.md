@@ -29,3 +29,10 @@ Implement a large feature through contract, BDD scenarios, impact map, verificat
 ## Notes
 
 This workflow is a composition recipe. Do not duplicate the full content of invoked skills here.
+
+Per ADR-0017, the implementation phase is to be framed by a pre-implementation
+red-capture (write the contract's acceptance tests, run them against the
+unimplemented state, capture the failing runs) and the verification gate's green
+re-run; the red→green evidence pair is a byproduct of this structure. (This framing
+is the accepted target shape; the red-capture phase is not yet present in
+`workflow.yaml`.)

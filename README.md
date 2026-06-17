@@ -89,6 +89,7 @@ CLI/package distribution is future work.
 - A real gate is executable only after project binding maps it to deterministic project-level runners, commands, tools and evidence sources.
 - BDD/Gherkin scenarios are behavior specifications, not executable gates.
 - Required acceptance scenarios must be bound to executable checks through `*.bindings.yaml`.
+- A workflow phase of `kind: implementation` must be framed by a pre-implementation red-capture phase (contract scenarios turned into executable tests, run against the not-yet-implemented state, failing run captured) and a post-implementation green-verify phase (same tests re-run, passing run captured). The red→green evidence pair is a byproduct. This is the accepted rule (ADR-0017); the `validate_repo.py` check that enforces it is not yet implemented. See `docs/adr/ADR-0017-test-framed-implementation-phase.md`.
 
 ## Review rules
 

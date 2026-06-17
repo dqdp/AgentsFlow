@@ -31,3 +31,9 @@ Increase strictness when work touches:
 ## Anti-overload rule
 
 Do not use L3/L4 by default. Heavy gates should be justified by risk.
+
+## Test-framed implementation is not strictness-scaled
+
+The red-before/green-after discipline (ADR-0017) is not an L3/L4-only behavior. It
+applies whenever a workflow has a `kind: implementation` phase, independent of the
+strictness level.

@@ -44,6 +44,8 @@ BDD scenarios and boundaries
   ↓
 Impact map and verification binding
   ↓
+Red capture for implementation work (tests run against the unimplemented state, failing run captured — ADR-0017)
+  ↓
 Implementation or review
   ↓
 Verification gate
@@ -86,3 +88,4 @@ Acceptance proof
 - Verification gates run declared instruments through deterministic runner entrypoints and produce evidence bundles/reports.
 - Reviewers inspect gate artifacts; they do not run tests, call scripts, or modify source artifacts.
 - Fusion synthesizes; it does not erase blocking issues by majority vote.
+- An implementation phase must be framed by red-capture and green-verify phases, so the red→green pair becomes gate evidence by construction (ADR-0017; structural enforcement not yet implemented).

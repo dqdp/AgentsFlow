@@ -111,8 +111,21 @@ A verification gate consuming behavior bindings must check that:
 - missing required bindings fail or block according to the workflow policy;
 - optional unbound scenarios are reported as warnings, not silently ignored.
 
+## Red/green evidence (failing-run / passing-run pair)
+
+For any behavior bound to an implementation phase, the evidence bundle must record a
+failing run (red) captured before implementation and a passing run (green) captured
+after, for the same bound check. The gate runner (`redgreen_check`, planned in
+ADR-0017; not yet implemented) is to confirm the failing-then-passing pair is present. This model is the canonical home for the
+`failing_run` / `passing_run` evidence pair introduced by
+`docs/adr/ADR-0017-test-framed-implementation-phase.md`, which refines ADR-0010
+(gate executability) and ADR-0011 (behavior binding).
+
 ## Non-goal
 
 Behavior bindings are not intended to become a heavy test-management system in
 v0.2. The minimal implementation is one template, one schema, one checker, and
-integration with gate reports.
+integration with gate reports. Recording a failing-run/passing-run pair per ADR-0017
+is part of this minimal footprint, not a test-management system: it is a structural
+byproduct of the test-framed implementation phase and adds no authoring surface
+beyond the existing template, schema, checker and gate-report integration.

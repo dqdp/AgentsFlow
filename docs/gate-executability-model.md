@@ -120,6 +120,17 @@ Required BDD scenarios become gate-relevant through behavior binding manifests:
 The gate runner checks the binding, executes or confirms the bound checks, and
 includes results in the gate report.
 
+## Red-capture relationship
+
+Executability is necessary but not sufficient: a bound check must also have been run
+against the unsatisfied state. For implementation work, ADR-0017 requires the same
+check to produce a captured failing run (red) before implementation and a passing
+run (green) after. This closes the gap where an always-green test, or a test never
+run against broken code, could self-certify the gate — the failure mode this rule
+exists to prevent. `validate_repo.py` is to enforce the framing structurally
+(ADR-0017; not yet implemented): a workflow with a `kind: implementation` phase must
+frame it with a red-capture phase and a green-verify phase.
+
 ## Review/fusion relation
 
 Review agents and fusion agents consume gate reports. They do not replace gates.
@@ -135,7 +146,8 @@ authoritative verification signal.
 - workflow references resolve to upstream gate contracts;
 - gate manifests have runner interfaces/generic runner paths;
 - schemas/templates/scripts exist;
-- workflow phases declare gate references.
+- workflow phases declare gate references;
+- (planned, ADR-0017; not yet implemented) a workflow with a `kind: implementation` phase frames it with a pre-implementation red-capture phase and a post-implementation green-verify phase.
 
 `validate_project_binding.py` checks a concrete project overlay:
 

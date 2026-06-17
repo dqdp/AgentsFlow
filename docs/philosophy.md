@@ -127,6 +127,17 @@ Use model-based reviewers where judgment is necessary.
 
 Use fusion to classify disagreement, not to average away blocking issues.
 
+## Rule of red-before-green
+
+When a workflow implements, the contract is first turned into executable tests that
+are run against the unimplemented state to capture a failing (red) result;
+implementation then makes them pass (green). This keeps tests honest — an
+always-green or never-run test cannot certify implementation (ADR-0010) — and makes
+the contract's behavior binding (ADR-0011) executable before code exists. The rule
+is structural: an `implementation` phase must always be framed by a red-capture
+phase before it and a green-verify phase after it. See `docs/adr/ADR-0017-test-framed-implementation-phase.md`
+(accepted rule; structural enforcement in `validate_repo.py` is not yet implemented).
+
 ## Rule of gradual adoption
 
 Do not use heavy process for small work.

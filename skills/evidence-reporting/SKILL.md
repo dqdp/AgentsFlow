@@ -22,7 +22,7 @@ Produce an acceptance proof for a task, implementation, review, or spec workflow
 ## Procedure
 
 1. Summarize changes.
-2. Map scenarios to evidence.
+2. Map scenarios to evidence (including the red→green run pair for test-bound scenarios, ADR-0017).
 3. List commands and results.
 4. State boundary check result.
 5. State limitations and follow-ups.
@@ -37,6 +37,7 @@ Produce an acceptance proof for a task, implementation, review, or spec workflow
 ## Anti-patterns
 
 - Saying “all tests pass” without commands/results.
+- Reporting only a passing (green) run for a test-bound scenario with no captured failing (red) run before implementation (ADR-0017).
 
 
 ## Handoff

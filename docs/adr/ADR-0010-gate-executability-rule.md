@@ -36,3 +36,6 @@ result states: `pass`, `pass_with_notes`, `fail`, `inconclusive`,
   for executable gates.
 - BDD scenarios must be bound to tests/evals/checks/instruments before they can
   serve as gate evidence.
+- Refined by ADR-0017: an implementation phase must be framed by a red-capture
+  (pre) and green-verify (post) phase, so the failing-then-passing run pair becomes
+  gate evidence by construction rather than a self-certified always-green test.

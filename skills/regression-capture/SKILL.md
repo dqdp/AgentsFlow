@@ -29,8 +29,13 @@ Turn known failures into durable regression scenarios and verification bindings.
 
 ## Quality bar
 
-- Failure can be reproduced or simulated.
+- The failure is captured as a recorded failing run (red), not merely described.
 - Scenario prevents the same class of bug.
+
+This reproduce-before-fix step is the bugfix instance of the test-framed
+implementation discipline (ADR-0017): capture the failing run as evidence before
+fixing, so the regression gate confirms the same test goes red-before / green-after.
+The same red-capture step generalizes to any implementation phase, not only bugfix.
 
 
 ## Anti-patterns
