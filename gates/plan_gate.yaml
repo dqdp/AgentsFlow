@@ -1,0 +1,58 @@
+id: plan_gate
+name: Plan Gate
+kind: gate
+purpose: Validate that a plan is grounded, scoped, testable and ready for implementation.
+runner: scripts/gates/run_gate.py
+may_modify_files: false
+inputs:
+- plan.md
+- task-breakdown.md
+- repository-grounding-report.md
+- decision-contract.md
+instruments:
+- id: plan_lint
+  type: schema_validation
+  required: true
+- id: task_graph_check
+  type: schema_validation
+  required: true
+- id: grounding_evidence_check
+  type: manual_evidence_check
+  required: false
+checks:
+- plan_lint
+- task_graph_check
+- grounding_evidence_check
+bdd_bindings: []
+required_evidence:
+- plan completeness
+- task graph
+- grounding evidence
+outputs:
+- plan-gate-report.md
+- plan-gate-report.json
+result_states:
+- pass
+- pass_with_notes
+- fail
+- inconclusive
+- needs_human_decision
+- blocked
+pass_policy:
+  required_instruments:
+  - plan_lint
+  - task_graph_check
+  fail_on:
+  - missing_required_instrument
+  - nonzero_required_check
+  - missing_required_evidence
+  inconclusive_on:
+  - missing_optional_tool
+  - flaky_result
+  - insufficient_observability
+  needs_human_decision_on:
+  - missing_required_human_approval
+binding_level: upstream_gate_contract
+requires_project_binding: true
+runner_interface: deterministic_runner_entrypoint
+project_binding_required_for_real_run: true

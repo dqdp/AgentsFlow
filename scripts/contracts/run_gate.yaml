@@ -1,0 +1,10 @@
+name: run_gate
+type: script
+version: 0.1
+entrypoint: scripts/gates/run_gate.py
+inputs:
+- gate manifest path
+outputs:
+- gate report json
+deterministic: true
+ci_compatible: true

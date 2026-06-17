@@ -1,0 +1,12 @@
+name: project_raw_scan
+type: script
+version: 0.1
+entrypoint: scripts/project_raw_scan.py
+inputs:
+  - repository root
+outputs:
+  - project-raw-scan.json
+deterministic: true
+ci_compatible: true
+notes:
+  - Collects observable raw facts only; it does not infer project intent.

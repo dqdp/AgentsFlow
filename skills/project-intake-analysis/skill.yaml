@@ -1,0 +1,22 @@
+name: project-intake-analysis
+type: skill
+version: 0.1
+purpose: "Interpret a project intake/research assignment and turn it into analysis focus, constraints, and open questions."
+inputs:
+  - project_intake
+  - raw_scan
+  - selected_docs
+  - human_context
+outputs:
+  - normalized_intake
+  - analysis_focus
+  - human_questions
+depends_on: []
+compatible_workflows:
+  - project-initialization
+quality_bar:
+  - Observed facts and inferred judgments are separated.
+  - Non-trivial inferred fields include evidence, confidence and human-confirmation markers.
+anti_patterns:
+  - Treating model inferences as deterministic facts.
+  - Ignoring project documentation or Markdown implementation history.

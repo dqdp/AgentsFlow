@@ -1,0 +1,13 @@
+name: evidence_validate
+type: script
+version: 0.1
+description: "Checks that an evidence report contains required sections."
+entrypoint: scripts/evidence_validate.py
+inputs:
+  - evidence_path
+outputs:
+  - pass_fail
+  - missing_sections
+deterministic: true
+ci_compatible: true
+mutates_files: false

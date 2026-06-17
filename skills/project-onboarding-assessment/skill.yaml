@@ -1,0 +1,22 @@
+name: project-onboarding-assessment
+type: skill
+version: 0.1
+purpose: "Produce candidate workflow/gate/risk recommendations for an AgentsFlow project overlay."
+inputs:
+  - project_intake
+  - raw_scan
+  - selected_docs
+  - human_context
+outputs:
+  - project_assessment
+  - workflow_recommendations
+  - gate_recommendations
+depends_on: []
+compatible_workflows:
+  - project-initialization
+quality_bar:
+  - Observed facts and inferred judgments are separated.
+  - Non-trivial inferred fields include evidence, confidence and human-confirmation markers.
+anti_patterns:
+  - Treating model inferences as deterministic facts.
+  - Ignoring project documentation or Markdown implementation history.

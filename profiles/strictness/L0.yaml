@@ -1,0 +1,6 @@
+name: L0
+label: lightweight
+description: Small low-risk changes.
+requires:
+  - targeted_tests
+  - short_evidence

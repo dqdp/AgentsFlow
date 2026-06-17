@@ -1,0 +1,11 @@
+name: validate_repo
+type: script
+version: 0.1
+entrypoint: scripts/validate_repo.py
+inputs:
+  - repository_root
+outputs:
+  - pass_fail
+  - validation_errors
+deterministic: true
+ci_compatible: true

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "legacy_artifacts": [
+    {
+      "path": "AGENTS.md",
+      "artifact_type": "agent_instructions",
+      "observed": true,
+      "classification": "needs-human-decision",
+      "evidence": [
+        "AGENTS.md"
+      ],
+      "notes": "Classify during legacy adoption decision."
+    }
+  ],
+  "conflicts": [],
+  "candidate_imports": [],
+  "unknowns": []
+}

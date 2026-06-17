@@ -1,0 +1,26 @@
+name: agent-instruction-migration
+type: skill
+version: 0.1
+purpose: Migrate, extract, patch or quarantine legacy agent/process artifacts according
+  to the selected adoption mode.
+inputs:
+- project_intake
+- project_inventory
+- raw_scan
+- legacy_artifacts
+- human_context
+outputs:
+- agent-instruction-migration-plan
+- active-instruction-map
+- legacy-backup-manifest
+depends_on:
+- project-intake-analysis
+compatible_workflows:
+- project-initialization
+quality_bar:
+- Separate observed facts, extracted knowledge, model judgments and human decisions.
+- Classify every legacy artifact with an explicit status.
+- Preserve useful knowledge without preserving ambiguous authority.
+anti_patterns:
+- Overwriting old instructions without backup.
+- Treating shadow-pilot as a permanent state.

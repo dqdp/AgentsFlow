@@ -1,0 +1,18 @@
+version: 1
+archive_id: 2026-06-17-pre-agentsflow-adoption
+created_by: main-orchestrating-agent
+created_at: 2026-06-17
+archive_path: Docs/agentsflow/legacy/2026-06-17-pre-agentsflow-adoption/
+
+backed_up_artifacts:
+  - original_path: AGENTS.md
+    archive_path: Docs/agentsflow/legacy/2026-06-17-pre-agentsflow-adoption/AGENTS.md
+    status: archived
+  - original_path: old-skills/
+    archive_path: Docs/agentsflow/legacy/2026-06-17-pre-agentsflow-adoption/old-skills/
+    status: archived
+
+non_authoritative_notice_required: true
+human_approval:
+  required: true
+  status: pending

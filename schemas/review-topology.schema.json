@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agent-workflow-kit/review-topology.schema.json",
+  "title": "Review Topology Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["name", "kind", "reviewers", "fusion", "blocking_policy"],
+  "properties": {
+    "name": {"type": "string"},
+    "kind": {"const": "review_topology"},
+    "description": {"type": "string"},
+    "reviewers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {"type": "string"},
+          "skill": {"type": "string"},
+          "model_hint": {"type": "string"},
+          "independent": {"type": "boolean"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "fusion": {
+      "type": "object",
+      "required": ["required"],
+      "properties": {
+        "required": {"type": "boolean"},
+        "skill": {"type": "string"},
+        "preserve_blocking_issues": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "blocking_policy": {
+      "type": "object",
+      "required": ["p0_blocks", "p1_blocks", "majority_cannot_override_blocker"],
+      "properties": {
+        "p0_blocks": {"type": "boolean"},
+        "p1_blocks": {"type": "boolean"},
+        "majority_cannot_override_blocker": {"type": "boolean"},
+        "missing_evidence": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

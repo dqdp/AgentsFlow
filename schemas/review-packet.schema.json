@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/review-packet.schema.json",
+  "title": "Review Packet",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "agentsflow_version",
+    "workflow",
+    "run_id",
+    "reviewer_role",
+    "review_goal",
+    "forbidden_actions",
+    "output_schema"
+  ],
+  "properties": {
+    "agentsflow_version": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "reviewer_role": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "review_goal": {
+      "type": "string"
+    },
+    "changed_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "forbidden_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "output_schema": {
+      "type": "string"
+    }
+  }
+}

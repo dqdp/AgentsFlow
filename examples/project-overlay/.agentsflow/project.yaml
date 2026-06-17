@@ -1,0 +1,11 @@
+name: example-project-overlay
+agentsflow_version: 0.2
+paths:
+  docs_root: Docs/
+  adr_root: Docs/adr/
+  agentsflow_root: .agentsflow/
+  runs_root: Docs/agentsflow/runs/
+project_rules:
+  default_workflow: big-feature-contract-first
+verification_defaults:
+  evidence_root: Docs/agentsflow/evidence/

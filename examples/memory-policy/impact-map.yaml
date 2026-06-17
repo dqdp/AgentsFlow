@@ -1,0 +1,20 @@
+name: memory-policy-impact
+version: 0.1
+
+modules:
+  - name: memory
+    paths:
+      - src/memory/**
+    required_tests:
+      - tests/memory/**
+      - tests/policy/**
+    required_scripts:
+      - contract_lint
+      - boundary_check
+      - gherkin_lint
+      - evidence_validate
+    related_contracts:
+      - Docs/contracts/memory-policy.contract.md
+    related_adrs:
+      - Docs/adr/ADR-0004-context-manager.md
+      - Docs/adr/ADR-0006-policy-layer.md

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Script Contract",
+  "type": "object",
+  "required": [
+    "name",
+    "type",
+    "version",
+    "entrypoint",
+    "inputs",
+    "outputs",
+    "deterministic",
+    "ci_compatible"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "type": {
+      "const": "script"
+    },
+    "version": {
+      "type": "number"
+    },
+    "entrypoint": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "deterministic": {
+      "type": "boolean"
+    },
+    "ci_compatible": {
+      "type": "boolean"
+    },
+    "mutates_files": {
+      "type": "boolean"
+    }
+  }
+}

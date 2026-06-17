@@ -1,0 +1,33 @@
+name: bdd-scenario-design
+type: skill
+version: 0.1
+purpose: "Design concrete BDD/Gherkin scenarios for product, agent, process, policy, and regression behavior."
+
+inputs:
+  - contract
+  - domain_pack
+  - strictness
+  - known_failures
+
+outputs:
+  - behavioral_scenarios
+  - forbidden_behavior
+  - ambiguity_notes
+
+depends_on:
+  - contract-authoring
+compatible_workflows:
+  - new-project-spec-first
+  - big-feature-contract-first
+  - agentic-system-hardening
+  - prompt-behavior-eval
+  - bugfix-regression-capture
+
+quality_bar:
+  - Scenarios are concrete and checkable.
+  - Vague terms are replaced with evidence fields.
+
+anti_patterns:
+  - Using Gherkin for every unit test.
+  - Writing “Then it should work correctly”.
+

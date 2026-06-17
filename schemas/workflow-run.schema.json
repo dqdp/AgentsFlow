@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Workflow Run",
+  "type": "object",
+  "required": ["version", "run_id", "workflow", "agentsflow_version", "binding", "status"],
+  "properties": {
+    "version": {"type": "integer"},
+    "run_id": {"type": "string"},
+    "workflow": {"type": "string"},
+    "agentsflow_version": {"type": "string"},
+    "binding": {"type": "string"},
+    "strictness": {"type": "string"},
+    "review_topology": {"type": "string"},
+    "status": {"type": "string"},
+    "artifacts": {"type": "object"},
+    "phase_status": {"type": "array"}
+  },
+  "additionalProperties": true
+}

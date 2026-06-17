@@ -1,0 +1,16 @@
+agentsflow:
+  version: v0.2.0
+  source:
+    type: git-submodule # git-submodule | cmake-fetchcontent
+    url: git@example.com:org/AgentsFlow.git
+    ref: v0.2.0
+    commit: <pinned-commit-sha>
+  schema_version: 1
+
+project_overlay:
+  path: .agentsflow/project.yaml
+  binding_version: 1
+
+update_policy:
+  upstream_is_read_only_during_normal_workflows: true
+  upgrade_requires_review: true

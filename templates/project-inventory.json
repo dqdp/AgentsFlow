@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "project": {
+    "name": {
+      "value": "",
+      "source_type": "user_provided | filesystem_observed | model_inferred",
+      "evidence": [],
+      "confidence": "low | medium | high",
+      "requires_human_confirmation": true
+    },
+    "kind": {
+      "value": "",
+      "source_type": "model_inferred",
+      "evidence": [],
+      "confidence": "low",
+      "requires_human_confirmation": true
+    },
+    "primary_languages": [],
+    "build_systems": [],
+    "test_frameworks": [],
+    "documentation_roots": [],
+    "adr_roots": [],
+    "source_roots": [],
+    "test_roots": [],
+    "agent_instruction_files": [],
+    "implementation_history_files": []
+  },
+  "domain_identification": {
+    "primary_domain": {
+      "value": "unknown",
+      "source_type": "model_inferred",
+      "observed_evidence": [],
+      "domain_assumptions": [],
+      "confidence": "low",
+      "requires_human_confirmation": true
+    },
+    "secondary_domains": [],
+    "unknown_domain_terms": []
+  },
+  "user_domain_expertise": {
+    "known": false,
+    "questions_required": true,
+    "questions": [
+      "What domain is this project in?",
+      "Are you a domain expert for this project?",
+      "Which domain assumptions should be treated as fixed constraints?"
+    ]
+  },
+  "unknowns": [],
+  "human_questions": []
+}

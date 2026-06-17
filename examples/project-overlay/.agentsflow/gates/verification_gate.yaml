@@ -1,0 +1,15 @@
+extends: gates/verification_gate.yaml
+id: verification_gate
+runner: .agentsflow/scripts/run_verification_gate.sh
+instruments:
+  - id: unit_tests
+    type: tests
+    command: "python -m pytest"
+    required: true
+  - id: behavior_bindings
+    type: deterministic_script
+    command: "python scripts/bdd_binding_check.py --bindings Docs/agentsflow/runs/current/behavior.bindings.yaml"
+    required: true
+outputs:
+  - verification-gate-report.md
+  - evidence/

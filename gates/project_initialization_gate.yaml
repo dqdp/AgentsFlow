@@ -1,0 +1,64 @@
+id: project_initialization_gate
+name: Project Initialization Gate
+kind: gate
+purpose: Validate that project initialization artifacts are structurally present and that project overlay drafting is based on intake, raw scan, inventory and assessment artifacts.
+runner: scripts/gates/run_project_initialization_gate.py
+may_modify_files: false
+inputs:
+  - project-intake.yaml
+  - project-raw-scan.json
+  - project-inventory.json
+  - project-assessment.json
+  - project.yaml
+  - workflow bindings
+instruments:
+  - id: validate_project_intake
+    type: deterministic_script
+    command: python scripts/validate_project_intake.py
+    required: true
+  - id: validate_project_inventory
+    type: deterministic_script
+    command: python scripts/validate_project_inventory.py
+    required: true
+  - id: validate_project_binding
+    type: deterministic_script
+    command: python scripts/validate_project_binding.py
+    required: true
+checks:
+  - validate_project_intake
+  - validate_project_inventory
+  - validate_project_binding
+bdd_bindings: []
+required_evidence:
+  - project intake validation result
+  - project inventory validation result
+  - project overlay validation result
+outputs:
+  - project-initialization-gate-report.md
+  - project-initialization-gate-report.json
+result_states:
+  - pass
+  - pass_with_notes
+  - fail
+  - inconclusive
+  - needs_human_decision
+  - blocked
+pass_policy:
+  required_instruments:
+    - validate_project_intake
+    - validate_project_inventory
+    - validate_project_binding
+  fail_on:
+    - missing_required_instrument
+    - nonzero_required_check
+    - missing_required_evidence
+  inconclusive_on:
+    - insufficient_observability
+    - missing_optional_tool
+  needs_human_decision_on:
+    - disputed_project_metadata
+    - overlay_requires_approval
+binding_level: upstream_gate_contract
+requires_project_binding: true
+runner_interface: deterministic_runner_entrypoint
+project_binding_required_for_real_run: true

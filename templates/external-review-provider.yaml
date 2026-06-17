@@ -1,0 +1,45 @@
+# External reviewer provider configuration template.
+# Project overlays may adapt this file under `.agentsflow/external-reviewers/`.
+
+provider: claude-code
+kind: external_reviewer_provider
+version: 1
+
+billing:
+  expected_mode: subscription-local
+  forbid_api_key_usage: true
+  fail_if_env_present:
+    - ANTHROPIC_API_KEY
+  notes: >
+    API-key based Claude usage is forbidden for the v0.2 MVP because it can
+    create uncontrolled cost. This provider is intended for local subscription
+    Claude Code CLI usage only.
+
+execution:
+  command: claude
+  mode: non_interactive_print
+  output_format: json
+  timeout_seconds: 600
+  max_turns: 3
+  use_bare_mode: false
+  no_session_persistence: true
+
+permissions:
+  read_packet_only: true
+  write_files: false
+  run_tests: false
+  run_verification_instruments: false
+  run_tools: false
+  may_request_additional_verification: true
+
+inputs:
+  review_packet_schema: schemas/review-packet.schema.json
+
+outputs:
+  reviewer_report_schema: schemas/reviewer-report.schema.json
+  invocation_metadata_schema: schemas/reviewer-invocation.schema.json
+
+normalization:
+  force_finding_status: candidate-unvalidated
+  require_schema_validation: true
+  preserve_raw_output: true

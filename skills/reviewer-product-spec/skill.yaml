@@ -1,0 +1,41 @@
+name: reviewer-product-spec
+type: skill
+version: 0.1
+kind: review_agent
+mode: read_only
+runs_after:
+- verification_gate
+inputs:
+- specification_brief
+- non_goals
+- architecture_options
+- ADR candidates
+- initial contracts
+- gate report
+outputs:
+- reviewer report
+forbidden_actions:
+- run_tests
+- run_scripts
+- modify_files
+- create_patch
+compatible_workflows:
+- new-project-spec-first
+- research-to-ADR
+finding_lifecycle:
+  initial_status: candidate-unvalidated
+  requires_relevance_validation_by: main_orchestrating_agent
+  allowed_validation_statuses:
+  - accepted-relevant
+  - rejected-irrelevant
+  - needs-more-evidence
+  - duplicate
+  - human-decision-required
+default_permissions:
+  read: true
+  write: false
+  run_tests: false
+  run_verification_instruments: false
+  run_tools: false
+tool_exceptions_allowed: true
+tool_exceptions: []

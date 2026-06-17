@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/reviewer-report.schema.json",
+  "title": "AgentsFlow Reviewer Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["reviewer", "summary", "findings"],
+  "properties": {
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "provider", "role"],
+      "properties": {
+        "id": {"type": "string"},
+        "provider": {"type": "string"},
+        "role": {"type": "string"},
+        "model": {"type": "string"}
+      }
+    },
+    "summary": {"type": "string"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "severity", "title", "evidence", "status"],
+        "properties": {
+          "id": {"type": "string"},
+          "severity": {"enum": ["P0", "P1", "P2", "P3", "NOTE"]},
+          "category": {"type": "string"},
+          "title": {"type": "string"},
+          "evidence": {"type": "array", "items": {"type": "string"}},
+          "why_it_matters": {"type": "string"},
+          "recommendation": {"type": "string"},
+          "status": {"const": "candidate-unvalidated"}
+        }
+      }
+    },
+    "requests_for_additional_verification": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": true}
+    },
+    "self_declared_limitations": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

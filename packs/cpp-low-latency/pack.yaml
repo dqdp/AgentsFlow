@@ -1,0 +1,10 @@
+name: cpp-low-latency
+type: domain-pack
+version: 0.1
+purpose: "Rules for low-latency C++ systems where architecture boundaries and hot-path constraints matter."
+rules:
+  - Hot-path changes require explicit performance/risk notes.
+  - Avoid allocations and locks in hot-path modules unless approved.
+  - Architecture boundaries and ABI constraints must be preserved.
+  - Benchmark claims require evidence.
+

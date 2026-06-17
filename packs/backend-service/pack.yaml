@@ -1,0 +1,10 @@
+name: backend-service
+type: domain-pack
+version: 0.1
+purpose: "Rules for conventional backend/API/service development."
+rules:
+  - Public API changes require contract updates.
+  - Persistence changes require migration notes.
+  - Auth/security behavior requires explicit scenarios.
+  - Integration tests should cover boundary behavior.
+

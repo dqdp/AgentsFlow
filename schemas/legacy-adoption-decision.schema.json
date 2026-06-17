@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Legacy Adoption Decision",
+  "type": "object",
+  "required": [
+    "version",
+    "adoption_mode",
+    "legacy_handling",
+    "human_approval"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "adoption_mode": {
+      "type": "string",
+      "enum": [
+        "full-archive-rebuild",
+        "knowledge-extraction",
+        "minimal-patch-adapt",
+        "shadow-pilot"
+      ]
+    },
+    "reason": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "legacy_handling": {
+      "type": "object"
+    },
+    "legacy_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "classification"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "active",
+              "imported",
+              "archived",
+              "deprecated",
+              "non-authoritative",
+              "needs-human-decision"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "human_approval": {
+      "type": "object"
+    }
+  }
+}

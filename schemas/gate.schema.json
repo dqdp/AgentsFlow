@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/gate.schema.json",
+  "title": "AgentsFlow Gate Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "name",
+    "kind",
+    "purpose",
+    "runner",
+    "inputs",
+    "instruments",
+    "outputs",
+    "result_states",
+    "pass_policy"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_\\-]+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "gate"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string"
+    },
+    "runs_before": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "runs_after": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "may_modify_files": {
+      "type": "boolean"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "instruments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "tests",
+              "deterministic_script",
+              "bdd_runner",
+              "static_analysis",
+              "dynamic_analysis",
+              "debugger",
+              "trace_analysis",
+              "log_analysis",
+              "network_traffic_analysis",
+              "profiler",
+              "fuzzer",
+              "benchmark",
+              "security_scanner",
+              "domain_tool",
+              "manual_evidence_check",
+              "schema_validation",
+              "fusion_protocol_check",
+              "review_protocol_check"
+            ]
+          },
+          "command": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "produces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "bdd_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "scenario",
+          "bound_to"
+        ],
+        "properties": {
+          "scenario": {
+            "type": "string"
+          },
+          "bound_to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "required_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence_schema": {
+      "type": "string"
+    },
+    "result_states": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "pass",
+          "pass_with_notes",
+          "fail",
+          "inconclusive",
+          "needs_human_decision",
+          "blocked"
+        ]
+      }
+    },
+    "pass_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "fail_on",
+        "inconclusive_on"
+      ],
+      "properties": {
+        "required_instruments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fail_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "inconclusive_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needs_human_decision_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "binding_level": {
+      "type": "string",
+      "enum": [
+        "upstream_gate_contract",
+        "project_bound_executable_gate"
+      ]
+    },
+    "requires_project_binding": {
+      "type": "boolean"
+    },
+    "project_binding_required_for_real_run": {
+      "type": "boolean"
+    },
+    "runner_interface": {
+      "type": "string"
+    }
+  }
+}

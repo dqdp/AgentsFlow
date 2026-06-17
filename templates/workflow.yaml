@@ -1,0 +1,135 @@
+name: example-workflow
+version: 0.1
+intent: "Describe the workflow intent."
+
+profiles:
+  strictness: L2
+  review_topology: single-reviewer
+
+uses:
+  skills: []
+  scripts: []
+  templates: []
+  packs: []
+
+actor_model:
+  planning:
+    mode: human_guided
+    coordinator: main-agent
+    reserved_optional_actors:
+      - planning-agent
+  implementation_agent:
+    status: reserved_future_actor
+
+verification:
+  gate_owns_evidence_production: true
+  allowed_instrument_classes:
+    - tests
+    - deterministic_scripts
+    - static_analysis
+    - dynamic_analysis
+    - debuggers
+    - trace_analysis
+    - log_analysis
+    - network_traffic_analysis
+    - profilers
+    - fuzzers
+    - benchmarks
+    - security_scanners
+    - domain_tools
+
+review_agent_permissions:
+  default:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+  explicit_tool_exceptions_allowed: true
+  tool_exception_rule: "Must be declared in workflow, reviewer manifest, or prompt; observations remain candidate findings."
+
+fusion:
+  role: read_only_synthesis
+  may_launch_reviewers: false
+  may_run_gates: false
+  may_request_additional_review: true
+
+review:
+  topology: single-reviewer
+  reviewers:
+    - verification
+  gates:
+    - verification_gate
+    - evidence_gate
+  fusion_required: false
+  blocking_policy:
+    p0_blocks: true
+    p1_blocks: true
+    majority_cannot_override_blocker: true
+
+phases:
+  - id: specification
+    kind: specification
+    purpose: "Create or update the contract/specification."
+    mode: human_guided
+    coordinator: main-agent
+
+  - id: implementation_or_artifact_creation
+    kind: implementation
+    purpose: "Create the diff or artifact under the workflow's scope."
+
+  - id: verification_gate
+    kind: verification
+    purpose: "Run workflow-declared verification instruments and evidence validation."
+    actor_class: verification_gate
+    owns_evidence_production: true
+    instruments:
+      - type: tests
+        command: "<test command>"
+      - type: custom_script
+        command: "<script command>"
+    outputs:
+      - verification gate report
+      - evidence bundle
+
+  - id: review
+    kind: review
+    purpose: "Run read-only review agents after the verification gate."
+    actor_class: review_agent
+    runs_after:
+      - verification_gate
+    default_permissions:
+      read: true
+      write: false
+      run_tests: false
+      run_verification_instruments: false
+      run_tools: false
+    explicit_tool_exceptions_allowed: true
+    outputs:
+      - reviewer reports
+
+  - id: fusion_or_decision
+    kind: fusion
+    purpose: "Synthesize reviewer reports or make final acceptance decision."
+    actor_class: fusion_agent
+    role: read_only_synthesis
+    may_launch_reviewers: false
+    may_run_gates: false
+    may_request_additional_review: true
+    outputs:
+      - fusion report
+
+exit_criteria:
+  - Required gate checks passed or failures are explicitly classified.
+  - Review agents consumed gate evidence rather than running checks themselves unless explicitly tool-enabled.
+  - Fusion did not orchestrate agents/gates by default.
+
+# Gate phases must reference an executable gate manifest.
+# Example:
+# phases:
+#   - id: verification_gate
+#     kind: verification
+#     gate: verification_gate
+#     outputs:
+#       - verification-gate-report.md
+#       - evidence-bundle/

@@ -1,0 +1,118 @@
+# Behavior Binding Model
+
+## Status
+
+Accepted in v0.1.8.
+
+## Purpose
+
+BDD/Gherkin scenarios are the human-readable behavior specification layer.
+They describe what must be true, but they are not executable gates by themselves.
+
+AgentsFlow therefore uses **behavior binding manifests** to connect required
+behavior scenarios to executable checks. The gate runner consumes those bindings
+and reports whether the required scenario checks ran and produced evidence.
+
+## Core rule
+
+```text
+BDD scenario defines expected behavior.
+Behavior binding maps the behavior to executable checks.
+Gate runner executes or validates the checks.
+Evidence report proves what happened.
+```
+
+## Canonical artifact
+
+The canonical machine-readable artifact is:
+
+```text
+*.bindings.yaml
+```
+
+Contracts may include a human-readable verification-binding summary, but YAML
+bindings are the source of truth for automation.
+
+## Required vs specification-only scenarios
+
+Not every scenario must be executable immediately.
+
+```yaml
+required: true
+```
+
+means the scenario is an acceptance requirement and must be bound to one or more
+executable checks.
+
+```yaml
+required: false
+status: specification-only
+```
+
+means the scenario is a useful specification or future coverage candidate, but
+it does not block the current workflow by default.
+
+Workflow profiles may strengthen this rule, for example:
+
+```text
+L3/L4: all P0/P1 acceptance scenarios must have executable bindings.
+```
+
+## Binding shape
+
+```yaml
+version: 1
+contract: task.contract.md
+bindings:
+  - id: AF-BHV-001
+    scenario: "Agent must not modify unrelated files"
+    required: true
+    source:
+      type: contract
+      path: task.contract.md
+      section: Behavioral Scenarios
+    checks:
+      - id: boundary-check
+        type: script
+        command: "python scripts/boundary_check.py --contract task.contract.md --changed-files changed-files.txt"
+        evidence:
+          - boundary-check-report
+    gates:
+      - verification_gate
+```
+
+## Check types
+
+Behavior bindings may point to:
+
+- tests;
+- deterministic scripts;
+- BDD/scenario runners;
+- eval runners;
+- trace assertions;
+- log assertions;
+- static analysis;
+- dynamic analysis;
+- benchmarks;
+- security scanners;
+- manual evidence checks;
+- external tools.
+
+Manual evidence is allowed only if the gate runner can deterministically check
+that the required artifact exists and is referenced in the gate report.
+
+## Gate behavior
+
+A verification gate consuming behavior bindings must check that:
+
+- all required scenarios have at least one binding;
+- each binding has at least one executable check or manual evidence requirement;
+- required bound checks are reported in the evidence bundle;
+- missing required bindings fail or block according to the workflow policy;
+- optional unbound scenarios are reported as warnings, not silently ignored.
+
+## Non-goal
+
+Behavior bindings are not intended to become a heavy test-management system in
+v0.2. The minimal implementation is one template, one schema, one checker, and
+integration with gate reports.

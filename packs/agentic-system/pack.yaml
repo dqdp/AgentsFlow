@@ -1,0 +1,11 @@
+name: agentic-system
+type: domain-pack
+version: 0.1
+purpose: "Rules for systems with agents, tools, memory, context, model routing, policy, and traces."
+rules:
+  - Prompt changes require behavioral scenarios when they affect tool/memory/policy behavior.
+  - Memory writes must be policy-mediated.
+  - Tool calls should be traceable.
+  - Destructive operations require explicit approval.
+  - Model escalation should be observable in evidence or trace.
+

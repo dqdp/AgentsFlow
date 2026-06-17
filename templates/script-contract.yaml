@@ -1,0 +1,14 @@
+name: <script-name>
+type: script
+version: 0.1
+entrypoint: scripts/<script-name>.py
+
+inputs:
+  - <input>
+
+outputs:
+  - <output>
+
+deterministic: true
+ci_compatible: true
+mutates_files: false

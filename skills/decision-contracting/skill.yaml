@@ -1,0 +1,16 @@
+name: decision-contracting
+type: skill
+version: 0.1
+inputs:
+  - workflow_context
+  - accepted_decisions
+  - domain_pack
+  - strictness
+outputs:
+  - structured_artifact
+compatible_workflows:
+  - new-project-spec-first
+  - big-feature-contract-first
+  - agentic-system-hardening
+  - prompt-behavior-eval
+  - safe-refactor

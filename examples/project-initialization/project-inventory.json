@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "project": {
+    "name": {
+      "value": "example-project",
+      "source_type": "model_inferred",
+      "evidence": ["README.md"],
+      "confidence": "medium",
+      "requires_human_confirmation": true
+    },
+    "kind": {
+      "value": "python-library",
+      "source_type": "model_inferred",
+      "evidence": ["pyproject.toml", "src/example.py"],
+      "confidence": "medium",
+      "requires_human_confirmation": true
+    },
+    "primary_languages": ["python"],
+    "build_systems": ["pyproject"],
+    "test_frameworks": ["pytest"],
+    "documentation_roots": ["Docs/"],
+    "adr_roots": ["Docs/adr/"],
+    "source_roots": ["src/"],
+    "test_roots": ["tests/"],
+    "agent_instruction_files": [],
+    "implementation_history_files": ["Docs/adr/ADR-0001.md"]
+  },
+  "domain_identification": {
+    "primary_domain": {
+      "value": "developer tooling or library",
+      "source_type": "model_inferred",
+      "observed_evidence": ["pyproject.toml", "src/example.py", "tests/test_example.py"],
+      "domain_assumptions": ["The project likely exposes reusable Python code rather than a deployed service."],
+      "confidence": "low",
+      "requires_human_confirmation": true
+    },
+    "secondary_domains": [],
+    "unknown_domain_terms": []
+  },
+  "user_domain_expertise": {
+    "known": false,
+    "questions_required": true,
+    "questions": [
+      "What domain is this project in?",
+      "Are you a domain expert for this project?",
+      "Which domain assumptions should be treated as fixed constraints?"
+    ]
+  },
+  "unknowns": ["canonical test command should be confirmed", "project domain should be confirmed by a human"],
+  "human_questions": [
+    "Should big-feature-contract-first be the default workflow?",
+    "What domain should AgentsFlow use when selecting packs/gates/reviewers?"
+  ]
+}

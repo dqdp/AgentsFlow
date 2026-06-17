@@ -1,0 +1,184 @@
+name: project-initialization
+version: 0.1
+intent: Initialize an existing or new project for AgentsFlow usage by creating a validated
+  project overlay from intake, raw scan, structured inventory, expert assessments
+  and human approval.
+category: onboarding
+mvp_status: support-workflow
+entry_criteria:
+- Project repository exists or project root is known.
+- AgentsFlow upstream is available via Git submodule or CMake FetchContent/FetchPackage-style
+  dependency.
+- A project intake/research assignment is provided. Unknown-project discovery uses
+  the standard exploratory assignment, not an empty prompt.
+outputs:
+- .agentsflow/agentsflow.lock.yaml
+- .agentsflow/project.yaml
+- project-intake.yaml
+- project-raw-scan.json
+- project-inventory.json
+- project-assessment.json
+- domain-identification section
+- workflow bindings
+- project-bound gate drafts
+- initialization-report.md
+- legacy-agent-system-inventory.json
+- legacy-adoption-decision.yaml
+- active-instruction-map.yaml
+uses:
+  skills:
+  - project-intake-analysis
+  - project-inventory-structuring
+  - project-onboarding-assessment
+  - project-overlay-drafting
+  - repository-grounding
+  - decision-contracting
+  - legacy-agent-system-discovery
+  - agent-instruction-migration
+  scripts:
+  - project_raw_scan
+  - validate_project_intake
+  - validate_project_inventory
+  - validate_project_binding
+  templates:
+  - agentsflow.lock.yaml
+  - project-intake.yaml
+  - research-assignment.unknown-project.md
+  - project-raw-scan.json
+  - project-inventory.json
+  - project-assessment.json
+  - project.yaml
+  - workflow.binding.yaml
+  - initialization-report.md
+  - legacy-adoption-decision.yaml
+  - legacy-agent-system-inventory.json
+  - agent-instruction-conflicts.md
+  - agent-instruction-migration-plan.md
+  - legacy-backup-manifest.yaml
+  - active-instruction-map.yaml
+  packs: []
+actor_model:
+  planning:
+    mode: human_guided
+    coordinator: main-agent
+    reserved_optional_actors:
+    - planning-agent
+  implementation_agent:
+    status: reserved_future_actor
+  researcher_agents:
+    default_mode: read_only_structured_assessment
+    require_research_assignment: true
+phases:
+- id: read_project_intake
+  kind: intake
+  purpose: Read project-intake / research assignment. Unknown-project discovery uses
+    the standard exploratory assignment and gives the user a chance to provide context.
+  mode: human_guided
+  coordinator: main-agent
+  outputs:
+  - project-intake.yaml
+- id: attach_or_verify_upstream
+  kind: setup
+  purpose: Attach or verify pinned AgentsFlow upstream via Git submodule or CMake
+    FetchContent/FetchPackage-style dependency.
+  outputs:
+  - agentsflow.lock.yaml
+- id: raw_project_scan
+  kind: research
+  purpose: Collect machine-observed raw repository facts without inferring project
+    intent.
+  outputs:
+  - project-raw-scan.json
+- id: documentation_and_history_discovery
+  kind: research
+  purpose: Identify project documentation, ADRs, agent instructions and Markdown implementation
+    history for analysis.
+  outputs:
+  - documentation-history-index.md
+- id: legacy_agent_system_discovery
+  kind: research
+  purpose: Discover existing AGENTS.md files, agent instructions, skills, prompts,
+    workflow docs, process artifacts and Markdown implementation history that may
+    conflict with AgentsFlow.
+  outputs:
+  - legacy-agent-system-inventory.json
+  - agent-instruction-conflicts.md
+- id: legacy_adoption_mode_decision
+  kind: decision
+  purpose: Choose full-archive-rebuild, knowledge-extraction, minimal-patch-adapt
+    or shadow-pilot adoption mode for existing agent/process artifacts.
+  outputs:
+  - legacy-adoption-decision.yaml
+- id: legacy_migration_or_quarantine_plan
+  kind: specification
+  purpose: Draft migration, extraction, patch or quarantine plan and active instruction
+    map.
+  outputs:
+  - agent-instruction-migration-plan.md
+  - legacy-backup-manifest.yaml
+  - active-instruction-map.yaml
+- id: domain_identification
+  kind: research
+  purpose: Identify apparent project domain(s), domain evidence, domain assumptions
+    and user domain-expertise questions.
+  outputs:
+  - domain-identification section in project-inventory.json
+- id: structured_project_inventory
+  kind: specification
+  purpose: Model fills project-inventory.json from raw scan plus selected docs, separating
+    observed facts, inferred judgments, and domain assumptions.
+  outputs:
+  - project-inventory.json
+- id: expert_assessment
+  kind: review
+  purpose: Read-only expert agents produce candidate workflow/gate/risk recommendations.
+  outputs:
+  - project-assessment.json
+- id: overlay_draft
+  kind: specification
+  purpose: Draft .agentsflow project overlay, workflow bindings and project-bound
+    gates.
+  outputs:
+  - project.yaml
+  - workflow bindings
+  - project-bound gate drafts
+- id: project_initialization_gate
+  kind: gate
+  gate: project_initialization_gate
+  purpose: Validate initialization artifacts and overlay structure.
+  outputs:
+  - project-initialization-gate-report.md
+- id: human_approval
+  kind: decision
+  purpose: Human approves, rejects or requests changes to the project overlay.
+  outputs:
+  - initialization-report.md
+exit_criteria:
+- Project intake was recorded and standard exploratory assignment was used when no
+  user direction was provided.
+- Raw scan and structured inventory exist.
+- Documentation and Markdown implementation history were considered when present.
+- Domain identification and user domain-expertise questions were recorded.
+- Project overlay was drafted or explicitly deferred.
+- Human approval state is recorded.
+- Legacy agent/process artifacts were discovered and classified when present.
+- Legacy adoption mode was selected or explicitly deferred.
+- Active instruction map exists or is explicitly deferred for non-existing legacy
+  artifacts.
+review:
+  topology: single-reviewer
+  reviewers:
+  - verification
+  gates:
+  - project_initialization_gate
+  fusion_required: false
+review_cycle:
+  default_exit_when: no_validated_blocking_findings
+  max_review_cycles: 1
+  rerun_review_on:
+  - project_overlay_materially_changed
+  - mandatory_evidence_added
+  - human_requested
+  do_not_rerun_on:
+  - nonblocking_findings_only
+  - irrelevant_findings_rejected_with_reason

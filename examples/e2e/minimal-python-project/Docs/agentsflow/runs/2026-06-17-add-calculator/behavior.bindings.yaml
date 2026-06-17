@@ -1,0 +1,20 @@
+version: 1
+contract: task.contract.md
+bindings:
+  - id: MINICALC-BHV-001
+    scenario: "Add two integers"
+    source:
+      type: contract
+      path: task.contract.md
+      section: Behavioral Scenarios
+    required: true
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-add
+        type: test
+        runner: pytest
+        command: "python -m pytest tests/test_minicalc.py::test_add"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate

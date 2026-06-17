@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/reviewer-invocation.schema.json",
+  "title": "Reviewer Invocation Metadata",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "provider",
+    "reviewer_role",
+    "billing_mode",
+    "api_key_usage_forbidden",
+    "command",
+    "started_at",
+    "finished_at",
+    "exit_code"
+  ],
+  "properties": {
+    "provider": {
+      "type": "string"
+    },
+    "reviewer_role": {
+      "type": "string"
+    },
+    "billing_mode": {
+      "const": "subscription-local"
+    },
+    "api_key_usage_forbidden": {
+      "const": true
+    },
+    "api_key_env_detected": {
+      "type": "boolean"
+    },
+    "command": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "type": "string"
+    },
+    "output_format": {
+      "type": "string"
+    },
+    "max_turns": {
+      "type": "integer"
+    },
+    "timeout_seconds": {
+      "type": "integer"
+    },
+    "input_hash": {
+      "type": "string"
+    },
+    "prompt_hash": {
+      "type": "string"
+    },
+    "schema_hash": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "raw_output_path": {
+      "type": "string"
+    },
+    "normalized_output_path": {
+      "type": "string"
+    }
+  }
+}

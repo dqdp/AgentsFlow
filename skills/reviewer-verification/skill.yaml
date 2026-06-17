@@ -1,0 +1,48 @@
+name: reviewer-verification
+type: skill
+version: 0.1
+purpose: Independently review test adequacy, impact map, evidence quality, and regression
+  coverage.
+inputs:
+- contract
+- impact_map
+- test_results
+- evidence_report
+outputs:
+- verification_review_report
+depends_on: []
+compatible_workflows:
+- big-feature-contract-first
+- safe-refactor
+- review-only-fusion
+quality_bar:
+- Missing tests are concrete.
+- Evidence gaps are actionable.
+anti_patterns:
+- Accepting vague evidence.
+mode: read_only
+actor_class: review_agent
+runs_after:
+- verification_gate
+forbidden_actions:
+- run_tests
+- run_scripts
+- modify_files
+- generate_patch
+finding_lifecycle:
+  initial_status: candidate-unvalidated
+  requires_relevance_validation_by: main_orchestrating_agent
+  allowed_validation_statuses:
+  - accepted-relevant
+  - rejected-irrelevant
+  - needs-more-evidence
+  - duplicate
+  - human-decision-required
+default_permissions:
+  read: true
+  write: false
+  run_tests: false
+  run_verification_instruments: false
+  run_tools: false
+tool_exceptions_allowed: true
+tool_exceptions: []

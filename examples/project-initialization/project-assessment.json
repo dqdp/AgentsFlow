@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "assessment_type": "project-onboarding",
+  "basis": {
+    "intake": "project-intake.yaml",
+    "raw_scan": "project-raw-scan.json",
+    "inventory": "project-inventory.json"
+  },
+  "candidate_findings": [
+    {
+      "id": "AF-INIT-001",
+      "severity": "P2",
+      "finding": "No CI workflow was observed in the raw scan.",
+      "status": "candidate"
+    }
+  ],
+  "domain_assessment": {
+    "domain_assumptions": [
+      "The project appears to be a small Python library/tooling project, but this is low-confidence and needs user confirmation."
+    ],
+    "domain_risks": [
+      "Domain-specific constraints are unknown and should not be inferred from file layout alone."
+    ],
+    "domain_pack_recommendation": null,
+    "requires_human_confirmation": true
+  },
+  "workflow_recommendations": ["big-feature-contract-first", "bugfix-regression-capture"],
+  "gate_recommendations": ["verification_gate should run pytest once confirmed"],
+  "risks": ["Canonical verification command is not yet confirmed", "Domain constraints are not yet confirmed"],
+  "open_questions": ["Which review topology should be default for high-risk changes?", "What domain should be treated as authoritative for this project?"],
+  "requires_human_decisions": ["Confirm canonical test command", "Confirm project domain and user domain expertise"]
+}

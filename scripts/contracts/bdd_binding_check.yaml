@@ -1,0 +1,11 @@
+name: bdd_binding_check
+type: script
+version: 0.1
+entrypoint: scripts/bdd_binding_check.py
+inputs:
+  - behavior binding manifest
+outputs:
+  - pass_fail
+  - validation errors
+deterministic: true
+ci_compatible: true

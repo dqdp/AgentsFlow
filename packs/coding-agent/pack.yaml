@@ -1,0 +1,11 @@
+name: coding-agent
+type: domain-pack
+version: 0.1
+purpose: "Rules for coding-agent workflows such as Codex/Claude/Gemini-style implementation agents."
+rules:
+  - Do not edit unrelated files.
+  - Do not weaken tests to make verification pass.
+  - State commands run and results.
+  - Ground plans in repository evidence.
+  - Preserve accepted ADRs unless user approves changes.
+

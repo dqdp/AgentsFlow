@@ -1,0 +1,4 @@
+name: multi-model-fusion
+requirements:
+  - reviewers should use diverse models or harnesses when available
+  - fusion must surface blocking issues

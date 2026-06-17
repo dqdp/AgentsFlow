@@ -1,0 +1,30 @@
+name: impact-map-builder
+type: skill
+version: 0.1
+purpose: "Map affected modules/paths to required tests, scripts, contracts, and ADRs."
+
+inputs:
+  - contract
+  - changed_paths_or_planned_paths
+  - domain_pack
+
+outputs:
+  - impact_map
+  - required_tests
+  - required_scripts
+  - related_adrs
+
+depends_on:
+  []
+compatible_workflows:
+  - big-feature-contract-first
+  - safe-refactor
+  - bugfix-regression-capture
+
+quality_bar:
+  - Required tests are specific enough for an implementer.
+  - Gaps are visible.
+
+anti_patterns:
+  - Saying “run tests” without specifying which tests.
+

@@ -1,0 +1,12 @@
+name: validate_project_binding
+type: script
+version: 0.1
+entrypoint: scripts/validate_project_binding.py
+inputs:
+  - project overlay path
+  - agentsflow upstream root
+outputs:
+  - pass_fail
+  - validation errors
+deterministic: true
+ci_compatible: true

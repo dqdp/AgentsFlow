@@ -1,0 +1,195 @@
+name: bugfix-regression-capture
+version: 0.1
+intent: Fix a bug by first reproducing it and then turning it into a permanent regression
+  scenario.
+entry_criteria:
+- A bug or failure mode is known.
+outputs:
+- reproduction note
+- regression scenario
+- fix evidence
+uses:
+  skills:
+  - regression-capture
+  - bdd-scenario-design
+  - impact-map-builder
+  - evidence-reporting
+  scripts:
+  - gherkin_lint
+  - impact_map_check
+  - evidence_validate
+  templates:
+  - task.contract.md
+  - impact-map.yaml
+  - evidence-report.md
+  packs:
+  - agentic-system
+  - coding-agent
+  - backend-service
+review:
+  topology: single-reviewer
+  reviewers:
+  - verification
+  gates:
+  - regression_gate
+  - verification_gate
+  - evidence_gate
+  fusion_required: false
+  blocking_policy:
+    p0_blocks: true
+    p1_blocks: true
+    majority_cannot_override_blocker: true
+    missing_evidence: needs-additional-verification
+supported_profiles:
+  strictness:
+  - L1
+  - L2
+  - L3
+  review_topologies:
+  - none
+  - single-reviewer
+phases:
+- name: reproduce
+  purpose: Capture the failure before fixing.
+  skills:
+  - regression-capture
+  scripts: []
+  outputs:
+  - reproduction note
+  id: reproduce
+  kind: specification
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: scenario
+  purpose: Convert failure into scenario.
+  skills:
+  - bdd-scenario-design
+  scripts:
+  - gherkin_lint
+  outputs:
+  - regression scenario
+  id: scenario
+  kind: specification
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: fix
+  purpose: Apply fix and run impact checks.
+  skills:
+  - impact-map-builder
+  scripts:
+  - impact_map_check
+  outputs:
+  - diff and test results
+  id: fix
+- name: evidence
+  purpose: Produce evidence.
+  skills:
+  - evidence-reporting
+  scripts:
+  - evidence_validate
+  outputs:
+  - evidence report
+  id: evidence
+exit_criteria:
+- Required artifacts are produced.
+- Required scripts pass or skipped items are explicitly justified.
+- Evidence is sufficient for the selected strictness profile.
+review_control_rules:
+  review_findings_are_candidate_findings: true
+  main_agent_must_validate_finding_relevance: true
+  unvalidated_findings_are_not_truth: true
+  p0_p1_findings_must_not_be_silently_discarded: true
+  candidate_blockers_must_be_validated: true
+  default_exit_when_no_validated_blocking_findings: true
+  missing_mandatory_evidence_blocks_acceptance: true
+  p0_p1_findings_require_recorded_validation: true
+review_cycle:
+  default_exit_when: no_validated_blocking_findings
+  max_review_cycles: 2
+  rerun_review_on:
+  - accepted_blocker_fixed
+  - mandatory_evidence_added
+  - contract_changed
+  - material_artifact_change
+  - verification_gate_materially_changed
+  - human_requested
+  do_not_rerun_on:
+  - nonblocking_findings_only
+  - duplicate_consolidation
+  - irrelevant_findings_rejected_with_reason
+  - fusion_rewording_only
+  blocking_default:
+    severities:
+    - P0
+    - P1
+    missing_mandatory_evidence_blocks: true
+    majority_cannot_override_candidate_blocker: true
+  validation_required_for:
+  - P0
+  - P1
+  - fusion_candidate_blockers
+  - mandatory_evidence_gaps
+  final_states:
+  - pass
+  - pass-with-notes
+  - needs-changes
+  - needs-verification-evidence
+  - human-decision-required
+  - blocked
+actor_model:
+  planning:
+    mode: human_guided
+    coordinator: main-agent
+    reserved_optional_actors:
+    - planning-agent
+  implementation_agent:
+    status: reserved_future_actor
+verification:
+  gate_owns_evidence_production: true
+  allowed_instrument_classes:
+  - tests
+  - deterministic_scripts
+  - static_analysis
+  - dynamic_analysis
+  - debuggers
+  - trace_analysis
+  - log_analysis
+  - network_traffic_analysis
+  - profilers
+  - fuzzers
+  - benchmarks
+  - security_scanners
+  - domain_tools
+review_agent_permissions:
+  default:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+  explicit_tool_exceptions_allowed: true
+  tool_exception_rule: Must be declared in workflow, reviewer manifest, or prompt;
+    observations remain candidate findings.
+fusion:
+  role: read_only_synthesis
+  may_launch_reviewers: false
+  may_run_gates: false
+  may_request_additional_review: true
+concrete_gates:
+- evidence_gate
+- regression_gate
+- verification_gate
+mvp_status: v0.2-mvp
+binding_model:
+  upstream_workflow_definition: true
+  requires_project_binding_for_execution: true
+  project_binding_artifact: .agentsflow/workflows/bugfix-regression-capture.binding.yaml
+  workflow_run_contains_task_artifacts: true
+behavior_binding_policy:
+  required_acceptance_scenarios_need_bindings: true
+  canonical_artifact: '*.bindings.yaml'
+  specification_only_scenarios_allowed: true

@@ -1,0 +1,7 @@
+name: L1
+label: controlled
+description: Scoped changes with boundaries and evidence.
+requires:
+  - boundaries
+  - targeted_tests
+  - evidence_report

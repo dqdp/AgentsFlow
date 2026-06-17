@@ -1,0 +1,5 @@
+name: adversarial-fusion
+requirements:
+  - primary reviewer
+  - adversarial reviewer
+  - fusion synthesis

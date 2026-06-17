@@ -1,0 +1,16 @@
+name: <impact-map-name>
+version: 0.1
+
+modules:
+  - name: <module>
+    paths:
+      - src/<module>/**
+    required_tests:
+      - tests/<module>/**
+    required_scripts:
+      - contract_lint
+      - boundary_check
+    related_contracts:
+      - Docs/contracts/<contract>.contract.md
+    related_adrs:
+      - Docs/adr/ADR-0001.md

@@ -1,0 +1,32 @@
+name: specification-discovery
+type: skill
+version: 0.1
+purpose: "Develop initial requirements/specification artifacts from problem framing, repository evidence, and constraints."
+
+inputs:
+  - problem_statement
+  - repository_evidence
+  - domain_pack
+  - strictness
+
+outputs:
+  - requirements
+  - assumptions
+  - acceptance_criteria_candidates
+  - open_questions
+  - specification_brief
+
+depends_on:
+  - problem-framing
+compatible_workflows:
+  - new-project-spec-first
+  - research-to-ADR
+
+quality_bar:
+  - Requirements are testable or explicitly marked as exploratory.
+  - Spec does not force premature architecture.
+
+anti_patterns:
+  - Inventing missing requirements.
+  - Conflating assumptions with decisions.
+

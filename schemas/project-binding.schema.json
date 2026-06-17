@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Project Binding",
+  "type": "object",
+  "required": [
+    "name",
+    "agentsflow_version",
+    "paths"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "agentsflow_version": {
+      "type": [
+        "string",
+        "number"
+      ]
+    },
+    "paths": {
+      "type": "object"
+    },
+    "project_rules": {
+      "type": "object"
+    },
+    "verification_defaults": {
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Workflow Manifest",
+  "type": "object",
+  "required": [
+    "name",
+    "version",
+    "intent",
+    "uses",
+    "phases"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number"
+    },
+    "intent": {
+      "type": "string"
+    },
+    "entry_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "uses": {
+      "type": "object"
+    },
+    "supported_profiles": {
+      "type": "object"
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "$ref": "workflow-phase.schema.json"
+      }
+    },
+    "exit_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "review_cycle": {
+      "$ref": "review-cycle.schema.json"
+    },
+    "review_control_rules": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "actor_model": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "review_agent_permissions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "fusion": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "concrete_gates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

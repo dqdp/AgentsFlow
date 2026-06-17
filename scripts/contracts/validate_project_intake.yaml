@@ -1,0 +1,11 @@
+name: validate_project_intake
+type: script
+version: 0.1
+entrypoint: scripts/validate_project_intake.py
+inputs:
+  - project-intake.yaml
+outputs:
+  - pass_fail
+  - validation errors
+deterministic: true
+ci_compatible: true

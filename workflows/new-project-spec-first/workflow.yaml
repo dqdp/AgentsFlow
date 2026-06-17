@@ -1,0 +1,248 @@
+name: new-project-spec-first
+version: 0.1
+intent: Turn a vague project idea into a project brief, architecture options, ADR
+  seeds, and first behavioral contracts before implementation.
+entry_criteria:
+- Project idea exists but implementation should not start yet.
+outputs:
+- specification brief
+- non-goals
+- architecture options
+- ADR candidates
+- initial task contracts
+- implementation roadmap
+uses:
+  skills:
+  - problem-framing
+  - specification-discovery
+  - contract-authoring
+  - bdd-scenario-design
+  - research-to-decision-memo
+  - evidence-reporting
+  - reviewer-product-spec
+  - reviewer-architecture
+  scripts:
+  - contract_lint
+  - gherkin_lint
+  templates:
+  - specification-brief.md
+  - task.contract.md
+  - adr.md
+  - research-brief.md
+  packs:
+  - agentic-system
+  - coding-agent
+  - backend-service
+review:
+  topology: dual-independent
+  reviewers:
+  - product-spec
+  - architecture
+  gates:
+  - problem_framing_gate
+  - scope_gate
+  - adr_candidate_gate
+  - contract_seed_gate
+  fusion_required: false
+  blocking_policy:
+    p0_blocks: true
+    p1_blocks: true
+    majority_cannot_override_blocker: true
+    missing_evidence: needs-additional-verification
+supported_profiles:
+  strictness:
+  - L1
+  - L2
+  - L3
+  - L4
+  review_topologies:
+  - none
+  - single-reviewer
+  - triad-fusion
+  - multi-model-fusion
+phases:
+- name: frame-problem
+  purpose: Clarify problem, users, goals, non-goals.
+  skills:
+  - problem-framing
+  scripts: []
+  outputs:
+  - specification brief draft
+  id: frame_problem
+  kind: planning
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: discover-spec
+  purpose: Extract constraints, assumptions, unknowns, candidate requirements.
+  skills:
+  - specification-discovery
+  scripts: []
+  outputs:
+  - requirements and open questions
+  id: discover_spec
+  kind: planning
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: map-options
+  purpose: Compare architecture/product options before commitment.
+  skills:
+  - research-to-decision-memo
+  scripts: []
+  outputs:
+  - option map and ADR candidates
+  id: map_options
+  kind: planning
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: seed-contracts
+  purpose: Create first behavioral contracts and scenarios.
+  skills:
+  - contract-authoring
+  - bdd-scenario-design
+  scripts:
+  - contract_lint
+  - gherkin_lint
+  outputs:
+  - initial contracts
+  id: seed_contracts
+  kind: specification
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: prepare-roadmap
+  purpose: Produce implementation roadmap and evidence.
+  skills:
+  - evidence-reporting
+  scripts: []
+  outputs:
+  - roadmap and evidence summary
+  id: prepare_roadmap
+  kind: specification
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: spec-review
+  purpose: Run read-only spec review according to the workflow review topology.
+  skills:
+  - reviewer-product-spec
+  - reviewer-architecture
+  scripts: []
+  outputs:
+  - reviewer reports
+  id: spec_review
+  kind: review
+  default_permissions:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+  explicit_tool_exceptions_allowed: true
+exit_criteria:
+- Required artifacts are produced.
+- Required scripts pass or skipped items are explicitly justified.
+- Evidence is sufficient for the selected strictness profile.
+review_control_rules:
+  review_findings_are_candidate_findings: true
+  main_agent_must_validate_finding_relevance: true
+  unvalidated_findings_are_not_truth: true
+  p0_p1_findings_must_not_be_silently_discarded: true
+  candidate_blockers_must_be_validated: true
+  default_exit_when_no_validated_blocking_findings: true
+  missing_mandatory_evidence_blocks_acceptance: true
+  p0_p1_findings_require_recorded_validation: true
+review_cycle:
+  default_exit_when: no_validated_blocking_findings
+  max_review_cycles: 1
+  rerun_review_on:
+  - accepted_blocker_fixed
+  - mandatory_evidence_added
+  - contract_changed
+  - material_artifact_change
+  - verification_gate_materially_changed
+  - human_requested
+  do_not_rerun_on:
+  - nonblocking_findings_only
+  - duplicate_consolidation
+  - irrelevant_findings_rejected_with_reason
+  - fusion_rewording_only
+  blocking_default:
+    severities:
+    - P0
+    - P1
+    missing_mandatory_evidence_blocks: true
+    majority_cannot_override_candidate_blocker: true
+  validation_required_for:
+  - P0
+  - P1
+  - fusion_candidate_blockers
+  - mandatory_evidence_gaps
+  final_states:
+  - pass
+  - pass-with-notes
+  - needs-changes
+  - needs-verification-evidence
+  - human-decision-required
+  - blocked
+actor_model:
+  planning:
+    mode: human_guided
+    coordinator: main-agent
+    reserved_optional_actors:
+    - planning-agent
+  implementation_agent:
+    status: reserved_future_actor
+verification:
+  gate_owns_evidence_production: true
+  allowed_instrument_classes:
+  - tests
+  - deterministic_scripts
+  - static_analysis
+  - dynamic_analysis
+  - debuggers
+  - trace_analysis
+  - log_analysis
+  - network_traffic_analysis
+  - profilers
+  - fuzzers
+  - benchmarks
+  - security_scanners
+  - domain_tools
+review_agent_permissions:
+  default:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+  explicit_tool_exceptions_allowed: true
+  tool_exception_rule: Must be declared in workflow, reviewer manifest, or prompt;
+    observations remain candidate findings.
+fusion:
+  role: read_only_synthesis
+  may_launch_reviewers: false
+  may_run_gates: false
+  may_request_additional_review: true
+concrete_gates:
+- adr_candidate_gate
+- contract_seed_gate
+- problem_framing_gate
+- scope_gate
+mvp_status: v0.2-mvp
+binding_model:
+  upstream_workflow_definition: true
+  requires_project_binding_for_execution: true
+  project_binding_artifact: .agentsflow/workflows/new-project-spec-first.binding.yaml
+  workflow_run_contains_task_artifacts: true
+behavior_binding_policy:
+  required_acceptance_scenarios_need_bindings: true
+  canonical_artifact: '*.bindings.yaml'
+  specification_only_scenarios_allowed: true

@@ -1,0 +1,52 @@
+id: evidence_gate
+name: Evidence Gate
+kind: gate
+purpose: Validate that required evidence artifacts exist and are structurally adequate
+  for the workflow/profile.
+runner: scripts/gates/run_gate.py
+may_modify_files: false
+inputs:
+- evidence-report.md
+- verification-gate-report.json
+- evidence-bundle/
+instruments:
+- id: evidence_validate
+  type: deterministic_script
+  command: python scripts/evidence_validate.py
+  required: true
+- id: manual_evidence_check
+  type: manual_evidence_check
+  required: false
+checks:
+- evidence_validate
+- manual_evidence_check
+bdd_bindings: []
+required_evidence:
+- evidence validation result
+outputs:
+- evidence-gate-report.md
+- evidence-gate-report.json
+result_states:
+- pass
+- pass_with_notes
+- fail
+- inconclusive
+- needs_human_decision
+- blocked
+pass_policy:
+  required_instruments:
+  - evidence_validate
+  fail_on:
+  - missing_required_instrument
+  - nonzero_required_check
+  - missing_required_evidence
+  inconclusive_on:
+  - missing_optional_tool
+  - flaky_result
+  - insufficient_observability
+  needs_human_decision_on:
+  - required_manual_evidence_missing
+binding_level: upstream_gate_contract
+requires_project_binding: true
+runner_interface: deterministic_runner_entrypoint
+project_binding_required_for_real_run: true

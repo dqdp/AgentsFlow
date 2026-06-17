@@ -1,0 +1,31 @@
+version: 1
+adoption_mode: knowledge-extraction # full-archive-rebuild | knowledge-extraction | minimal-patch-adapt | shadow-pilot
+
+reason:
+  - "Existing documentation contains useful knowledge but does not follow AgentsFlow authority/binding structure."
+
+legacy_handling:
+  backup_required: true
+  archive_path: Docs/agentsflow/legacy/2026-06-17-pre-agentsflow-adoption/
+  final_authority_layer_required: true
+  no_ambiguous_coexistence: true
+
+legacy_artifacts:
+  - path: AGENTS.md
+    classification: imported # active | imported | archived | deprecated | non-authoritative | needs-human-decision
+    reason: "Contains useful agent rules but lacks AgentsFlow authority order."
+    target: AGENTS.md
+  - path: old-skills/
+    classification: needs-human-decision
+    reason: "Potentially useful but not yet mapped to AgentsFlow skills/packs."
+
+extracted_knowledge_targets:
+  - .agentsflow/packs/project-pack.md
+  - Docs/adr/
+  - .agentsflow/workflows/*.binding.yaml
+
+human_approval:
+  required: true
+  status: pending
+  approver: null
+  approved_at: null

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Legacy Agent System Inventory",
+  "type": "object",
+  "required": [
+    "version",
+    "legacy_artifacts"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "legacy_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "artifact_type",
+          "classification"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "artifact_type": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "active",
+              "imported",
+              "archived",
+              "deprecated",
+              "non-authoritative",
+              "needs-human-decision"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "conflicts": {
+      "type": "array"
+    },
+    "candidate_imports": {
+      "type": "array"
+    },
+    "unknowns": {
+      "type": "array"
+    }
+  }
+}

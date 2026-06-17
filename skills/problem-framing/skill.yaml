@@ -1,0 +1,33 @@
+name: problem-framing
+type: skill
+version: 0.1
+purpose: "Turn a vague idea into a clear problem statement, goals, non-goals, actors, constraints, and open questions."
+
+inputs:
+  - raw_user_intent
+  - domain_pack
+  - strictness
+
+outputs:
+  - problem_statement
+  - goals
+  - non_goals
+  - actors
+  - constraints
+  - open_questions
+
+depends_on:
+  []
+compatible_workflows:
+  - new-project-spec-first
+  - research-to-ADR
+
+quality_bar:
+  - Problem statement is specific enough to drive architecture options.
+  - Non-goals prevent scope creep.
+  - Open questions are explicit.
+
+anti_patterns:
+  - Jumping directly into implementation.
+  - Treating vague goals as fixed requirements.
+

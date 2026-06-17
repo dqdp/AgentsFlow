@@ -1,0 +1,20 @@
+workflow: big-feature-contract-first
+extends: workflows/big-feature-contract-first/workflow.yaml
+agentsflow_version: 0.2
+binding:
+  project: example-project-overlay
+  docs_root: Docs/
+  runs_root: Docs/agentsflow/runs/
+gates:
+  verification_gate:
+    extends: gates/verification_gate.yaml
+    manifest: .agentsflow/gates/verification_gate.yaml
+    runner: .agentsflow/scripts/run_verification_gate.sh
+behavior_bindings:
+  default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
+review:
+  topology: triad-fusion
+  reviewers:
+    - architecture
+    - verification
+    - adversarial

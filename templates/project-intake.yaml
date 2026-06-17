@@ -1,0 +1,53 @@
+version: 1
+mode: unknown-project-discovery # unknown-project-discovery | directed-onboarding | problem-driven | migration-driven | risk-driven
+
+objective: >
+  Understand this project from repository contents, documentation, process artifacts,
+  implementation history and domain evidence.
+
+standard_assignment:
+  template: templates/research-assignment.unknown-project.md
+  applies_when: mode == unknown-project-discovery
+
+preflight_questions:
+  ask_user: true
+  questions:
+    - What do you want to understand or improve in this project?
+    - Is this your project or an external/unknown project?
+    - Is there a known direction of development, migration, refactor, or process improvement?
+    - Are there known constraints, accepted decisions, risks, or non-goals?
+    - Are there domain-specific concerns that may not be fully documented in the repository?
+
+known_context: {}
+
+known_direction: []
+
+analysis_focus:
+  - codebase structure
+  - tests and verification
+  - build/configuration
+  - project documentation
+  - ADRs and architecture notes
+  - agent instructions
+  - implementation history in Markdown
+  - CI and process artifacts
+  - domain identification and domain-specific constraints
+
+constraints:
+  - Do not modify source files during initialization.
+  - Separate user-provided context, observed facts, inferred judgments, domain assumptions and recommendations.
+  - Include provenance and confidence for inferred fields.
+  - Ask for human confirmation when domain assumptions affect workflow bindings, gates or accepted decisions.
+
+domain_expertise_questions:
+  ask_user: true
+  questions:
+    - What domain is this project in?
+    - Are you a domain expert for this project?
+    - Should your domain knowledge be treated as authoritative for initialization decisions?
+    - Are there domain-specific constraints, regulations, safety concerns, latency requirements, financial risks, privacy requirements, operational rules, or compliance obligations that the repository may not fully document?
+    - Are there domain terms, abbreviations, protocols, exchanges, APIs, devices, business rules, or workflows that the agent must not reinterpret without confirmation?
+    - Should AgentsFlow use an existing domain pack for this project or create a project-specific domain pack?
+    - Are there accepted domain decisions that should be treated as fixed constraints?
+
+questions_for_human: []

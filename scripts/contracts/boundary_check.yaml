@@ -1,0 +1,14 @@
+name: boundary_check
+type: script
+version: 0.1
+description: "Checks changed files against allowed/forbidden path prefixes in a task contract."
+entrypoint: scripts/boundary_check.py
+inputs:
+  - contract_path
+  - changed_files
+outputs:
+  - pass_fail
+  - violations
+deterministic: true
+ci_compatible: true
+mutates_files: false

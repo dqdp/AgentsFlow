@@ -1,0 +1,52 @@
+id: spec_review_gate
+name: Spec Review Gate
+kind: gate
+purpose: Validate spec/review artifact completeness before review-only fusion proceeds.
+runner: scripts/gates/run_gate.py
+may_modify_files: false
+inputs:
+- spec/design/ADR artifact
+- review goal
+- context
+instruments:
+- id: spec_structure_lint
+  type: schema_validation
+  required: true
+- id: evidence_validate
+  type: deterministic_script
+  command: python scripts/evidence_validate.py
+  required: false
+checks:
+- spec_structure_lint
+- evidence_validate
+bdd_bindings: []
+required_evidence:
+- spec structure result
+outputs:
+- spec-review-gate-report.md
+- spec-review-gate-report.json
+result_states:
+- pass
+- pass_with_notes
+- fail
+- inconclusive
+- needs_human_decision
+- blocked
+pass_policy:
+  required_instruments:
+  - spec_structure_lint
+  fail_on:
+  - missing_required_instrument
+  - nonzero_required_check
+  - missing_required_evidence
+  inconclusive_on:
+  - missing_optional_tool
+  - flaky_result
+  - insufficient_observability
+  needs_human_decision_on:
+  - manual_evidence_required
+  - policy_override_required
+binding_level: upstream_gate_contract
+requires_project_binding: true
+runner_interface: deterministic_runner_entrypoint
+project_binding_required_for_real_run: true

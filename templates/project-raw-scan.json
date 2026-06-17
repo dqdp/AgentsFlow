@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "scan_mode": "raw-observed-facts",
+  "repository_root": ".",
+  "observed_files": [],
+  "top_level_entries": [],
+  "candidate_build_files": [],
+  "candidate_ci_files": [],
+  "candidate_docs_roots": [],
+  "candidate_source_roots": [],
+  "candidate_test_roots": [],
+  "candidate_agent_instruction_files": [],
+  "candidate_markdown_history_files": [],
+  "git_status": "unknown",
+  "notes": []
+}

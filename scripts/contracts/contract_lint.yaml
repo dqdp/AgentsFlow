@@ -1,0 +1,13 @@
+name: contract_lint
+type: script
+version: 0.1
+description: "Checks that a Markdown task contract contains required sections."
+entrypoint: scripts/contract_lint.py
+inputs:
+  - contract_path
+outputs:
+  - pass_fail
+  - missing_sections
+deterministic: true
+ci_compatible: true
+mutates_files: false

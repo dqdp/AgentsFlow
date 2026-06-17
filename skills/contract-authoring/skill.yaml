@@ -1,0 +1,34 @@
+name: contract-authoring
+type: skill
+version: 0.1
+purpose: "Create a task/feature contract with intent, fixed decisions, boundaries, scenarios, verification binding, and evidence requirements."
+
+inputs:
+  - intent
+  - specification_brief
+  - domain_pack
+  - strictness
+
+outputs:
+  - task_contract
+  - boundaries
+  - fixed_decisions
+  - verification_binding
+
+depends_on:
+  []
+compatible_workflows:
+  - new-project-spec-first
+  - big-feature-contract-first
+  - agentic-system-hardening
+  - safe-refactor
+
+quality_bar:
+  - Contract is actionable.
+  - Boundaries are explicit.
+  - Evidence requirements are checkable.
+
+anti_patterns:
+  - Writing broad prose without enforceable constraints.
+  - Changing accepted decisions silently.
+

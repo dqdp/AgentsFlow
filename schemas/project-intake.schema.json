@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Project Intake / Research Assignment",
+  "type": "object",
+  "required": ["version", "mode", "objective", "analysis_focus", "constraints"],
+  "properties": {
+    "version": {"type": "integer"},
+    "mode": {
+      "type": "string",
+      "enum": ["unknown-project-discovery", "directed-onboarding", "problem-driven", "migration-driven", "risk-driven"]
+    },
+    "objective": {"type": "string"},
+    "standard_assignment": {"type": "object"},
+    "preflight_questions": {"type": "object"},
+    "known_context": {"type": "object"},
+    "known_direction": {"type": "array", "items": {"type": "string"}},
+    "analysis_focus": {"type": "array", "items": {"type": "string"}},
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "domain_expertise_questions": {"type": "object"},
+    "questions_for_human": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

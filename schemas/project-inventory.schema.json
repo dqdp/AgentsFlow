@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Structured Project Inventory",
+  "type": "object",
+  "required": ["version", "project", "domain_identification", "unknowns", "human_questions"],
+  "properties": {
+    "version": {"type": "integer"},
+    "project": {"type": "object"},
+    "domain_identification": {
+      "type": "object",
+      "description": "Observed and inferred project domain information with evidence and confirmation status."
+    },
+    "user_domain_expertise": {
+      "type": "object",
+      "description": "Whether the user has domain expertise and what domain claims need confirmation."
+    },
+    "unknowns": {"type": "array", "items": {"type": "string"}},
+    "human_questions": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Project Assessment",
+  "type": "object",
+  "required": ["version", "assessment_type", "candidate_findings", "workflow_recommendations", "gate_recommendations", "risks", "open_questions"],
+  "properties": {
+    "version": {"type": "integer"},
+    "assessment_type": {"type": "string"},
+    "basis": {"type": "object"},
+    "candidate_findings": {"type": "array"},
+    "workflow_recommendations": {"type": "array"},
+    "gate_recommendations": {"type": "array"},
+    "risks": {"type": "array"},
+    "open_questions": {"type": "array"},
+    "requires_human_decisions": {"type": "array"}
+  },
+  "additionalProperties": true
+}

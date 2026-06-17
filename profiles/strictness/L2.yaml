@@ -1,0 +1,8 @@
+name: L2
+label: contract
+description: Contract-first work with BDD scenarios and impact map.
+requires:
+  - task_contract
+  - bdd_scenarios
+  - impact_map
+  - evidence_report

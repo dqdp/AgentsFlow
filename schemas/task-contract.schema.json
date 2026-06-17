@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Task Contract Structural Requirements",
+  "type": "object",
+  "description": "v0.1 uses Markdown contracts; this schema documents expected sections rather than parsing Markdown.",
+  "required_sections": [
+    "Intent",
+    "Fixed Decisions",
+    "Boundaries",
+    "Behavioral Scenarios",
+    "Verification Binding",
+    "Evidence Required"
+  ]
+}

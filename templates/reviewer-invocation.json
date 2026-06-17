@@ -1,0 +1,20 @@
+{
+  "provider": "claude-code",
+  "reviewer_role": "architecture",
+  "billing_mode": "subscription-local",
+  "api_key_usage_forbidden": true,
+  "api_key_env_detected": false,
+  "command": "claude -p <prompt>",
+  "permission_mode": "plan",
+  "output_format": "json",
+  "max_turns": 3,
+  "timeout_seconds": 600,
+  "input_hash": "sha256:<review-packet>",
+  "prompt_hash": "sha256:<rendered-prompt>",
+  "schema_hash": "sha256:<reviewer-schema>",
+  "started_at": "<iso8601>",
+  "finished_at": "<iso8601>",
+  "exit_code": 0,
+  "raw_output_path": "reviewer-report.claude-architecture.raw.json",
+  "normalized_output_path": "reviewer-report.claude-architecture.json"
+}

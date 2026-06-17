@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Active Instruction Map",
+  "type": "object",
+  "required": [
+    "version",
+    "active_instruction_sources"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "active_instruction_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "role"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "legacy_non_authoritative": {
+      "type": "array"
+    },
+    "explicitly_imported_legacy_knowledge": {
+      "type": "array"
+    },
+    "needs_human_decision": {
+      "type": "array"
+    }
+  }
+}

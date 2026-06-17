@@ -1,0 +1,13 @@
+name: gherkin_lint
+type: script
+version: 0.1
+description: "Checks basic BDD scenario structure and vague wording."
+entrypoint: scripts/gherkin_lint.py
+inputs:
+  - contract_path
+outputs:
+  - pass_fail
+  - scenario_issues
+deterministic: true
+ci_compatible: true
+mutates_files: false

@@ -1,0 +1,33 @@
+name: evidence-reporting
+type: skill
+version: 0.1
+purpose: "Produce an acceptance proof for a task, implementation, review, or spec workflow."
+
+inputs:
+  - contract
+  - verification_results
+  - changed_files
+  - review_reports
+
+outputs:
+  - evidence_report
+  - known_limitations
+  - follow_up_items
+
+depends_on:
+  []
+compatible_workflows:
+  - new-project-spec-first
+  - big-feature-contract-first
+  - agentic-system-hardening
+  - prompt-behavior-eval
+  - safe-refactor
+  - bugfix-regression-capture
+
+quality_bar:
+  - Evidence is auditable.
+  - Claims are tied to commands, files, or reviews.
+
+anti_patterns:
+  - Saying “all tests pass” without commands/results.
+

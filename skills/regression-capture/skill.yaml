@@ -1,0 +1,29 @@
+name: regression-capture
+type: skill
+version: 0.1
+purpose: "Turn known failures into durable regression scenarios and verification bindings."
+
+inputs:
+  - failure_description
+  - logs_or_trace
+  - domain_pack
+
+outputs:
+  - regression_scenario
+  - reproduction_notes
+  - hidden_regression_candidate
+
+depends_on:
+  []
+compatible_workflows:
+  - agentic-system-hardening
+  - prompt-behavior-eval
+  - bugfix-regression-capture
+
+quality_bar:
+  - Failure can be reproduced or simulated.
+  - Scenario prevents the same class of bug.
+
+anti_patterns:
+  - Fixing without reproducing.
+

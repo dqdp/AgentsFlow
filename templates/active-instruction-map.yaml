@@ -1,0 +1,20 @@
+version: 1
+
+active_instruction_sources:
+  - path: AGENTS.md
+    role: root_agent_entrypoint
+  - path: .agentsflow/project.yaml
+    role: project_agentsflow_overlay
+  - path: .agentsflow/workflows/big-feature-contract-first.binding.yaml
+    role: workflow_binding
+
+legacy_non_authoritative:
+  - path: Docs/agentsflow/legacy/2026-06-17-pre-agentsflow-adoption/AGENTS.md
+    reason: Archived during AgentsFlow adoption.
+
+explicitly_imported_legacy_knowledge:
+  - source: Docs/agentsflow/legacy/2026-06-17-pre-agentsflow-adoption/domain-notes.md
+    imported_as: .agentsflow/packs/project-pack.md
+    status: imported
+
+needs_human_decision: []

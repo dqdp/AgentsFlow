@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "assessment_type": "project-onboarding",
+  "basis": {
+    "intake": "project-intake.yaml",
+    "raw_scan": "project-raw-scan.json",
+    "inventory": "project-inventory.json"
+  },
+  "candidate_findings": [],
+  "domain_assessment": {
+    "domain_assumptions": [],
+    "domain_risks": [],
+    "domain_pack_recommendation": null,
+    "requires_human_confirmation": true
+  },
+  "workflow_recommendations": [],
+  "gate_recommendations": [],
+  "risks": [],
+  "open_questions": [],
+  "requires_human_decisions": []
+}

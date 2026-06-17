@@ -1,0 +1,26 @@
+name: legacy-agent-system-discovery
+type: skill
+version: 0.1
+purpose: Discover and classify existing agent/process artifacts before AgentsFlow
+  adoption.
+inputs:
+- project_intake
+- project_inventory
+- raw_scan
+- legacy_artifacts
+- human_context
+outputs:
+- legacy-agent-system-inventory
+- agent-instruction-conflicts
+- adoption-mode-recommendation
+depends_on:
+- project-intake-analysis
+compatible_workflows:
+- project-initialization
+quality_bar:
+- Separate observed facts, extracted knowledge, model judgments and human decisions.
+- Classify every legacy artifact with an explicit status.
+- Preserve useful knowledge without preserving ambiguous authority.
+anti_patterns:
+- Ignoring existing AGENTS.md/skills/prompts.
+- Leaving legacy instructions ambiguously authoritative.

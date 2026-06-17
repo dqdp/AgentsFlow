@@ -1,0 +1,13 @@
+name: impact_map_check
+type: script
+version: 0.1
+description: "Checks basic impact-map structure."
+entrypoint: scripts/impact_map_check.py
+inputs:
+  - impact_map_path
+outputs:
+  - pass_fail
+  - missing_fields
+deterministic: true
+ci_compatible: true
+mutates_files: false

@@ -1,0 +1,29 @@
+name: adr-consistency-check
+type: skill
+version: 0.1
+purpose: "Check whether a plan, contract, or diff preserves accepted ADR decisions."
+
+inputs:
+  - artifact
+  - relevant_adrs
+  - domain_pack
+
+outputs:
+  - adr_consistency_notes
+  - violations
+  - decision_change_requests
+
+depends_on:
+  []
+compatible_workflows:
+  - big-feature-contract-first
+  - safe-refactor
+  - research-to-ADR
+
+quality_bar:
+  - ADR violations are specific and cited by file/decision.
+  - Unclear cases are marked for human decision.
+
+anti_patterns:
+  - Treating accepted ADRs as suggestions.
+

@@ -1,0 +1,47 @@
+name: reviewer-architecture
+type: skill
+version: 0.1
+purpose: Independently review artifacts for architecture consistency, modularity,
+  scope, and ADR drift.
+inputs:
+- contract
+- diff_or_artifact
+- adrs
+- evidence_report
+outputs:
+- architecture_review_report
+depends_on: []
+compatible_workflows:
+- big-feature-contract-first
+- review-only-fusion
+quality_bar:
+- Review is grounded in contract and ADRs.
+- Blocking issues are explicit.
+anti_patterns:
+- Reviewing by taste without contract reference.
+mode: read_only
+actor_class: review_agent
+runs_after:
+- verification_gate
+forbidden_actions:
+- run_tests
+- run_scripts
+- modify_files
+- generate_patch
+finding_lifecycle:
+  initial_status: candidate-unvalidated
+  requires_relevance_validation_by: main_orchestrating_agent
+  allowed_validation_statuses:
+  - accepted-relevant
+  - rejected-irrelevant
+  - needs-more-evidence
+  - duplicate
+  - human-decision-required
+default_permissions:
+  read: true
+  write: false
+  run_tests: false
+  run_verification_instruments: false
+  run_tools: false
+tool_exceptions_allowed: true
+tool_exceptions: []

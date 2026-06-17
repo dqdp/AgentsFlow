@@ -1,0 +1,10 @@
+name: L4
+label: critical
+description: Adversarial review, hidden regressions, scenario simulations, human decisions.
+requires:
+  - task_contract
+  - full_gate
+  - adversarial_review
+  - hidden_regressions
+  - scenario_simulation
+  - human_decision_points

@@ -1,0 +1,20 @@
+name: <skill-name>
+type: skill
+version: 0.1
+
+inputs:
+  - <input>
+
+outputs:
+  - <output>
+
+depends_on: []
+
+compatible_workflows:
+  - <workflow-name>
+
+quality_bar:
+  - <quality requirement>
+
+anti_patterns:
+  - <anti-pattern>

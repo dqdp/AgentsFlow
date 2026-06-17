@@ -1,0 +1,8 @@
+name: L3
+label: reviewed
+description: Independent review agents and fusion summary.
+requires:
+  - task_contract
+  - full_gate
+  - independent_review
+  - fusion_report

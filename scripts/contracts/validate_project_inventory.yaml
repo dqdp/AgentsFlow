@@ -1,0 +1,11 @@
+name: validate_project_inventory
+type: script
+version: 0.1
+entrypoint: scripts/validate_project_inventory.py
+inputs:
+  - project-inventory.json
+outputs:
+  - pass_fail
+  - validation errors
+deterministic: true
+ci_compatible: true

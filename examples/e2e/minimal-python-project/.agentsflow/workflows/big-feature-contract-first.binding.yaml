@@ -1,0 +1,11 @@
+workflow: big-feature-contract-first
+extends: .agentsflow/upstream/workflows/big-feature-contract-first/workflow.yaml
+project_paths:
+  docs_root: Docs
+  runs_root: Docs/agentsflow/runs
+gates:
+  verification_gate: .agentsflow/gates/verification_gate.yaml
+review:
+  topology: single-reviewer
+  reviewers:
+    - verification

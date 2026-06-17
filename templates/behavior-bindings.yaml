@@ -1,0 +1,20 @@
+version: 1
+contract: task.contract.md
+bindings:
+  - id: AF-BHV-001
+    scenario: "Required behavior scenario name"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: task.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: example-check
+        type: script
+        command: "python scripts/example_check.py"
+        evidence:
+          - example-check-report
+    gates:
+      - verification_gate

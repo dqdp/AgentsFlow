@@ -1,0 +1,31 @@
+name: research-to-decision-memo
+type: skill
+version: 0.1
+purpose: "Convert research into option maps, decision memos, and ADR candidates."
+
+inputs:
+  - research_question
+  - sources
+  - constraints
+  - domain_pack
+
+outputs:
+  - research_brief
+  - option_map
+  - decision_memo
+  - adr_candidates
+
+depends_on:
+  - problem-framing
+compatible_workflows:
+  - new-project-spec-first
+  - research-to-ADR
+
+quality_bar:
+  - Sources/evidence are traceable.
+  - Decision rationale is explicit.
+  - Uncertainty is visible.
+
+anti_patterns:
+  - Treating research as implementation permission without ADR.
+

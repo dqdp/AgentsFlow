@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Skill Manifest",
+  "type": "object",
+  "required": [
+    "name",
+    "type",
+    "version",
+    "inputs",
+    "outputs",
+    "compatible_workflows"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "type": {
+      "const": "skill"
+    },
+    "version": {
+      "type": "number"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "depends_on": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "compatible_workflows": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "quality_bar": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "anti_patterns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

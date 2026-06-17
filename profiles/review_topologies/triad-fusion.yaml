@@ -1,0 +1,6 @@
+name: triad-fusion
+requirements:
+  - architecture reviewer
+  - verification reviewer
+  - adversarial reviewer
+  - fusion synthesis

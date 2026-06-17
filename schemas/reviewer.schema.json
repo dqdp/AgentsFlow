@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/reviewer.schema.json",
+  "title": "Reviewer Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "name",
+    "kind",
+    "role",
+    "mode",
+    "runs_after",
+    "allowed_inputs",
+    "forbidden_actions",
+    "outputs",
+    "severity_taxonomy"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "review_agent"
+    },
+    "role": {
+      "type": "string"
+    },
+    "mode": {
+      "const": "read_only"
+    },
+    "runs_after": {
+      "type": "array",
+      "contains": {
+        "const": "verification_gate"
+      },
+      "items": {
+        "type": "string"
+      }
+    },
+    "focus_area": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowed_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "forbidden_actions": {
+      "type": "array",
+      "contains": {
+        "const": "run_tests"
+      },
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "severity_taxonomy": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "P0",
+          "P1",
+          "P2",
+          "P3",
+          "NOTE"
+        ]
+      }
+    },
+    "independence": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "may_read_peer_reports": {
+          "type": "boolean"
+        },
+        "requires_fresh_report": {
+          "type": "boolean"
+        }
+      }
+    },
+    "finding_lifecycle": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "initial_status": {
+          "const": "candidate-unvalidated"
+        },
+        "requires_relevance_validation_by": {
+          "const": "main_orchestrating_agent"
+        },
+        "allowed_validation_statuses": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "accepted-relevant",
+              "rejected-irrelevant",
+              "needs-more-evidence",
+              "duplicate",
+              "human-decision-required"
+            ]
+          }
+        }
+      }
+    },
+    "tool_exceptions_allowed": {
+      "type": "boolean",
+      "description": "Whether explicit tool exceptions may be granted by workflow/manifest/prompt."
+    },
+    "tool_exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tool",
+          "purpose",
+          "scope"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "write_access": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      }
+    },
+    "default_permissions": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "read": {
+          "type": "boolean"
+        },
+        "write": {
+          "type": "boolean"
+        },
+        "run_tests": {
+          "type": "boolean"
+        },
+        "run_verification_instruments": {
+          "type": "boolean"
+        },
+        "run_tools": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

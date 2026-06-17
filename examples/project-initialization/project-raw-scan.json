@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "scan_mode": "raw-observed-facts",
+  "repository_root": ".",
+  "observed_files": ["README.md", "pyproject.toml", "src/example.py", "tests/test_example.py", "Docs/adr/ADR-0001.md"],
+  "top_level_entries": ["README.md", "Docs/", "src/", "tests/", "pyproject.toml"],
+  "candidate_build_files": ["pyproject.toml"],
+  "candidate_ci_files": [],
+  "candidate_docs_roots": ["Docs/"],
+  "candidate_source_roots": ["src/"],
+  "candidate_test_roots": ["tests/"],
+  "candidate_agent_instruction_files": [],
+  "candidate_markdown_history_files": ["Docs/adr/ADR-0001.md"],
+  "git_status": "clean",
+  "notes": []
+}

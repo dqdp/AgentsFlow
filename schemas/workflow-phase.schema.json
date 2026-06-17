@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Workflow Phase",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "kind",
+    "purpose"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "intake",
+        "planning",
+        "specification",
+        "research",
+        "decision",
+        "gate",
+        "implementation",
+        "verification",
+        "review",
+        "finding_validation",
+        "fusion",
+        "reporting"
+      ]
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "human_guided",
+        "automated",
+        "manual",
+        "external",
+        "hybrid"
+      ]
+    },
+    "coordinator": {
+      "type": "string"
+    },
+    "actor_class": {
+      "type": "string"
+    },
+    "reserved_optional_actors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "runs_after": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "uses": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "scripts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "instruments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "default_permissions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "explicit_tool_exceptions_allowed": {
+      "type": "boolean"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "may_launch_reviewers": {
+      "type": "boolean"
+    },
+    "may_run_gates": {
+      "type": "boolean"
+    },
+    "may_request_additional_review": {
+      "type": "boolean"
+    },
+    "gate": {
+      "type": "string"
+    },
+    "owns_evidence_production": {
+      "type": "boolean"
+    }
+  }
+}

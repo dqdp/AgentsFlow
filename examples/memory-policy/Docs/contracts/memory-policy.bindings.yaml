@@ -1,0 +1,25 @@
+version: 1
+contract: memory-policy.contract.md
+bindings:
+  - id: AF-MEM-001
+    scenario: "Temporary facts are not stored"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: memory-policy.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: contract-lint
+        type: script
+        command: "python scripts/contract_lint.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md"
+        evidence:
+          - contract-lint-output
+      - id: boundary-check
+        type: script
+        command: "python scripts/boundary_check.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md --changed-files examples/memory-policy/changed-files.txt"
+        evidence:
+          - boundary-check-output
+    gates:
+      - verification_gate

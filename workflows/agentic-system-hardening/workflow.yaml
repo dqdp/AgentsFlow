@@ -1,0 +1,212 @@
+name: agentic-system-hardening
+version: 0.1
+intent: 'Harden behavior of agentic systems: prompts, tools, memory, context, policy,
+  traces, and model routing.'
+entry_criteria:
+- Work touches agent runtime behavior or prompt/tool/memory/policy boundaries.
+outputs:
+- behavior contract
+- prompt/tool/memory scenarios
+- trace assertions
+- regression candidates
+- review/fusion report
+uses:
+  skills:
+  - contract-authoring
+  - bdd-scenario-design
+  - prompt-behavior-check
+  - regression-capture
+  - reviewer-adversarial
+  - fusion-synthesis
+  - evidence-reporting
+  scripts:
+  - contract_lint
+  - gherkin_lint
+  - evidence_validate
+  templates:
+  - task.contract.md
+  - evidence-report.md
+  - reviewer-report.md
+  - fusion-report.md
+  packs:
+  - agentic-system
+  - coding-agent
+  - backend-service
+supported_profiles:
+  strictness:
+  - L2
+  - L3
+  - L4
+  review_topologies:
+  - triad-fusion
+  - adversarial-fusion
+  - multi-model-fusion
+phases:
+- name: behavior-contract
+  purpose: Define expected and forbidden agent behavior.
+  skills:
+  - contract-authoring
+  - bdd-scenario-design
+  scripts:
+  - contract_lint
+  - gherkin_lint
+  outputs:
+  - behavior contract
+  id: behavior_contract
+  kind: specification
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: prompt-policy-check
+  purpose: Check prompts, tools, memory, policy, context.
+  skills:
+  - prompt-behavior-check
+  scripts: []
+  outputs:
+  - risk notes
+  id: prompt_policy_check
+  kind: specification
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: regression-candidates
+  purpose: Capture known and likely failure modes.
+  skills:
+  - regression-capture
+  scripts: []
+  outputs:
+  - regression candidate list
+  id: regression_candidates
+  kind: specification
+  mode: human_guided
+  coordinator: main-agent
+  reserved_optional_actors:
+  - planning-agent
+- name: review-fusion
+  purpose: Run adversarial/fusion review.
+  skills:
+  - reviewer-adversarial
+  - fusion-synthesis
+  scripts: []
+  outputs:
+  - fusion report
+  id: review_fusion
+  kind: review
+  default_permissions:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+  explicit_tool_exceptions_allowed: true
+- name: evidence
+  purpose: Produce acceptance proof.
+  skills:
+  - evidence-reporting
+  scripts:
+  - evidence_validate
+  outputs:
+  - evidence report
+  id: evidence
+exit_criteria:
+- Required artifacts are produced.
+- Required scripts pass or skipped items are explicitly justified.
+- Evidence is sufficient for the selected strictness profile.
+review_control_rules:
+  review_agents_read_only: true
+  review_agents_run_after: verification_gate
+  review_agents_may_run_tests: false
+  review_agents_may_modify_files: false
+  review_findings_are_candidate_findings: true
+  main_agent_must_validate_finding_relevance: true
+  unvalidated_findings_are_not_truth: true
+  p0_p1_findings_must_not_be_silently_discarded: true
+  missing_verification_is_reported_as_finding: true
+  candidate_blockers_must_be_validated: true
+  default_exit_when_no_validated_blocking_findings: true
+  missing_mandatory_evidence_blocks_acceptance: true
+  p0_p1_findings_require_recorded_validation: true
+review_cycle:
+  default_exit_when: no_validated_blocking_findings
+  max_review_cycles: 2
+  rerun_review_on:
+  - accepted_blocker_fixed
+  - mandatory_evidence_added
+  - contract_changed
+  - material_artifact_change
+  - verification_gate_materially_changed
+  - human_requested
+  do_not_rerun_on:
+  - nonblocking_findings_only
+  - duplicate_consolidation
+  - irrelevant_findings_rejected_with_reason
+  - fusion_rewording_only
+  blocking_default:
+    severities:
+    - P0
+    - P1
+    missing_mandatory_evidence_blocks: true
+    majority_cannot_override_candidate_blocker: true
+  validation_required_for:
+  - P0
+  - P1
+  - fusion_candidate_blockers
+  - mandatory_evidence_gaps
+  final_states:
+  - pass
+  - pass-with-notes
+  - needs-changes
+  - needs-verification-evidence
+  - human-decision-required
+  - blocked
+actor_model:
+  planning:
+    mode: human_guided
+    coordinator: main-agent
+    reserved_optional_actors:
+    - planning-agent
+  implementation_agent:
+    status: reserved_future_actor
+verification:
+  gate_owns_evidence_production: true
+  allowed_instrument_classes:
+  - tests
+  - deterministic_scripts
+  - static_analysis
+  - dynamic_analysis
+  - debuggers
+  - trace_analysis
+  - log_analysis
+  - network_traffic_analysis
+  - profilers
+  - fuzzers
+  - benchmarks
+  - security_scanners
+  - domain_tools
+review_agent_permissions:
+  default:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+  explicit_tool_exceptions_allowed: true
+  tool_exception_rule: Must be declared in workflow, reviewer manifest, or prompt;
+    observations remain candidate findings.
+fusion:
+  role: read_only_synthesis
+  may_launch_reviewers: false
+  may_run_gates: false
+  may_request_additional_review: true
+mvp_status: post-v0.2-reference
+binding_model:
+  upstream_workflow_definition: true
+  requires_project_binding_for_execution: true
+  project_binding_artifact: .agentsflow/workflows/agentic-system-hardening.binding.yaml
+  workflow_run_contains_task_artifacts: true
+behavior_binding_policy:
+  required_acceptance_scenarios_need_bindings: true
+  canonical_artifact: '*.bindings.yaml'
+  specification_only_scenarios_allowed: true

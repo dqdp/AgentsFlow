@@ -1,0 +1,46 @@
+id: problem_framing_gate
+name: Problem Framing Gate
+kind: gate
+purpose: Validate that the problem frame contains goals, non-goals, constraints, unknowns
+  and acceptance intent.
+runner: scripts/gates/run_gate.py
+may_modify_files: false
+inputs:
+- problem-frame.md
+instruments:
+- id: problem_frame_lint
+  type: schema_validation
+  required: true
+checks:
+- problem_frame_lint
+bdd_bindings: []
+required_evidence:
+- problem frame completeness
+outputs:
+- problem-framing-gate-report.md
+- problem-framing-gate-report.json
+result_states:
+- pass
+- pass_with_notes
+- fail
+- inconclusive
+- needs_human_decision
+- blocked
+pass_policy:
+  required_instruments:
+  - problem_frame_lint
+  fail_on:
+  - missing_required_instrument
+  - nonzero_required_check
+  - missing_required_evidence
+  inconclusive_on:
+  - missing_optional_tool
+  - flaky_result
+  - insufficient_observability
+  needs_human_decision_on:
+  - manual_evidence_required
+  - policy_override_required
+binding_level: upstream_gate_contract
+requires_project_binding: true
+runner_interface: deterministic_runner_entrypoint
+project_binding_required_for_real_run: true

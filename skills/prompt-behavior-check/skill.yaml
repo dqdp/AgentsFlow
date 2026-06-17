@@ -1,0 +1,29 @@
+name: prompt-behavior-check
+type: skill
+version: 0.1
+purpose: "Evaluate prompt/skill/instruction changes for ambiguity, policy bypass, model-specific regressions, and forbidden behavior."
+
+inputs:
+  - prompt_or_skill_diff
+  - behavioral_scenarios
+  - domain_pack
+  - strictness
+
+outputs:
+  - prompt_risk_notes
+  - scenario_assessment
+  - regression_candidates
+
+depends_on:
+  - bdd-scenario-design
+compatible_workflows:
+  - agentic-system-hardening
+  - prompt-behavior-eval
+
+quality_bar:
+  - Risks are behavior-specific.
+  - Recommendations are testable.
+
+anti_patterns:
+  - Judging prompt style without behavioral evidence.
+

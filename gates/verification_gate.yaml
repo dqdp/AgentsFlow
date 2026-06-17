@@ -1,0 +1,87 @@
+id: verification_gate
+name: Verification Gate
+kind: gate
+purpose: Run workflow-defined verification instruments and produce structured evidence.
+runner: scripts/gates/run_gate.py
+may_modify_files: false
+inputs:
+- task contract
+- workflow config
+- git diff
+- impact map
+- BDD scenario bindings
+instruments:
+- id: required_tests
+  type: tests
+  command: workflow/profile defined
+  required: true
+- id: boundary_check
+  type: deterministic_script
+  command: python scripts/boundary_check.py
+  required: true
+- id: impact_map_check
+  type: deterministic_script
+  command: python scripts/impact_map_check.py
+  required: true
+- id: evidence_validate
+  type: deterministic_script
+  command: python scripts/evidence_validate.py
+  required: true
+- id: optional_static_analysis
+  type: static_analysis
+  command: workflow/profile defined
+  required: false
+- id: optional_dynamic_analysis
+  type: dynamic_analysis
+  command: workflow/profile defined
+  required: false
+- id: optional_domain_tools
+  type: domain_tool
+  command: workflow/profile defined
+  required: false
+checks:
+- required_tests
+- boundary_check
+- impact_map_check
+- evidence_validate
+- optional_static_analysis
+- optional_dynamic_analysis
+- optional_domain_tools
+bdd_bindings: []
+required_evidence:
+- test results
+- boundary result
+- impact result
+- evidence bundle
+outputs:
+- verification-gate-report.md
+- verification-gate-report.json
+- evidence-bundle/
+result_states:
+- pass
+- pass_with_notes
+- fail
+- inconclusive
+- needs_human_decision
+- blocked
+pass_policy:
+  required_instruments:
+  - required_tests
+  - boundary_check
+  - impact_map_check
+  - evidence_validate
+  fail_on:
+  - missing_required_instrument
+  - nonzero_required_check
+  - missing_required_evidence
+  inconclusive_on:
+  - missing_optional_tool
+  - flaky_result
+  - insufficient_observability
+  needs_human_decision_on:
+  - manual_evidence_required
+  - policy_override_required
+binding_level: upstream_gate_contract
+requires_project_binding: true
+runner_interface: deterministic_runner_entrypoint
+project_binding_required_for_real_run: true

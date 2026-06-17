@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/external-review-provider.schema.json",
+  "title": "External Reviewer Provider",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "provider",
+    "kind",
+    "version",
+    "billing",
+    "execution",
+    "permissions",
+    "inputs",
+    "outputs"
+  ],
+  "properties": {
+    "provider": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "external_reviewer_provider"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "billing": {
+      "type": "object",
+      "required": [
+        "expected_mode",
+        "forbid_api_key_usage",
+        "fail_if_env_present"
+      ],
+      "properties": {
+        "expected_mode": {
+          "const": "subscription-local"
+        },
+        "forbid_api_key_usage": {
+          "const": true
+        },
+        "fail_if_env_present": {
+          "type": "array",
+          "contains": {
+            "const": "ANTHROPIC_API_KEY"
+          },
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "permissions": {
+      "type": "object",
+      "required": [
+        "write_files",
+        "run_tests",
+        "run_verification_instruments"
+      ],
+      "properties": {
+        "write_files": {
+          "const": false
+        },
+        "run_tests": {
+          "const": false
+        },
+        "run_verification_instruments": {
+          "const": false
+        },
+        "run_tools": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Project Raw Scan",
+  "type": "object",
+  "required": ["version", "scan_mode", "repository_root"],
+  "properties": {
+    "version": {"type": "integer"},
+    "scan_mode": {"type": "string"},
+    "repository_root": {"type": "string"},
+    "observed_files": {"type": "array"},
+    "top_level_entries": {"type": "array"},
+    "candidate_build_files": {"type": "array"},
+    "candidate_ci_files": {"type": "array"},
+    "candidate_docs_roots": {"type": "array"},
+    "candidate_source_roots": {"type": "array"},
+    "candidate_test_roots": {"type": "array"},
+    "candidate_agent_instruction_files": {"type": "array"},
+    "candidate_markdown_history_files": {"type": "array"},
+    "git_status": {"type": "string"},
+    "notes": {"type": "array"}
+  },
+  "additionalProperties": true
+}

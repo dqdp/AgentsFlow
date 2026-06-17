@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/review-cycle.schema.json",
+  "title": "Review Cycle Policy",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "default_exit_when": {
+      "enum": [
+        "no_validated_blocking_findings",
+        "workflow_defined",
+        "human_decision"
+      ]
+    },
+    "max_review_cycles": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rerun_review_on": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "accepted_blocker_fixed",
+          "mandatory_evidence_added",
+          "contract_changed",
+          "material_artifact_change",
+          "verification_gate_materially_changed",
+          "human_requested",
+          "workflow_requires_second_pass"
+        ]
+      }
+    },
+    "do_not_rerun_on": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "nonblocking_findings_only",
+          "duplicate_consolidation",
+          "irrelevant_findings_rejected_with_reason",
+          "fusion_rewording_only",
+          "report_editorial_changes_only"
+        ]
+      }
+    },
+    "blocking_default": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "severities": {
+          "type": "array",
+          "items": {
+            "enum": ["P0", "P1", "P2", "P3", "NOTE"]
+          }
+        },
+        "missing_mandatory_evidence_blocks": {
+          "type": "boolean"
+        },
+        "majority_cannot_override_candidate_blocker": {
+          "type": "boolean"
+        }
+      }
+    },
+    "validation_required_for": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "P0",
+          "P1",
+          "fusion_candidate_blockers",
+          "mandatory_evidence_gaps",
+          "human_decision_items"
+        ]
+      }
+    },
+    "final_states": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "pass",
+          "pass-with-notes",
+          "needs-changes",
+          "needs-verification-evidence",
+          "human-decision-required",
+          "blocked"
+        ]
+      }
+    }
+  }
+}
