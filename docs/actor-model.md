@@ -48,6 +48,18 @@ Examples of verification instruments:
 
 The gate produces evidence. It does not perform taste-based review.
 
+### Evidence Probe Agent
+
+An evidence probe agent is a limited fresh-context actor used only for a narrow
+`needs-more-evidence` objective. It is not a reviewer and not a control reviewer.
+It may read referenced artifacts and run explicitly project-bound verification
+instruments needed for the probe objective, but it must not modify files, update
+contracts, create patches, or decide whether a finding is accepted or rejected.
+
+The probe records facts in `evidence-probe-report.json`. Gate or runner outputs
+remain the source of pass/fail semantics; the probe report is evidence input for
+the main/orchestrating agent's relevance validation.
+
 ### Review Agent
 
 Review agents are read-only by default and run after the relevant evidence exists.
@@ -113,6 +125,7 @@ agents.
 | Planning agent | yes | yes | no | no by default | no | no | no |
 | Implementation agent | yes | yes | yes, future/explicit | future/explicit | no | no | no |
 | Verification gate | yes | gate report only | no | yes | no | no | gate result only |
+| Evidence probe agent | yes | evidence probe report only | no | project-bound only | no | no | no |
 | Review agent | yes | reviewer report only | no | no by default | yes | no | no |
 | Fusion agent | yes | fusion report only | no | no | no | yes | no |
 | Script/tool runner | limited | machine output | no | yes | no | no | no |
@@ -124,6 +137,8 @@ agents.
 Planning is currently human-guided, not delegated-agent default.
 Planning Agent and Implementation Agent are reserved roles.
 Verification Gate owns evidence production.
+Evidence Probe Agent may collect missing facts through project-bound instruments,
+but it does not decide findings or acceptance.
 Review agents are read-only by default.
 Review-agent tool use is explicit, scoped, and exceptional.
 Review-agent findings remain candidate findings until validated.

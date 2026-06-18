@@ -260,6 +260,18 @@ def test_project_operating_decisions_schema_passes() -> None:
         data = yaml.safe_load((ROOT / rel).read_text(encoding="utf-8"))
         validator.validate(data)
 
+    invalid_cycles = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    invalid_cycles["review_cycle_policy"]["max_review_cycles"] = 1
+    assert list(validator.iter_errors(invalid_cycles))
+
+    invalid_context = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    invalid_context["review_cycle_policy"]["control_review_context_policy"]["allowed_context_sources"].append("full_repo")
+    assert list(validator.iter_errors(invalid_context))
+
+    missing_context_sources = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    missing_context_sources["review_cycle_policy"]["control_review_context_policy"].pop("allowed_context_sources")
+    assert list(validator.iter_errors(missing_context_sources))
+
 
 def test_human_interaction_artifact_schemas_pass() -> None:
     import json
@@ -306,6 +318,120 @@ def test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone() 
     packet["review_profile"] = "homogeneous-plus-focused"
     packet["composition"] = "homogeneous-plus-focused"
     jsonschema.Draft202012Validator(schema).validate(packet)
+
+
+def test_collision_control_review_packet_requires_non_null_batch() -> None:
+    import copy
+    import json
+
+    import jsonschema
+
+    schema = json.loads((ROOT / "schemas/review-packet.schema.json").read_text(encoding="utf-8"))
+    packet = json.loads((ROOT / "templates/review-packet.json").read_text(encoding="utf-8"))
+    packet["review_profile"] = "collision-control"
+    packet["composition"] = "control"
+    packet["collision_control"] = None
+
+    errors = list(jsonschema.Draft202012Validator(schema).iter_errors(packet))
+    assert errors
+    assert "not of type 'object'" in "\n".join(error.message for error in errors)
+
+    valid = copy.deepcopy(packet)
+    valid["collision_control"] = {
+        "trigger": "rejected_or_downgraded_blocker_collision",
+        "collision_batch_id": "collision-001",
+        "control_reviewer_count": 2,
+        "disputed_findings": [
+            {
+                "finding_id": "F-001",
+                "original_severity": "P1",
+                "source_reviewer_report": "reviewer-report.generalist-a.md",
+                "orchestrator_action": "rejected",
+            }
+        ],
+        "orchestrator_collision_reason": "Contradicted by contract evidence.",
+        "evidence_references_checked": ["task.contract.md"],
+    }
+    jsonschema.Draft202012Validator(schema).validate(valid)
+
+    empty_batch = copy.deepcopy(valid)
+    empty_batch["collision_control"]["collision_batch_id"] = ""
+    empty_batch["collision_control"]["disputed_findings"][0]["finding_id"] = ""
+    empty_batch["collision_control"]["disputed_findings"][0]["source_reviewer_report"] = ""
+    empty_batch["collision_control"]["orchestrator_collision_reason"] = ""
+    empty_batch["collision_control"]["evidence_references_checked"] = [""]
+    assert list(jsonschema.Draft202012Validator(schema).iter_errors(empty_batch))
+
+
+def test_collision_control_prompt_contract_requires_non_null_batch() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads((ROOT / "schemas/review-prompt-contract.schema.json").read_text(encoding="utf-8"))
+    contract = yaml.safe_load((ROOT / "templates/review-prompt-contract.yaml").read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["identity"]["review_profile"] = "collision-control"
+    broken["identity"]["composition"] = "control"
+    broken["identity"]["primary_gate"] = False
+    broken["collision_control"] = None
+
+    errors = list(jsonschema.Draft202012Validator(schema).iter_errors(broken))
+    assert errors
+    assert "not of type 'object'" in "\n".join(error.message for error in errors)
+
+
+def test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources() -> None:
+    import copy
+    import json
+    import sys
+
+    import jsonschema
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    schema = json.loads((ROOT / "schemas/evidence-probe-report.schema.json").read_text(encoding="utf-8"))
+    report = json.loads((ROOT / "templates/evidence-probe-report.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    validator.validate(report)
+
+    root_decision = copy.deepcopy(report)
+    root_decision["finding_decision"] = "accepted"
+    assert list(validator.iter_errors(root_decision))
+
+    nested_decision = copy.deepcopy(report)
+    nested_decision["evidence_collected"][0]["finding_decision"] = "accepted"
+    assert list(validator.iter_errors(nested_decision))
+
+    missing_context_sources = copy.deepcopy(report)
+    missing_context_sources["context_policy"].pop("allowed_context_sources")
+    assert list(validator.iter_errors(missing_context_sources))
+
+    human_source = copy.deepcopy(report)
+    human_source["allowed_instruments"][0]["source"] = "human_decision"
+    assert list(validator.iter_errors(human_source))
+
+    empty_allowed_id = copy.deepcopy(report)
+    empty_allowed_id["allowed_instruments"][0]["id"] = ""
+    assert list(validator.iter_errors(empty_allowed_id))
+
+    empty_command_id = copy.deepcopy(report)
+    empty_command_id["commands_run"][0]["instrument_id"] = ""
+    assert list(validator.iter_errors(empty_command_id))
+
+    undeclared_command = copy.deepcopy(report)
+    undeclared_command["commands_run"][0]["instrument_id"] = "not-declared"
+    temp_report = ROOT / ".pytest_cache/evidence-probe-report.invalid.json"
+    temp_report.write_text(json.dumps(undeclared_command), encoding="utf-8")
+    try:
+        errors = validate_repo.validate_evidence_probe_report_artifact(ROOT, temp_report)
+    finally:
+        temp_report.unlink(missing_ok=True)
+    assert errors
+    assert "not declared in allowed_instruments" in "\n".join(errors)
 
 
 def test_review_prompt_contract_rejects_missing_shared_hash() -> None:
@@ -473,6 +599,57 @@ def test_mvp_review_phase_requires_top_level_review_policy() -> None:
     )
     assert errors
     assert "top-level review policy" in errors[0]
+
+
+def test_upstream_review_cycle_rejects_hardcoded_max_cycles() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken["review_cycle"]["max_review_cycles"] = 2
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken)
+    assert errors
+    assert "must not hardcode max_review_cycles" in "\n".join(errors)
+
+
+def test_workflow_binding_rejects_too_low_max_review_cycles(tmp_path) -> None:
+    import shutil
+    import yaml
+
+    project = tmp_path / "project"
+    shutil.copytree(ROOT / "examples/project-overlay/.agentsflow", project / ".agentsflow")
+    binding_path = project / ".agentsflow/workflows/big-feature-contract-first.binding.yaml"
+    binding = yaml.safe_load(binding_path.read_text(encoding="utf-8"))
+    binding["review_cycle"]["max_review_cycles"] = 1
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "max_review_cycles" in (result.stdout + result.stderr)
+
+
+def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:
+    import json
+    import shutil
+
+    root = tmp_path / "repo"
+    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    report = json.loads((root / "templates/evidence-probe-report.json").read_text(encoding="utf-8"))
+    report["commands_run"][0]["instrument_id"] = "not-declared"
+    (run_dir / "evidence-probe-report.invalid.json").write_text(json.dumps(report), encoding="utf-8")
+
+    result = run("scripts/validate_repo.py", "--root", str(root))
+    assert result.returncode != 0
+    assert "not declared in allowed_instruments" in (result.stdout + result.stderr)
 
 
 def test_mvp_review_phase_requires_required_gate_order() -> None:

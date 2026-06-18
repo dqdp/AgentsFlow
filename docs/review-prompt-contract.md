@@ -74,14 +74,17 @@ A contract records:
 ### `collision-control`
 
 - Not valid as a primary gate.
-- Exactly one reviewer.
-- Requires a recorded rejected-blocker collision:
-  - disputed finding id;
-  - original severity `P0` or `P1`;
-  - source reviewer report;
-  - orchestrator rejection or downgrade reason;
+- Exactly two control reviewers for each collision batch.
+- Requires a recorded rejected/downgraded blocker collision batch:
+  - collision batch id;
+  - one or more disputed findings;
+  - original severity `P0` or `P1` for each finding;
+  - source reviewer report for each finding;
+  - orchestrator collision reason covering the rejection or downgrade;
   - evidence references checked.
-- The control reviewer output is still candidate/unvalidated.
+- The same batch may contain multiple disputed findings from the same review
+  cycle; it must not launch reviewers per finding.
+- Control reviewer outputs are still candidate/unvalidated.
 
 ## Non-Negotiable Prompt Text
 

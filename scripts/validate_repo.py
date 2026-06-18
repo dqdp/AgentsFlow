@@ -372,6 +372,29 @@ def validate_review_manifest_collection(root: Path) -> list[str]:
             errors.append(f"{profile_path}: heterogeneous review profile max_reviewers must be <= 8")
         if data.get("primary_gate") is True and int(data.get("min_reviewers", 0)) < 2:
             errors.append(f"{profile_path}: primary review profile must require at least two reviewers")
+        if data.get("name") == "collision-control":
+            if data.get("primary_gate") is not False:
+                errors.append(f"{profile_path}: collision-control must not be a primary gate")
+            if data.get("min_reviewers") != 2 or data.get("max_reviewers") != 2:
+                errors.append(f"{profile_path}: collision-control must require exactly two reviewers")
+            if data.get("trigger") != "rejected_or_downgraded_blocker_collision":
+                errors.append(f"{profile_path}: collision-control trigger must be rejected_or_downgraded_blocker_collision")
+    return errors
+
+
+def validate_upstream_review_cycle_policy(path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    review_cycle = data.get("review_cycle")
+    if not isinstance(review_cycle, dict):
+        return errors
+    if "max_review_cycles" in review_cycle:
+        errors.append(f"{path}: upstream workflow review_cycle must not hardcode max_review_cycles")
+    if review_cycle.get("max_review_cycles_required") is not True:
+        errors.append(f"{path}: review_cycle.max_review_cycles_required must be true")
+    if review_cycle.get("max_review_cycles_source") != "project_policy_or_workflow_binding":
+        errors.append(
+            f"{path}: review_cycle.max_review_cycles_source must be project_policy_or_workflow_binding"
+        )
     return errors
 
 
@@ -492,21 +515,23 @@ def validate_review_prompt_contract_invariants(
             if isinstance(reviewer, dict) and not reviewer.get("focus_zone"):
                 errors.append(f"{path}: heterogeneous reviewer {reviewer.get('instance_id')} must have focus_zone")
     elif profile == "collision-control":
-        if primary_gate is not False or len(reviewers) != 1:
-            errors.append(f"{path}: collision-control must be non-primary and use exactly one reviewer")
+        if primary_gate is not False or len(reviewers) != 2:
+            errors.append(f"{path}: collision-control must be non-primary and use exactly two reviewers")
         collision = data.get("collision_control")
-        if not isinstance(collision, dict) or collision.get("trigger") != "rejected_blocker_finding_collision":
-            errors.append(f"{path}: collision-control requires rejected-blocker collision context")
+        if not isinstance(collision, dict) or collision.get("trigger") != "rejected_or_downgraded_blocker_collision":
+            errors.append(f"{path}: collision-control requires rejected/downgraded blocker collision context")
         else:
             for key in [
-                "disputed_finding_id",
-                "original_severity",
-                "source_reviewer_report",
-                "orchestrator_rejection_reason",
+                "collision_batch_id",
+                "control_reviewer_count",
+                "disputed_findings",
+                "orchestrator_collision_reason",
                 "evidence_references_checked",
             ]:
                 if not collision.get(key):
                     errors.append(f"{path}: collision-control missing {key}")
+            if collision.get("control_reviewer_count") != 2:
+                errors.append(f"{path}: collision-control control_reviewer_count must be 2")
     if data.get("artifact_scope", "run") == "run":
         for prompt in prompts:
             if not isinstance(prompt, dict):
@@ -793,6 +818,31 @@ def validate_reviewer_invocation_artifact(root: Path, path: Path) -> list[str]:
     if not isinstance(data, dict):
         return [f"{path}: reviewer invocation must be a JSON object"]
     return validate_against_schema(path, data, schema)
+
+
+def validate_evidence_probe_report_artifact(root: Path, path: Path) -> list[str]:
+    errors: list[str] = []
+    schema = parse_json(root / "schemas" / "evidence-probe-report.schema.json")
+    data = parse_json(path)
+    if not isinstance(data, dict):
+        return [f"{path}: evidence probe report must be a JSON object"]
+    errors.extend(validate_against_schema(path, data, schema))
+    allowed_ids = {
+        str(item.get("id"))
+        for item in data.get("allowed_instruments", []) or []
+        if isinstance(item, dict) and item.get("id")
+    }
+    for idx, command in enumerate(data.get("commands_run", []) or []):
+        if not isinstance(command, dict):
+            continue
+        instrument_id = str(command.get("instrument_id", ""))
+        if not instrument_id:
+            errors.append(f"{path}: commands_run[{idx}].instrument_id is required")
+        elif instrument_id not in allowed_ids:
+            errors.append(
+                f"{path}: commands_run[{idx}].instrument_id is not declared in allowed_instruments: {instrument_id}"
+            )
+    return errors
 
 
 def validate_workflow_run_artifact(root: Path, path: Path) -> list[str]:
@@ -1335,6 +1385,7 @@ def main() -> int:
     errors.extend(validate_review_manifest_collection(root))
     errors.extend(validate_review_prompt_contract_template(root))
     errors.extend(validate_review_packet_artifact(root, root / "templates" / "review-packet.json", False))
+    errors.extend(validate_evidence_probe_report_artifact(root, root / "templates" / "evidence-probe-report.json"))
     errors.extend(
         validate_review_packet_artifact(
             root,
@@ -1367,6 +1418,8 @@ def main() -> int:
         errors.extend(validate_review_packet_artifact(root, review_packet, True))
     for reviewer_report in root.glob("examples/**/Docs/agentsflow/runs/*/reviewer-report*.json"):
         errors.extend(validate_reviewer_report_artifact(root, reviewer_report))
+    for probe_report in root.glob("examples/**/Docs/agentsflow/runs/*/evidence-probe-report*.json"):
+        errors.extend(validate_evidence_probe_report_artifact(root, probe_report))
 
     for provider_config in list(root.rglob("external-review-provider.yaml")) + list(root.rglob("claude-code.yaml")):
         errors.extend(validate_external_review_provider(provider_config))
@@ -1383,6 +1436,7 @@ def main() -> int:
         "templates/workflow.binding.yaml",
         "templates/agentsflow.lock.yaml",
         "templates/review-prompt-contract.yaml",
+        "templates/evidence-probe-report.json",
         "templates/project-intake.yaml",
         "templates/research-assignment.unknown-project.md",
         "templates/project-raw-scan.json",
@@ -1425,6 +1479,7 @@ def main() -> int:
         "templates/reviewer-invocation.json",
         "schemas/external-review-provider.schema.json",
         "schemas/review-packet.schema.json",
+        "schemas/evidence-probe-report.schema.json",
         "schemas/reviewer-invocation.schema.json",
         "schemas/reviewer-report.schema.json",
         "scripts/reviewers/run_external_reviewer.py",
@@ -1463,6 +1518,7 @@ def main() -> int:
         errors.extend(validate_project_initialization_operating_decisions(wf, data))
         errors.extend(validate_project_initialization_human_interaction(wf, data))
         errors.extend(validate_supported_review_topologies(wf, data))
+        errors.extend(validate_upstream_review_cycle_policy(wf, data))
         errors.extend(validate_mvp_review_phase_policy(wf, data))
         errors.extend(validate_required_review_gate_order(wf, data))
         errors.extend(validate_phase_scripts_declared(wf, data))

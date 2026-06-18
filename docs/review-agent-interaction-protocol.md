@@ -40,9 +40,10 @@ Review agents start from zero conversation context. They must not receive a
 forked main-agent/orchestrator conversation. The orchestrator prepares an explicit
 review packet with referenced artifacts; that packet is the reviewer input.
 
-Primary review gates run at least two reviewers. A single reviewer is allowed
-only as a control reviewer after the orchestrator rejects a blocker-level
-candidate finding and records the collision.
+Primary review gates run at least two reviewers. Collision-control also uses two
+fresh-context control reviewers. When the orchestrator rejects or downgrades one
+or more blocker-level candidate findings in a review cycle, it records one
+collision batch and sends that focused packet to those two control reviewers.
 
 ## Review loop overview
 
@@ -194,13 +195,15 @@ Default non-triggers:
 - main agent rejects a candidate blocker as irrelevant with evidence-based reason;
 - fusion rewording without new findings.
 
-Exception: if a blocker-level candidate finding is rejected by the
-main/orchestrating agent and the workflow records a collision, it may launch one
-fresh-context control reviewer focused on the disputed finding and rejection
-reason. This is not a replacement for the primary two-reviewer gate.
+Exception: if one or more blocker-level candidate findings are rejected or
+downgraded by the main/orchestrating agent and the workflow records a collision,
+it launches two fresh-context control reviewers focused on the collision batch
+and the orchestrator collision reason. This is not a replacement for the primary
+review gate, and it is batched per review cycle rather than per finding.
 
-A workflow may set `max_review_cycles`; the default is `2` for implementation
-workflows and `1` for review-only/spec review workflows unless overridden.
+`max_review_cycles` is a project policy or workflow-binding decision. Upstream
+workflow definitions may declare that the value is required, but they should not
+pretend that a single hardcoded integer is universal for every concrete project.
 
 ## Main-agent relevance-validation procedure
 
@@ -269,7 +272,7 @@ For each finding, the main agent must inspect the available relevant inputs:
 | Finding duplicates an already validated issue | duplicate | Inherits original | Link to original; no rerun. |
 | Finding conflicts with accepted ADR or requires changing an accepted decision | human-decision-required | Yes until resolved | Escalate to human / ADR workflow. |
 | Reviewers disagree on a P0/P1 issue and evidence is insufficient | needs-more-evidence or human-decision-required | Yes | Produce/refresh evidence or escalate. |
-| Fusion surfaces a candidate blocker from one reviewer only | candidate-unvalidated → validate via matrix | Depends on validation | Majority cannot erase it; validate explicitly. |
+| Fusion surfaces a candidate blocker from one reviewer only | candidate-unvalidated, then one validation status from the lifecycle | Depends on validation | Majority cannot erase it; validate explicitly. |
 
 ## Final review-cycle decision states
 
@@ -289,7 +292,8 @@ Each workflow may define:
 ```yaml
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles: 2
+  max_review_cycles_required: true
+  max_review_cycles_source: project_policy_or_workflow_binding
   rerun_review_on:
     - accepted_blocker_fixed
     - mandatory_evidence_added

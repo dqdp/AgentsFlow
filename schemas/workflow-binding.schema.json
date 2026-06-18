@@ -52,6 +52,17 @@
     "behavior_bindings": {
       "type": "object"
     },
+    "review_cycle": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "max_review_cycles": {
+          "type": "integer",
+          "minimum": 3,
+          "default": 5
+        }
+      }
+    },
     "review": {
       "type": "object",
       "additionalProperties": true,

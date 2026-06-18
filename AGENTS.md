@@ -125,9 +125,10 @@ When applying AgentsFlow to a concrete project:
 - Review agents are read-only and run after verification gates by default.
 - Default review is `homogeneous-dual`: two independent generalist reviewers
   receive the same prompt, same review packet, same rubric and same output schema.
-- Primary review gates require at least two reviewers. One reviewer is allowed only
-  as a focused control reviewer after the main/orchestrating agent rejects a
-  blocker-level candidate finding and records the collision.
+- Primary review gates require at least two reviewers. Collision-control also uses
+  two fresh-context control reviewers: rejected or downgraded blocker-level
+  candidate findings from the same review cycle are recorded as one collision
+  batch and sent to those two control reviewers.
 - Heterogeneous review is explicit, not inferred. Reviewer role ids such as
   `adversarial`, `architecture` or `verification` must resolve to role definitions
   in `profiles/reviewer_roles/`; focus zones may overlap and do not prevent any

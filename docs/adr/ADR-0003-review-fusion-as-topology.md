@@ -2,9 +2,10 @@
 
 Status: Accepted for v0.1 design seed
 
-Updated for v0.2: primary review gates require two or more reviewers. A single
-reviewer is allowed only as a control-review exception after a rejected blocker
-collision.
+Updated for v0.2: primary review gates require two or more reviewers.
+Collision-control is also a two-reviewer exception: rejected or downgraded
+blocker-level candidate findings from the same review cycle are recorded as one
+collision batch and sent to two fresh-context control reviewers.
 
 v0.2 also replaces the early narrative topology labels below with the canonical
 profile names `homogeneous-dual`, `homogeneous-plus-focused`,

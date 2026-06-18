@@ -130,7 +130,8 @@ review_control_rules:
   p0_p1_findings_require_recorded_validation: true
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles: 2
+  max_review_cycles_required: true
+  max_review_cycles_source: project_policy_or_workflow_binding
   rerun_review_on:
   - accepted_blocker_fixed
   - mandatory_evidence_added

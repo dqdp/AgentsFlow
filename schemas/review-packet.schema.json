@@ -85,30 +85,64 @@
     "collision_control": {
       "type": ["object", "null"],
       "required": [
-        "disputed_finding_id",
-        "original_severity",
-        "source_reviewer_report",
-        "orchestrator_rejection_reason",
+        "trigger",
+        "collision_batch_id",
+        "control_reviewer_count",
+        "disputed_findings",
+        "orchestrator_collision_reason",
         "evidence_references_checked"
       ],
       "additionalProperties": true,
       "properties": {
-        "disputed_finding_id": {
-          "type": "string"
+        "trigger": {
+          "const": "rejected_or_downgraded_blocker_collision"
         },
-        "original_severity": {
-          "enum": ["P0", "P1"]
+        "collision_batch_id": {
+          "type": "string",
+          "minLength": 1
         },
-        "source_reviewer_report": {
-          "type": "string"
+        "control_reviewer_count": {
+          "const": 2
         },
-        "orchestrator_rejection_reason": {
-          "type": "string"
+        "disputed_findings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "finding_id",
+              "original_severity",
+              "source_reviewer_report",
+              "orchestrator_action"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "finding_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "original_severity": {
+                "enum": ["P0", "P1"]
+              },
+              "source_reviewer_report": {
+                "type": "string",
+                "minLength": 1
+              },
+              "orchestrator_action": {
+                "enum": ["rejected", "downgraded"]
+              }
+            }
+          }
+        },
+        "orchestrator_collision_reason": {
+          "type": "string",
+          "minLength": 1
         },
         "evidence_references_checked": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "minItems": 1
         }
@@ -166,7 +200,12 @@
         "required": ["review_profile"]
       },
       "then": {
-        "required": ["collision_control"]
+        "required": ["collision_control"],
+        "properties": {
+          "collision_control": {
+            "type": "object"
+          }
+        }
       }
     },
     {

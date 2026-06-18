@@ -256,20 +256,22 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
         if any(not item.get("focus_zone") for item in reviewers if isinstance(item, dict)):
             raise ValueError("heterogeneous-variable reviewers must have focus zones")
     elif profile == "collision-control":
-        if primary_gate is not False or len(reviewers) != 1:
-            raise ValueError("collision-control prompt contract must be non-primary with exactly one reviewer")
+        if primary_gate is not False or len(reviewers) != 2:
+            raise ValueError("collision-control prompt contract must be non-primary with exactly two reviewers")
         collision = contract.get("collision_control")
-        if not isinstance(collision, dict) or collision.get("trigger") != "rejected_blocker_finding_collision":
-            raise ValueError("collision-control prompt contract requires rejected-blocker collision context")
+        if not isinstance(collision, dict) or collision.get("trigger") != "rejected_or_downgraded_blocker_collision":
+            raise ValueError("collision-control prompt contract requires rejected/downgraded blocker collision context")
         for key in [
-            "disputed_finding_id",
-            "original_severity",
-            "source_reviewer_report",
-            "orchestrator_rejection_reason",
+            "collision_batch_id",
+            "control_reviewer_count",
+            "disputed_findings",
+            "orchestrator_collision_reason",
             "evidence_references_checked",
         ]:
             if not collision.get(key):
                 raise ValueError(f"collision-control prompt contract missing {key}")
+        if collision.get("control_reviewer_count") != 2:
+            raise ValueError("collision-control prompt contract control_reviewer_count must be 2")
 
     if contract.get("artifact_scope", "run") == "run":
         for prompt in prompts:

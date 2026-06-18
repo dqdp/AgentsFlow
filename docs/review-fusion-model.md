@@ -40,9 +40,11 @@ non-primary `collision-control` exception. The topology is configuration, not
 philosophy.
 
 If review is enabled as a primary review gate, the minimum reviewer count is two.
-A single reviewer is allowed only as a control reviewer after a blocker-level
-candidate finding was rejected by the main/orchestrating agent and the workflow
-needs a focused collision check.
+Collision-control review is also batched through two reviewers: when one or more
+blocker-level candidate findings are rejected or downgraded by the
+main/orchestrating agent in the same review cycle, the workflow creates one
+collision batch and sends that focused packet to two fresh-context control
+reviewers.
 
 ## Review topology
 
@@ -54,7 +56,7 @@ Examples:
 - `homogeneous-dual`
 - `homogeneous-plus-focused`
 - `heterogeneous-variable`
-- `collision-control` for rejected-blocker collision checks only, not as a primary gate
+- `collision-control` for rejected or downgraded blocker collision batches only, not as a primary gate
 
 Reviewers start from fresh zero conversation context. They must not receive a
 forked main-agent/orchestrator conversation. Their input is the review packet and

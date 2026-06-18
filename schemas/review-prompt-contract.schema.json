@@ -299,33 +299,63 @@
       "type": ["object", "null"],
       "required": [
         "trigger",
-        "disputed_finding_id",
-        "original_severity",
-        "source_reviewer_report",
-        "orchestrator_rejection_reason",
+        "collision_batch_id",
+        "control_reviewer_count",
+        "disputed_findings",
+        "orchestrator_collision_reason",
         "evidence_references_checked"
       ],
       "additionalProperties": true,
       "properties": {
         "trigger": {
-          "const": "rejected_blocker_finding_collision"
+          "const": "rejected_or_downgraded_blocker_collision"
         },
-        "disputed_finding_id": {
-          "type": "string"
+        "collision_batch_id": {
+          "type": "string",
+          "minLength": 1
         },
-        "original_severity": {
-          "enum": ["P0", "P1"]
+        "control_reviewer_count": {
+          "const": 2
         },
-        "orchestrator_rejection_reason": {
-          "type": "string"
+        "disputed_findings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "finding_id",
+              "original_severity",
+              "source_reviewer_report",
+              "orchestrator_action"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "finding_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "original_severity": {
+                "enum": ["P0", "P1"]
+              },
+              "source_reviewer_report": {
+                "type": "string",
+                "minLength": 1
+              },
+              "orchestrator_action": {
+                "enum": ["rejected", "downgraded"]
+              }
+            }
+          }
         },
-        "source_reviewer_report": {
-          "type": "string"
+        "orchestrator_collision_reason": {
+          "type": "string",
+          "minLength": 1
         },
         "evidence_references_checked": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "minItems": 1
         }
@@ -347,5 +377,30 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "identity": {
+            "properties": {
+              "review_profile": {
+                "const": "collision-control"
+              }
+            },
+            "required": ["review_profile"]
+          }
+        },
+        "required": ["identity"]
+      },
+      "then": {
+        "required": ["collision_control"],
+        "properties": {
+          "collision_control": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
 }

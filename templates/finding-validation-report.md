@@ -32,13 +32,33 @@ Reviewer findings are candidate findings. They become accepted issues only after
 |---|---|---:|---|
 | Finding is supported by contract/evidence and severity is P0/P1 | accepted-relevant | yes | Fix/revise, then rerun verification gate and relevant review cycle. |
 | Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | no | Record follow-up; no review rerun by default. |
-| Finding may be valid but required evidence is missing | needs-more-evidence | yes if mandatory evidence or P0/P1 | Run verification gate/checks; rerun review only if evidence materially changes. |
+| Finding may be valid but required evidence is missing | needs-more-evidence | yes if mandatory evidence or P0/P1 | Produce evidence through the verification gate or a narrow evidence-probe objective; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | no | Record reason; no rerun. |
 | Finding is factually contradicted by contract/diff/evidence | rejected-irrelevant | no | Record contradiction; no rerun. |
 | Finding duplicates an already validated issue | duplicate | inherits original | Link to original; no rerun. |
 | Finding conflicts with accepted ADR or requires changing an accepted decision | human-decision-required | yes until resolved | Escalate to human / ADR workflow. |
-| Reviewers disagree on a P0/P1 issue and evidence is insufficient | needs-more-evidence / human-decision-required | yes | Produce/refresh evidence or escalate. |
-| Fusion surfaces a candidate blocker from one reviewer only | validate via matrix | depends | Majority cannot erase it; validate explicitly. |
+| Reviewers disagree on a P0/P1 issue and evidence is insufficient | needs-more-evidence / human-decision-required | yes | Produce/refresh evidence, run a narrow evidence probe when appropriate, or escalate. |
+| Fusion surfaces a candidate blocker from one reviewer only | needs-more-evidence / accepted-relevant / rejected-irrelevant / duplicate / human-decision-required | depends | Majority cannot erase it; validate explicitly. |
+
+## Evidence Probe Batches
+
+Use this section only when `needs-more-evidence` requires a targeted probe.
+Probe reports are evidence only; they do not accept, reject, downgrade, or close
+findings.
+
+| Probe ID | Objective | Finding IDs | Report | Result summary | Remaining gaps |
+|---|---|---|---|---|---|
+| probe-001 | ... | F-001, F-002 | `evidence-probe-report.probe-001.json` | ... | ... |
+
+## Collision-Control Batches
+
+Use this section when the main/orchestrating agent rejects or downgrades one or
+more P0/P1 candidate findings. Collision-control is batched per review cycle, not
+per finding.
+
+| Collision Batch ID | Finding IDs | Orchestrator collision reason | Control reviewer count | Control reports | Final triage |
+|---|---|---|---:|---|---|
+| collision-001 | F-001, F-003 | ... | 2 | `reviewer-report.control-a.md`, `reviewer-report.control-b.md` | ... |
 
 ## P0/P1 Handling
 

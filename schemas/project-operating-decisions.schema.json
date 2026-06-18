@@ -189,17 +189,18 @@
       "properties": {
         "max_review_cycles": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 3,
+          "default": 5
         },
         "control_reviewer_count": {
-          "const": 1
+          "const": 2
         },
         "control_review_trigger": {
-          "const": "rejected_blocker_finding_collision"
+          "const": "rejected_or_downgraded_blocker_collision"
         },
         "control_review_context_policy": {
           "type": "object",
-          "required": ["start_mode", "fork_conversation_context"],
+          "required": ["start_mode", "fork_conversation_context", "allowed_context_sources"],
           "additionalProperties": true,
           "properties": {
             "start_mode": {
@@ -210,7 +211,15 @@
             },
             "allowed_context_sources": {
               "type": "array",
-              "items": {"type": "string"}
+              "items": {
+                "enum": [
+                  "disputed_blocker_findings",
+                  "orchestrator_collision_reason",
+                  "referenced_artifacts"
+                ]
+              },
+              "minItems": 3,
+              "uniqueItems": true
             }
           }
         },

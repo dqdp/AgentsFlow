@@ -146,9 +146,11 @@ Blocking issue = issue that cannot be overridden by majority vote.
 
 The project core does **not** decide that every task must use review, full gates,
 or fusion. Those choices belong to workflows and profiles. When a primary review
-gate is enabled, the core requires at least two reviewers. One reviewer is
-allowed only as a focused control reviewer after the main/orchestrating agent
-rejects a blocker-level candidate finding and records the collision.
+gate is enabled, the core requires at least two reviewers. Collision-control is
+not a one-reviewer shortcut: after the main/orchestrating agent rejects or
+downgrades one or more blocker-level candidate findings in a review cycle, it
+records one collision batch and sends that batch to two fresh-context control
+reviewers.
 
 A workflow decides:
 
@@ -179,14 +181,14 @@ Review topology is workflow/profile metadata. Common topology names are:
 - `homogeneous-dual`;
 - `homogeneous-plus-focused`;
 - `heterogeneous-variable`;
-- `collision-control` for rejected-blocker collision checks only, not as a primary gate.
+- `collision-control` for rejected or downgraded blocker collision batches only, not as a primary gate.
 
 A topology declares reviewer roles, independence requirements, whether fusion is
 required, and blocking policy. See `schemas/review-topology.schema.json`.
 
-`single-reviewer` is not a valid primary review topology in v0.2. The one-reviewer
-case is modeled as a control-review exception in the review-cycle policy, not as
-the normal gate topology.
+`single-reviewer` is not a valid primary review topology in v0.2. Collision
+control is modeled as a focused two-reviewer batch in the review-cycle policy,
+not as the normal gate topology.
 
 Heterogeneous role names are not free-form hints. A role id such as `adversarial`
 must resolve to a role definition in `profiles/reviewer_roles/`. The role

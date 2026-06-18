@@ -14,7 +14,18 @@
     },
     "max_review_cycles": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 3,
+      "default": 5
+    },
+    "max_review_cycles_required": {
+      "type": "boolean"
+    },
+    "max_review_cycles_source": {
+      "enum": [
+        "project_policy",
+        "workflow_binding",
+        "project_policy_or_workflow_binding"
+      ]
     },
     "rerun_review_on": {
       "type": "array",

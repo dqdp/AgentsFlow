@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/evidence-probe-report.schema.json",
+  "title": "Evidence Probe Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "artifact_kind",
+    "run_id",
+    "workflow",
+    "probe_id",
+    "objective",
+    "trigger",
+    "context_policy",
+    "permission_policy",
+    "allowed_instruments",
+    "evidence_collected",
+    "limitations",
+    "decision_authority"
+  ],
+  "not": {
+    "anyOf": [
+      {"required": ["validation_status"]},
+      {"required": ["finding_decision"]},
+      {"required": ["acceptance_decision"]},
+      {"required": ["accepted_findings"]},
+      {"required": ["rejected_findings"]}
+    ]
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "artifact_kind": {
+      "const": "evidence_probe_report"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "string"
+    },
+    "probe_id": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trigger": {
+      "enum": [
+        "needs_more_evidence",
+        "missing_mandatory_evidence",
+        "p0_p1_evidence_gap",
+        "human_requested"
+      ]
+    },
+    "context_policy": {
+      "type": "object",
+      "required": ["start_mode", "fork_conversation_context", "allowed_context_sources"],
+      "additionalProperties": false,
+      "properties": {
+        "start_mode": {
+          "const": "fresh_context"
+        },
+        "fork_conversation_context": {
+          "const": false
+        },
+        "allowed_context_sources": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "probe_packet",
+              "referenced_artifacts",
+              "project_bound_instruments"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "permission_policy": {
+      "type": "object",
+      "required": [
+        "read",
+        "modify_files",
+        "run_project_bound_instruments_only",
+        "may_decide_findings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "read": {
+          "const": true
+        },
+        "modify_files": {
+          "const": false
+        },
+        "run_project_bound_instruments_only": {
+          "const": true
+        },
+        "may_decide_findings": {
+          "const": false
+        }
+      }
+    },
+    "allowed_instruments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "enum": [
+              "project_binding",
+              "gate_manifest",
+              "workflow_binding"
+            ]
+          }
+        }
+      }
+    },
+    "commands_run": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["instrument_id", "command", "exit_code"],
+        "additionalProperties": false,
+        "properties": {
+          "instrument_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "command": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "result": {
+            "enum": ["pass", "fail", "inconclusive", "blocked"]
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence_collected": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["kind", "reference", "summary"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "decision_authority": {
+      "const": "none-evidence-only"
+    }
+  }
+}

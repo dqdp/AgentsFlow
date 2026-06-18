@@ -83,6 +83,11 @@ terminal result state, not a live stop.
 **Why code won't fix it.** No deterministic script can decide whether a rejection
 reason is correct. The trust problem can be mitigated, not removed.
 
+**Superseded update.** The accepted v0.2 control rule is now the two-reviewer
+collision-control batch defined by `AGENTS.md`, `docs/review-profile-model.md`
+and `profiles/review_profiles/collision-control.yaml`. The older one-advocate
+wording below is retained only as historical rationale.
+
 **Decision — the relevance check is a short side-branch with a definitive verdict, not a loop:**
 
 The extra agent fires only when the main orchestrator *rejects an already-found
@@ -90,17 +95,15 @@ blocker as irrelevant* — not on every finding, and not as a fix/re-review cycl
 Rejection is rare (most blockers are fixed, and ungrounded findings are dropped
 cheaply), so the same rule applies to P0 and P1 alike — no severity split.
 
-- **One agent, once, batched.** All findings the orchestrator marked
-  `rejected-irrelevant` in a cycle go to a single independent advocate (a separate
-  reviewer role, ideally a different model — the external Claude reviewer —
-  prompted to defend the findings). ≈ one extra call, regardless of how many
-  findings. No per-finding agents, no loop.
-- **Verdict is terminal:**
-  - Advocate confirms irrelevant → drop the finding, record the reason, continue.
-  - Advocate finds it relevant → the finding is reinstated as a blocker and can NOT
-    be dismissed again. It must then be fixed; if it genuinely cannot/should not be
-    fixed (e.g. the fix would violate the contract/non-goals), the run ends
-    `needs-human-decision`. No re-negotiation, no ping-pong.
+- **Two control reviewers, once, batched.** All blocker-level findings the
+  orchestrator rejected or downgraded in a cycle go to one collision batch and
+  are reviewed by two fresh-context control reviewers. There are no per-finding
+  agents and no loop.
+- **Control outputs remain candidate input.** The two control reviewers do not
+  drop or reinstate findings by authority. They provide focused candidate
+  findings on the collision batch; the main/orchestrating agent records the final
+  relevance-validation decision. If the collision still requires changing an
+  accepted decision, the run ends `needs-human-decision`.
 - **Missing mandatory evidence** still blocks (unchanged).
 
 This relevance side-branch is separate from the broader fix→re-review loop. It runs
@@ -108,8 +111,8 @@ once and resolves; it does NOT use `max_review_cycles`.
 
 **Concrete hole this closes:** today `do_not_rerun_on:
 irrelevant_findings_rejected_with_reason` lets a rejection silently end the review
-with the finding dropped. A rejected P0/P1 must instead pass through the single
-batched advocate before it can be dropped.
+with the finding dropped. A rejected or downgraded P0/P1 must instead pass
+through the two-control-reviewer collision batch before it can be dropped.
 
 **Status:** DECIDED.
 
@@ -214,9 +217,10 @@ run.
 - When the orchestrator is built it must read `max_review_cycles`, apply default 5
   if absent, and treat the ceiling as → human, not pass.
 
-**Consequence to apply:** raising `minimum` to 3 makes today's values (1 and 2)
-schema-invalid. All 9 workflows must be bumped to ≥3 — suggested 3 for light
-(review-only / spec / init) and 5 for implementation workflows.
+**Superseded consequence:** concrete numeric ceilings now live in project policy
+or workflow bindings, not upstream workflow definitions. Upstream workflows
+declare that a concrete value is required; bindings/policies use minimum 3 and
+default 5.
 
 **Status:** DECIDED.
 

@@ -94,16 +94,16 @@ review_policy:
     raw_logs_allowed: false
 
 review_cycle_policy:
-  max_review_cycles: 1
-  control_reviewer_count: 1
-  control_review_trigger: rejected_blocker_finding_collision
-  control_review_purpose: Check a disputed blocker-level finding after the main agent rejects it.
+  max_review_cycles: 5
+  control_reviewer_count: 2
+  control_review_trigger: rejected_or_downgraded_blocker_collision
+  control_review_purpose: Check a per-cycle batch of disputed blocker-level findings after the main agent rejects or downgrades them.
   control_review_context_policy:
     start_mode: fresh_context
     fork_conversation_context: false
     allowed_context_sources:
-      - disputed_blocker_finding
-      - orchestrator_rejection_reason
+      - disputed_blocker_findings
+      - orchestrator_collision_reason
       - referenced_artifacts
   rerun_review_on:
     - project_overlay_materially_changed
@@ -151,9 +151,9 @@ decision_log:
     answer: "homogeneous-dual: two generalist reviewers with the same prompt, packet, rubric and output schema."
     status: recommended
     source: default-policy
-  - id: review_cycle.control_reviewer
-    question: When is a single reviewer allowed?
-    answer: "Only as one control reviewer after a blocker-level finding is rejected by the main/orchestrating agent."
+  - id: review_cycle.control_reviewers
+    question: How many control reviewers are required for a blocker-level collision batch?
+    answer: "Two fresh-context control reviewers review one per-cycle batch after blocker-level findings are rejected or downgraded by the main/orchestrating agent."
     status: recommended
     source: default-policy
   - id: review.context_policy

@@ -13,9 +13,13 @@ Validator: `<main/orchestrating agent or human>`
 ```yaml
 default_exit_when: no_validated_blocking_findings
 max_review_cycles: <n>
+max_review_cycles_source: <project-operating-decisions|workflow-binding>
 blocking_default:
   severities: [P0, P1]
   missing_mandatory_evidence_blocks: true
+collision_control:
+  batching: per-review-cycle
+  control_reviewer_count: 2
 ```
 
 ## Candidate Findings Summary
@@ -35,6 +39,25 @@ blocking_default:
 List accepted relevant blockers, mandatory evidence gaps, or human-decision items.
 
 - ...
+
+## Evidence Probe Batches
+
+Probe reports collect missing evidence only. They do not make finding or
+acceptance decisions.
+
+| Probe ID | Objective | Trigger | Finding IDs | Report | Remaining gaps |
+|---|---|---|---|---|---|
+| probe-001 | ... | needs-more-evidence | F-001 | `evidence-probe-report.probe-001.json` | ... |
+
+## Collision-Control Batches
+
+Collision-control is batched per review cycle. One batch may contain multiple
+rejected or downgraded P0/P1 findings, and exactly two fresh-context control
+reviewers inspect the batch.
+
+| Collision Batch ID | Finding IDs | Control reviewers | Control reports | Outcome |
+|---|---|---|---|---|
+| collision-001 | F-001, F-003 | 2 | `reviewer-report.control-a.md`, `reviewer-report.control-b.md` | ... |
 
 ## Non-blocking Findings / Follow-ups
 

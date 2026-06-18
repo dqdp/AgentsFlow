@@ -191,6 +191,22 @@ def validate_review_policy(
     return errors
 
 
+def validate_review_cycle_policy(path: Path, review_cycle: object) -> list[str]:
+    errors: list[str] = []
+    if review_cycle is None:
+        errors.append(f"{path}: review_cycle.max_review_cycles is required")
+        return errors
+    if not isinstance(review_cycle, dict):
+        errors.append(f"{path}: review_cycle must be a mapping")
+        return errors
+    max_review_cycles = review_cycle.get("max_review_cycles")
+    if not isinstance(max_review_cycles, int):
+        errors.append(f"{path}: review_cycle.max_review_cycles must be an integer")
+    elif max_review_cycles < 3:
+        errors.append(f"{path}: review_cycle.max_review_cycles must be at least 3")
+    return errors
+
+
 def validate_project_gate_manifest(
     path: Path,
     project_root: Path,
@@ -279,6 +295,7 @@ def main() -> int:
             binding = load_yaml(binding_file)
             errors.extend(validate_schema(binding_file, binding, workflow_binding_schema))
             errors.extend(validate_review_policy(binding_file, binding.get("review"), review_topologies, reviewer_roles))
+            errors.extend(validate_review_cycle_policy(binding_file, binding.get("review_cycle")))
             extends = binding.get("extends")
             extends_path = safe_resolve(af, extends, f"{binding_file}: extends", errors)
             if extends_path and not extends_path.exists():
