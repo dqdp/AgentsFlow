@@ -3,8 +3,40 @@
   "workflow": "big-feature-contract-first",
   "run_id": "YYYY-MM-DD-task-slug",
   "reviewer_role": "architecture",
+  "reviewer_instance_id": "architecture",
   "provider": "claude-code",
   "review_goal": "Find architecture, scope, ADR, and design consistency risks.",
+  "review_profile": "heterogeneous-variable",
+  "composition": "heterogeneous",
+  "prompt_policy": {
+    "focus_prompts_required": true,
+    "shared_packet_allowed": true,
+    "focus_zones_may_overlap": true,
+    "all_reviewers_must_report_p0_p1_outside_focus": true
+  },
+  "role_contract": "profiles/reviewer_roles/architecture.yaml",
+  "role_contract_hash": "sha256:<architecture-role-contract>",
+  "review_prompt_contract": {
+    "path": "examples/external-reviewers/claude-code/review-prompt-contract.architecture.yaml",
+    "schema": "schemas/review-prompt-contract.schema.json"
+  },
+  "focus_zone": {
+    "primary_focus": [
+      "boundaries",
+      "ADR consistency",
+      "coupling",
+      "design drift"
+    ],
+    "may_report_outside_focus": true
+  },
+  "context_policy": {
+    "start_mode": "fresh_context",
+    "fork_conversation_context": false,
+    "allowed_context_sources": [
+      "review_packet",
+      "referenced_artifacts"
+    ]
+  },
   "task_contract": {
     "path": "Docs/agentsflow/runs/<run-id>/task.contract.md",
     "summary": "..."
@@ -23,9 +55,12 @@
   "accepted_adrs": [],
   "project_rules": [],
   "forbidden_actions": [
+    "Do not use or assume forked orchestrator conversation context.",
     "Do not modify files.",
     "Do not run tests.",
+    "Do not execute scripts.",
     "Do not produce patches.",
+    "Do not update evidence.",
     "Return candidate findings only."
   ],
   "output_schema": "schemas/reviewer-report.schema.json"

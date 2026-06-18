@@ -1,0 +1,102 @@
+version: 1
+artifact_kind: review_prompt_contract
+artifact_scope: run
+
+identity:
+  run_id: 2026-06-17-add-calculator
+  workflow: big-feature-contract-first
+  phase_id: review
+  review_profile: homogeneous-dual
+  topology: homogeneous-dual
+  composition: homogeneous
+  strictness: L2
+  primary_gate: true
+
+inputs:
+  review_packet_schema: schemas/review-packet.schema.json
+  review_packets:
+    - reviewer: generalist-a
+      path: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json
+      schema: schemas/review-packet.schema.json
+      packet_hash: sha256:6e032b26ca3bede558865d429c36972b4daded42809d101701db8fe5c30121e3
+      shared_packet_content_hash: sha256:2289f44260ad2581b338fdbc5cedb079c16a352b4c6192fd04ec382a9479cabf
+    - reviewer: generalist-b
+      path: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-b.json
+      schema: schemas/review-packet.schema.json
+      packet_hash: sha256:f389d945db28072c6c5b52ee2d53ff260e976117c52043da969b43a5cc2831c2
+      shared_packet_content_hash: sha256:2289f44260ad2581b338fdbc5cedb079c16a352b4c6192fd04ec382a9479cabf
+  output_schema: schemas/reviewer-report.schema.json
+  task_contract: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/task.contract.md
+  verification_gate_report: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/verification-gate-report.md
+  evidence_report: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/evidence-report.md
+
+reviewer_set:
+  - instance_id: generalist-a
+    role_id: generalist
+    role_contract: profiles/reviewer_roles/generalist.yaml
+    independent: true
+  - instance_id: generalist-b
+    role_id: generalist
+    role_contract: profiles/reviewer_roles/generalist.yaml
+    independent: true
+
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+  allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
+
+permission_policy:
+  read_only: true
+  forbidden_actions:
+    - run_tests
+    - run_scripts
+    - modify_files
+    - create_patch
+    - update_evidence
+  explicit_tool_exceptions: []
+
+prompt_components:
+  shared_base_instructions: templates/review-prompts/base.md
+  role_contract_source: profiles/reviewer_roles/generalist.yaml
+  focus_supplement_source: null
+  finding_lifecycle: candidate-unvalidated
+  output_instructions: schemas/reviewer-report.schema.json
+
+prompt_policy:
+  same_prompt: true
+  same_packet: true
+  same_rubric: true
+  same_output_schema: true
+
+rendered_prompts:
+  - reviewer: generalist-a
+    prompt_path: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-a.md
+    prompt_hash: sha256:9aaa9be428965954c5496b78b0c7430e59ba4068091bf5d03fdf6158b8591af0
+    shared_prompt_content_hash: sha256:c9e8c240b2a4683ae79f248dfe6a12e7339564c31a8108f3c1a8e7d156950ba6
+    packet_hash: sha256:6e032b26ca3bede558865d429c36972b4daded42809d101701db8fe5c30121e3
+    shared_packet_content_hash: sha256:2289f44260ad2581b338fdbc5cedb079c16a352b4c6192fd04ec382a9479cabf
+    schema_hash: sha256:b6d8c36bcd3a33a652dc9cfafcbbedceed5c7ace8517fbc194825f0839da2567
+    rubric_hash: sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843
+    role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
+  - reviewer: generalist-b
+    prompt_path: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-b.md
+    prompt_hash: sha256:daa36aa7983137b43b06fece9aecea5aaa5cfe9d7b789085f6c797e021d45f71
+    shared_prompt_content_hash: sha256:c9e8c240b2a4683ae79f248dfe6a12e7339564c31a8108f3c1a8e7d156950ba6
+    packet_hash: sha256:f389d945db28072c6c5b52ee2d53ff260e976117c52043da969b43a5cc2831c2
+    shared_packet_content_hash: sha256:2289f44260ad2581b338fdbc5cedb079c16a352b4c6192fd04ec382a9479cabf
+    schema_hash: sha256:b6d8c36bcd3a33a652dc9cfafcbbedceed5c7ace8517fbc194825f0839da2567
+    rubric_hash: sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843
+    role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
+
+collision_control: null
+
+validation:
+  schema: schemas/review-prompt-contract.schema.json
+  assembly_invariants:
+    - homogeneous-dual uses exactly two reviewers.
+    - homogeneous-dual reviewers share prompt content, packet content, rubric, role contract and output schema hashes.
+    - per-reviewer prompt and packet envelope hashes may differ only because reviewer_instance_id differs.
+    - reviewer role ids resolve to profiles/reviewer_roles/*.yaml.
+    - reviewers start from fresh context and do not receive forked conversation context.

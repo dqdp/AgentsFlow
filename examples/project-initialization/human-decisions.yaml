@@ -1,0 +1,14 @@
+version: 1
+run_id: "2026-06-18-project-initialization"
+
+decisions:
+  - decision_id: verification.canonical_test_command
+    phase_id: operating_decisions_interview
+    question_ref: verification.canonical_test_command
+    answer: "PYTHONPATH=src python3 -m pytest tests"
+    status: confirmed
+    answered_by: project-owner
+    rationale: "This is the project's observed local test command for the minimal Python example."
+    affected_artifacts:
+      - project-operating-decisions.yaml
+      - .agentsflow/gates/verification_gate.yaml

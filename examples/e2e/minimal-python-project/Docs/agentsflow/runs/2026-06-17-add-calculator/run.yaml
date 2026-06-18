@@ -1,4 +1,26 @@
+version: 1
+run_id: 2026-06-17-add-calculator
 workflow: big-feature-contract-first
+agentsflow_version: v0.2.0
 binding: .agentsflow/workflows/big-feature-contract-first.binding.yaml
 strictness: L2
-status: sample-complete
+review_topology: homogeneous-dual
+status: sample-complete-with-red-green-evidence
+artifacts:
+  root: Docs/agentsflow/runs/2026-06-17-add-calculator
+  contract: task.contract.md
+  behavior_bindings: behavior.bindings.yaml
+  review_prompt_contract: review-prompt-contract.yaml
+  evidence_report: evidence-report.md
+  final_report: final-report.md
+phase_evidence:
+  red_capture: red-capture-gate-report.md
+  green_verify: verification-gate-report.md
+  review:
+    review_prompt_contract: review-prompt-contract.yaml
+    reviewer_reports:
+    - reviewer-report.generalist-a.json
+    - reviewer-report.generalist-b.json
+    reviewer_report_summaries:
+    - reviewer-report.generalist-a.md
+    - reviewer-report.generalist-b.md

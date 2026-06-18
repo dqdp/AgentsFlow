@@ -1,11 +1,31 @@
 workflow: big-feature-contract-first
-extends: .agentsflow/upstream/workflows/big-feature-contract-first/workflow.yaml
-project_paths:
-  docs_root: Docs
-  runs_root: Docs/agentsflow/runs
+extends: workflows/big-feature-contract-first/workflow.yaml
+agentsflow_version: 0.2
+binding:
+  project: minimal-python-project
+  docs_root: Docs/
+  runs_root: Docs/agentsflow/runs/
 gates:
-  verification_gate: .agentsflow/gates/verification_gate.yaml
+  verification_gate:
+    extends: gates/verification_gate.yaml
+    manifest: .agentsflow/gates/verification_gate.yaml
+    runner: .agentsflow/scripts/run_verification_gate.sh
+behavior_bindings:
+  default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
 review:
-  topology: single-reviewer
+  topology: homogeneous-dual
+  composition: homogeneous
   reviewers:
-    - verification
+    - generalist-a
+    - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts

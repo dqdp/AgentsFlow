@@ -3,7 +3,19 @@
   "reviewer_role": "architecture",
   "billing_mode": "subscription-local",
   "api_key_usage_forbidden": true,
-  "api_key_env_detected": false,
+  "context_policy": {
+    "start_mode": "fresh_context",
+    "fork_conversation_context": false,
+    "session_persistence": false,
+    "input_mode": "review_packet"
+  },
+  "forbidden_env_checked": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX"
+  ],
   "command": "claude -p <prompt>",
   "permission_mode": "plan",
   "output_format": "json",
@@ -11,6 +23,9 @@
   "timeout_seconds": 600,
   "input_hash": "sha256:<review-packet>",
   "prompt_hash": "sha256:<rendered-prompt>",
+  "review_prompt_contract_hash": "sha256:<review-prompt-contract>",
+  "role_contract_hash": "sha256:<role-contract>",
+  "rubric_hash": "sha256:<rubric>",
   "schema_hash": "sha256:<reviewer-schema>",
   "started_at": "<iso8601>",
   "finished_at": "<iso8601>",

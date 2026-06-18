@@ -13,8 +13,38 @@ gates:
 behavior_bindings:
   default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
 review:
-  topology: triad-fusion
+  topology: heterogeneous-variable
+  composition: heterogeneous
   reviewers:
     - architecture
     - verification
     - adversarial
+  prompt_policy:
+    focus_prompts_required: true
+    shared_packet_allowed: true
+    focus_zones_may_overlap: true
+    all_reviewers_must_report_p0_p1_outside_focus: true
+  focus_zones:
+    - reviewer: architecture
+      role: architecture
+      primary_focus:
+        - boundaries
+        - ADR consistency
+    - reviewer: verification
+      role: verification
+      primary_focus:
+        - tests
+        - evidence
+        - red/green framing
+    - reviewer: adversarial
+      role: adversarial
+      primary_focus:
+        - hidden failure modes
+        - bypasses
+        - false completion
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts

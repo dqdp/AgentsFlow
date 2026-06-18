@@ -1,0 +1,28 @@
+version: 1
+run_id: "2026-06-18-project-initialization"
+
+questions:
+  - decision_id: verification.canonical_test_command
+    phase_id: operating_decisions_interview
+    status: answered
+    question: Which command should the project-bound verification gate use for tests?
+    basis:
+      observed:
+        - Python tests were detected under tests/.
+        - No CI workflow was observed.
+      reviewer_recommendations:
+        - Verification reviewer recommends making tests mandatory and lint/typecheck advisory until commands are confirmed.
+    options:
+      - id: pytest-src
+        label: Use pytest with src path
+        impact: Binds verification_gate to the observed Python test layout.
+      - id: unresolved
+        label: Leave unresolved
+        impact: Overlay remains draft-only until the command is confirmed.
+    default:
+      id: pytest-src
+      allowed: true
+    answer_required: true
+    affected_artifacts:
+      - project-operating-decisions.yaml
+      - .agentsflow/gates/verification_gate.yaml

@@ -28,9 +28,9 @@ Example evidence report showing the expected shape for a memory-policy task.
 ## Verification Commands
 
 ```bash
-python scripts/contract_lint.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md
-python scripts/gherkin_lint.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md
-python scripts/boundary_check.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md --changed-files examples/memory-policy/changed-files.txt
+python3 scripts/contract_lint.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md
+python3 scripts/gherkin_lint.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md
+python3 scripts/boundary_check.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md --changed-files examples/memory-policy/changed-files.txt
 ```
 
 Result: pass in this repository seed.
