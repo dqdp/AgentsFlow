@@ -103,3 +103,143 @@ bindings:
           - pytest-output
     gates:
       - verification_gate
+  - id: AF-V02-BHV-007
+    scenario: "Prepare-workflow target is limited to MVP user workflows"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-prepare-workflow-target-script
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow"
+        evidence:
+          - pytest-output
+      - id: pytest-prepare-workflow-target-schema
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-008
+    scenario: "Prepare-workflow missing context uses a run-level decision packet"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-prepare-context-packet
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-009
+    scenario: "Big-feature plan gate is strictness-aware"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-plan-gate-l3-required
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates"
+        evidence:
+          - pytest-output
+      - id: pytest-plan-gate-l2-optional
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-010
+    scenario: "Evidence probe reports are evidence-only"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-evidence-probe-report-schema
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-011
+    scenario: "Collision control uses one batch and two control reviewers"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-collision-review-packet
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch"
+        evidence:
+          - pytest-output
+      - id: pytest-collision-prompt-contract
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-012
+    scenario: "Review cycle limits come from project policy or workflow binding"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-upstream-review-cycle-policy
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles"
+        evidence:
+          - pytest-output
+      - id: pytest-binding-review-cycle-policy
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-013
+    scenario: "Reviewer fresh-context is protocol-level in v0.2"
+    required: true
+    status: manual-evidence
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P2
+    checks:
+      - id: docs-fresh-context-protocol-boundary
+        type: manual_evidence
+        target: "docs/review-agent-interaction-protocol.md"
+        evidence:
+          - "docs/review-prompt-contract.md"
+          - "schemas/review-prompt-contract.schema.json"
+    gates:
+      - verification_gate

@@ -396,6 +396,10 @@ def test_project_operating_decisions_schema_passes() -> None:
     invalid_cycles["review_cycle_policy"]["max_review_cycles"] = 1
     assert list(validator.iter_errors(invalid_cycles))
 
+    invalid_control_count = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    invalid_control_count["review_cycle_policy"]["control_reviewer_count"] = 1
+    assert list(validator.iter_errors(invalid_control_count))
+
     invalid_context = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
     invalid_context["review_cycle_policy"]["control_review_context_policy"]["allowed_context_sources"].append("full_repo")
     assert list(validator.iter_errors(invalid_context))
@@ -538,6 +542,10 @@ def test_collision_control_review_packet_requires_non_null_batch() -> None:
         "evidence_references_checked": ["task.contract.md"],
     }
     jsonschema.Draft202012Validator(schema).validate(valid)
+
+    invalid_count = copy.deepcopy(valid)
+    invalid_count["collision_control"]["control_reviewer_count"] = 1
+    assert list(jsonschema.Draft202012Validator(schema).iter_errors(invalid_count))
 
     empty_batch = copy.deepcopy(valid)
     empty_batch["collision_control"]["collision_batch_id"] = ""
@@ -803,6 +811,13 @@ def test_upstream_review_cycle_rejects_hardcoded_max_cycles() -> None:
     errors = validate_repo.validate_upstream_review_cycle_policy(path, broken)
     assert errors
     assert "must not hardcode max_review_cycles" in "\n".join(errors)
+
+    broken_source = copy.deepcopy(workflow)
+    broken_source["review_cycle"]["max_review_cycles_source"] = "project_policy"
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_source)
+    assert errors
+    assert "max_review_cycles_source must be project_policy_or_workflow_binding" in "\n".join(errors)
 
 
 def test_mvp_review_fusion_requires_validation_after_fusion() -> None:

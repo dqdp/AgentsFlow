@@ -96,6 +96,50 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then review-packet schema validation must still pass
     And focused non-baseline reviewers must still require focus_zone
 
+  Scenario: Prepare-workflow target is limited to MVP user workflows
+    Given a project intake declares intent_mode "prepare-workflow"
+    When target_workflow is missing, project-initialization or a non-MVP reference workflow
+    Then intake validation must fail
+    And schema validation must accept only the v0.2 MVP user workflow ids
+
+  Scenario: Prepare-workflow missing context uses a run-level decision packet
+    Given project-initialization runs in prepare-workflow mode
+    When target workflow gate, review, evidence or authority context is missing
+    Then the workflow may require target_workflow_context_decision_packet conditionally
+    And it must not normalize that run-level packet into project-operating-decisions.yaml
+
+  Scenario: Big-feature plan gate is strictness-aware
+    Given a big-feature-contract-first project binding declares strictness L2
+    When the binding omits plan_gate
+    Then project binding validation must pass
+    Given the same workflow binding declares strictness L3 or L4
+    When the binding omits plan_gate
+    Then project binding validation must fail
+
+  Scenario: Evidence probe reports are evidence-only
+    Given an evidence-probe-report artifact
+    When the report includes finding_decision, acceptance_decision or unbound instruments
+    Then schema or repository validation must reject it
+    And a valid probe report must keep may_decide_findings false
+
+  Scenario: Collision control uses one batch and two control reviewers
+    Given a collision-control review packet or prompt contract
+    When collision_control is missing or control_reviewer_count is not 2
+    Then schema validation must fail
+    And valid collision context must include the disputed finding batch and orchestrator collision reason
+
+  Scenario: Review cycle limits come from project policy or workflow binding
+    Given an upstream workflow review_cycle policy
+    When the workflow hardcodes max_review_cycles or uses a non-project source
+    Then repository validation must fail
+    And project workflow bindings must carry the concrete max_review_cycles value
+
+  Scenario: Reviewer fresh-context is protocol-level in v0.2
+    Given a primary review gate
+    When the workflow declares fresh-context and no-fork reviewer policy
+    Then v0.2 validators must check the declared artifact policy
+    And the implementation must not claim machine proof that reviewer processes received no hidden context
+
 ## Verification Binding
 
 | Scenario | Verification |
@@ -106,6 +150,13 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | MVP review phase requires top-level review policy | `pytest tests/test_scripts_smoke.py::test_mvp_review_phase_requires_top_level_review_policy` |
 | Primary e2e run metadata and reviewer reports are schema-valid | `pytest tests/test_scripts_smoke.py::test_primary_e2e_workflow_run_artifacts_schema_pass` |
 | Homogeneous plus focused keeps baseline reviewers unfocused | `pytest tests/test_scripts_smoke.py::test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone` |
+| Prepare-workflow target is limited to MVP user workflows | `pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow`; `pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target` |
+| Prepare-workflow missing context uses a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement` |
+| Big-feature plan gate is strictness-aware | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2` |
+| Evidence probe reports are evidence-only | `pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources` |
+| Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch`; `pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch` |
+| Review cycle limits come from project policy or workflow binding | `pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles`; `pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles` |
+| Reviewer fresh-context is protocol-level in v0.2 | Manual evidence: `docs/review-agent-interaction-protocol.md`, `docs/review-prompt-contract.md`, `schemas/review-prompt-contract.schema.json` |
 
 ## Evidence Required
 
