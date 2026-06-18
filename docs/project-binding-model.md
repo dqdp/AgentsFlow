@@ -166,6 +166,11 @@ selected strictness. For example, `big-feature-contract-first` does not require
 `plan_gate` for an L2 binding, but an L3 or L4 binding must provide a project
 `plan_gate` binding.
 
+`review_cycle.max_review_cycles` is optional. If omitted, review cycles are not
+limited by count; the workflow still exits when there are no validated blocking
+findings or when another declared escalation condition applies. If a project
+sets `max_review_cycles`, it must be at least 3.
+
 ## Gate contract vs project-bound executable gate
 
 Upstream gate manifests are **gate contracts/templates**. They define what must be

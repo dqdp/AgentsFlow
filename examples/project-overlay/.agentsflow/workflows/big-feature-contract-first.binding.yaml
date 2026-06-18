@@ -17,8 +17,6 @@ gates:
     runner: .agentsflow/scripts/run_verification_gate.sh
 behavior_bindings:
   default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
-review_cycle:
-  max_review_cycles: 5
 review:
   topology: heterogeneous-variable
   composition: heterogeneous

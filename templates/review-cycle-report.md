@@ -12,8 +12,9 @@ Validator: `<main/orchestrating agent or human>`
 
 ```yaml
 default_exit_when: no_validated_blocking_findings
-max_review_cycles: <n>
-max_review_cycles_source: <project-operating-decisions|workflow-binding>
+max_review_cycles: <n or omitted for no cycle-count cap>
+max_review_cycles_source: <project-operating-decisions|workflow-binding|none>
+max_review_cycles_absent_means: unlimited
 blocking_default:
   severities: [P0, P1]
   missing_mandatory_evidence_blocks: true

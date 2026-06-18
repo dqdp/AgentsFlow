@@ -180,7 +180,6 @@
     "review_cycle_policy": {
       "type": "object",
       "required": [
-        "max_review_cycles",
         "control_reviewer_count",
         "control_review_trigger",
         "control_review_context_policy",
@@ -190,8 +189,7 @@
       "properties": {
         "max_review_cycles": {
           "type": "integer",
-          "minimum": 3,
-          "default": 5
+          "minimum": 3
         },
         "control_reviewer_count": {
           "const": 2

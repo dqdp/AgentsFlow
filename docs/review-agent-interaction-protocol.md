@@ -240,9 +240,11 @@ it launches two fresh-context control reviewers focused on the collision batch
 and the orchestrator collision reason. This is not a replacement for the primary
 review gate, and it is batched per review cycle rather than per finding.
 
-`max_review_cycles` is a project policy or workflow-binding decision. Upstream
-workflow definitions may declare that the value is required, but they should not
-pretend that a single hardcoded integer is universal for every concrete project.
+`max_review_cycles` is an optional project policy or workflow-binding cap.
+Upstream workflow definitions must not hardcode a numeric default or require a
+project value. If a project omits `max_review_cycles`, review cycles are not
+limited by count; normal exit, blocking evidence and human-escalation rules still
+apply. If a project supplies the cap, the value must be at least 3.
 
 ## Main-agent relevance-validation procedure
 
@@ -331,8 +333,9 @@ Each workflow may define:
 ```yaml
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles_required: true
+  max_review_cycles_required: false
   max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
   rerun_review_on:
     - accepted_blocker_fixed
     - mandatory_evidence_added

@@ -493,11 +493,13 @@ def test_human_decisions_reject_defaulted_blocking_material() -> None:
 
 
 def test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone() -> None:
+    import copy
     import json
 
     import jsonschema
 
     schema = json.loads((ROOT / "schemas/review-packet.schema.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
     packet = json.loads(
         (
             ROOT
@@ -506,7 +508,15 @@ def test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone() 
     )
     packet["review_profile"] = "homogeneous-plus-focused"
     packet["composition"] = "homogeneous-plus-focused"
-    jsonschema.Draft202012Validator(schema).validate(packet)
+    validator.validate(packet)
+
+    focused = copy.deepcopy(packet)
+    focused["reviewer_instance_id"] = "adversarial"
+    focused["reviewer_role"] = "adversarial"
+    assert list(validator.iter_errors(focused))
+
+    focused["focus_zone"] = {"primary_focus": ["false completion", "bypasses"]}
+    validator.validate(focused)
 
 
 def test_collision_control_review_packet_requires_non_null_batch() -> None:
@@ -811,6 +821,13 @@ def test_upstream_review_cycle_rejects_hardcoded_max_cycles() -> None:
     errors = validate_repo.validate_upstream_review_cycle_policy(path, broken)
     assert errors
     assert "must not hardcode max_review_cycles" in "\n".join(errors)
+
+    broken_required = copy.deepcopy(workflow)
+    broken_required["review_cycle"]["max_review_cycles_required"] = True
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_required)
+    assert errors
+    assert "must not require max_review_cycles" in "\n".join(errors)
 
     broken_source = copy.deepcopy(workflow)
     broken_source["review_cycle"]["max_review_cycles_source"] = "project_policy"
@@ -1123,12 +1140,31 @@ def test_workflow_binding_rejects_too_low_max_review_cycles(tmp_path) -> None:
     shutil.copytree(ROOT / "examples/project-overlay/.agentsflow", project / ".agentsflow")
     binding_path = project / ".agentsflow/workflows/big-feature-contract-first.binding.yaml"
     binding = yaml.safe_load(binding_path.read_text(encoding="utf-8"))
+    binding.pop("review_cycle", None)
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    binding["review_cycle"] = {}
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode == 0, result.stdout + result.stderr
+
     binding["review_cycle"]["max_review_cycles"] = 1
     binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
 
     result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
     assert result.returncode != 0
     assert "max_review_cycles" in (result.stdout + result.stderr)
+
+    binding["review_cycle"]["max_review_cycles"] = "five"
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "max_review_cycles must be an integer" in (result.stdout + result.stderr)
 
 
 def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:

@@ -220,6 +220,24 @@
       "then": {
         "required": ["focus_zone"]
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "composition": {
+            "const": "homogeneous-plus-focused"
+          },
+          "reviewer_instance_id": {
+            "not": {
+              "enum": ["generalist-a", "generalist-b"]
+            }
+          }
+        },
+        "required": ["composition", "reviewer_instance_id"]
+      },
+      "then": {
+        "required": ["focus_zone"]
+      }
     }
   ]
 }

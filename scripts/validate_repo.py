@@ -418,12 +418,14 @@ def validate_upstream_review_cycle_policy(path: Path, data: dict) -> list[str]:
         return errors
     if "max_review_cycles" in review_cycle:
         errors.append(f"{path}: upstream workflow review_cycle must not hardcode max_review_cycles")
-    if review_cycle.get("max_review_cycles_required") is not True:
-        errors.append(f"{path}: review_cycle.max_review_cycles_required must be true")
+    if review_cycle.get("max_review_cycles_required") is True:
+        errors.append(f"{path}: upstream workflow review_cycle must not require max_review_cycles")
     if review_cycle.get("max_review_cycles_source") != "project_policy_or_workflow_binding":
         errors.append(
             f"{path}: review_cycle.max_review_cycles_source must be project_policy_or_workflow_binding"
         )
+    if review_cycle.get("max_review_cycles_absent_means") != "unlimited":
+        errors.append(f"{path}: review_cycle.max_review_cycles_absent_means must be unlimited")
     return errors
 
 

@@ -128,11 +128,12 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then schema validation must fail
     And valid collision context must include the disputed finding batch and orchestrator collision reason
 
-  Scenario: Review cycle limits come from project policy or workflow binding
+  Scenario: Review cycle caps are optional project policy or workflow binding
     Given an upstream workflow review_cycle policy
-    When the workflow hardcodes max_review_cycles or uses a non-project source
+    When the workflow hardcodes max_review_cycles or requires a project value
     Then repository validation must fail
-    And project workflow bindings must carry the concrete max_review_cycles value
+    And project workflow bindings may omit max_review_cycles to leave review cycles unlimited by count
+    And a provided max_review_cycles value must be at least 3
 
   Scenario: Reviewer fresh-context is protocol-level in v0.2
     Given a primary review gate
@@ -155,7 +156,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Big-feature plan gate is strictness-aware | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2` |
 | Evidence probe reports are evidence-only | `pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources` |
 | Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch`; `pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch` |
-| Review cycle limits come from project policy or workflow binding | `pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles`; `pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles` |
+| Review cycle caps are optional project policy or workflow binding | `pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles`; `pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles` |
 | Reviewer fresh-context is protocol-level in v0.2 | Manual evidence: `docs/review-agent-interaction-protocol.md`, `docs/review-prompt-contract.md`, `schemas/review-prompt-contract.schema.json` |
 
 ## Evidence Required

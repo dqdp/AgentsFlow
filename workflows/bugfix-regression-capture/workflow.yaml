@@ -196,8 +196,9 @@ review_control_rules:
   post_fix_materiality_classification_required: true
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles_required: true
+  max_review_cycles_required: false
   max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
   rerun_review_on:
   - accepted_blocker_fixed
   - mandatory_evidence_added

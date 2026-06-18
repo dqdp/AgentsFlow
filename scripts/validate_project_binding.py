@@ -194,12 +194,13 @@ def validate_review_policy(
 def validate_review_cycle_policy(path: Path, review_cycle: object) -> list[str]:
     errors: list[str] = []
     if review_cycle is None:
-        errors.append(f"{path}: review_cycle.max_review_cycles is required")
         return errors
     if not isinstance(review_cycle, dict):
         errors.append(f"{path}: review_cycle must be a mapping")
         return errors
     max_review_cycles = review_cycle.get("max_review_cycles")
+    if max_review_cycles is None:
+        return errors
     if not isinstance(max_review_cycles, int):
         errors.append(f"{path}: review_cycle.max_review_cycles must be an integer")
     elif max_review_cycles < 3:

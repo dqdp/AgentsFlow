@@ -204,7 +204,7 @@ bindings:
     gates:
       - verification_gate
   - id: AF-V02-BHV-012
-    scenario: "Review cycle limits come from project policy or workflow binding"
+    scenario: "Review cycle caps are optional project policy or workflow binding"
     required: true
     status: executable
     source:

@@ -198,8 +198,8 @@ legitimate convergence may take several rounds — a tight cap would cut off a h
 run.
 
 **Decision:**
-- Schema: `max_review_cycles` → `minimum: 3`, `default: 5`, **no maximum** (no upper
-  limit on the configured value).
+- Schema: `max_review_cycles` → optional, `minimum: 3` when present, **no default**
+  and **no maximum**. Absence means no cycle-count cap.
 - `minimum: 3` constrains the configured *ceiling value*, NOT the number of cycles
   executed. A run whose first review is clean exits after a **single pass**; one
   cycle is a normal outcome. The ceiling is only an upper bound that healthy runs
@@ -214,13 +214,14 @@ run.
   (validated-blocker count not trending down, the same blocker oscillating, or a fix
   re-breaking something previously fixed). Healthy "slow but converging" runs
   continue; stuck runs stop early without burning cycles.
-- When the orchestrator is built it must read `max_review_cycles`, apply default 5
-  if absent, and treat the ceiling as → human, not pass.
+- When the orchestrator is built it must read `max_review_cycles` only when the
+  project policy or workflow binding provides it. If absent, review cycles are not
+  limited by count; progress-based human escalation still prevents thrashing.
 
-**Superseded consequence:** concrete numeric ceilings now live in project policy
-or workflow bindings, not upstream workflow definitions. Upstream workflows
-declare that a concrete value is required; bindings/policies use minimum 3 and
-default 5.
+**Superseded consequence:** concrete numeric ceilings may live in project policy
+or workflow bindings, not upstream workflow definitions. Upstream workflows must
+not require a concrete value. Bindings/policies use minimum 3 only when they set
+the cap; omission means no cycle-count cap.
 
 **Status:** DECIDED.
 

@@ -63,8 +63,7 @@
       "properties": {
         "max_review_cycles": {
           "type": "integer",
-          "minimum": 3,
-          "default": 5
+          "minimum": 3
         }
       }
     },
