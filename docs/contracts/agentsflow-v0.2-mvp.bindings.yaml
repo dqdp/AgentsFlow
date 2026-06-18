@@ -1,0 +1,105 @@
+version: 1
+contract: agentsflow-v0.2-mvp.contract.md
+bindings:
+  - id: AF-V02-BHV-001
+    scenario: "Live external reviewer requires run-scope prompt contract"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-live-example-scope
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_rejects_live_example_scope"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-002
+    scenario: "Homogeneous dual review requires shared prompt and packet hashes"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-shared-review-hashes
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_rejects_missing_shared_hash"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-003
+    scenario: "Project gate binding must match the upstream gate id"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-upstream-gate-id
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_rejects_wrong_upstream_gate_id"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-004
+    scenario: "MVP review phase requires top-level review policy"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-mvp-review-policy
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_mvp_review_phase_requires_top_level_review_policy"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-005
+    scenario: "Primary e2e run metadata and reviewer reports are schema-valid"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-e2e-run-schemas
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_primary_e2e_workflow_run_artifacts_schema_pass"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-006
+    scenario: "Homogeneous plus focused keeps baseline reviewers unfocused"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P2
+    checks:
+      - id: pytest-plus-focused-baseline
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate

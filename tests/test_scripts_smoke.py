@@ -70,6 +70,20 @@ def test_behavior_binding_check_passes() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_agentsflow_v02_behavior_contract_passes() -> None:
+    contract = "docs/contracts/agentsflow-v0.2-mvp.contract.md"
+    bindings = "docs/contracts/agentsflow-v0.2-mvp.bindings.yaml"
+
+    contract_result = run("scripts/contract_lint.py", "--contract", contract)
+    assert contract_result.returncode == 0, contract_result.stdout + contract_result.stderr
+
+    gherkin_result = run("scripts/gherkin_lint.py", "--contract", contract)
+    assert gherkin_result.returncode == 0, gherkin_result.stdout + gherkin_result.stderr
+
+    binding_result = run("scripts/bdd_binding_check.py", "--bindings", bindings)
+    assert binding_result.returncode == 0, binding_result.stdout + binding_result.stderr
+
+
 def test_behavior_binding_schema_allows_spec_only_bindings(tmp_path) -> None:
     import json
 
@@ -318,6 +332,46 @@ def test_review_prompt_contract_rejects_missing_shared_hash() -> None:
         assert "shared_prompt_content_hash" in str(exc)
     else:
         raise AssertionError("missing shared prompt hash was accepted")
+
+
+def test_mvp_review_phase_requires_top_level_review_policy() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    workflow = yaml.safe_load((ROOT / "workflows/review-only-fusion/workflow.yaml").read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken.pop("review", None)
+
+    errors = validate_repo.validate_mvp_review_phase_policy(
+        ROOT / "workflows/review-only-fusion/workflow.yaml",
+        broken,
+    )
+    assert errors
+    assert "top-level review policy" in errors[0]
+
+
+def test_primary_e2e_workflow_run_artifacts_schema_pass() -> None:
+    import json
+
+    import jsonschema
+    import yaml
+
+    run_schema = json.loads((ROOT / "schemas/workflow-run.schema.json").read_text(encoding="utf-8"))
+    report_schema = json.loads((ROOT / "schemas/reviewer-report.schema.json").read_text(encoding="utf-8"))
+    run_root = ROOT / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+
+    jsonschema.Draft202012Validator(run_schema).validate(
+        yaml.safe_load((run_root / "run.yaml").read_text(encoding="utf-8"))
+    )
+    for name in ["reviewer-report.generalist-a.json", "reviewer-report.generalist-b.json"]:
+        jsonschema.Draft202012Validator(report_schema).validate(
+            json.loads((run_root / name).read_text(encoding="utf-8"))
+        )
 
 
 def test_repository_validation_passes() -> None:
