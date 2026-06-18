@@ -127,9 +127,11 @@ against the unsatisfied state. For implementation work, ADR-0017 requires the sa
 check to produce a captured failing run (red) before implementation and a passing
 run (green) after. This closes the gap where an always-green test, or a test never
 run against broken code, could self-certify the gate — the failure mode this rule
-exists to prevent. `validate_repo.py` is to enforce the framing structurally
-(ADR-0017; not yet implemented): a workflow with a `kind: implementation` phase must
-frame it with a red-capture phase and a green-verify phase.
+exists to prevent. `validate_repo.py` enforces the framing structurally: a workflow
+with a `kind: implementation` phase must frame it with a red-capture phase and a
+green-verify phase using `test_framing` markers. Refactor-only workflows may use
+`baseline_capture` before `change_type: refactor`, because the pre-change
+behavior-preservation baseline is expected to pass rather than fail.
 
 ## Review/fusion relation
 
@@ -147,7 +149,7 @@ authoritative verification signal.
 - gate manifests have runner interfaces/generic runner paths;
 - schemas/templates/scripts exist;
 - workflow phases declare gate references;
-- (planned, ADR-0017; not yet implemented) a workflow with a `kind: implementation` phase frames it with a pre-implementation red-capture phase and a post-implementation green-verify phase.
+- a workflow with a `kind: implementation` phase frames it with a pre-implementation red-capture phase, or refactor baseline-capture phase, and a post-implementation green-verify phase.
 
 `validate_project_binding.py` checks a concrete project overlay:
 
@@ -155,4 +157,4 @@ authoritative verification signal.
 - project gate bindings extend upstream gate contracts;
 - project-level runners exist;
 - required commands/instruments are declared;
-- required behavior binding files are present where configured.
+- project-bound gates and runners referenced by workflow bindings exist.

@@ -74,7 +74,7 @@ bindings:
     checks:
       - id: boundary-check
         type: script
-        command: "python scripts/boundary_check.py --contract task.contract.md --changed-files changed-files.txt"
+        command: "python3 scripts/boundary_check.py --contract task.contract.md --changed-files changed-files.txt"
         evidence:
           - boundary-check-report
     gates:
@@ -98,6 +98,25 @@ Behavior bindings may point to:
 - manual evidence checks;
 - external tools.
 
+Gate instrument types and behavior-binding check types use the same vocabulary
+where possible. When a gate manifest uses a broader instrument class, map it to a
+binding check type as follows:
+
+| Gate instrument type | Behavior-binding check type |
+|---|---|
+| `tests` or `test` | `test` |
+| `deterministic_script` or `script` | `script` |
+| `bdd_runner` | `bdd_runner` |
+| `eval` or `eval_runner` | `eval` |
+| `trace_assertion` | `trace_assertion` |
+| `log_assertion` | `log_assertion` |
+| `static_analysis` | `static_analysis` |
+| `dynamic_analysis` | `dynamic_analysis` |
+| `benchmark` | `benchmark` |
+| `security_scan` | `security_scan` |
+| `manual_evidence` | `manual_evidence` |
+| `external_tool` | `external_tool` |
+
 Manual evidence is allowed only if the gate runner can deterministically check
 that the required artifact exists and is referenced in the gate report.
 
@@ -115,8 +134,10 @@ A verification gate consuming behavior bindings must check that:
 
 For any behavior bound to an implementation phase, the evidence bundle must record a
 failing run (red) captured before implementation and a passing run (green) captured
-after, for the same bound check. The gate runner (`redgreen_check`, planned in
-ADR-0017; not yet implemented) is to confirm the failing-then-passing pair is present. This model is the canonical home for the
+after, for the same bound check. `validate_repo.py` enforces the workflow phase
+topology that makes this evidence pair mandatory by structure. The future
+`redgreen_check` gate runner will confirm that the failing-then-passing pair is
+present in concrete run artifacts. This model is the canonical home for the
 `failing_run` / `passing_run` evidence pair introduced by
 `docs/adr/ADR-0017-test-framed-implementation-phase.md`, which refines ADR-0010
 (gate executability) and ADR-0011 (behavior binding).

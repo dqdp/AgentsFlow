@@ -34,6 +34,16 @@ A candidate finding becomes an accepted issue only after the main/orchestrating
 agent validates it against the contract, artifact/diff, gate report, evidence,
 accepted decisions, workflow profile, scope, and non-goals.
 
+### Rule 3: Reviewers start from fresh context
+
+Review agents start from zero conversation context. They must not receive a
+forked main-agent/orchestrator conversation. The orchestrator prepares an explicit
+review packet with referenced artifacts; that packet is the reviewer input.
+
+Primary review gates run at least two reviewers. A single reviewer is allowed
+only as a control reviewer after the orchestrator rejects a blocker-level
+candidate finding and records the collision.
+
 ## Review loop overview
 
 ```text
@@ -183,6 +193,11 @@ Default non-triggers:
 - duplicate finding consolidation;
 - main agent rejects a candidate blocker as irrelevant with evidence-based reason;
 - fusion rewording without new findings.
+
+Exception: if a blocker-level candidate finding is rejected by the
+main/orchestrating agent and the workflow records a collision, it may launch one
+fresh-context control reviewer focused on the disputed finding and rejection
+reason. This is not a replacement for the primary two-reviewer gate.
 
 A workflow may set `max_review_cycles`; the default is `2` for implementation
 workflows and `1` for review-only/spec review workflows unless overridden.

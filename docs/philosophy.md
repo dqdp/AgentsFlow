@@ -136,7 +136,7 @@ always-green or never-run test cannot certify implementation (ADR-0010) — and 
 the contract's behavior binding (ADR-0011) executable before code exists. The rule
 is structural: an `implementation` phase must always be framed by a red-capture
 phase before it and a green-verify phase after it. See `docs/adr/ADR-0017-test-framed-implementation-phase.md`
-(accepted rule; structural enforcement in `validate_repo.py` is not yet implemented).
+(accepted rule; structural workflow enforcement is in `validate_repo.py`).
 
 ## Rule of gradual adoption
 

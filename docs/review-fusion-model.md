@@ -34,7 +34,15 @@ See `docs/review-control-model.md` for the shared control model and `docs/review
 
 ## Fusion is optional and workflow-selected
 
-Fusion is not the global default. A workflow/profile may select no review, a single reviewer, dual independent review, triad fusion, adversarial fusion, or multi-model fusion. The topology is configuration, not philosophy.
+Fusion is not the global default. A workflow/profile may select no review,
+`homogeneous-dual`, `homogeneous-plus-focused`, `heterogeneous-variable`, or the
+non-primary `collision-control` exception. The topology is configuration, not
+philosophy.
+
+If review is enabled as a primary review gate, the minimum reviewer count is two.
+A single reviewer is allowed only as a control reviewer after a blocker-level
+candidate finding was rejected by the main/orchestrating agent and the workflow
+needs a focused collision check.
 
 ## Review topology
 
@@ -43,11 +51,14 @@ Review topology is metadata selected by a workflow/profile.
 Examples:
 
 - `none`
-- `single-reviewer`
-- `dual-independent`
-- `triad-fusion`
-- `adversarial-fusion`
-- `multi-model-fusion`
+- `homogeneous-dual`
+- `homogeneous-plus-focused`
+- `heterogeneous-variable`
+- `collision-control` for rejected-blocker collision checks only, not as a primary gate
+
+Reviewers start from fresh zero conversation context. They must not receive a
+forked main-agent/orchestrator conversation. Their input is the review packet and
+referenced artifacts declared by the workflow or project binding.
 
 ## Reviewer roles
 
@@ -133,6 +144,7 @@ findings can become follow-up work without forcing another review cycle.
 - `pass`
 - `pass-with-notes`
 - `needs-changes`
+- `needs-verification-evidence`
 - `human-decision-required`
 - `blocked`
 

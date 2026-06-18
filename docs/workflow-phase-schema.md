@@ -79,8 +79,8 @@ Verification phases declare a concrete gate manifest and instruments instead of 
       command: ruff check .
     - type: dynamic_analysis
       command: sanitizer run
-    - type: custom_script
-      command: python scripts/boundary_check.py
+    - type: deterministic_script
+      command: python3 scripts/boundary_check.py
   outputs:
     - verification-gate-report.md
     - evidence-bundle
@@ -144,7 +144,7 @@ Validators and reviewers should enforce these invariants:
 - fusion must not erase validated blockers or candidate blockers by majority vote;
 - fusion must not launch reviewers/gates by default;
 - implementation must respect required plan/contract gates when the workflow declares them;
-- a phase of `kind: implementation` must be framed by a preceding red-capture phase (executable tests authored from the contract, run against the not-yet-implemented state, failing run captured) and a following green-verify phase (same tests re-run, passing run captured) — ADR-0017; validators are to reject an implementation phase missing either framing phase (not yet implemented);
+- a phase of `kind: implementation` must normally be framed by a preceding red-capture phase (executable tests authored from the contract, run against the not-yet-implemented state, failing run captured) and a following green-verify phase (same tests re-run, passing run captured) — ADR-0017; refactor-only implementation may use `test_framing: baseline_capture` before `change_type: refactor` because the pre-change behavior-preservation baseline is expected to pass rather than fail;
 - external planning-provider outputs must be normalized into AgentsFlow artifacts.
 
 ## Gate executability

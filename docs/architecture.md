@@ -88,4 +88,4 @@ Acceptance proof
 - Verification gates run declared instruments through deterministic runner entrypoints and produce evidence bundles/reports.
 - Reviewers inspect gate artifacts; they do not run tests, call scripts, or modify source artifacts.
 - Fusion synthesizes; it does not erase blocking issues by majority vote.
-- An implementation phase must be framed by red-capture and green-verify phases, so the red→green pair becomes gate evidence by construction (ADR-0017; structural enforcement not yet implemented).
+- An implementation phase must be framed by red-capture and green-verify phases, so the red→green pair becomes gate evidence by construction (ADR-0017; workflow-topology enforcement is in `validate_repo.py`; run-artifact evidence-pair validation remains future work).

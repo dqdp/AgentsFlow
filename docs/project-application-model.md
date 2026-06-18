@@ -36,6 +36,7 @@ my-project/
   .agentsflow/
     agentsflow.lock.yaml          # pinned upstream version/commit/source
     project.yaml                  # project-level AgentsFlow config
+    project-operating-decisions.yaml # human-owned gate/review/evidence decisions from agent-led interview
     upstream/                     # pinned AgentsFlow dependency; read-only during normal work
 
     workflows/                    # project bindings for upstream workflows
@@ -81,6 +82,12 @@ Rare. Updating `.agentsflow/upstream` or `agentsflow.lock.yaml` is a process cha
 
 Medium frequency. Examples: adding a new static analyzer, changing the verification gate, changing review topology, or changing evidence storage.
 
+Changes to `project-operating-decisions.yaml` are policy changes, not ordinary run
+artifacts. They should be made through the same agent-led decision interview
+style used during initialization: the agent asks focused questions, summarizes
+the decision, records provenance/status, and then updates the structured
+artifact.
+
 ### C. Workflow run
 
 Frequent. A feature, bugfix, review, or project specification task creates a run directory under `Docs/agentsflow/runs/`.
@@ -97,4 +104,9 @@ Frequent. A feature, bugfix, review, or project specification task creates a run
 
 ## Relationship to project binding
 
-The project overlay binds universal AgentsFlow workflows and gate contracts to a concrete repository. See `docs/project-binding-model.md`.
+The project overlay binds universal AgentsFlow workflows and gate contracts to a
+concrete repository. `.agentsflow/project.yaml` uses the flat canonical manifest
+shape from `docs/project-binding-model.md`; upstream source/pinning details live
+in `.agentsflow/agentsflow.lock.yaml`.
+
+See `docs/project-binding-model.md`.

@@ -25,7 +25,7 @@ Example:
 workflow: prompt-behavior-eval
 domain_pack: coding-agent
 strictness: L4
-review_topology: adversarial-fusion
+review_topology: heterogeneous-variable
 ```
 
 The workflow defines the type of work. The strictness profile controls depth.
@@ -53,7 +53,15 @@ supported_profiles:
 
 A phase sequence carries one structural constraint: any phase of `kind:
 implementation` must be preceded by a red-capture (failing-test) phase and followed
-by a green-verify phase; `validate_repo.py` is to enforce this (ADR-0017; not yet implemented).
+by a green-verify phase; `validate_repo.py` enforces this workflow topology with
+`test_framing` markers (ADR-0017). Refactor-only workflows may use
+`baseline_capture` before `change_type: refactor`, because the pre-change
+behavior-preservation baseline is expected to pass rather than fail.
+
+Workflow phases may also declare `human_interaction`. This does not create a
+runtime; it tells the main/orchestrating agent when a workflow run may enter
+`paused_waiting_for_human`, which question/decision artifacts to update, and which
+resume states are allowed. See `docs/human-interaction-protocol.md`.
 
 ## Current workflows
 

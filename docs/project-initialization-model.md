@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted in v0.1.9 and refined in v0.1.10.
+Accepted in v0.1.9, refined in v0.1.10, and extended in v0.2 with a
+conversational human operating-decisions interview.
 
 ## Purpose
 
@@ -14,6 +15,7 @@ Initialization separates:
 machine-observed facts
 model-produced structured inventory
 expert assessments
+human operating decisions
 human-confirmed decisions
 ```
 
@@ -24,8 +26,10 @@ No project analysis without an explicit research assignment.
 Unknown project does not mean empty assignment.
 No inferred metadata without provenance and confidence.
 No domain assumption without evidence and confirmation status.
+No project-bound gate or review policy before the human operating decisions interview.
 No project overlay without human approval.
 No code-only scan when documentation/history exist.
+No review-agent-to-human questioning; human interaction is mediated by the main agent.
 ```
 
 ## Input artifact: project intake / research assignment
@@ -52,6 +56,11 @@ templates/research-assignment.unknown-project.md
 ```
 
 The assignment is passed to researcher agents and expert assessment agents. It gives them context, known goals, constraints, domain assumptions, and analysis focus.
+
+The project intake is not the same thing as project operating decisions. Intake
+answers what should be studied and why. Operating decisions answer how AgentsFlow
+should run in the concrete project after the inventory and candidate assessment
+exist.
 
 ## Preflight user opportunity
 
@@ -170,9 +179,49 @@ open questions
 
 Their findings are candidate findings and follow the review-finding validation model.
 
-### Layer 4: human confirmation
+### Layer 4: human operating-decisions interview
 
-The human approves or corrects the project overlay, disputed inventory fields, domain assumptions, workflow selection and gate strategy.
+After the structured inventory and expert assessment exist, the main/orchestrating
+agent conducts a dialogue with the human project owner. This is not a request for
+the human to manually fill a YAML or JSON file.
+
+The dialogue decides:
+
+```text
+- default workflows and strictness profiles;
+- verification gate blockers and advisory checks;
+- canonical test/lint/typecheck/security/performance/domain commands;
+- required evidence for gate acceptance;
+- whether red-before/green-after evidence is mandatory for implementation workflows;
+- reviewer count and reviewer roles;
+- whether different models or harnesses should be used for review;
+- whether external reviewers are allowed and what context they may receive;
+- maximum review cycles and escalation conditions;
+- who may approve scope changes, gate changes, topology changes, legacy migration or residual risk;
+- where run artifacts and evidence live;
+- whether reports/raw logs are committed, gitignored, redacted or omitted.
+```
+
+The agent must ask focused questions, offer conservative defaults when supported
+by evidence, summarize decisions back to the human, and then normalize the result
+into `project-operating-decisions.yaml`.
+
+Each material decision is marked as one of:
+
+```text
+confirmed
+defaulted
+recommended
+unresolved
+rejected
+```
+
+Unresolved decisions remain visible and must not silently become project defaults.
+
+### Layer 5: human confirmation
+
+The human approves or corrects the project overlay, disputed inventory fields,
+domain assumptions, workflow selection, gate strategy and operating decisions.
 
 ## Initialization workflow
 
@@ -184,14 +233,41 @@ The human approves or corrects the project overlay, disputed inventory fields, d
 5. Discover documentation and implementation history.
 6. Produce structured project inventory, including domain identification.
 7. Run expert assessments.
-8. Collect human questionnaire / clarifications.
-9. Draft project overlay.
-10. Draft project-bound gates.
-11. Optionally use haft/quint-code for advanced decision engineering.
-12. Validate project overlay.
-13. Produce initialization report.
-14. Human approval.
+8. Conduct the human operating-decisions interview.
+9. Normalize the dialogue into `project-operating-decisions.yaml`.
+10. Draft project overlay.
+11. Draft project-bound gates.
+12. Optionally use haft/quint-code for advanced decision engineering.
+13. Validate project overlay.
+14. Produce initialization report.
+15. Human approval.
 ```
+
+## Human interaction protocol
+
+Project initialization uses the human interaction protocol in
+`docs/human-interaction-protocol.md`.
+
+The main/orchestrating agent is the workflow driver after explicit human
+invocation. It may pause the run only at declared human decision points or when
+analysis is blocked by missing human-owned context.
+
+Declared human-pause phases:
+
+```text
+read_project_intake
+legacy_adoption_mode_decision
+operating_decisions_interview
+human_approval
+```
+
+Review agents do not ask the human questions directly. They produce candidate
+findings, risks, recommendations and `questions_for_human`; the main agent
+synthesizes those into decision prompts.
+
+Questions are stored in `human-questions.yaml`; answers are stored in
+`human-decisions.yaml`. Long-lived operating choices are then normalized into
+`project-operating-decisions.yaml`.
 
 ## Modes of operation
 

@@ -1,0 +1,112 @@
+# Enforcement Boundary
+
+## Status
+
+Accepted for v0.2.
+
+## Purpose
+
+AgentsFlow must be clear about what it actually enforces and what it only
+represents as workflow policy. A rule is not a script-level guarantee just because
+it appears in a workflow, ADR, skill or template.
+
+The v0.2 MVP may keep some important controls as agent protocol or human decision
+points, but it must label them honestly.
+
+## Enforcement levels
+
+Use these labels for major guarantees:
+
+```text
+enforced_by_script
+  A validator, test or deterministic checker fails when the rule is violated.
+
+schema_validated
+  The artifact shape is checked by JSON/YAML schema. This does not prove semantic
+  quality.
+
+represented_as_artifact
+  The concept has a document, template/schema/example or workflow wiring, but no
+  full deterministic enforcement.
+
+agent_protocol
+  The rule is mandatory for agents through AGENTS.md, workflow manifests, skills
+  or prompts, but is not fully machine-checked.
+
+human_decision
+  The rule depends on explicit human confirmation or an unresolved-decision marker.
+
+accepted_not_implemented
+  The design is accepted, but the validator/script/runtime mechanism is still
+  future work.
+```
+
+## v0.2 enforced baseline
+
+The repository validator is expected to enforce:
+
+```text
+- YAML and JSON parseability.
+- Core workflow manifests validate against `schemas/workflow.schema.json`.
+- Referenced skills, scripts, templates, packs, review topologies and gates exist.
+- Gate/verification phases reference an upstream gate manifest.
+- Review phases do not declare deterministic scripts.
+- Gate manifests have the required executable-gate contract shape.
+- Required behavior bindings have checks and gates.
+- Claude Code external reviewer configs forbid API/proxy environment routes.
+- Active primary review gates declare at least two reviewers and reject
+  `single-reviewer` topology.
+- Active review gates declare fresh-context/no-fork reviewer context policy.
+- Active review gates declare review composition and prompt policy; homogeneous
+  review must use the same prompt, packet and rubric, while focused/heterogeneous
+  review must declare explicit focus zones.
+- `review-prompt-contract.yaml` has a schema-validated assembly shape and
+  records rendered prompt, packet, rubric, role-contract and output-schema hashes.
+- Claude Code external reviewer configs and packets declare fresh-context/no-fork
+  context policy and no session persistence.
+- `project-initialization` wires the human operating-decisions interview and
+  `project-operating-decisions.yaml`.
+- `project-initialization` declares main-agent-mediated human-pause phases and
+  question/decision artifacts.
+- Canonical project overlay examples use flat `.agentsflow/project.yaml` and
+  structured `.agentsflow/workflows/*.binding.yaml`.
+- An implementation phase is structurally framed by a preceding red-capture phase
+  and a following green-verify phase.
+```
+
+## v0.2 policy-only or partial controls
+
+These controls are important, but are not full deterministic guarantees in v0.2:
+
+```text
+- BDD scenario quality and semantic test coverage.
+- Whether a test truly exercises a required behavior.
+- Truth of model-produced project inventory fields.
+- Quality of expert assessment and review/fusion reasoning.
+- Reviewer finding relevance before the main agent validates it.
+- Runtime proof that a non-wrapper/internal reviewer was actually launched with
+  zero inherited conversation context.
+- Semantic quality of a reviewer role definition beyond schema presence.
+- Human authority choices beyond the existence/status of the decision artifact.
+- Red/green evidence-pair content validation inside gate reports.
+```
+
+The red/green phase topology is enforced at workflow-manifest level. Checking the
+actual failing-run/passing-run evidence pair in run artifacts remains future work.
+
+## Documentation rule
+
+Docs should not imply `enforced_by_script` unless a validator or test actually
+checks the condition. When a rule is represented, protocol-only, or future work,
+say so directly.
+
+## Design consequence
+
+When adding a new control, decide its level explicitly before writing strong
+claims. If the control is not script-enforced, either:
+
+```text
+1. add deterministic validation, or
+2. mark it as schema_validated, represented_as_artifact, agent_protocol,
+   human_decision, or accepted_not_implemented.
+```

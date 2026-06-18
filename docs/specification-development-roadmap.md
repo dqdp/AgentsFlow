@@ -2,6 +2,9 @@
 
 Status: **open research area for v0.2+**.
 
+`new-project-spec-first` is already an MVP workflow in v0.2; this roadmap tracks
+the later deeper research/specification-development track beyond that MVP shape.
+
 The current repository has enough structure for contracts and workflows, but the specification-development side is intentionally underdeveloped. This should become a first-class area rather than an afterthought.
 
 ## Why this matters

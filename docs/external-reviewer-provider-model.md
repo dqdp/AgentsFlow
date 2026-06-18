@@ -13,9 +13,11 @@ A wrapper receives a bounded **review packet** and returns a normalized `reviewe
 External reviewers:
 
 - are read-only by default;
+- start from fresh zero conversation context;
+- must not receive a forked main-agent/orchestrator conversation;
 - receive review packets rather than unrestricted repository authority;
 - do not run verification gates;
-- do not run tests unless an exceptional, explicit tool permission is granted;
+- do not run tests in v0.2;
 - do not modify files;
 - do not produce patches;
 - produce candidate findings only;
@@ -59,7 +61,9 @@ Minimum required guardrails for Claude Code CLI wrappers:
 
 - `expected_billing_mode: subscription-local`
 - `forbid_api_key_usage: true`
-- fail if `ANTHROPIC_API_KEY` is present in the environment;
+- fail if any of these environment variables are present:
+  `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`,
+  `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`;
 - do not use API-key-only execution modes;
 - record billing/auth mode in invocation metadata;
 - record stdout/stderr/exit code and normalized output;
@@ -95,6 +99,9 @@ A review packet should contain:
 - AgentsFlow version;
 - workflow and run id;
 - reviewer role and review goal;
+- context policy: `start_mode: fresh_context` and `fork_conversation_context: false`;
+- review prompt contract reference;
+- resolved reviewer role contract reference;
 - task contract or reviewed artifact;
 - plan, diff summary or target artifact summary;
 - changed files, if applicable;

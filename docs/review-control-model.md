@@ -144,8 +144,11 @@ Topology = configuration of the review process.
 Blocking issue = issue that cannot be overridden by majority vote.
 ```
 
-The project core does **not** decide that every task must use two reviewers, full gates,
-or fusion. Those choices belong to workflows and profiles.
+The project core does **not** decide that every task must use review, full gates,
+or fusion. Those choices belong to workflows and profiles. When a primary review
+gate is enabled, the core requires at least two reviewers. One reviewer is
+allowed only as a focused control reviewer after the main/orchestrating agent
+rejects a blocker-level candidate finding and records the collision.
 
 A workflow decides:
 
@@ -161,6 +164,8 @@ The core only requires that:
 - every concrete gate has a manifest, deterministic runner, explicit inputs, instruments, required evidence, outputs, result states and pass policy;
 - every review agent returns a structured report;
 - review agents are read-only and run after the verification gate;
+- review agents start from fresh zero conversation context and never inherit a forked main-agent/orchestrator context;
+- primary review gates use at least two reviewers;
 - review-agent findings are candidate findings until validated for relevance;
 - fusion preserves P0/P1 candidate issues and does not erase blockers by majority vote;
 - the main/orchestrating agent validates relevance before findings become accepted issues;
@@ -171,14 +176,23 @@ The core only requires that:
 Review topology is workflow/profile metadata. Common topology names are:
 
 - `none`;
-- `single-reviewer`;
-- `dual-independent`;
-- `triad-fusion`;
-- `adversarial-fusion`;
-- `multi-model-fusion`.
+- `homogeneous-dual`;
+- `homogeneous-plus-focused`;
+- `heterogeneous-variable`;
+- `collision-control` for rejected-blocker collision checks only, not as a primary gate.
 
 A topology declares reviewer roles, independence requirements, whether fusion is
 required, and blocking policy. See `schemas/review-topology.schema.json`.
+
+`single-reviewer` is not a valid primary review topology in v0.2. The one-reviewer
+case is modeled as a control-review exception in the review-cycle policy, not as
+the normal gate topology.
+
+Heterogeneous role names are not free-form hints. A role id such as `adversarial`
+must resolve to a role definition in `profiles/reviewer_roles/`. The role
+definition explains the primary focus, required reports and forbidden actions.
+Focus zones may overlap, and every reviewer must still report any plausible P0/P1
+blocker noticed outside its primary focus.
 
 ## Actor classes
 
@@ -247,7 +261,11 @@ It may inspect:
 - verification gate report;
 - test results and logs produced by the gate;
 - evidence report;
-- prior reviewer reports if the workflow explicitly allows non-independent review.
+- prior reviewer reports only when explicitly included in a control-review or
+  fusion packet.
+
+It starts from fresh zero conversation context. It must not receive a forked
+conversation from the main/orchestrating agent.
 
 It must not:
 
@@ -346,6 +364,9 @@ allowed_inputs:
   - gate_report
   - evidence_bundle
   - logs
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
 forbidden_actions:
   - run_tests
   - run_scripts

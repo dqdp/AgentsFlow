@@ -50,6 +50,9 @@ Each MVP workflow must have:
 - repo-validation coverage;
 - for workflows with an implementation phase, a red-capture (failing-test) phase before implementation and a green-verify phase after it (ADR-0017).
 
+Guarantee strength must follow `docs/enforcement-boundary.md`: do not describe a
+workflow property as script-enforced unless a validator or test actually checks it.
+
 ## v0.2 Definition of Done
 
 AgentsFlow v0.2 is done when:
@@ -66,6 +69,31 @@ AgentsFlow v0.2 is done when:
 - one end-to-end example exists under `examples/e2e/minimal-python-project/`;
 - `AGENTS.md` is usable by coding agents;
 - non-MVP workflows remain reference/experimental and schema-valid only.
+
+The project overlay model uses one canonical v0.2 shape: flat
+`.agentsflow/project.yaml`, structured `.agentsflow/workflows/*.binding.yaml`,
+and upstream pinning in `.agentsflow/agentsflow.lock.yaml`.
+
+Human interaction in v0.2 is main-agent mediated. Workflows that need human
+decisions declare pause-capable phases and record questions/answers as run
+artifacts; review agents do not question humans directly.
+
+## DoD interpretation
+
+Soft DoD terms are interpreted as operational checks:
+
+- `represented` means Doc + Instance + Wired: a model document in `docs/`, a
+  concrete artifact instance (schema + template + at least one `examples/`
+  instance), and a reference from at least one MVP `workflow.yaml` or project
+  binding.
+- `project-initialization path is coherent` means every
+  `workflows/project-initialization/workflow.yaml` output has a corresponding
+  template, concrete example, or explicit deferred/optional status.
+- `Claude Code external reviewer provider minimally works` means the mock smoke
+  test passes through the project-bound wrapper without a live Claude call.
+- `AGENTS.md is usable by coding agents` means it contains source-of-truth order,
+  explicit v0.2 scope, scope-expansion prohibition, validation commands, and
+  accepted-decision pointers.
 
 ## Primary e2e example
 
@@ -84,7 +112,7 @@ The Claude provider is in v0.2 MVP scope, but narrowly:
 - Claude Code CLI only;
 - subscription-local only;
 - API-key usage forbidden;
-- `ANTHROPIC_API_KEY` must fail fast;
+- configured Claude API/proxy environment variables must fail fast;
 - project-bound wrapper only;
 - review packet in, normalized reviewer report out;
 - raw output and invocation metadata stored;
@@ -98,8 +126,9 @@ Mandatory application/onboarding workflow:
 
 ```text
 intake -> raw scan -> structured inventory -> domain identification
--> legacy adoption decision -> draft project overlay -> validate project binding
--> initialization report -> human approval
+-> legacy adoption decision -> expert assessment -> human operating-decisions interview
+-> draft project overlay -> validate project binding -> initialization report
+-> human approval
 ```
 
 Default mode: `scan-only + draft-overlay`.

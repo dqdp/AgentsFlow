@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted in v0.1.9 and refined in v0.1.10.
+Accepted in v0.1.9, refined in v0.1.10, and refined for v0.2 with a
+human operating-decisions interview.
 
 ## Context
 
@@ -39,6 +40,7 @@ machine-observed raw facts
 model-produced structured inventory
 model-inferred domain assumptions
 expert assessments
+human operating decisions
 human-confirmed decisions
 ```
 
@@ -54,3 +56,30 @@ Domain identification is mandatory. Researcher agents must identify apparent dom
 - Domain assumptions become explicit and reviewable.
 - Researcher/expert agents produce candidate findings and recommendations, not authoritative truth.
 - Project overlay creation remains subject to human approval.
+
+## v0.2 refinement: operating decisions are collected by dialogue
+
+Project initialization must not rely only on model-filled inventory and expert
+recommendations. Before drafting the project overlay, the main/orchestrating
+agent conducts an agent-led dialogue with the human project owner to decide how
+AgentsFlow should operate in the concrete project.
+
+This step must not be implemented as "here is a YAML/JSON file, fill it in." The
+agent asks focused questions, offers evidence-grounded defaults where appropriate,
+summarizes decisions back to the human, and then records the normalized result as
+`project-operating-decisions.yaml`.
+
+The dialogue covers at least:
+
+```text
+- verification gate blockers and advisory checks;
+- canonical commands and required evidence;
+- reviewer count, reviewer roles and model/harness diversity;
+- whether external reviewers are allowed and what context they may receive;
+- maximum review cycles and escalation conditions;
+- authority for scope, gate, topology, migration and residual-risk decisions;
+- evidence storage, raw log and redaction policy.
+```
+
+Unresolved operating decisions remain explicit. They must not silently become
+project defaults during overlay drafting.

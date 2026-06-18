@@ -4,11 +4,16 @@
 
 Accepted for v0.2 (pre-handoff design, 2026-06-18).
 
-**Implementation status: NOT yet built.** The structural check in `validate_repo.py`,
-the `failing_run`/`passing_run` schema fields, the `redgreen_check` runner, and the
-red-capture phase in `big-feature-contract-first` do not exist yet. This ADR records
-the accepted rule; building it is tracked in
-`docs/handoff/codex-v0.2-prehandoff-tasks.md`.
+**Implementation status: partially built.** The workflow-topology rule is now
+represented with `test_framing: red_capture` / `test_framing: green_verify` markers
+and enforced by `validate_repo.py`. Run-artifact validation of the actual
+`failing_run`/`passing_run` evidence pair and a dedicated `redgreen_check` runner
+remain future work.
+
+Refactor-only workflows may use `test_framing: baseline_capture` immediately before
+`change_type: refactor`. That marker is not a substitute for red-capture when new
+behavior is being implemented; it records the pre-change behavior-preservation
+baseline that is expected to pass.
 
 ## Context
 
@@ -18,10 +23,10 @@ middle — the "red" step — is implicit and only half-present:
 - "Specification/test-first" is dissolved into contract-first authoring, BDD
   scenarios and behavior bindings (behavior is written before code).
 - "Green" (verification) is produced by the verification gate.
-- "Red" (a recorded failing run against the unsatisfied state) is explicit ONLY in
+- "Red" (a recorded failing run against the unsatisfied state) was explicit ONLY in
   `bugfix-regression-capture` (the `reproduce` phase + `regression_gate`), and even
-  there it is soft ("reproduced or simulated"). The term "TDD" appears nowhere as an
-  applied rule, and `big-feature-contract-first` has no red-capture step before
+  there it was soft ("reproduced or simulated"). The term "TDD" appeared nowhere as
+  an applied rule, and `big-feature-contract-first` had no red-capture step before
   implementation.
 
 Consequence of the gap: an implementation can be accepted on an always-green test,
@@ -58,7 +63,8 @@ This rule is to be enforced structurally: `validate_repo.py` / the workflow sche
 must reject a workflow that contains an `implementation` phase without the framing
 red-capture and green-verify phases — mirroring the existing checks that a
 gate/verification phase must declare a gate manifest and that a review phase declares
-no scripts. (See Implementation status above: this check is not yet built.)
+no scripts. (See Implementation status above: this structural check is built; run
+artifact evidence-pair validation is not.)
 
 ## Alternatives considered
 
@@ -77,14 +83,13 @@ no scripts. (See Implementation status above: this check is not yet built.)
 
 ## Consequences
 
-- `big-feature-contract-first` gains an explicit pre-implementation red-capture
-  phase; `bugfix-regression-capture` already conforms (`reproduce` → fix →
-  `regression_gate`) and is aligned to the same shape.
-- `validate_repo.py` (and the workflow schema) gain a structural check for the
-  framing.
-- The behavior-binding / evidence schema gains fields to record the failing-run /
-  passing-run pair; a deterministic `redgreen_check` enforces their presence as part
-  of the verification gate.
+- `big-feature-contract-first` has an explicit pre-implementation red-capture phase.
+- `bugfix-regression-capture` has explicit regression red-capture and green-verify
+  phases around the fix.
+- `validate_repo.py` and the workflow schema enforce the structural framing.
+- The behavior-binding / evidence schema will gain fields to record the failing-run
+  / passing-run pair; a future deterministic `redgreen_check` will enforce their
+  presence as part of the verification gate.
 - Workflows with no implementation phase (e.g. `review-only-fusion`,
   `new-project-spec-first`) are unaffected — the rule is proportionate by
   construction.

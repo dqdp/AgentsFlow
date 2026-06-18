@@ -75,6 +75,89 @@ my-project/
     fusion-report.md
 ```
 
+## Canonical v0.2 overlay shape
+
+Use one project manifest shape in v0.2. `.agentsflow/project.yaml` is a flat
+project-level manifest:
+
+```yaml
+name: my-project
+agentsflow_version: 0.2
+
+paths:
+  docs_root: Docs/
+  adr_root: Docs/adr/
+  agentsflow_root: .agentsflow/
+  runs_root: Docs/agentsflow/runs/
+
+project_rules:
+  default_workflow: big-feature-contract-first
+
+verification_defaults:
+  evidence_root: Docs/agentsflow/evidence/
+  ci_source: local-or-ci
+```
+
+Do not use a nested shape such as:
+
+```yaml
+project:
+  name: my-project
+application:
+  upstream_mode: git-submodule
+```
+
+Pinning and upstream source information belongs in `.agentsflow/agentsflow.lock.yaml`,
+not in `project.yaml`.
+
+## Canonical workflow binding shape
+
+Workflow bindings live under `.agentsflow/workflows/*.binding.yaml`.
+
+`extends` points to a workflow inside the pinned AgentsFlow upstream root. Gate
+`extends` paths also point to upstream gate contracts. Gate `manifest` and
+`runner` paths point to project-local overlay files.
+
+```yaml
+workflow: big-feature-contract-first
+extends: workflows/big-feature-contract-first/workflow.yaml
+agentsflow_version: 0.2
+
+binding:
+  project: my-project
+  docs_root: Docs/
+  runs_root: Docs/agentsflow/runs/
+
+gates:
+  verification_gate:
+    extends: gates/verification_gate.yaml
+    manifest: .agentsflow/gates/verification_gate.yaml
+    runner: .agentsflow/scripts/run_verification_gate.sh
+
+behavior_bindings:
+  default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
+
+review:
+  topology: homogeneous-dual
+  composition: homogeneous
+  reviewers:
+    - generalist-a
+    - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts
+```
+
+This shape is validated by `scripts/validate_project_binding.py`.
+
 ## Gate contract vs project-bound executable gate
 
 Upstream gate manifests are **gate contracts/templates**. They define what must be

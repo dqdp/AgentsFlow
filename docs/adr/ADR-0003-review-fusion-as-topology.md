@@ -2,6 +2,14 @@
 
 Status: Accepted for v0.1 design seed
 
+Updated for v0.2: primary review gates require two or more reviewers. A single
+reviewer is allowed only as a control-review exception after a rejected blocker
+collision.
+
+v0.2 also replaces the early narrative topology labels below with the canonical
+profile names `homogeneous-dual`, `homogeneous-plus-focused`,
+`heterogeneous-variable`, and `collision-control`.
+
 ## Context
 
 Multi-model review and fusion are valuable but should not become a separate heavyweight mode that competes with workflows.
@@ -10,10 +18,9 @@ Multi-model review and fusion are valuable but should not become a separate heav
 
 Review/fusion is modeled as a review topology selected by workflow/profile metadata.
 
-Examples:
+Historical seed examples:
 
 - none;
-- single reviewer;
 - dual independent;
 - triad fusion;
 - adversarial fusion;
