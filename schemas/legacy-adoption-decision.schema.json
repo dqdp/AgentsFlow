@@ -27,8 +27,31 @@
         "type": "string"
       }
     },
+    "justification": {
+      "type": "string"
+    },
     "legacy_handling": {
-      "type": "object"
+      "type": "object",
+      "required": [
+        "no_ambiguous_coexistence",
+        "final_authority_layer_required",
+        "backup_required"
+      ],
+      "properties": {
+        "backup_required": {
+          "type": "boolean"
+        },
+        "archive_path": {
+          "type": "string"
+        },
+        "final_authority_layer_required": {
+          "type": "boolean"
+        },
+        "no_ambiguous_coexistence": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
     },
     "legacy_artifacts": {
       "type": "array",
@@ -66,7 +89,51 @@
       }
     },
     "human_approval": {
-      "type": "object"
+      "type": "object",
+      "required": [
+        "required",
+        "status"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        },
+        "approver": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "approved_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "adoption_mode": {
+            "const": "minimal-patch-adapt"
+          }
+        },
+        "required": [
+          "adoption_mode"
+        ]
+      },
+      "then": {
+        "required": [
+          "justification"
+        ]
+      }
+    }
+  ]
 }

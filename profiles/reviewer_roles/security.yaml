@@ -1,0 +1,17 @@
+name: security
+kind: reviewer_role
+purpose: Review security, privacy and abuse-risk implications when the workflow declares such risk.
+primary_focus:
+  - authentication, authorization and secret handling
+  - data exposure and privacy risk
+  - unsafe tool or network access
+  - abuse, injection or policy bypass paths
+must_report:
+  - Any plausible P0/P1 blocker, including non-security blockers noticed outside the security focus.
+  - Missing security evidence for a declared security-sensitive change.
+  - Risk requiring human approval or specialist review.
+forbidden_actions:
+  - run_tests
+  - run_scripts
+  - modify_files
+  - create_patch

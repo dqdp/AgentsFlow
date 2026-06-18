@@ -4,7 +4,7 @@ intent: "Describe the workflow intent."
 
 profiles:
   strictness: L2
-  review_topology: single-reviewer
+  review_topology: homogeneous-dual
 
 uses:
   skills: []
@@ -55,9 +55,22 @@ fusion:
   may_request_additional_review: true
 
 review:
-  topology: single-reviewer
+  topology: homogeneous-dual
+  composition: homogeneous
   reviewers:
-    - verification
+    - generalist-a
+    - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts
   gates:
     - verification_gate
     - evidence_gate
@@ -74,6 +87,22 @@ phases:
     mode: human_guided
     coordinator: main-agent
 
+  - id: red_capture
+    kind: verification
+    purpose: "Run the bound checks against the not-yet-implemented state and capture the expected failing result."
+    actor_class: verification_gate
+    test_framing: red_capture
+    owns_evidence_production: true
+    gate: verification_gate
+    instruments:
+      - type: tests
+        command: "<test command>"
+      - type: deterministic_script
+        command: "<script command>"
+    outputs:
+      - red capture gate report
+      - failing-run evidence
+
   - id: implementation_or_artifact_creation
     kind: implementation
     purpose: "Create the diff or artifact under the workflow's scope."
@@ -82,11 +111,13 @@ phases:
     kind: verification
     purpose: "Run workflow-declared verification instruments and evidence validation."
     actor_class: verification_gate
+    test_framing: green_verify
     owns_evidence_production: true
+    gate: verification_gate
     instruments:
       - type: tests
         command: "<test command>"
-      - type: custom_script
+      - type: deterministic_script
         command: "<script command>"
     outputs:
       - verification gate report

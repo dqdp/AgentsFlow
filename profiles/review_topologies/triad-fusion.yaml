@@ -1,4 +1,9 @@
 name: triad-fusion
+deprecated: true
+replacement: heterogeneous-variable
+notes:
+  - Kept as a historical topology name.
+  - v0.2 heterogeneous review requires explicit role definitions and focus zones.
 requirements:
   - architecture reviewer
   - verification reviewer

@@ -19,8 +19,8 @@ uses:
   - bdd-scenario-design
   - research-to-decision-memo
   - evidence-reporting
+  - reviewer-generalist
   - reviewer-product-spec
-  - reviewer-architecture
   scripts:
   - contract_lint
   - gherkin_lint
@@ -34,10 +34,32 @@ uses:
   - coding-agent
   - backend-service
 review:
-  topology: dual-independent
+  topology: homogeneous-plus-focused
+  composition: homogeneous-plus-focused
   reviewers:
+  - generalist-a
+  - generalist-b
   - product-spec
-  - architecture
+  prompt_policy:
+    baseline_same_prompt: true
+    baseline_same_packet: true
+    baseline_same_rubric: true
+    focused_reviewers_require_explicit_focus_zone: true
+    focus_zones_may_overlap: true
+    all_reviewers_must_report_p0_p1_outside_focus: true
+  focus_zones:
+  - reviewer: product-spec
+    role: product-spec
+    primary_focus:
+    - product intent
+    - requirement ambiguity
+    - acceptance criteria
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
   gates:
   - problem_framing_gate
   - scope_gate
@@ -57,9 +79,9 @@ supported_profiles:
   - L4
   review_topologies:
   - none
-  - single-reviewer
-  - triad-fusion
-  - multi-model-fusion
+  - homogeneous-dual
+  - homogeneous-plus-focused
+  - heterogeneous-variable
 phases:
 - name: frame-problem
   purpose: Clarify problem, users, goals, non-goals.
@@ -132,8 +154,8 @@ phases:
 - name: spec-review
   purpose: Run read-only spec review according to the workflow review topology.
   skills:
+  - reviewer-generalist
   - reviewer-product-spec
-  - reviewer-architecture
   scripts: []
   outputs:
   - reviewer reports

@@ -36,8 +36,8 @@ supported_profiles:
   - L3
   review_topologies:
   - none
-  - single-reviewer
-  - dual-independent
+  - homogeneous-dual
+  - homogeneous-plus-focused
 phases:
 - name: scope
   purpose: Define refactor scope and non-goals.
@@ -67,6 +67,22 @@ phases:
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+- name: refactor-baseline-capture
+  purpose: Run behavior-preservation checks before the refactor and capture the
+    baseline result required for comparison.
+  skills:
+  - evidence-reporting
+  scripts:
+  - impact_map_check
+  - evidence_validate
+  outputs:
+  - baseline capture gate report
+  - pre-refactor evidence
+  id: refactor_baseline_capture
+  kind: verification
+  gate: verification_gate
+  test_framing: baseline_capture
+  owns_evidence_production: true
 - name: change
   purpose: Apply refactor within boundaries.
   skills: []
@@ -75,6 +91,24 @@ phases:
   outputs:
   - diff
   id: change
+  kind: implementation
+  change_type: refactor
+- name: refactor-green-verify
+  purpose: Re-run the same behavior-preservation checks after the refactor.
+  skills:
+  - evidence-reporting
+  scripts:
+  - boundary_check
+  - impact_map_check
+  - evidence_validate
+  outputs:
+  - green verification gate report
+  - post-refactor evidence
+  id: refactor_green_verify
+  kind: verification
+  gate: verification_gate
+  test_framing: green_verify
+  owns_evidence_production: true
 - name: evidence
   purpose: Prove behavior preservation.
   skills:
@@ -85,6 +119,7 @@ phases:
   outputs:
   - evidence report
   id: evidence
+  kind: reporting
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.

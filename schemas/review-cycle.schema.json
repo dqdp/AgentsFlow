@@ -25,6 +25,7 @@
           "contract_changed",
           "material_artifact_change",
           "verification_gate_materially_changed",
+          "project_overlay_materially_changed",
           "human_requested",
           "workflow_requires_second_pass"
         ]

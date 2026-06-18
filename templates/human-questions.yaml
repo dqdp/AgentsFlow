@@ -1,0 +1,30 @@
+version: 1
+run_id: "YYYY-MM-DD-task-slug"
+
+questions:
+  - decision_id: review_policy.model_diversity
+    phase_id: operating_decisions_interview
+    status: open
+    question: Should review use different models or harnesses when available?
+    basis:
+      observed:
+        - Existing project has no external reviewer policy.
+      reviewer_recommendations:
+        - Verification reviewer recommends independent review for high-risk work.
+    options:
+      - id: same-model
+        label: Same model is allowed
+        impact: Lower setup complexity.
+      - id: diverse-models
+        label: Prefer different model/harness
+        impact: More independence; requires provider setup.
+      - id: unresolved
+        label: Leave unresolved
+        impact: Overlay remains draft-only.
+    default:
+      id: same-model
+      allowed: true
+    answer_required: true
+    affected_artifacts:
+      - project-operating-decisions.yaml
+      - .agentsflow/project.yaml

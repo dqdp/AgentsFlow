@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Project Operating Decisions",
+  "type": "object",
+  "required": [
+    "version",
+    "source",
+    "interview_state",
+    "project_context",
+    "workflow_defaults",
+    "verification_gate_policy",
+    "review_policy",
+    "review_cycle_policy",
+    "authority_policy",
+    "artifact_policy",
+    "decision_log",
+    "unresolved_questions"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "source": {
+      "type": "object",
+      "required": ["collection_mode"],
+      "additionalProperties": true,
+      "properties": {
+        "collection_mode": {
+          "type": "string",
+          "enum": ["agent-led-dialogue"]
+        },
+        "interviewer": {
+          "type": "string"
+        },
+        "based_on_artifacts": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "raw_dialogue_reference": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "interview_state": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": true,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["draft", "confirmed", "needs-human-decision", "rejected"]
+        },
+        "confirmed_by": {
+          "type": ["string", "null"]
+        },
+        "confirmation_summary": {
+          "type": "string"
+        }
+      }
+    },
+    "project_context": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "workflow_defaults": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "verification_gate_policy": {
+      "type": "object",
+      "required": ["mandatory_blockers", "evidence_required"],
+      "additionalProperties": true,
+      "properties": {
+        "mandatory_blockers": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "advisory_checks": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "red_green_required_for_implementation": {
+          "type": "boolean"
+        },
+        "evidence_required": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "canonical_commands": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "review_policy": {
+      "type": "object",
+      "required": [
+        "reviewer_count",
+        "composition",
+        "prompt_policy",
+        "reviewer_roles",
+        "context_policy",
+        "read_only_by_default",
+        "allow_external_reviewers",
+        "allow_different_models"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "reviewer_count": {
+          "anyOf": [
+            {
+              "const": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 2
+            }
+          ],
+          "description": "0 means review is disabled. Enabled review gates require at least two reviewers."
+        },
+        "reviewer_roles": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "composition": {
+          "type": "string",
+          "enum": ["homogeneous", "homogeneous-plus-focused", "heterogeneous"]
+        },
+        "prompt_policy": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "focus_zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["role", "primary_focus"],
+            "additionalProperties": true,
+            "properties": {
+              "role": {"type": "string"},
+              "primary_focus": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            }
+          }
+        },
+        "context_policy": {
+          "type": "object",
+          "required": ["start_mode", "fork_conversation_context"],
+          "additionalProperties": true,
+          "properties": {
+            "start_mode": {
+              "const": "fresh_context"
+            },
+            "fork_conversation_context": {
+              "const": false
+            },
+            "allowed_context_sources": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "read_only_by_default": {
+          "type": "boolean"
+        },
+        "allow_external_reviewers": {
+          "type": "boolean"
+        },
+        "allow_different_models": {
+          "type": "boolean"
+        },
+        "candidate_findings_require_main_validation": {
+          "type": "boolean"
+        }
+      }
+    },
+    "review_cycle_policy": {
+      "type": "object",
+      "required": [
+        "max_review_cycles",
+        "control_reviewer_count",
+        "control_review_trigger",
+        "control_review_context_policy"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "max_review_cycles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "control_reviewer_count": {
+          "const": 1
+        },
+        "control_review_trigger": {
+          "const": "rejected_blocker_finding_collision"
+        },
+        "control_review_context_policy": {
+          "type": "object",
+          "required": ["start_mode", "fork_conversation_context"],
+          "additionalProperties": true,
+          "properties": {
+            "start_mode": {
+              "const": "fresh_context"
+            },
+            "fork_conversation_context": {
+              "const": false
+            },
+            "allowed_context_sources": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "rerun_review_on": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "escalate_to_human_on": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "authority_policy": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "artifact_policy": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "decision_log": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "question", "answer", "status", "source"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {"type": "string"},
+          "question": {"type": "string"},
+          "answer": {},
+          "status": {
+            "type": "string",
+            "enum": ["confirmed", "defaulted", "recommended", "unresolved", "rejected"]
+          },
+          "source": {
+            "type": "string",
+            "enum": ["human-dialogue", "agent-recommendation", "project-evidence", "default-policy"]
+          }
+        }
+      }
+    },
+    "unresolved_questions": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

@@ -1,0 +1,29 @@
+name: homogeneous-dual
+kind: review_topology
+description: Baseline topology for two independent generalist reviewers using the same prompt, packet, rubric and schema.
+composition: homogeneous
+review_profile: homogeneous-dual
+reviewers:
+  - role: generalist
+    instance: generalist-a
+    independent: true
+  - role: generalist
+    instance: generalist-b
+    independent: true
+prompt_policy:
+  same_prompt: true
+  same_packet: true
+  same_rubric: true
+  same_output_schema: true
+fusion:
+  required: false
+  preserve_blocking_issues: true
+blocking_policy:
+  p0_blocks: true
+  p1_blocks: true
+  majority_cannot_override_blocker: true
+  missing_evidence: needs-additional-verification
+requirements:
+  - two independent reviewers
+  - same prompt and packet for both reviewers
+  - no cross-contamination before reports

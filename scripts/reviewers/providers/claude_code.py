@@ -22,13 +22,19 @@ class ProviderResult:
 def build_command(config: dict, prompt: str) -> list[str]:
     execution = config.get("execution", {}) or {}
     command = str(execution.get("command", "claude"))
+    if command != "claude":
+        raise ValueError("Claude Code external reviewer command must be claude in v0.2")
     args = [command, "-p", prompt]
 
     output_format = execution.get("output_format", "json")
+    if output_format != "json":
+        raise ValueError("Claude Code external reviewer output_format must be json in v0.2")
     if output_format:
         args.extend(["--output-format", str(output_format)])
 
     permission_mode = execution.get("permission_mode", "plan")
+    if permission_mode != "plan":
+        raise ValueError("Claude Code external reviewer permission_mode must be plan in v0.2")
     if permission_mode:
         args.extend(["--permission-mode", str(permission_mode)])
 
@@ -43,7 +49,7 @@ def build_command(config: dict, prompt: str) -> list[str]:
     # local OAuth/keychain discovery in some Claude Code setups and is therefore not
     # the safe default for the accepted MVP policy.
     if execution.get("use_bare_mode", False):
-        args.append("--bare")
+        raise ValueError("Claude Code external reviewer use_bare_mode must be false in v0.2")
 
     return args
 

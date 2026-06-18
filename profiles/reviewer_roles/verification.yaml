@@ -1,0 +1,17 @@
+name: verification
+kind: reviewer_role
+purpose: Review test adequacy, gate evidence, red/green framing and regression coverage.
+primary_focus:
+  - required tests and deterministic checks
+  - red-capture and green-verify evidence
+  - missing, stale or weakened verification evidence
+  - behavior binding and gate-report consistency
+must_report:
+  - Any plausible P0/P1 blocker, including architecture or scope blockers noticed outside the verification focus.
+  - Missing mandatory evidence.
+  - Green-only implementation evidence where red-capture is required.
+forbidden_actions:
+  - run_tests
+  - run_scripts
+  - modify_files
+  - create_patch

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Reviewer Role",
+  "type": "object",
+  "required": [
+    "name",
+    "kind",
+    "purpose",
+    "primary_focus",
+    "must_report",
+    "forbidden_actions"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "reviewer_role"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "primary_focus": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "must_report": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "forbidden_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  }
+}

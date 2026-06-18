@@ -16,7 +16,7 @@ The wrapper:
 
 - loads provider config;
 - validates subscription-local-only policy;
-- fails if `ANTHROPIC_API_KEY` is present;
+- fails if configured forbidden Claude API/proxy environment variables are present;
 - loads a review packet;
 - invokes the provider or a mock response for smoke testing;
 - normalizes raw provider output into `reviewer-report.json`;
@@ -25,7 +25,7 @@ The wrapper:
 ## Smoke test without Claude
 
 ```bash
-python scripts/reviewers/run_external_reviewer.py \
+python3 scripts/reviewers/run_external_reviewer.py \
   --provider claude-code \
   --config examples/external-reviewers/claude-code/claude-code.yaml \
   --input examples/external-reviewers/claude-code/review-packet.architecture.json \

@@ -35,9 +35,9 @@ supported_profiles:
   - L3
   - L4
   review_topologies:
-  - single-reviewer
-  - adversarial-fusion
-  - multi-model-fusion
+  - homogeneous-dual
+  - homogeneous-plus-focused
+  - heterogeneous-variable
 phases:
 - name: scenario-design
   purpose: Define expected and forbidden prompt behavior.
@@ -62,6 +62,7 @@ phases:
   outputs:
   - risk notes
   id: behavior_check
+  kind: specification
 - name: review
   purpose: Run adversarial review if enabled.
   skills:
@@ -87,6 +88,7 @@ phases:
   outputs:
   - evidence report
   id: evidence
+  kind: reporting
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.

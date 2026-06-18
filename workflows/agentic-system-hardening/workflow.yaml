@@ -38,9 +38,8 @@ supported_profiles:
   - L3
   - L4
   review_topologies:
-  - triad-fusion
-  - adversarial-fusion
-  - multi-model-fusion
+  - homogeneous-plus-focused
+  - heterogeneous-variable
 phases:
 - name: behavior-contract
   purpose: Define expected and forbidden agent behavior.
@@ -110,6 +109,7 @@ phases:
   outputs:
   - evidence report
   id: evidence
+  kind: reporting
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.

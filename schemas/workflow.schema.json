@@ -64,6 +64,10 @@
       "type": "object",
       "additionalProperties": true
     },
+    "human_interaction": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "verification": {
       "type": "object",
       "additionalProperties": true

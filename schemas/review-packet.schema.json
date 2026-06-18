@@ -9,7 +9,14 @@
     "workflow",
     "run_id",
     "reviewer_role",
+    "reviewer_instance_id",
     "review_goal",
+    "review_profile",
+    "composition",
+    "prompt_policy",
+    "role_contract",
+    "review_prompt_contract",
+    "context_policy",
     "forbidden_actions",
     "output_schema"
   ],
@@ -26,11 +33,111 @@
     "reviewer_role": {
       "type": "string"
     },
+    "reviewer_instance_id": {
+      "type": "string"
+    },
     "provider": {
       "type": "string"
     },
     "review_goal": {
       "type": "string"
+    },
+    "review_profile": {
+      "type": "string",
+      "enum": [
+        "homogeneous-dual",
+        "homogeneous-plus-focused",
+        "heterogeneous-variable",
+        "collision-control"
+      ]
+    },
+    "composition": {
+      "type": "string",
+      "enum": [
+        "homogeneous",
+        "homogeneous-plus-focused",
+        "heterogeneous",
+        "control"
+      ]
+    },
+    "prompt_policy": {
+      "type": "object"
+    },
+    "role_contract": {
+      "type": "string"
+    },
+    "role_contract_hash": {
+      "type": "string"
+    },
+    "review_prompt_contract": {
+      "type": "object",
+      "required": ["path", "schema"],
+      "additionalProperties": true,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "collision_control": {
+      "type": ["object", "null"],
+      "required": [
+        "disputed_finding_id",
+        "original_severity",
+        "source_reviewer_report",
+        "orchestrator_rejection_reason",
+        "evidence_references_checked"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "disputed_finding_id": {
+          "type": "string"
+        },
+        "original_severity": {
+          "enum": ["P0", "P1"]
+        },
+        "source_reviewer_report": {
+          "type": "string"
+        },
+        "orchestrator_rejection_reason": {
+          "type": "string"
+        },
+        "evidence_references_checked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "focus_zone": {
+      "type": "object"
+    },
+    "context_policy": {
+      "type": "object",
+      "required": ["start_mode", "fork_conversation_context"],
+      "additionalProperties": true,
+      "properties": {
+        "start_mode": {
+          "const": "fresh_context"
+        },
+        "fork_conversation_context": {
+          "const": false
+        },
+        "allowed_context_sources": {
+          "type": "array",
+          "items": {
+            "enum": ["review_packet", "referenced_artifacts"]
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      }
     },
     "changed_files": {
       "type": "array",
@@ -47,5 +154,33 @@
     "output_schema": {
       "type": "string"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "review_profile": {
+            "const": "collision-control"
+          }
+        },
+        "required": ["review_profile"]
+      },
+      "then": {
+        "required": ["collision_control"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "composition": {
+            "const": "heterogeneous"
+          }
+        },
+        "required": ["composition"]
+      },
+      "then": {
+        "required": ["focus_zone"]
+      }
+    }
+  ]
 }

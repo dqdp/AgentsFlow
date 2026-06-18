@@ -18,8 +18,10 @@ uses:
   - impact-map-builder
   - adr-consistency-check
   - evidence-reporting
+  - reviewer-generalist
   - reviewer-architecture
   - reviewer-verification
+  - reviewer-adversarial
   - fusion-synthesis
   scripts:
   - contract_lint
@@ -38,11 +40,32 @@ uses:
   - coding-agent
   - backend-service
 review:
-  topology: triad-fusion
+  topology: homogeneous-plus-focused
+  composition: homogeneous-plus-focused
   reviewers:
-  - architecture
-  - verification
+  - generalist-a
+  - generalist-b
   - adversarial
+  prompt_policy:
+    baseline_same_prompt: true
+    baseline_same_packet: true
+    baseline_same_rubric: true
+    focused_reviewers_require_explicit_focus_zone: true
+    focus_zones_may_overlap: true
+    all_reviewers_must_report_p0_p1_outside_focus: true
+  focus_zones:
+  - reviewer: adversarial
+    role: adversarial
+    primary_focus:
+    - hidden failure modes
+    - scope creep
+    - false completion
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
   gates:
   - contract_gate
   - impact_gate
@@ -62,10 +85,9 @@ supported_profiles:
   - L3
   - L4
   review_topologies:
-  - single-reviewer
-  - dual-independent
-  - triad-fusion
-  - multi-model-fusion
+  - homogeneous-dual
+  - homogeneous-plus-focused
+  - heterogeneous-variable
 phases:
 - name: contract
   purpose: Write/approve task contract.
@@ -98,6 +120,22 @@ phases:
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+- name: red-capture
+  purpose: Turn contract scenarios into executable tests and run them against the
+    not-yet-implemented state, capturing the expected failing result.
+  skills:
+  - evidence-reporting
+  scripts:
+  - impact_map_check
+  - evidence_validate
+  outputs:
+  - red capture gate report
+  - failing-run evidence
+  id: red_capture
+  kind: verification
+  gate: verification_gate
+  test_framing: red_capture
+  owns_evidence_production: true
 - name: implementation
   purpose: Implement within boundaries.
   skills: []
@@ -105,6 +143,7 @@ phases:
   outputs:
   - diff
   id: implementation
+  kind: implementation
 - name: verification_gate
   purpose: Run required tests, deterministic checks, boundary checks, impact checks,
     and evidence validation.
@@ -122,6 +161,7 @@ phases:
   - evidence report
   id: verification_gate
   kind: verification
+  test_framing: green_verify
   owns_evidence_production: true
   instruments:
   - type: tests
@@ -144,8 +184,8 @@ phases:
   may_run_tests: false
   may_modify_files: false
   skills:
-  - reviewer-architecture
-  - reviewer-verification
+  - reviewer-generalist
+  - reviewer-adversarial
   - fusion-synthesis
   scripts: []
   outputs:

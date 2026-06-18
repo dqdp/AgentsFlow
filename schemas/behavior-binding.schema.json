@@ -51,7 +51,7 @@
           },
           "checks": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 0,
             "items": {
               "type": "object",
               "required": [
@@ -63,12 +63,36 @@
           },
           "gates": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 0,
             "items": {
               "type": "string"
             }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "required": {
+                  "const": true
+                }
+              },
+              "required": [
+                "required"
+              ]
+            },
+            "then": {
+              "properties": {
+                "checks": {
+                  "minItems": 1
+                },
+                "gates": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
       }
     }
   }

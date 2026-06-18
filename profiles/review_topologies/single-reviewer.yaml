@@ -1,3 +1,10 @@
 name: single-reviewer
+deprecated: true
+valid_for_primary_review_gate: false
+replacement: homogeneous-dual
+notes:
+  - Kept only as a historical/reference profile name.
+  - v0.2 primary review gates require two or more reviewers.
+  - Single-reviewer execution is allowed only as a control-review exception after a rejected blocker collision.
 requirements:
   - one independent reviewer

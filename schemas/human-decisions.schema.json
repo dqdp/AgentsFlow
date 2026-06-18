@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Human Decisions",
+  "type": "object",
+  "required": ["version", "run_id", "decisions"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {"type": "integer"},
+    "run_id": {"type": "string"},
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "decision_id",
+          "phase_id",
+          "question_ref",
+          "answer",
+          "status",
+          "answered_by",
+          "affected_artifacts"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "decision_id": {"type": "string"},
+          "phase_id": {"type": "string"},
+          "question_ref": {"type": "string"},
+          "answer": {},
+          "status": {
+            "type": "string",
+            "enum": ["confirmed", "defaulted", "unresolved", "rejected", "superseded"]
+          },
+          "answered_by": {"type": "string"},
+          "rationale": {"type": "string"},
+          "affected_artifacts": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}

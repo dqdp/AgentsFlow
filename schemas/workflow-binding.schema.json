@@ -5,6 +5,8 @@
   "required": [
     "workflow",
     "extends",
+    "agentsflow_version",
+    "binding",
     "gates"
   ],
   "additionalProperties": true,
@@ -25,13 +27,238 @@
       "type": "object"
     },
     "gates": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "extends",
+          "manifest",
+          "runner"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "extends": {
+            "type": "string"
+          },
+          "manifest": {
+            "type": "string"
+          },
+          "runner": {
+            "type": "string"
+          }
+        }
+      }
     },
     "behavior_bindings": {
       "type": "object"
     },
     "review": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "topology": {
+          "type": "string",
+          "enum": [
+            "none",
+            "homogeneous-dual",
+            "homogeneous-plus-focused",
+            "heterogeneous-variable"
+          ]
+        },
+        "reviewers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8
+        },
+        "composition": {
+          "type": "string",
+          "enum": [
+            "homogeneous",
+            "homogeneous-plus-focused",
+            "heterogeneous"
+          ]
+        },
+        "prompt_policy": {
+          "type": "object"
+        },
+        "focus_zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["reviewer", "role", "primary_focus"],
+            "additionalProperties": true,
+            "properties": {
+              "reviewer": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "primary_focus": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "context_policy": {
+          "type": "object",
+          "required": ["start_mode", "fork_conversation_context"],
+          "additionalProperties": true,
+          "properties": {
+            "start_mode": {
+              "const": "fresh_context"
+            },
+            "fork_conversation_context": {
+              "const": false
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["topology"],
+            "properties": {
+              "topology": {
+                "not": {
+                  "const": "none"
+                }
+              }
+            }
+          },
+          "then": {
+            "required": ["reviewers", "composition", "prompt_policy", "context_policy"],
+            "properties": {
+              "topology": {
+                "not": {
+                  "const": "single-reviewer"
+                }
+              },
+              "reviewers": {
+                "minItems": 2
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["composition"],
+            "properties": {
+              "composition": {
+                "const": "homogeneous"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reviewers": {
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "prompt_policy": {
+                "required": ["same_prompt", "same_packet", "same_rubric", "same_output_schema"],
+                "properties": {
+                  "same_prompt": {
+                    "const": true
+                  },
+                  "same_packet": {
+                    "const": true
+                  },
+                  "same_rubric": {
+                    "const": true
+                  },
+                  "same_output_schema": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["composition"],
+            "properties": {
+              "composition": {
+                "const": "homogeneous-plus-focused"
+              }
+            }
+          },
+          "then": {
+            "required": ["focus_zones"],
+            "properties": {
+              "reviewers": {
+                "minItems": 3,
+                "maxItems": 8
+              },
+              "prompt_policy": {
+                "required": [
+                  "baseline_same_prompt",
+                  "focused_reviewers_require_explicit_focus_zone",
+                  "focus_zones_may_overlap",
+                  "all_reviewers_must_report_p0_p1_outside_focus"
+                ],
+                "properties": {
+                  "baseline_same_prompt": {
+                    "const": true
+                  },
+                  "focused_reviewers_require_explicit_focus_zone": {
+                    "const": true
+                  },
+                  "focus_zones_may_overlap": {
+                    "const": true
+                  },
+                  "all_reviewers_must_report_p0_p1_outside_focus": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["composition"],
+            "properties": {
+              "composition": {
+                "const": "heterogeneous"
+              }
+            }
+          },
+          "then": {
+            "required": ["focus_zones"],
+            "properties": {
+              "reviewers": {
+                "minItems": 3,
+                "maxItems": 8
+              },
+              "prompt_policy": {
+                "required": [
+                  "focus_prompts_required",
+                  "focus_zones_may_overlap",
+                  "all_reviewers_must_report_p0_p1_outside_focus"
+                ],
+                "properties": {
+                  "focus_prompts_required": {
+                    "const": true
+                  },
+                  "focus_zones_may_overlap": {
+                    "const": true
+                  },
+                  "all_reviewers_must_report_p0_p1_outside_focus": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

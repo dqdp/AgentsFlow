@@ -14,6 +14,7 @@ uses:
   - bdd-scenario-design
   - impact-map-builder
   - evidence-reporting
+  - reviewer-generalist
   scripts:
   - gherkin_lint
   - impact_map_check
@@ -27,9 +28,22 @@ uses:
   - coding-agent
   - backend-service
 review:
-  topology: single-reviewer
+  topology: homogeneous-dual
+  composition: homogeneous
   reviewers:
-  - verification
+  - generalist-a
+  - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
   gates:
   - regression_gate
   - verification_gate
@@ -47,7 +61,8 @@ supported_profiles:
   - L3
   review_topologies:
   - none
-  - single-reviewer
+  - homogeneous-dual
+  - homogeneous-plus-focused
 phases:
 - name: reproduce
   purpose: Capture the failure before fixing.
@@ -76,6 +91,22 @@ phases:
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+- name: regression-red-capture
+  purpose: Run the captured regression scenario against the broken state and record
+    the failing result before applying the fix.
+  skills:
+  - regression-capture
+  - evidence-reporting
+  scripts:
+  - evidence_validate
+  outputs:
+  - regression red-capture gate report
+  - failing-run evidence
+  id: regression_red_capture
+  kind: verification
+  gate: regression_gate
+  test_framing: red_capture
+  owns_evidence_production: true
 - name: fix
   purpose: Apply fix and run impact checks.
   skills:
@@ -85,6 +116,23 @@ phases:
   outputs:
   - diff and test results
   id: fix
+  kind: implementation
+- name: regression-verification-gate
+  purpose: Re-run the same regression scenario after the fix and record the passing
+    result.
+  skills:
+  - evidence-reporting
+  scripts:
+  - impact_map_check
+  - evidence_validate
+  outputs:
+  - regression verification gate report
+  - passing-run evidence
+  id: regression_verification_gate
+  kind: verification
+  gate: regression_gate
+  test_framing: green_verify
+  owns_evidence_production: true
 - name: evidence
   purpose: Produce evidence.
   skills:
@@ -94,6 +142,7 @@ phases:
   outputs:
   - evidence report
   id: evidence
+  kind: reporting
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.

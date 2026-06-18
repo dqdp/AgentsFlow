@@ -1,0 +1,21 @@
+name: collision-control
+kind: review_profile
+primary_gate: false
+composition: control
+min_reviewers: 1
+max_reviewers: 1
+reviewer_role_contracts:
+  - generalist
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+prompt_policy:
+  focused_packet_only: true
+  include_disputed_finding: true
+  include_orchestrator_rejection_reason: true
+  include_referenced_artifacts: true
+purpose: Exception profile for a rejected blocker collision. This is not a primary review gate.
+trigger: rejected_blocker_finding_collision
+use_when:
+  - a blocker-level candidate finding was rejected or downgraded by the main/orchestrating agent
+  - the workflow needs one fresh-context control reviewer focused on the dispute

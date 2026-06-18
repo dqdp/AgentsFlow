@@ -1,0 +1,50 @@
+# Skill: reviewer-generalist
+
+## Purpose
+
+Run the baseline homogeneous review pass using the common rubric. This role is
+not a specialist. It is used when two independent reviewers should receive the
+same prompt, packet, rubric and output schema.
+
+## Inputs
+
+- `review_packet`
+- `contract`
+- `diff_or_artifact`
+- `verification_gate_report`
+- `evidence_bundle`
+- relevant ADRs and accepted decisions included in the packet
+
+## Procedure
+
+1. Read only the provided review packet and referenced artifacts.
+2. Check contract and accepted-decision consistency.
+3. Check verification evidence, including missing mandatory checks and red/green
+   evidence when required.
+4. Check scope boundaries and non-goals.
+5. Look for obvious architecture, reliability, safety, workflow or evidence risks.
+6. Report any plausible P0/P1 candidate blocker, even if it spans multiple rubric
+   sections.
+7. Return candidate findings only.
+
+## Homogeneous Execution Rule
+
+When used in `homogeneous-dual`, both reviewer instances receive the same prompt,
+same packet, same rubric and same output schema. Reviewer labels such as
+`generalist-a` and `generalist-b` are instance identifiers only; they do not
+change the prompt.
+
+## Review-Agent Execution Rule
+
+This skill is read-only. It starts from fresh zero conversation context and must
+not receive a forked main-agent/orchestrator conversation. It must not run tests,
+execute scripts, modify files, generate patches, or update evidence.
+
+If additional verification is needed, report it as a candidate finding such as
+`needs-additional-verification`.
+
+## Candidate Finding Rule
+
+Reviewer findings are candidate findings, not authoritative truth. The
+main/orchestrating agent validates relevance before a finding becomes an accepted
+issue or required change.

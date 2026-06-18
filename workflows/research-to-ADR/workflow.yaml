@@ -29,9 +29,9 @@ supported_profiles:
   - L2
   - L3
   review_topologies:
-  - single-reviewer
-  - triad-fusion
-  - multi-model-fusion
+  - homogeneous-dual
+  - homogeneous-plus-focused
+  - heterogeneous-variable
 phases:
 - name: question
   purpose: Frame research question.

@@ -9,6 +9,7 @@
     "reviewer_role",
     "billing_mode",
     "api_key_usage_forbidden",
+    "context_policy",
     "command",
     "started_at",
     "finished_at",
@@ -27,8 +28,30 @@
     "api_key_usage_forbidden": {
       "const": true
     },
-    "api_key_env_detected": {
-      "type": "boolean"
+    "context_policy": {
+      "type": "object",
+      "required": ["start_mode", "fork_conversation_context", "session_persistence"],
+      "additionalProperties": true,
+      "properties": {
+        "start_mode": {
+          "const": "fresh_context"
+        },
+        "fork_conversation_context": {
+          "const": false
+        },
+        "session_persistence": {
+          "const": false
+        },
+        "input_mode": {
+          "type": "string"
+        }
+      }
+    },
+    "forbidden_env_checked": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "command": {
       "type": "string"
@@ -49,6 +72,15 @@
       "type": "string"
     },
     "prompt_hash": {
+      "type": "string"
+    },
+    "review_prompt_contract_hash": {
+      "type": "string"
+    },
+    "role_contract_hash": {
+      "type": "string"
+    },
+    "rubric_hash": {
       "type": "string"
     },
     "schema_hash": {

@@ -10,6 +10,7 @@ outputs:
 - blocking/non-blocking issues
 uses:
   skills:
+  - reviewer-generalist
   - reviewer-architecture
   - reviewer-verification
   - reviewer-adversarial
@@ -29,18 +30,39 @@ supported_profiles:
   - L3
   - L4
   review_topologies:
-  - single-reviewer
-  - dual-independent
-  - triad-fusion
-  - adversarial-fusion
-  - multi-model-fusion
+  - homogeneous-dual
+  - homogeneous-plus-focused
+  - heterogeneous-variable
+review:
+  topology: homogeneous-dual
+  composition: homogeneous
+  reviewers:
+  - generalist-a
+  - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
+  gates:
+  - evidence_gate
+  fusion_required: true
+  blocking_policy:
+    p0_blocks: true
+    p1_blocks: true
+    majority_cannot_override_blocker: true
+    missing_evidence: needs-additional-verification
 phases:
 - name: independent-review
   purpose: Run reviewers independently.
   skills:
-  - reviewer-architecture
-  - reviewer-verification
-  - reviewer-adversarial
+  - reviewer-generalist
   scripts: []
   outputs:
   - review reports

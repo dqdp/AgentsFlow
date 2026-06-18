@@ -1,0 +1,177 @@
+version: 1
+
+source:
+  collection_mode: agent-led-dialogue
+  interviewer: main-agent
+  based_on_artifacts:
+    - project-intake.yaml
+    - project-raw-scan.json
+    - project-inventory.json
+    - project-assessment.json
+  raw_dialogue_reference: null
+
+interview_state:
+  status: draft # draft | confirmed | needs-human-decision | rejected
+  confirmed_by: null
+  confirmation_summary: ""
+
+project_context:
+  project_owner: null
+  project_domain:
+    value: null
+    status: unresolved
+  user_domain_expertise:
+    value: unknown
+    status: unresolved
+  project_risk_level:
+    value: normal # low | normal | high | regulated | safety-critical
+    status: defaulted
+
+workflow_defaults:
+  default_workflow:
+    value: big-feature-contract-first
+    status: recommended
+  low_risk_strictness:
+    value: L1
+    status: recommended
+  normal_strictness:
+    value: L2
+    status: recommended
+  high_risk_strictness:
+    value: L3
+    status: recommended
+  default_review_topology:
+    value: homogeneous-dual
+    status: recommended
+
+verification_gate_policy:
+  mandatory_blockers:
+    - tests
+  advisory_checks:
+    - lint
+    - typecheck
+  canonical_commands:
+    test: null
+    lint: null
+    typecheck: null
+    security: null
+    performance: null
+    domain_specific: []
+  red_green_required_for_implementation: true
+  evidence_required:
+    - command
+    - exit_code
+    - output_summary
+    - artifact_path
+  unresolved_items:
+    - Confirm canonical test command.
+
+review_policy:
+  reviewer_count: 2
+  composition: homogeneous
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  reviewer_roles:
+    - generalist
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts
+  read_only_by_default: true
+  review_after_green_gate: true
+  allow_external_reviewers: false
+  preferred_external_provider: null
+  allow_different_models: false
+  candidate_findings_require_main_validation: true
+  external_reviewer_context_policy:
+    full_repo_access: false
+    packet_only: true
+    raw_logs_allowed: false
+
+review_cycle_policy:
+  max_review_cycles: 1
+  control_reviewer_count: 1
+  control_review_trigger: rejected_blocker_finding_collision
+  control_review_purpose: Check a disputed blocker-level finding after the main agent rejects it.
+  control_review_context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - disputed_blocker_finding
+      - orchestrator_rejection_reason
+      - referenced_artifacts
+  rerun_review_on:
+    - project_overlay_materially_changed
+    - mandatory_evidence_added
+    - human_requested
+  do_not_rerun_on:
+    - nonblocking_findings_only
+    - irrelevant_findings_rejected_with_reason
+  escalate_to_human_on:
+    - validated_blocking_finding_disputed
+    - gate_override_requested
+    - max_review_cycles_exceeded
+    - external_reviewer_context_requires_sensitive_data
+
+authority_policy:
+  approve_scope_changes: project_owner
+  approve_gate_policy_changes: project_owner
+  approve_review_topology_changes: project_owner
+  accept_residual_risk: project_owner
+  approve_legacy_migration: project_owner
+  override_blocking_gate: project_owner
+
+artifact_policy:
+  runs_root: Docs/agentsflow/runs/
+  evidence_root: Docs/agentsflow/evidence/
+  commit_reports: true
+  store_raw_logs: optional
+  redact_sensitive_evidence: true
+  external_reviewer_sensitive_evidence: forbidden-unless-approved
+
+decision_log:
+  - id: verification.mandatory_blockers
+    question: Which checks must block acceptance?
+    answer:
+      - tests
+    status: recommended
+    source: default-policy
+  - id: review.reviewer_count
+    question: How many read-only reviewers are required by default?
+    answer: 2
+    status: recommended
+    source: default-policy
+  - id: review.composition
+    question: What is the default review composition?
+    answer: "homogeneous-dual: two generalist reviewers with the same prompt, packet, rubric and output schema."
+    status: recommended
+    source: default-policy
+  - id: review_cycle.control_reviewer
+    question: When is a single reviewer allowed?
+    answer: "Only as one control reviewer after a blocker-level finding is rejected by the main/orchestrating agent."
+    status: recommended
+    source: default-policy
+  - id: review.context_policy
+    question: Should reviewers inherit the main agent conversation context?
+    answer: "No. Reviewers start from fresh zero context and receive only the review packet and referenced artifacts."
+    status: recommended
+    source: default-policy
+  - id: review.allow_different_models
+    question: Should review use different models or harnesses when available?
+    answer: false
+    status: recommended
+    source: default-policy
+  - id: review_cycle.max_review_cycles
+    question: What is the maximum number of review cycles before escalation?
+    answer: 1
+    status: recommended
+    source: default-policy
+
+unresolved_questions:
+  - Confirm canonical test command.
+  - Confirm project domain and user domain expertise.

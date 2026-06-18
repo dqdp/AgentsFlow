@@ -33,6 +33,6 @@ This workflow is a composition recipe. Do not duplicate the full content of invo
 Per ADR-0017, the implementation phase is to be framed by a pre-implementation
 red-capture (write the contract's acceptance tests, run them against the
 unimplemented state, capture the failing runs) and the verification gate's green
-re-run; the red→green evidence pair is a byproduct of this structure. (This framing
-is the accepted target shape; the red-capture phase is not yet present in
-`workflow.yaml`.)
+re-run; the red→green evidence pair is a byproduct of this structure. `workflow.yaml`
+now represents this topology with `test_framing` markers, and `validate_repo.py`
+checks the structural framing.

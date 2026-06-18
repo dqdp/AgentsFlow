@@ -4,14 +4,33 @@ workflow: big-feature-contract-first
 agentsflow_version: v0.2.0
 binding: .agentsflow/workflows/big-feature-contract-first.binding.yaml
 strictness: L2
-review_topology: single-reviewer
+review_topology: homogeneous-dual
+review_composition: homogeneous
+prompt_policy:
+  same_prompt: true
+  same_packet: true
+  same_rubric: true
+reviewer_context:
+  start_mode: fresh_context
+  fork_conversation_context: false
 status: in_progress
+
+human_interaction:
+  question_artifact: human-questions.yaml
+  decision_artifact: human-decisions.yaml
+  allowed_statuses:
+    - running
+    - paused_waiting_for_human
+    - resumed
+    - completed
+    - blocked
 
 artifacts:
   root: Docs/agentsflow/runs/YYYY-MM-DD-task-slug
   contract: task.contract.md
   plan: plan.md
   behavior_bindings: behavior.bindings.yaml
+  review_prompt_contract: review-prompt-contract.yaml
   evidence_report: evidence-report.md
   final_report: final-report.md
 

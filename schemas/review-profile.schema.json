@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Review Profile",
+  "type": "object",
+  "required": [
+    "name",
+    "kind",
+    "primary_gate",
+    "composition",
+    "min_reviewers",
+    "max_reviewers",
+    "context_policy",
+    "prompt_policy"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "review_profile"
+    },
+    "primary_gate": {
+      "type": "boolean"
+    },
+    "composition": {
+      "type": "string",
+      "enum": [
+        "homogeneous",
+        "homogeneous-plus-focused",
+        "heterogeneous",
+        "control"
+      ]
+    },
+    "min_reviewers": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "max_reviewers": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8
+    },
+    "context_policy": {
+      "type": "object",
+      "required": ["start_mode", "fork_conversation_context"],
+      "properties": {
+        "start_mode": {
+          "const": "fresh_context"
+        },
+        "fork_conversation_context": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "prompt_policy": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "reviewer_role_contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "primary_gate": {
+            "const": true
+          }
+        },
+        "required": ["primary_gate"]
+      },
+      "then": {
+        "properties": {
+          "min_reviewers": {
+            "minimum": 2
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "composition": {
+            "const": "heterogeneous"
+          }
+        },
+        "required": ["composition"]
+      },
+      "then": {
+        "properties": {
+          "min_reviewers": {
+            "minimum": 3
+          },
+          "max_reviewers": {
+            "maximum": 8
+          }
+        },
+        "required": ["focus_zones"]
+      }
+    }
+  ]
+}

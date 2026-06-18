@@ -18,6 +18,7 @@
     "kind": {
       "enum": [
         "intake",
+        "setup",
         "planning",
         "specification",
         "research",
@@ -91,6 +92,39 @@
     "explicit_tool_exceptions_allowed": {
       "type": "boolean"
     },
+    "human_interaction": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "can_pause": {
+          "type": "boolean"
+        },
+        "required": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "prompt_source": {
+          "type": "string"
+        },
+        "question_artifact": {
+          "type": "string"
+        },
+        "decision_artifact": {
+          "type": "string"
+        },
+        "response_artifact": {
+          "type": "string"
+        },
+        "allowed_resume_states": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "inputs": {
       "type": "array",
       "items": {
@@ -123,6 +157,13 @@
     },
     "owns_evidence_production": {
       "type": "boolean"
+    },
+    "test_framing": {
+      "enum": [
+        "red_capture",
+        "baseline_capture",
+        "green_verify"
+      ]
     }
   }
 }

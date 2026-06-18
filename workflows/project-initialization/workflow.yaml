@@ -1,8 +1,8 @@
 name: project-initialization
 version: 0.1
 intent: Initialize an existing or new project for AgentsFlow usage by creating a validated
-  project overlay from intake, raw scan, structured inventory, expert assessments
-  and human approval.
+  project overlay from intake, raw scan, structured inventory, expert assessments,
+  an agent-led human operating-decisions interview and human approval.
 category: onboarding
 mvp_status: support-workflow
 entry_criteria:
@@ -18,6 +18,7 @@ outputs:
 - project-raw-scan.json
 - project-inventory.json
 - project-assessment.json
+- project-operating-decisions.yaml
 - domain-identification section
 - workflow bindings
 - project-bound gate drafts
@@ -30,7 +31,9 @@ uses:
   - project-intake-analysis
   - project-inventory-structuring
   - project-onboarding-assessment
+  - project-operating-decisions-interview
   - project-overlay-drafting
+  - reviewer-generalist
   - repository-grounding
   - decision-contracting
   - legacy-agent-system-discovery
@@ -43,10 +46,14 @@ uses:
   templates:
   - agentsflow.lock.yaml
   - project-intake.yaml
+  - human-questions.yaml
+  - human-decisions.yaml
   - research-assignment.unknown-project.md
   - project-raw-scan.json
   - project-inventory.json
   - project-assessment.json
+  - project-operating-decisions.yaml
+  - documentation-history-index.md
   - project.yaml
   - workflow.binding.yaml
   - initialization-report.md
@@ -68,6 +75,21 @@ actor_model:
   researcher_agents:
     default_mode: read_only_structured_assessment
     require_research_assignment: true
+human_interaction:
+  mode: main-agent-mediated
+  reviewers_may_ask_human: false
+  pause_state: paused_waiting_for_human
+  question_artifact: human-questions.yaml
+  decision_artifact: human-decisions.yaml
+  allowed_pause_phases:
+  - read_project_intake
+  - legacy_adoption_mode_decision
+  - operating_decisions_interview
+  - human_approval
+  allowed_resume_states:
+  - answered
+  - defaulted
+  - unresolved
 phases:
 - id: read_project_intake
   kind: intake
@@ -75,6 +97,17 @@ phases:
     the standard exploratory assignment and gives the user a chance to provide context.
   mode: human_guided
   coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: project-intake-analysis
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: project-intake.yaml
+    allowed_resume_states:
+    - answered
+    - defaulted
+    - unresolved
   outputs:
   - project-intake.yaml
 - id: attach_or_verify_upstream
@@ -107,6 +140,19 @@ phases:
   kind: decision
   purpose: Choose full-archive-rebuild, knowledge-extraction, minimal-patch-adapt
     or shadow-pilot adoption mode for existing agent/process artifacts.
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: legacy-agent-system-discovery
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: legacy-adoption-decision.yaml
+    allowed_resume_states:
+    - answered
+    - defaulted
+    - unresolved
   outputs:
   - legacy-adoption-decision.yaml
 - id: legacy_migration_or_quarantine_plan
@@ -134,10 +180,39 @@ phases:
   purpose: Read-only expert agents produce candidate workflow/gate/risk recommendations.
   outputs:
   - project-assessment.json
+- id: operating_decisions_interview
+  kind: decision
+  purpose: Conduct an agent-led dialogue with the human project owner to decide
+    gate policy, review topology, reviewer/model strategy, review-cycle limits,
+    authority boundaries and evidence storage before drafting the overlay.
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: true
+    prompt_source: project-operating-decisions-interview
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: project-operating-decisions.yaml
+    allowed_resume_states:
+    - answered
+    - defaulted
+    - unresolved
+  inputs:
+  - project-intake.yaml
+  - project-inventory.json
+  - project-assessment.json
+  outputs:
+  - project-operating-decisions.yaml
 - id: overlay_draft
   kind: specification
   purpose: Draft .agentsflow project overlay, workflow bindings and project-bound
-    gates.
+    gates from inventory, expert recommendations and confirmed or explicitly
+    unresolved operating decisions.
+  inputs:
+  - project-inventory.json
+  - project-assessment.json
+  - project-operating-decisions.yaml
   outputs:
   - project.yaml
   - workflow bindings
@@ -151,6 +226,19 @@ phases:
 - id: human_approval
   kind: decision
   purpose: Human approves, rejects or requests changes to the project overlay.
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: true
+    prompt_source: initialization-report.md
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: initialization-report.md
+    allowed_resume_states:
+    - answered
+    - rejected
+    - unresolved
   outputs:
   - initialization-report.md
 exit_criteria:
@@ -159,6 +247,8 @@ exit_criteria:
 - Raw scan and structured inventory exist.
 - Documentation and Markdown implementation history were considered when present.
 - Domain identification and user domain-expertise questions were recorded.
+- Human operating decisions were collected through an agent-led dialogue or explicitly
+  marked as unresolved.
 - Project overlay was drafted or explicitly deferred.
 - Human approval state is recorded.
 - Legacy agent/process artifacts were discovered and classified when present.
@@ -166,9 +256,22 @@ exit_criteria:
 - Active instruction map exists or is explicitly deferred for non-existing legacy
   artifacts.
 review:
-  topology: single-reviewer
+  topology: homogeneous-dual
+  composition: homogeneous
   reviewers:
-  - verification
+  - generalist-a
+  - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
   gates:
   - project_initialization_gate
   fusion_required: false

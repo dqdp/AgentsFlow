@@ -4,7 +4,7 @@ Status: Draft
 Workflow: <workflow-name>
 Domain Pack: <domain-pack>
 Strictness: <L0-L4>
-Review Topology: <none|single-reviewer|triad-fusion|multi-model-fusion>
+Review Topology: <none|homogeneous-dual|homogeneous-plus-focused|heterogeneous-variable>
 
 ## Intent
 

@@ -1,0 +1,50 @@
+name: reviewer-generalist
+type: skill
+version: 0.1
+purpose: Independently review a workflow artifact using the common baseline rubric without a specialized focus zone.
+inputs:
+  - review_packet
+  - contract
+  - diff_or_artifact
+  - verification_gate_report
+  - evidence_bundle
+outputs:
+  - generalist_reviewer_report
+depends_on: []
+compatible_workflows:
+  - big-feature-contract-first
+  - bugfix-regression-capture
+  - safe-refactor
+  - new-project-spec-first
+  - project-initialization
+  - review-only-fusion
+quality_bar:
+  - Findings are grounded in contract, diff/artifact, gate evidence or accepted decisions.
+  - P0/P1 candidate blockers are reported even when they cross rubric sections.
+  - Missing mandatory evidence is surfaced.
+anti_patterns:
+  - Treating reviewer findings as authoritative truth.
+  - Narrowing attention to one specialist domain in the homogeneous baseline pass.
+mode: read_only
+actor_class: review_agent
+runs_after:
+  - verification_gate
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+forbidden_actions:
+  - run_tests
+  - run_scripts
+  - modify_files
+  - generate_patch
+finding_lifecycle:
+  initial_status: candidate-unvalidated
+  requires_relevance_validation_by: main_orchestrating_agent
+default_permissions:
+  read: true
+  write: false
+  run_tests: false
+  run_verification_instruments: false
+  run_tools: false
+tool_exceptions_allowed: true
+tool_exceptions: []

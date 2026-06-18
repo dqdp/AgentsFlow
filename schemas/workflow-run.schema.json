@@ -12,6 +12,7 @@
     "strictness": {"type": "string"},
     "review_topology": {"type": "string"},
     "status": {"type": "string"},
+    "human_interaction": {"type": "object"},
     "artifacts": {"type": "object"},
     "phase_status": {"type": "array"}
   },
