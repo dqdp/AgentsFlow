@@ -12,6 +12,7 @@ v0.1.13 validates:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -68,6 +69,26 @@ def parse_json(path: Path) -> object:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:  # noqa: BLE001
         raise ValueError(f"JSON parse error in {path}: {exc}") from exc
+
+
+def sha256_file(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def sha256_text(value: str) -> str:
+    return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def is_concrete_sha256(value: object) -> bool:
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        return False
+    digest = value.removeprefix("sha256:")
+    return len(digest) == 64 and all(char in "0123456789abcdef" for char in digest)
+
+
+def compare_hash(path: Path, label: str, declared: object, actual: str, errors: list[str]) -> None:
+    if is_concrete_sha256(declared) and declared != actual:
+        errors.append(f"{path}: {label} hash mismatch: declared {declared}, computed {actual}")
 
 
 def workflow_schema(root: Path) -> dict:
@@ -505,6 +526,133 @@ def validate_review_prompt_contract_invariants(
     return errors
 
 
+def validate_review_prompt_contract_run_references(root: Path, path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    if data.get("artifact_scope", "run") != "run":
+        return errors
+
+    def resolve_existing(ref: object, label: str, *, required: bool = True) -> Path | None:
+        if not ref:
+            if required:
+                errors.append(f"{path}: {label} is required")
+            return None
+        ref_path = Path(str(ref))
+        if ref_path.is_absolute() or ".." in ref_path.parts:
+            errors.append(f"{path}: {label} must be relative and non-escaping: {ref}")
+            return None
+        resolved = root / ref_path
+        if not resolved.exists():
+            errors.append(f"{path}: {label} does not exist: {ref}")
+            return None
+        return resolved
+
+    inputs = data.get("inputs", {}) or {}
+    packet_schema_path = resolve_existing(inputs.get("review_packet_schema"), "inputs.review_packet_schema")
+    output_schema_path = resolve_existing(inputs.get("output_schema"), "inputs.output_schema")
+    review_subjects: list[tuple[str, object]] = []
+    if inputs.get("task_contract"):
+        review_subjects.append(("inputs.task_contract", inputs.get("task_contract")))
+    if inputs.get("reviewed_artifact"):
+        review_subjects.append(("inputs.reviewed_artifact", inputs.get("reviewed_artifact")))
+    reviewed_artifacts = inputs.get("reviewed_artifacts")
+    if reviewed_artifacts:
+        if isinstance(reviewed_artifacts, list):
+            for idx, artifact in enumerate(reviewed_artifacts):
+                if isinstance(artifact, dict):
+                    review_subjects.append((f"inputs.reviewed_artifacts[{idx}].path", artifact.get("path")))
+                else:
+                    review_subjects.append((f"inputs.reviewed_artifacts[{idx}]", artifact))
+        else:
+            errors.append(f"{path}: inputs.reviewed_artifacts must be a list")
+    if not review_subjects:
+        errors.append(
+            f"{path}: one of inputs.task_contract, inputs.reviewed_artifact or inputs.reviewed_artifacts is required"
+        )
+    for label, ref in review_subjects:
+        resolve_existing(ref, label)
+    if inputs.get("verification_gate_report"):
+        resolve_existing(inputs.get("verification_gate_report"), "inputs.verification_gate_report")
+    if inputs.get("evidence_report"):
+        resolve_existing(inputs.get("evidence_report"), "inputs.evidence_report")
+
+    reviewers = {
+        str(item.get("instance_id")): item
+        for item in data.get("reviewer_set", []) or []
+        if isinstance(item, dict) and item.get("instance_id")
+    }
+    rendered_by_reviewer = {
+        str(item.get("reviewer")): item
+        for item in data.get("rendered_prompts", []) or []
+        if isinstance(item, dict) and item.get("reviewer")
+    }
+    packet_reviewers: set[str] = set()
+    packet_hash_by_reviewer: dict[str, str] = {}
+    seen_packet_paths: dict[Path, str] = {}
+    for idx, packet in enumerate(inputs.get("review_packets", []) or []):
+        if not isinstance(packet, dict):
+            continue
+        reviewer = str(packet.get("reviewer", ""))
+        if reviewer in packet_reviewers:
+            errors.append(f"{path}: inputs.review_packets duplicate reviewer: {reviewer}")
+        packet_reviewers.add(reviewer)
+        if reviewer not in reviewers:
+            errors.append(f"{path}: inputs.review_packets[{idx}] reviewer not in reviewer_set: {reviewer}")
+        if reviewer not in rendered_by_reviewer:
+            errors.append(f"{path}: inputs.review_packets[{idx}] reviewer missing rendered prompt: {reviewer}")
+        packet_path = resolve_existing(packet.get("path"), f"inputs.review_packets[{idx}].path")
+        packet_schema_ref = packet.get("schema")
+        packet_schema_ref_path = resolve_existing(packet_schema_ref, f"inputs.review_packets[{idx}].schema")
+        if packet_schema_path and packet_schema_ref_path and packet_schema_ref_path.resolve() != packet_schema_path.resolve():
+            errors.append(f"{path}: inputs.review_packets[{idx}].schema must match inputs.review_packet_schema")
+        if packet_path:
+            resolved_packet_path = packet_path.resolve()
+            if resolved_packet_path in seen_packet_paths:
+                errors.append(
+                    f"{path}: inputs.review_packets duplicate path for reviewers {seen_packet_paths[resolved_packet_path]} and {reviewer}"
+                )
+            seen_packet_paths[resolved_packet_path] = reviewer
+            packet_hash = sha256_file(packet_path)
+            packet_hash_by_reviewer[reviewer] = packet_hash
+            compare_hash(path, f"inputs.review_packets[{idx}].packet_hash", packet.get("packet_hash"), packet_hash, errors)
+            packet_data = parse_json(packet_path)
+            if isinstance(packet_data, dict):
+                if str(packet_data.get("reviewer_instance_id")) != reviewer:
+                    errors.append(f"{path}: packet {packet.get('path')} reviewer_instance_id must be {reviewer}")
+            else:
+                errors.append(f"{path}: packet {packet.get('path')} must be a JSON object")
+    if set(reviewers) != packet_reviewers:
+        missing = sorted(set(reviewers) - packet_reviewers)
+        extra = sorted(packet_reviewers - set(reviewers))
+        if missing:
+            errors.append(f"{path}: inputs.review_packets missing reviewers: {', '.join(missing)}")
+        if extra:
+            errors.append(f"{path}: inputs.review_packets contains unknown reviewers: {', '.join(extra)}")
+
+    output_schema_hash = sha256_file(output_schema_path) if output_schema_path else ""
+    rubric_hash = sha256_text(json.dumps(data.get("prompt_policy", {}) or {}, sort_keys=True))
+    for idx, prompt in enumerate(data.get("rendered_prompts", []) or []):
+        if not isinstance(prompt, dict):
+            continue
+        reviewer = str(prompt.get("reviewer", ""))
+        reviewer_def = reviewers.get(reviewer)
+        if not reviewer_def:
+            errors.append(f"{path}: rendered_prompts[{idx}] reviewer not in reviewer_set: {reviewer}")
+            continue
+        prompt_path = resolve_existing(prompt.get("prompt_path"), f"rendered_prompts[{idx}].prompt_path")
+        if prompt_path:
+            compare_hash(path, f"rendered_prompts[{idx}].prompt_hash", prompt.get("prompt_hash"), sha256_file(prompt_path), errors)
+        packet_hash = packet_hash_by_reviewer.get(reviewer)
+        if packet_hash:
+            compare_hash(path, f"rendered_prompts[{idx}].packet_hash", prompt.get("packet_hash"), packet_hash, errors)
+        if output_schema_hash:
+            compare_hash(path, f"rendered_prompts[{idx}].schema_hash", prompt.get("schema_hash"), output_schema_hash, errors)
+        compare_hash(path, f"rendered_prompts[{idx}].rubric_hash", prompt.get("rubric_hash"), rubric_hash, errors)
+        role_path = resolve_existing(reviewer_def.get("role_contract"), f"reviewer_set.{reviewer}.role_contract")
+        if role_path:
+            compare_hash(path, f"rendered_prompts[{idx}].role_contract_hash", prompt.get("role_contract_hash"), sha256_file(role_path), errors)
+    return errors
+
+
 def validate_review_packet_artifact(root: Path, path: Path, check_references: bool) -> list[str]:
     errors: list[str] = []
     schema = parse_json(root / "schemas" / "review-packet.schema.json")
@@ -592,6 +740,28 @@ def validate_review_packet_artifact(root: Path, path: Path, check_references: bo
                     errors.append(f"{path}: reviewer must exist in review_prompt_contract reviewer_set")
                 elif matches[0].get("role_contract") != role_ref:
                     errors.append(f"{path}: role_contract must match review_prompt_contract reviewer role_contract")
+                contract_packets = ((contract.get("inputs") or {}).get("review_packets") or [])
+                packet_matches = [
+                    packet
+                    for packet in contract_packets
+                    if isinstance(packet, dict)
+                    and packet.get("reviewer") == reviewer_id
+                    and (root / str(packet.get("path", ""))).resolve() == path.resolve()
+                ]
+                if not packet_matches:
+                    errors.append(
+                        f"{path}: review packet must be listed in review_prompt_contract inputs.review_packets with matching reviewer and path"
+                    )
+                elif len(packet_matches) > 1:
+                    errors.append(f"{path}: review packet has duplicate entries in review_prompt_contract inputs.review_packets")
+                elif contract.get("artifact_scope") == "run":
+                    compare_hash(
+                        path,
+                        "review_prompt_contract packet_hash",
+                        packet_matches[0].get("packet_hash"),
+                        sha256_file(path),
+                        errors,
+                    )
     output_schema = data.get("output_schema")
     if output_schema and not (root / str(output_schema)).exists():
         errors.append(f"{path}: output_schema does not exist: {output_schema}")
@@ -970,6 +1140,75 @@ def validate_mvp_review_phase_policy(path: Path, data: dict) -> list[str]:
     return []
 
 
+def validate_required_review_gate_order(path: Path, data: dict) -> list[str]:
+    required_by_workflow = {
+        "big-feature-contract-first": {
+            "review_phase": "review",
+            "gate_phase": "verification_gate",
+            "gate": "verification_gate",
+        },
+        "review-only-fusion": {
+            "review_phase": "independent_review",
+            "gate_phase": "evidence_gate",
+            "gate": "evidence_gate",
+        },
+        "new-project-spec-first": {
+            "review_phase": "spec_review",
+            "gate_phase": "spec_review_gate",
+            "gate": "spec_review_gate",
+        },
+    }
+    rule = required_by_workflow.get(str(data.get("name")))
+    if not rule:
+        return []
+    errors: list[str] = []
+    phases = [
+        phase
+        for phase in data.get("phases", []) or []
+        if isinstance(phase, dict)
+    ]
+    phase_by_id = {str(phase.get("id")): phase for phase in phases if phase.get("id")}
+    gate_phase = phase_by_id.get(rule["gate_phase"])
+    review_phase = phase_by_id.get(rule["review_phase"])
+    if not gate_phase:
+        errors.append(f"{path}: workflow {data.get('name')} must include phase {rule['gate_phase']}")
+    else:
+        if gate_phase.get("kind") not in {"verification", "gate"}:
+            errors.append(f"{path}: phase {rule['gate_phase']} must be kind verification or gate")
+        if gate_phase.get("gate") != rule["gate"]:
+            errors.append(f"{path}: phase {rule['gate_phase']} must bind gate {rule['gate']}")
+    if not review_phase:
+        errors.append(f"{path}: workflow {data.get('name')} must include review phase {rule['review_phase']}")
+    else:
+        if review_phase.get("kind") != "review":
+            errors.append(f"{path}: phase {rule['review_phase']} must be kind review")
+        runs_after = set(str(item) for item in review_phase.get("runs_after", []) or [])
+        if rule["gate_phase"] not in runs_after:
+            errors.append(
+                f"{path}: review phase {rule['review_phase']} must run after {rule['gate_phase']}"
+            )
+    if gate_phase and review_phase:
+        gate_index = phases.index(gate_phase)
+        review_index = phases.index(review_phase)
+        if gate_index >= review_index:
+            errors.append(f"{path}: phase {rule['gate_phase']} must appear before {rule['review_phase']}")
+    return errors
+
+
+def validate_phase_scripts_declared(path: Path, data: dict) -> list[str]:
+    uses_scripts = set((data.get("uses") or {}).get("scripts", []) or [])
+    missing: set[str] = set()
+    for phase in data.get("phases", []) or []:
+        if not isinstance(phase, dict):
+            continue
+        for script in phase.get("scripts", []) or []:
+            if script not in uses_scripts:
+                missing.add(str(script))
+    if missing:
+        return [f"{path}: phase scripts missing from uses.scripts: {', '.join(sorted(missing))}"]
+    return []
+
+
 def validate_project_overlay_example(
     root: Path,
     project_rel: str,
@@ -1113,6 +1352,19 @@ def main() -> int:
     errors.extend(validate_workflow_run_artifact(root, root / "templates" / "workflow-run.yaml"))
     for run_artifact in root.glob("examples/**/Docs/agentsflow/runs/*/run.yaml"):
         errors.extend(validate_workflow_run_artifact(root, run_artifact))
+    for prompt_contract in root.glob("examples/**/Docs/agentsflow/runs/*/review-prompt-contract.yaml"):
+        schema = parse_json(root / "schemas" / "review-prompt-contract.schema.json")
+        data = parse_yaml(prompt_contract) or {}
+        if not isinstance(data, dict):
+            errors.append(f"{prompt_contract}: review prompt contract must be a mapping")
+        else:
+            errors.extend(validate_against_schema(prompt_contract, data, schema))
+            errors.extend(validate_review_prompt_contract_invariants(root, prompt_contract, data, True))
+            errors.extend(validate_review_prompt_contract_run_references(root, prompt_contract, data))
+    for review_packet in root.glob("examples/**/Docs/agentsflow/runs/*/review-packets/*.json"):
+        if review_packet.name == "shared-content.json":
+            continue
+        errors.extend(validate_review_packet_artifact(root, review_packet, True))
     for reviewer_report in root.glob("examples/**/Docs/agentsflow/runs/*/reviewer-report*.json"):
         errors.extend(validate_reviewer_report_artifact(root, reviewer_report))
 
@@ -1212,6 +1464,8 @@ def main() -> int:
         errors.extend(validate_project_initialization_human_interaction(wf, data))
         errors.extend(validate_supported_review_topologies(wf, data))
         errors.extend(validate_mvp_review_phase_policy(wf, data))
+        errors.extend(validate_required_review_gate_order(wf, data))
+        errors.extend(validate_phase_scripts_declared(wf, data))
         uses = data.get("uses", {}) or {}
         for s in uses.get("skills", []) or []:
             if s not in skills:

@@ -407,13 +407,15 @@ def validate_review_packet(
         item
         for item in contract_packets
         if isinstance(item, dict)
-        and (
-            item.get("reviewer") == (reviewer_instance or reviewer_role)
-            or resolve_packet_path(str(item.get("path", "")), root).resolve() == packet_path.resolve()
-        )
+        and item.get("reviewer") == (reviewer_instance or reviewer_role)
+        and resolve_packet_path(str(item.get("path", "")), root).resolve() == packet_path.resolve()
     ]
     if not packet_matches:
-        raise ValueError("review packet must be listed in review prompt contract inputs.review_packets")
+        raise ValueError(
+            "review packet must be listed in review prompt contract inputs.review_packets with matching reviewer and path"
+        )
+    if len(packet_matches) > 1:
+        raise ValueError("review packet has duplicate entries in review prompt contract inputs.review_packets")
     compare_declared_hash("review packet", packet_matches[0].get("packet_hash"), packet_hash)
 
     output_schema_path = resolve_packet_path(str(packet.get("output_schema")), root)

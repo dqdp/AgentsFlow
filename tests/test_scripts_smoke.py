@@ -334,6 +334,126 @@ def test_review_prompt_contract_rejects_missing_shared_hash() -> None:
         raise AssertionError("missing shared prompt hash was accepted")
 
 
+def test_review_prompt_contract_rejects_run_artifact_drift() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["rendered_prompts"][0]["shared_packet_content_hash"] = "sha256:" + "0" * 64
+
+    errors = validate_repo.validate_review_prompt_contract_invariants(ROOT, path, broken, True)
+    assert errors
+    assert "shared_packet_content_hash" in "\n".join(errors)
+
+
+def test_review_prompt_contract_rejects_missing_run_references() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["rendered_prompts"][0]["prompt_path"] = "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/missing.md"
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, broken)
+    assert errors
+    assert "prompt_path does not exist" in "\n".join(errors)
+
+
+def test_review_prompt_contract_rejects_rendered_packet_hash_drift() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["rendered_prompts"][0]["packet_hash"] = "sha256:" + "0" * 64
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, broken)
+    assert errors
+    assert "rendered_prompts[0].packet_hash" in "\n".join(errors)
+
+
+def test_review_packet_must_match_contract_reviewer_and_path(tmp_path) -> None:
+    import json
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    source = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    copied = tmp_path / "generalist-a.json"
+    copied.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(ROOT, copied, True)
+    assert errors
+    assert "matching reviewer and path" in "\n".join(errors)
+
+    packet = json.loads(source.read_text(encoding="utf-8"))
+    packet["reviewer_instance_id"] = "generalist-b"
+    wrong_reviewer = tmp_path / "wrong-reviewer.json"
+    wrong_reviewer.write_text(json.dumps(packet, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_packet_artifact(ROOT, wrong_reviewer, True)
+    assert errors
+    assert "matching reviewer and path" in "\n".join(errors)
+
+
+def test_review_prompt_contract_allows_reviewed_artifact_subject() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    with_artifact = copy.deepcopy(contract)
+    with_artifact["inputs"]["reviewed_artifact"] = with_artifact["inputs"].pop("task_contract")
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, with_artifact)
+    assert not errors
+
+    without_subject = copy.deepcopy(contract)
+    without_subject["inputs"].pop("task_contract")
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, without_subject)
+    assert errors
+    assert "one of inputs.task_contract" in "\n".join(errors)
+
+
 def test_mvp_review_phase_requires_top_level_review_policy() -> None:
     import copy
     import sys
@@ -353,6 +473,73 @@ def test_mvp_review_phase_requires_top_level_review_policy() -> None:
     )
     assert errors
     assert "top-level review policy" in errors[0]
+
+
+def test_mvp_review_phase_requires_required_gate_order() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/review-only-fusion/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    for phase in broken["phases"]:
+        if phase.get("id") == "independent_review":
+            phase["runs_after"] = []
+
+    errors = validate_repo.validate_required_review_gate_order(path, broken)
+    assert errors
+    assert "must run after evidence_gate" in "\n".join(errors)
+
+
+def test_big_feature_review_phase_requires_verification_gate_order() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    for phase in broken["phases"]:
+        if phase.get("id") == "review":
+            phase["runs_after"] = []
+
+    errors = validate_repo.validate_required_review_gate_order(path, broken)
+    assert errors
+    assert "must run after verification_gate" in "\n".join(errors)
+
+
+def test_mvp_review_gate_order_rejects_wrong_phase_kinds() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/review-only-fusion/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    for phase in broken["phases"]:
+        if phase.get("id") == "evidence_gate":
+            phase["kind"] = "planning"
+        if phase.get("id") == "independent_review":
+            phase["kind"] = "specification"
+
+    errors = validate_repo.validate_required_review_gate_order(path, broken)
+    assert errors
+    joined = "\n".join(errors)
+    assert "must be kind verification or gate" in joined
+    assert "must be kind review" in joined
 
 
 def test_primary_e2e_workflow_run_artifacts_schema_pass() -> None:
@@ -425,6 +612,68 @@ def test_external_reviewer_wrapper_rejects_invalid_packet_schema(tmp_path) -> No
     )
     assert result.returncode != 0
     assert "review packet schema validation failed" in (result.stdout + result.stderr)
+
+
+def test_external_reviewer_wrapper_rejects_unlisted_packet_path(tmp_path) -> None:
+    packet_path = tmp_path / "review-packet.architecture.json"
+    packet_path.write_text(
+        (ROOT / "examples/external-reviewers/claude-code/review-packet.architecture.json").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "reviewer-report.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--input", str(packet_path),
+        "--mock-response", "examples/external-reviewers/claude-code/mock-raw-output.json",
+        "--output", str(out),
+        env=clean_env(),
+    )
+    assert result.returncode != 0
+    assert "matching reviewer and path" in (result.stdout + result.stderr)
+
+
+def test_external_reviewer_wrapper_rejects_duplicate_packet_contract_entries(tmp_path) -> None:
+    import copy
+    import json
+
+    import yaml
+
+    packet = json.loads(
+        (ROOT / "examples/external-reviewers/claude-code/review-packet.architecture.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    packet_path = tmp_path / "review-packet.architecture.json"
+    contract_path = tmp_path / "review-prompt-contract.architecture.yaml"
+    packet["review_prompt_contract"]["path"] = str(contract_path)
+    packet_path.write_text(json.dumps(packet, indent=2), encoding="utf-8")
+
+    contract = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/review-prompt-contract.architecture.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    contract["inputs"]["review_packets"][0]["path"] = str(packet_path)
+    contract["inputs"]["review_packets"].insert(1, copy.deepcopy(contract["inputs"]["review_packets"][0]))
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    out = tmp_path / "reviewer-report.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--input", str(packet_path),
+        "--mock-response", "examples/external-reviewers/claude-code/mock-raw-output.json",
+        "--output", str(out),
+        env=clean_env(),
+    )
+    assert result.returncode != 0
+    assert "duplicate entries" in (result.stdout + result.stderr)
 
 
 def test_external_reviewer_wrapper_rejects_unsafe_permission_mode(tmp_path) -> None:

@@ -23,6 +23,7 @@ uses:
   - reviewer-product-spec
   scripts:
   - contract_lint
+  - evidence_validate
   - gherkin_lint
   templates:
   - specification-brief.md
@@ -65,6 +66,7 @@ review:
   - scope_gate
   - adr_candidate_gate
   - contract_seed_gate
+  - spec_review_gate
   fusion_required: false
   blocking_policy:
     p0_blocks: true
@@ -151,8 +153,23 @@ phases:
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+- name: spec-review-gate
+  purpose: Validate specification package completeness before read-only spec review.
+  skills:
+  - evidence-reporting
+  scripts:
+  - evidence_validate
+  outputs:
+  - spec review gate report
+  id: spec_review_gate
+  kind: verification
+  actor_class: verification_gate
+  owns_evidence_production: true
+  gate: spec_review_gate
 - name: spec-review
   purpose: Run read-only spec review according to the workflow review topology.
+  runs_after:
+  - spec_review_gate
   skills:
   - reviewer-generalist
   - reviewer-product-spec
@@ -258,6 +275,7 @@ concrete_gates:
 - contract_seed_gate
 - problem_framing_gate
 - scope_gate
+- spec_review_gate
 mvp_status: v0.2-mvp
 binding_model:
   upstream_workflow_definition: true

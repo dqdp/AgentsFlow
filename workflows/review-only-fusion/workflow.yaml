@@ -59,8 +59,23 @@ review:
     majority_cannot_override_blocker: true
     missing_evidence: needs-additional-verification
 phases:
+- name: evidence-availability-gate
+  purpose: Validate that required evidence exists before independent reviewers run.
+  skills:
+  - evidence-reporting
+  scripts:
+  - evidence_validate
+  outputs:
+  - evidence gate report
+  id: evidence_gate
+  kind: verification
+  actor_class: verification_gate
+  owns_evidence_production: true
+  gate: evidence_gate
 - name: independent-review
   purpose: Run reviewers independently.
+  runs_after:
+  - evidence_gate
   skills:
   - reviewer-generalist
   scripts: []
@@ -95,7 +110,7 @@ exit_criteria:
 - Evidence is sufficient for the selected strictness profile.
 review_control_rules:
   review_agents_read_only: true
-  review_agents_run_after: verification_gate
+  review_agents_run_after: evidence_gate
   review_agents_may_run_tests: false
   review_agents_may_modify_files: false
   review_findings_are_candidate_findings: true

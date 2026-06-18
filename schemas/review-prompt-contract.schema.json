@@ -118,6 +118,39 @@
         },
         "output_schema": {
           "type": "string"
+        },
+        "task_contract": {
+          "type": "string"
+        },
+        "reviewed_artifact": {
+          "type": "string"
+        },
+        "reviewed_artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": ["path"],
+                "additionalProperties": true,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          }
         }
       }
     },

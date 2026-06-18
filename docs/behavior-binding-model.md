@@ -122,13 +122,21 @@ that the required artifact exists and is referenced in the gate report.
 
 ## Gate behavior
 
-A verification gate consuming behavior bindings must check that:
+A complete verification gate consuming behavior bindings should check that:
 
 - all required scenarios have at least one binding;
 - each binding has at least one executable check or manual evidence requirement;
 - required bound checks are reported in the evidence bundle;
 - missing required bindings fail or block according to the workflow policy;
 - optional unbound scenarios are reported as warnings, not silently ignored.
+
+The v0.2 `bdd_binding_check.py` implementation enforces only the binding
+manifest shape: required bindings must declare at least one check and at least one
+gate, and checks must use recognized types with commands or targets where needed.
+It does not prove that the referenced checks actually ran or that gate evidence
+contains the check result. That execution/evidence correlation belongs to a
+project-bound verification gate runner and remains outside the minimal v0.2
+checker.
 
 ## Red/green evidence (failing-run / passing-run pair)
 

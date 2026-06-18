@@ -35,7 +35,8 @@ A contract records:
 
 - workflow, run id, phase and selected review profile;
 - review packet paths, schemas and hashes;
-- task contract or reviewed artifact;
+- at least one review subject: `task_contract`, `reviewed_artifact`, or
+  `reviewed_artifacts`;
 - verification gate report and evidence report when applicable;
 - reviewer-report output schema;
 - reviewer set with instance ids, role ids and role contract paths;
