@@ -245,13 +245,19 @@ def validate_project_gate_manifest(
     return errors
 
 
-def required_workflow_gates(workflow_path: Path) -> set[str]:
+def required_workflow_gates(workflow_path: Path, selected_strictness: object) -> set[str]:
     if not workflow_path.exists():
         return set()
     workflow = load_yaml(workflow_path)
     gates: set[str] = set()
     for phase in workflow.get("phases", []) or []:
-        if isinstance(phase, dict) and phase.get("gate"):
+        if not isinstance(phase, dict) or not phase.get("gate"):
+            continue
+        applies = phase.get("applies_to_strictness")
+        if not applies:
+            gates.add(str(phase["gate"]))
+            continue
+        if str(selected_strictness) in {str(item) for item in applies or []}:
             gates.add(str(phase["gate"]))
     return gates
 
@@ -305,7 +311,10 @@ def main() -> int:
                 errors.append(f"{binding_file}: gates must be a mapping")
                 continue
             if extends_path and extends_path.exists():
-                missing_gates = sorted(required_workflow_gates(extends_path) - set(str(key) for key in gates))
+                missing_gates = sorted(
+                    required_workflow_gates(extends_path, binding.get("strictness"))
+                    - set(str(key) for key in gates)
+                )
                 if missing_gates:
                     errors.append(f"{binding_file}: missing project gate binding(s): {', '.join(missing_gates)}")
             for gate_id, cfg in gates.items():

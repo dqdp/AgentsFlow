@@ -1,9 +1,34 @@
 # project-initialization
 
-Onboarding workflow that prepares a concrete repository to use AgentsFlow.
+Mode-gated application workflow for understanding a project, onboarding it,
+preparing one target workflow, cleaning up legacy agent instructions, or assessing
+domain risk.
 
-It creates a project overlay by starting from a project intake/research assignment, collecting raw observable facts, asking the main/orchestrating agent to structure project inventory, running read-only expert assessments, conducting an agent-led operating-decisions interview with the human project owner, drafting workflow bindings and project-bound gates, and validating the overlay before human approval.
+Every run starts from a project intake/research assignment, collects raw
+observable facts, structures project inventory, and runs read-only triad
+assessments. `unknown-discovery` and `risk-domain-assessment` may stop there with
+questions. `adoption-onboarding`, `prepare-workflow` and legacy activation paths
+continue into the human decisions, draft bindings/policy and approval steps that
+their intent mode requires.
 
-The human operating-decisions step is conversational. The agent asks focused questions, summarizes decisions back to the human, and records the normalized result as `project-operating-decisions.yaml`; the human is not asked to manually fill a YAML or JSON file.
+Each run declares an `intent_mode`. `prepare-workflow` also declares a
+`target_workflow`, because preparing a concrete workflow is allowed even when the
+project was not previously initialized through the full onboarding path.
+
+Expert assessment uses read-only architecture, verification and adversarial role
+reports plus a synthesis report. These are candidate assessments for the main
+agent and human; they are not authoritative decisions.
+
+The human operating-decisions step is conversational. In `adoption-onboarding`,
+the agent asks focused questions, summarizes decisions back to the human, and
+records the normalized long-lived result as `project-operating-decisions.yaml`.
+In `prepare-workflow`, missing target-workflow gate/review/evidence/authority
+context is captured as a run-level human decision packet instead of being
+promoted into project operating policy. The human is not asked to manually fill a
+YAML or JSON file.
+
+Draft overlay artifacts, including `active-instruction-map.yaml`, remain
+non-active until human approval. They are produced only by modes that draft or
+activate project bindings/policy.
 
 This is a lifecycle/onboarding workflow, not a normal development workflow.

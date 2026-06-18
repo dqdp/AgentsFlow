@@ -189,11 +189,50 @@ Default rerun triggers:
 
 Default non-triggers:
 
-- only P2/P3 notes remain;
+- only P2/P3 notes remain and any fixes are non-material;
 - purely editorial changes to reports;
 - duplicate finding consolidation;
 - main agent rejects a candidate blocker as irrelevant with evidence-based reason;
 - fusion rewording without new findings.
+
+### Materiality classification after fixes
+
+After any fix made in response to review, the main/orchestrating agent must
+classify the fix before deciding whether to rerun reviewers. The severity of the
+original finding and the materiality of the fix are separate decisions: a P2
+finding can still lead to a material fix if the fix changes what future
+reviewers or validators must judge.
+
+The fix is **material** when it changes any review input that can affect
+acceptance:
+
+- task contract, scope, non-goals, acceptance criteria or behavior bindings;
+- workflow, gate, review-cycle, reviewer, evidence-probe or collision-control
+  policy;
+- schemas, validators, deterministic checks or test fixtures used as contract
+  evidence;
+- project overlay, workflow binding, gate binding, authority policy or evidence
+  storage policy;
+- verification gate results, mandatory evidence or the evidence bundle;
+- examples or docs that are presented as authoritative evidence for the current
+  workflow.
+
+A material fix requires the relevant verification/checks to be refreshed and the
+review-cycle policy to be applied to the updated input. If the change fixes an
+accepted P0/P1 blocker, adds mandatory evidence, changes the contract, or changes
+the reviewed artifact in an acceptance-affecting way, reviewers are rerun.
+Material rerun triggers take precedence over `do_not_rerun_on` entries.
+
+The fix is **non-material** when it only changes editorial wording, report
+formatting, duplicate grouping, non-authoritative notes, or non-source-of-truth
+documentation without changing contracts, schemas, validators, gates, evidence,
+bindings, reviewed behavior or examples used as evidence. Non-material fixes do
+not rerun reviewers by default.
+
+The classification must be recorded in the finding-validation or review-cycle
+report. This prevents both failure modes: rerunning reviewers after every
+nonblocking cleanup, and silently accepting a nonblocking cleanup that changed a
+contract-bearing artifact.
 
 Exception: if one or more blocker-level candidate findings are rejected or
 downgraded by the main/orchestrating agent and the workflow records a collision,
@@ -300,7 +339,7 @@ review_cycle:
     - contract_changed
     - material_artifact_change
   do_not_rerun_on:
-    - nonblocking_findings_only
+    - nonblocking_findings_with_non_material_fixes_only
     - duplicate_consolidation
     - irrelevant_findings_rejected_with_reason
   blocking_default:

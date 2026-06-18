@@ -1,0 +1,16 @@
+extends: gates/plan_gate.yaml
+id: plan_gate
+runner: .agentsflow/scripts/run_plan_gate.sh
+instruments:
+  - id: plan_lint
+    type: schema_validation
+    required: true
+  - id: task_graph_check
+    type: schema_validation
+    required: true
+  - id: grounding_evidence_check
+    type: manual_evidence_check
+    required: false
+outputs:
+  - plan-gate-report.md
+  - plan-gate-report.json

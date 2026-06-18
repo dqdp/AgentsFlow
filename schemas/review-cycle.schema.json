@@ -46,7 +46,7 @@
       "type": "array",
       "items": {
         "enum": [
-          "nonblocking_findings_only",
+          "nonblocking_findings_with_non_material_fixes_only",
           "duplicate_consolidation",
           "irrelevant_findings_rejected_with_reason",
           "fusion_rewording_only",

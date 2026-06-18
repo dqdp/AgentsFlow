@@ -78,6 +78,8 @@ questions:
   - decision_id: review_policy.model_diversity
     phase_id: operating_decisions_interview
     status: open
+    classification: blocking-material
+    grouping: operating-decisions
     question: Should review use different models or harnesses when available?
     basis:
       observed:
@@ -96,7 +98,7 @@ questions:
         impact: Overlay remains draft-only.
     default:
       id: same-model
-      allowed: true
+      allowed: false
     answer_required: true
     affected_artifacts:
       - project-operating-decisions.yaml
@@ -120,6 +122,7 @@ decisions:
     answer: diverse-models
     status: confirmed
     answered_by: human
+    classification: blocking-material
     rationale: "Use model diversity for high-risk reviews."
     affected_artifacts:
       - project-operating-decisions.yaml
@@ -155,6 +158,7 @@ After the human answers, the main/orchestrating agent:
 read_project_intake
 legacy_adoption_mode_decision
 operating_decisions_interview
+target_workflow_context_decision_packet
 human_approval
 ```
 
@@ -162,6 +166,43 @@ Only `operating_decisions_interview` and `human_approval` are always human-owned
 decision points for normal existing-project onboarding. `read_project_intake` and
 `legacy_adoption_mode_decision` are conditional: they pause when required context
 is missing or when legacy agent/process artifacts create human-owned decisions.
+`target_workflow_context_decision_packet` is conditional for `prepare-workflow`:
+it captures missing target-workflow gate, review, evidence or authority context
+as a run-level decision packet and does not normalize those answers into
+`project-operating-decisions.yaml` unless the human explicitly chooses onboarding
+or persistent policy activation.
+
+## Big-feature contract-first
+
+`big-feature-contract-first` may pause for the human only when the main agent
+records one of these conditions:
+
+```text
+unresolved blocking-material question
+scope or task-contract amendment
+accepted decision or ADR conflict
+exhausted review cycles
+final human acceptance required by project policy
+```
+
+Open questions in `task.contract.md` are classified as:
+
+```text
+blocking-material
+nonblocking-follow-up
+nonblocking-known-limitation
+out-of-scope
+```
+
+Only `blocking-material` questions pause the workflow by default. Nonblocking
+questions must show the proposed default or follow-up handling in the grouped
+decision packet, and unanswered nonblocking questions are recorded as defaulted,
+known limitations or follow-ups rather than silently disappearing.
+
+The grouped decision packet is still a dialogue with the agent, not a request for
+the human to edit YAML. The main agent asks the grouped questions, records
+answers in `human-decisions.yaml`, updates the task contract or run artifacts,
+and resumes from the paused phase.
 
 ## Non-goals
 

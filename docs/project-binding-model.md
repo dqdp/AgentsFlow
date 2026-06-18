@@ -122,6 +122,7 @@ Workflow bindings live under `.agentsflow/workflows/*.binding.yaml`.
 workflow: big-feature-contract-first
 extends: workflows/big-feature-contract-first/workflow.yaml
 agentsflow_version: 0.2
+strictness: L2
 
 binding:
   project: my-project
@@ -157,6 +158,13 @@ review:
 ```
 
 This shape is validated by `scripts/validate_project_binding.py`.
+
+The `strictness` field is the selected strictness profile for this project
+workflow binding. Binding validation requires all unconditional workflow gates
+and also requires conditional gates whose `applies_to_strictness` includes the
+selected strictness. For example, `big-feature-contract-first` does not require
+`plan_gate` for an L2 binding, but an L3 or L4 binding must provide a project
+`plan_gate` binding.
 
 ## Gate contract vs project-bound executable gate
 

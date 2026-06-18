@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "assessment_type": "project-onboarding",
+  "role": "architecture",
+  "basis": {
+    "intake": "project-intake.yaml",
+    "raw_scan": "project-raw-scan.json",
+    "inventory": "project-inventory.json"
+  },
+  "candidate_findings": [],
+  "workflow_recommendations": [
+    "Use big-feature-contract-first for feature work that can change public behavior."
+  ],
+  "gate_recommendations": [],
+  "risks": [
+    "Architecture boundaries are not authoritative until project owner confirmation."
+  ],
+  "open_questions": [
+    "Which modules should be treated as stable architecture boundaries?"
+  ],
+  "requires_human_decisions": [
+    "Confirm architecture authority boundaries before drafting high-risk workflow bindings."
+  ]
+}

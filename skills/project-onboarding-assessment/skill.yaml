@@ -8,6 +8,9 @@ inputs:
   - selected_docs
   - human_context
 outputs:
+  - project_assessment_architecture
+  - project_assessment_verification
+  - project_assessment_adversarial
   - project_assessment
   - workflow_recommendations
   - gate_recommendations

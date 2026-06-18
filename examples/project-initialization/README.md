@@ -1,10 +1,19 @@
 # Example: project initialization
 
-This example shows the artifacts created before a project overlay is approved.
+This example shows an explicit `adoption-onboarding` run before a project overlay
+is approved.
 
 The files intentionally separate raw observable facts from model-produced inventory, domain identification, expert assessment, agent-led human operating decisions, and human-confirmation questions.
 
-Unknown-project discovery still uses a standard exploratory research assignment; it is not an empty prompt.
+Unknown-project discovery still uses a standard exploratory research assignment;
+it is not an empty prompt, and it may stop after scan, inventory, assessments and
+questions. This example continues beyond discovery into onboarding, so it includes
+operating decisions and approval-boundary artifacts.
+
+`project-assessment.architecture.json`, `project-assessment.verification.json`
+and `project-assessment.adversarial.json` are read-only candidate assessment
+reports. `project-assessment.json` is the synthesis artifact; it does not make
+the role reports authoritative.
 
 `project-operating-decisions.yaml` represents the normalized result of a dialogue
 with the project owner. It is not a blank form the human is expected to fill by

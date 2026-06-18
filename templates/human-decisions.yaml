@@ -1,5 +1,6 @@
 version: 1
 run_id: "YYYY-MM-DD-task-slug"
+artifact_role: run_decision_log
 
 decisions:
   - decision_id: review_policy.model_diversity
@@ -8,6 +9,7 @@ decisions:
     answer: diverse-models
     status: confirmed
     answered_by: human
+    classification: blocking-material
     rationale: "Use model diversity for high-risk reviews."
     affected_artifacts:
       - project-operating-decisions.yaml

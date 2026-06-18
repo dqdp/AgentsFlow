@@ -133,6 +133,38 @@ def test_primary_e2e_project_binding_validation_passes() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_project_binding_requires_strictness_applicable_gates(tmp_path) -> None:
+    import shutil
+    import yaml
+
+    project = tmp_path / "project"
+    shutil.copytree(ROOT / "examples/project-overlay/.agentsflow", project / ".agentsflow")
+    binding_path = project / ".agentsflow/workflows/big-feature-contract-first.binding.yaml"
+    binding = yaml.safe_load(binding_path.read_text(encoding="utf-8"))
+    binding["gates"].pop("plan_gate")
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "missing project gate binding(s): plan_gate" in (result.stdout + result.stderr)
+
+
+def test_project_binding_does_not_require_higher_strictness_gate_for_l2(tmp_path) -> None:
+    import shutil
+    import yaml
+
+    project = tmp_path / "project"
+    shutil.copytree(ROOT / "examples/project-overlay/.agentsflow", project / ".agentsflow")
+    binding_path = project / ".agentsflow/workflows/big-feature-contract-first.binding.yaml"
+    binding = yaml.safe_load(binding_path.read_text(encoding="utf-8"))
+    binding["strictness"] = "L2"
+    binding["gates"].pop("plan_gate")
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_project_binding_rejects_invalid_review_policy(tmp_path) -> None:
     import shutil
     import yaml
@@ -191,7 +223,7 @@ def test_project_binding_rejects_missing_required_gate_binding(tmp_path) -> None
 
     result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
     assert result.returncode != 0
-    assert "missing project gate binding(s): verification_gate" in (result.stdout + result.stderr)
+    assert "missing project gate binding(s): plan_gate, verification_gate" in (result.stdout + result.stderr)
 
 
 def test_project_binding_rejects_wrong_upstream_gate_id(tmp_path) -> None:
@@ -236,9 +268,109 @@ def test_project_intake_validation_passes() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_project_intake_prepare_workflow_requires_target_workflow(tmp_path) -> None:
+    import yaml
+
+    intake = yaml.safe_load((ROOT / "examples/project-initialization/project-intake.yaml").read_text(encoding="utf-8"))
+    intake["intent_mode"] = "prepare-workflow"
+    intake["target_workflow"] = None
+    path = tmp_path / "project-intake.yaml"
+    path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_intake.py", "--intake", str(path))
+    assert result.returncode != 0
+    assert "target_workflow must be a non-empty string" in (result.stdout + result.stderr)
+
+    intake["target_workflow"] = 123
+    path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_intake.py", "--intake", str(path))
+    assert result.returncode != 0
+    assert "target_workflow must be a non-empty string" in (result.stdout + result.stderr)
+
+    intake["target_workflow"] = "not-a-real-workflow"
+    path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_intake.py", "--intake", str(path))
+    assert result.returncode != 0
+    assert "target_workflow must match a v0.2 MVP user workflow id" in (result.stdout + result.stderr)
+
+    intake["target_workflow"] = "safe-refactor"
+    path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_intake.py", "--intake", str(path))
+    assert result.returncode != 0
+    assert "target_workflow must match a v0.2 MVP user workflow id" in (result.stdout + result.stderr)
+
+    intake["target_workflow"] = "project-initialization"
+    path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_intake.py", "--intake", str(path))
+    assert result.returncode != 0
+    assert "target_workflow must match a v0.2 MVP user workflow id" in (result.stdout + result.stderr)
+
+    intake["target_workflow"] = "big-feature-contract-first"
+    path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_intake.py", "--intake", str(path))
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_project_intake_schema_restricts_prepare_workflow_target() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads((ROOT / "schemas/project-intake.schema.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    intake = yaml.safe_load((ROOT / "examples/project-initialization/project-intake.yaml").read_text(encoding="utf-8"))
+    intake["intent_mode"] = "prepare-workflow"
+
+    valid = copy.deepcopy(intake)
+    valid["target_workflow"] = "big-feature-contract-first"
+    validator.validate(valid)
+
+    for target_workflow in ["safe-refactor", "project-initialization", "not-a-real-workflow"]:
+        invalid = copy.deepcopy(intake)
+        invalid["target_workflow"] = target_workflow
+        assert list(validator.iter_errors(invalid))
+
+
 def test_project_inventory_validation_passes() -> None:
     result = run("scripts/validate_project_inventory.py", "--inventory", "examples/project-initialization/project-inventory.json")
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_project_assessment_schema_requires_triad_synthesis() -> None:
+    import copy
+    import json
+
+    import jsonschema
+
+    schema = json.loads((ROOT / "schemas/project-assessment.schema.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    for rel in [
+        "templates/project-assessment.json",
+        "templates/project-assessment.role.json",
+        "examples/project-initialization/project-assessment.json",
+        "examples/project-initialization/project-assessment.architecture.json",
+        "examples/project-initialization/project-assessment.verification.json",
+        "examples/project-initialization/project-assessment.adversarial.json",
+    ]:
+        data = json.loads((ROOT / rel).read_text(encoding="utf-8"))
+        validator.validate(data)
+
+    synthesis = json.loads((ROOT / "templates/project-assessment.json").read_text(encoding="utf-8"))
+    missing_reports = copy.deepcopy(synthesis)
+    missing_reports.pop("role_reports")
+    assert list(validator.iter_errors(missing_reports))
+
+    missing_adversarial = copy.deepcopy(synthesis)
+    missing_adversarial["role_reports"] = [
+        report for report in missing_adversarial["role_reports"] if report["role"] != "adversarial"
+    ]
+    assert list(validator.iter_errors(missing_adversarial))
+
+    invalid_role = json.loads((ROOT / "templates/project-assessment.role.json").read_text(encoding="utf-8"))
+    invalid_role["role"] = "generalist"
+    assert list(validator.iter_errors(invalid_role))
 
 
 def test_project_operating_decisions_schema_passes() -> None:
@@ -272,6 +404,10 @@ def test_project_operating_decisions_schema_passes() -> None:
     missing_context_sources["review_cycle_policy"]["control_review_context_policy"].pop("allowed_context_sources")
     assert list(validator.iter_errors(missing_context_sources))
 
+    missing_materiality = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    missing_materiality["review_cycle_policy"].pop("materiality_classification")
+    assert list(validator.iter_errors(missing_materiality))
+
 
 def test_human_interaction_artifact_schemas_pass() -> None:
     import json
@@ -301,6 +437,55 @@ def test_human_interaction_artifact_schemas_pass() -> None:
         for rel in artifact_rels:
             data = yaml.safe_load((ROOT / rel).read_text(encoding="utf-8"))
             validator.validate(data)
+
+
+def test_human_questions_require_classification_and_blocking_questions_cannot_auto_default() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads((ROOT / "schemas/human-questions.schema.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    data = yaml.safe_load((ROOT / "templates/human-questions.yaml").read_text(encoding="utf-8"))
+
+    missing_classification = copy.deepcopy(data)
+    missing_classification["questions"][0].pop("classification")
+    assert list(validator.iter_errors(missing_classification))
+
+    defaulted_blocking = copy.deepcopy(data)
+    defaulted_blocking["questions"][0]["default"]["allowed"] = True
+    errors = list(validator.iter_errors(defaulted_blocking))
+    assert errors
+
+    default_status_blocking = copy.deepcopy(data)
+    default_status_blocking["questions"][0]["status"] = "defaulted"
+    assert list(validator.iter_errors(default_status_blocking))
+
+    missing_allowed = copy.deepcopy(data)
+    missing_allowed["questions"][0]["default"].pop("allowed")
+    assert list(validator.iter_errors(missing_allowed))
+
+    missing_default = copy.deepcopy(data)
+    missing_default["questions"][0].pop("default")
+    assert list(validator.iter_errors(missing_default))
+
+
+def test_human_decisions_reject_defaulted_blocking_material() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads((ROOT / "schemas/human-decisions.schema.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    data = yaml.safe_load((ROOT / "templates/human-decisions.yaml").read_text(encoding="utf-8"))
+
+    defaulted_blocking = copy.deepcopy(data)
+    defaulted_blocking["decisions"][0]["status"] = "defaulted"
+    assert list(validator.iter_errors(defaulted_blocking))
 
 
 def test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone() -> None:
@@ -620,6 +805,301 @@ def test_upstream_review_cycle_rejects_hardcoded_max_cycles() -> None:
     assert "must not hardcode max_review_cycles" in "\n".join(errors)
 
 
+def test_mvp_review_fusion_requires_validation_after_fusion() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    for phase in broken["phases"]:
+        if phase.get("id") == "fusion":
+            phase["runs_after"] = ["finding_validation"]
+        if phase.get("id") == "finding_validation":
+            phase["runs_after"] = ["review"]
+
+    errors = validate_repo.validate_review_fusion_validation_order(path, broken)
+    assert errors
+    assert "finding_validation phase must run after fusion" in "\n".join(errors)
+
+
+def test_review_only_fusion_requires_finding_validation_phase() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/review-only-fusion/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken["phases"] = [phase for phase in broken["phases"] if phase.get("id") != "finding_validation"]
+
+    errors = validate_repo.validate_review_fusion_validation_order(path, broken)
+    assert errors
+    assert "must include finding_validation phase" in "\n".join(errors)
+
+
+def test_mvp_review_without_fusion_requires_finding_validation_phase() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/new-project-spec-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken["phases"] = [phase for phase in broken["phases"] if phase.get("id") != "finding_validation"]
+
+    errors = validate_repo.validate_review_fusion_validation_order(path, broken)
+    assert errors
+    assert "must include finding_validation phase" in "\n".join(errors)
+
+
+def test_mvp_review_cycle_requires_materiality_policy() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/bugfix-regression-capture/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken["review_cycle"].pop("materiality_classification")
+
+    errors = validate_repo.validate_mvp_review_materiality_policy(path, broken)
+    assert errors
+    assert "review_cycle.materiality_classification is required" in "\n".join(errors)
+
+    broken_missing_token = copy.deepcopy(workflow)
+    broken_missing_token["review_cycle"]["do_not_rerun_on"].remove(
+        "nonblocking_findings_with_non_material_fixes_only"
+    )
+    broken_missing_token["review_cycle"].pop("materiality_classification")
+    errors = validate_repo.validate_mvp_review_materiality_policy(path, broken_missing_token)
+    assert "do_not_rerun_on must include nonblocking_findings_with_non_material_fixes_only" in "\n".join(errors)
+    assert "review_cycle.materiality_classification is required" in "\n".join(errors)
+
+
+def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/project-initialization/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken["intent_mode_phase_policy"]["unknown-discovery"]["must_not_require"].remove("human_approval")
+
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken)
+    assert errors
+    assert "unknown-discovery must not require human_approval" in "\n".join(errors)
+
+    broken_risk = copy.deepcopy(workflow)
+    broken_risk["intent_mode_phase_policy"]["risk-domain-assessment"]["must_not_require"].remove("human_approval")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_risk)
+    assert errors
+    assert "risk-domain-assessment must not require human_approval" in "\n".join(errors)
+
+    broken_attach = copy.deepcopy(workflow)
+    for phase in broken_attach["phases"]:
+        if phase.get("id") == "attach_or_verify_upstream":
+            phase["applies_to_intent_modes"].append("unknown-discovery")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_attach)
+    assert errors
+    assert "attach_or_verify_upstream must not apply to unknown-discovery" in "\n".join(errors)
+
+    broken_outputs = copy.deepcopy(workflow)
+    broken_outputs["outputs"].append("project-operating-decisions.yaml")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_outputs)
+    assert errors
+    assert "top-level outputs must be mode-neutral" in "\n".join(errors)
+
+    broken_draft_outputs = copy.deepcopy(workflow)
+    broken_draft_outputs["outputs"].append(".agentsflow/project.yaml draft")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_draft_outputs)
+    assert errors
+    assert "top-level outputs must be mode-neutral" in "\n".join(errors)
+
+    broken_unknown_outputs = copy.deepcopy(workflow)
+    broken_unknown_outputs["mode_gated_outputs"]["unknown-discovery"].append(".agentsflow/project.yaml draft")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_unknown_outputs)
+    assert errors
+    assert "mode_gated_outputs.unknown-discovery must not include activation outputs" in "\n".join(errors)
+
+    broken_prepare_activation_outputs = copy.deepcopy(workflow)
+    broken_prepare_activation_outputs["mode_gated_outputs"]["prepare-workflow"].append(".agentsflow/project.yaml draft")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_activation_outputs)
+    assert errors
+    assert "mode_gated_outputs.prepare-workflow must not include activation outputs" in "\n".join(errors)
+
+    broken_prepare_outputs = copy.deepcopy(workflow)
+    broken_prepare_outputs["mode_gated_outputs"]["prepare-workflow"] = [
+        item
+        for item in broken_prepare_outputs["mode_gated_outputs"]["prepare-workflow"]
+        if "target workflow human decision packet" not in item
+    ]
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_outputs)
+    assert errors
+    assert "mode_gated_outputs.prepare-workflow missing" in "\n".join(errors)
+
+    broken_prepare_policy = copy.deepcopy(workflow)
+    broken_prepare_policy["intent_mode_phase_policy"]["prepare-workflow"].pop(
+        "target_workflow_context_decision_packet"
+    )
+    broken_prepare_policy["intent_mode_phase_policy"]["prepare-workflow"][
+        "operating_decisions_interview"
+    ] = "conditional_when_target_workflow_policy_is_missing"
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_policy)
+    joined = "\n".join(errors)
+    assert "target_workflow_context_decision_packet" in joined
+    assert "must not use operating_decisions_interview" in joined
+
+    broken_unconditional_packet = copy.deepcopy(workflow)
+    broken_unconditional_packet["intent_mode_phase_policy"]["prepare-workflow"]["requires"].append(
+        "target_workflow_context_decision_packet"
+    )
+    broken_unconditional_packet["intent_mode_phase_policy"]["prepare-workflow"].pop("conditional_requires")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_unconditional_packet)
+    joined = "\n".join(errors)
+    assert "must not require target_workflow_context_decision_packet unconditionally" in joined
+    assert "conditional_requires must include target_workflow_context_decision_packet" in joined
+
+    broken_prepare_gate = copy.deepcopy(workflow)
+    for phase in broken_prepare_gate["phases"]:
+        if phase.get("id") == "project_initialization_gate":
+            phase["applies_to_intent_modes"].append("prepare-workflow")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_gate)
+    assert errors
+    assert "phase project_initialization_gate must apply exactly to: adoption-onboarding" in "\n".join(errors)
+
+    broken_target_gate = copy.deepcopy(workflow)
+    broken_target_gate["phases"] = [
+        phase for phase in broken_target_gate["phases"] if phase.get("id") != "target_workflow_readiness_gate"
+    ]
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_target_gate)
+    assert errors
+    assert "must include target_workflow_readiness_gate phase" in "\n".join(errors)
+
+    broken_review = copy.deepcopy(workflow)
+    for phase in broken_review["phases"]:
+        if phase.get("id") == "initialization_review":
+            phase["runs_after"] = ["project_initialization_gate"]
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_review)
+    assert errors
+    assert "initialization_review must run after target_workflow_readiness_gate" in "\n".join(errors)
+
+    broken_prepare_leak = copy.deepcopy(workflow)
+    for phase in broken_prepare_leak["phases"]:
+        if phase.get("id") == "target_workflow_context_decision_packet":
+            phase["outputs"].append("project-operating-decisions.yaml")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_leak)
+    assert errors
+    assert "target_workflow_context_decision_packet must not produce prepare-workflow forbidden artifact" in "\n".join(errors)
+
+    broken_operating_scope = copy.deepcopy(workflow)
+    for phase in broken_operating_scope["phases"]:
+        if phase.get("id") == "operating_decisions_interview":
+            phase["applies_to_intent_modes"].append("prepare-workflow")
+    errors = validate_repo.validate_project_initialization_operating_decisions(path, broken_operating_scope)
+    assert errors
+    assert "operating_decisions_interview must apply only to adoption-onboarding" in "\n".join(errors)
+
+    broken_legacy_discovery_scope = copy.deepcopy(workflow)
+    for phase in broken_legacy_discovery_scope["phases"]:
+        if phase.get("id") == "legacy_agent_system_discovery":
+            phase.pop("applies_to_intent_modes")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_legacy_discovery_scope)
+    assert errors
+    assert (
+        "phase legacy_agent_system_discovery must apply exactly to: adoption-onboarding, legacy-cleanup"
+        in "\n".join(errors)
+    )
+
+    broken_order = copy.deepcopy(workflow)
+    legacy_phase = next(
+        phase for phase in broken_order["phases"] if phase.get("id") == "legacy_adoption_mode_decision"
+    )
+    broken_order["phases"].remove(legacy_phase)
+    broken_order["phases"].insert(2, legacy_phase)
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_order)
+    assert errors
+    assert "legacy_adoption_mode_decision must run after expert_assessment" in "\n".join(errors)
+
+
+def test_big_feature_requires_manifest_plan_gate() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken["phases"] = [phase for phase in broken["phases"] if phase.get("id") != "plan_gate"]
+    broken["review"]["gates"].remove("plan_gate")
+    broken["concrete_gates"].remove("plan_gate")
+
+    errors = validate_repo.validate_big_feature_plan_gate_policy(path, broken)
+    joined = "\n".join(errors)
+    assert "must include plan_gate phase" in joined
+    assert "review.gates must include plan_gate" in joined
+    assert "concrete_gates must include plan_gate" in joined
+
+    broken_plan = copy.deepcopy(workflow)
+    for phase in broken_plan["phases"]:
+        if phase.get("id") == "technical_plan":
+            phase["outputs"].remove("repository-grounding-report.md")
+    errors = validate_repo.validate_big_feature_plan_gate_policy(path, broken_plan)
+    assert "technical_plan phase missing outputs: repository-grounding-report.md" in "\n".join(errors)
+
+    broken_strictness = copy.deepcopy(workflow)
+    for phase in broken_strictness["phases"]:
+        if phase.get("id") in {"technical_plan", "plan_gate"}:
+            phase["applies_to_strictness"] = ["L2", "L3", "L4"]
+    errors = validate_repo.validate_big_feature_plan_gate_policy(path, broken_strictness)
+    joined = "\n".join(errors)
+    assert "technical_plan phase must apply exactly to strictness L3 and L4" in joined
+    assert "plan_gate phase must apply exactly to strictness L3 and L4" in joined
+
+    broken_gate_order = copy.deepcopy(workflow)
+    for phase in broken_gate_order["phases"]:
+        if phase.get("id") == "plan_gate":
+            phase["runs_after"] = ["impact"]
+    errors = validate_repo.validate_big_feature_plan_gate_policy(path, broken_gate_order)
+    assert "plan_gate phase must run after technical_plan" in "\n".join(errors)
+
+    broken_red = copy.deepcopy(workflow)
+    for phase in broken_red["phases"]:
+        if phase.get("id") == "red_capture":
+            phase["runs_after"] = []
+            phase.pop("runs_after_policy", None)
+    errors = validate_repo.validate_big_feature_plan_gate_policy(path, broken_red)
+    joined = "\n".join(errors)
+    assert "red_capture phase must run after plan_gate" in joined
+    assert "after_applicable_strictness_gate" in joined
+
+
 def test_workflow_binding_rejects_too_low_max_review_cycles(tmp_path) -> None:
     import shutil
     import yaml
@@ -650,6 +1130,22 @@ def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:
     result = run("scripts/validate_repo.py", "--root", str(root))
     assert result.returncode != 0
     assert "not declared in allowed_instruments" in (result.stdout + result.stderr)
+
+
+def test_repo_validation_rejects_duplicate_yaml_keys(tmp_path) -> None:
+    import shutil
+
+    root = tmp_path / "repo"
+    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    workflow = root / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow.write_text(
+        workflow.read_text(encoding="utf-8") + "\n_duplicate_test: one\n_duplicate_test: two\n",
+        encoding="utf-8",
+    )
+
+    result = run("scripts/validate_repo.py", "--root", str(root))
+    assert result.returncode != 0
+    assert "duplicate YAML key" in (result.stdout + result.stderr)
 
 
 def test_mvp_review_phase_requires_required_gate_order() -> None:

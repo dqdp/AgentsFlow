@@ -1,5 +1,7 @@
 version: 1
 mode: unknown-project-discovery # unknown-project-discovery | directed-onboarding | problem-driven | migration-driven | risk-driven
+intent_mode: unknown-discovery # unknown-discovery | adoption-onboarding | prepare-workflow | legacy-cleanup | risk-domain-assessment
+target_workflow: null # required when intent_mode == prepare-workflow
 
 objective: >
   Understand this project from repository contents, documentation, process artifacts,

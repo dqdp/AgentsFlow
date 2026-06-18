@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "assessment_type": "project-onboarding",
+  "role": "adversarial",
+  "basis": {
+    "intake": "project-intake.yaml",
+    "raw_scan": "project-raw-scan.json",
+    "inventory": "project-inventory.json"
+  },
+  "candidate_findings": [],
+  "workflow_recommendations": [],
+  "gate_recommendations": [
+    "Keep the overlay draft-only until human approval to avoid silently changing project authority."
+  ],
+  "risks": [
+    "Existing instructions can remain silently authoritative unless active-instruction-map.yaml classifies them."
+  ],
+  "open_questions": [
+    "Are any existing agent instructions authoritative and in conflict with AgentsFlow?"
+  ],
+  "requires_human_decisions": [
+    "Confirm legacy adoption mode and active instruction authority."
+  ]
+}

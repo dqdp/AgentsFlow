@@ -1,10 +1,13 @@
 version: 1
 run_id: "2026-06-18-project-initialization"
+artifact_role: run_question_packet
 
 questions:
   - decision_id: verification.canonical_test_command
     phase_id: operating_decisions_interview
     status: answered
+    classification: blocking-material
+    grouping: operating-decisions
     question: Which command should the project-bound verification gate use for tests?
     basis:
       observed:
@@ -21,7 +24,7 @@ questions:
         impact: Overlay remains draft-only until the command is confirmed.
     default:
       id: pytest-src
-      allowed: true
+      allowed: false
     answer_required: true
     affected_artifacts:
       - project-operating-decisions.yaml

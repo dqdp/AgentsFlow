@@ -2,11 +2,31 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AgentsFlow Project Assessment",
   "type": "object",
-  "required": ["version", "assessment_type", "candidate_findings", "workflow_recommendations", "gate_recommendations", "risks", "open_questions"],
+  "required": ["version", "assessment_type", "role", "candidate_findings", "workflow_recommendations", "gate_recommendations", "risks", "open_questions"],
   "properties": {
     "version": {"type": "integer"},
     "assessment_type": {"type": "string"},
+    "role": {
+      "type": "string",
+      "enum": ["architecture", "verification", "adversarial", "synthesis"]
+    },
     "basis": {"type": "object"},
+    "role_reports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "artifact", "authority"],
+        "additionalProperties": true,
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["architecture", "verification", "adversarial"]
+          },
+          "artifact": {"type": "string"},
+          "authority": {"const": "candidate"}
+        }
+      }
+    },
     "candidate_findings": {"type": "array"},
     "workflow_recommendations": {"type": "array"},
     "gate_recommendations": {"type": "array"},
@@ -14,5 +34,46 @@
     "open_questions": {"type": "array"},
     "requires_human_decisions": {"type": "array"}
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role": {"const": "synthesis"}
+        },
+        "required": ["role"]
+      },
+      "then": {
+        "required": ["role_reports"],
+        "properties": {
+          "role_reports": {
+            "minItems": 3,
+            "allOf": [
+              {
+                "contains": {
+                  "type": "object",
+                  "properties": {"role": {"const": "architecture"}},
+                  "required": ["role"]
+                }
+              },
+              {
+                "contains": {
+                  "type": "object",
+                  "properties": {"role": {"const": "verification"}},
+                  "required": ["role"]
+                }
+              },
+              {
+                "contains": {
+                  "type": "object",
+                  "properties": {"role": {"const": "adversarial"}},
+                  "required": ["role"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": true
 }

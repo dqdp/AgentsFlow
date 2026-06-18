@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "assessment_type": "project-onboarding",
+  "role": "verification",
+  "basis": {
+    "intake": "project-intake.yaml",
+    "raw_scan": "project-raw-scan.json",
+    "inventory": "project-inventory.json"
+  },
+  "candidate_findings": [
+    {
+      "id": "AF-INIT-VER-001",
+      "severity": "P2",
+      "finding": "The canonical test command is not confirmed until the human operating-decisions interview records it.",
+      "status": "candidate"
+    }
+  ],
+  "workflow_recommendations": [],
+  "gate_recommendations": [
+    "Bind verification_gate to the confirmed pytest command before using implementation workflows."
+  ],
+  "risks": [
+    "A green run is not acceptance evidence until it is produced by the project-bound verification gate."
+  ],
+  "open_questions": [
+    "Which checks are mandatory blockers and which are advisory?"
+  ],
+  "requires_human_decisions": [
+    "Confirm mandatory verification blockers and canonical commands."
+  ]
+}

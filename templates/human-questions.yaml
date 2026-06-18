@@ -1,10 +1,13 @@
 version: 1
 run_id: "YYYY-MM-DD-task-slug"
+artifact_role: run_question_packet
 
 questions:
   - decision_id: review_policy.model_diversity
     phase_id: operating_decisions_interview
     status: open
+    classification: blocking-material
+    grouping: operating-decisions
     question: Should review use different models or harnesses when available?
     basis:
       observed:
@@ -23,7 +26,7 @@ questions:
         impact: Overlay remains draft-only.
     default:
       id: same-model
-      allowed: true
+      allowed: false
     answer_required: true
     affected_artifacts:
       - project-operating-decisions.yaml

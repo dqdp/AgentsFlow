@@ -1,9 +1,11 @@
 version: 1
-mode: unknown-project-discovery
+mode: directed-onboarding
+intent_mode: adoption-onboarding
+target_workflow: null
 
 objective: >
-  Understand this project from repository contents, documentation, process artifacts,
-  implementation history and domain evidence.
+  Prepare this project for AgentsFlow onboarding from repository contents,
+  documentation, process artifacts, implementation history and domain evidence.
 
 standard_assignment:
   template: templates/research-assignment.unknown-project.md

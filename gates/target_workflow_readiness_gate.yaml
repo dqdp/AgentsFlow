@@ -1,0 +1,62 @@
+id: target_workflow_readiness_gate
+name: Target Workflow Readiness Gate
+kind: gate
+purpose: Validate that prepare-workflow mode has a declared target workflow and
+  enough project-bound operating context to prepare that workflow, or has captured
+  the missing decisions as human-mediated evidence.
+runner: scripts/gates/run_gate.py
+may_modify_files: false
+inputs:
+- project-intake.yaml
+- project-inventory.json
+- project-assessment.json
+- target workflow binding draft
+- target workflow gate readiness report
+- human decision packet when operating context is incomplete
+instruments:
+- id: validate_project_intake
+  type: deterministic_script
+  command: python scripts/validate_project_intake.py
+  required: true
+- id: operating_context_manual_check
+  type: manual_evidence_check
+  required: true
+checks:
+- validate_project_intake
+- operating_context_manual_check
+bdd_bindings: []
+required_evidence:
+- project intake validation result
+- declared target_workflow for prepare-workflow
+- target workflow binding or readiness draft
+- gate, review, evidence and authority policy evidence or human decision packet
+outputs:
+- target-workflow-readiness-gate-report.md
+- target-workflow-readiness-gate-report.json
+result_states:
+- pass
+- pass_with_notes
+- fail
+- inconclusive
+- needs_human_decision
+- blocked
+pass_policy:
+  required_instruments:
+  - validate_project_intake
+  - operating_context_manual_check
+  fail_on:
+  - missing_required_instrument
+  - nonzero_required_check
+  - missing_required_evidence
+  inconclusive_on:
+  - insufficient_operating_context
+  - missing_optional_tool
+  needs_human_decision_on:
+  - missing_gate_policy
+  - missing_review_policy
+  - missing_evidence_location
+  - missing_authority_boundary
+binding_level: upstream_gate_contract
+requires_project_binding: true
+runner_interface: deterministic_runner_entrypoint
+project_binding_required_for_real_run: true

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "assessment_type": "project-onboarding",
+  "role": "architecture",
+  "basis": {
+    "intake": "project-intake.yaml",
+    "raw_scan": "project-raw-scan.json",
+    "inventory": "project-inventory.json"
+  },
+  "candidate_findings": [],
+  "workflow_recommendations": [],
+  "gate_recommendations": [],
+  "risks": [],
+  "open_questions": [],
+  "requires_human_decisions": []
+}

@@ -92,6 +92,18 @@ artifact.
 
 Frequent. A feature, bugfix, review, or project specification task creates a run directory under `Docs/agentsflow/runs/`.
 
+Workflow-run human interaction uses `human-questions.yaml` and
+`human-decisions.yaml` as run artifacts. They are not long-lived policy files by
+themselves. Long-lived operating policy is normalized into
+`.agentsflow/project-operating-decisions.yaml` only when the workflow or project
+policy says the decision should persist beyond the current run.
+
+For `prepare-workflow` initialization, the project does not have to prove that a
+full onboarding workflow already ran. It must provide enough operating context
+for the target workflow: project or draft binding, verification gate policy,
+review policy, evidence/run artifact location and any human-owned authority
+decisions that affect the workflow.
+
 ## Operational rules
 
 ```text
@@ -99,7 +111,8 @@ Frequent. A feature, bugfix, review, or project specification task creates a run
 2. Project-specific commands and tools live in the project overlay, not upstream.
 3. Task-specific contracts, plans, reports and evidence live in workflow run directories.
 4. Long-lived accepted decisions are promoted to normal project docs/ADRs.
-5. No silent upstream drift: every project records the pinned AgentsFlow version/commit.
+5. Draft overlays and active-instruction maps are not active policy until human approval.
+6. No silent upstream drift: every project records the pinned AgentsFlow version/commit.
 ```
 
 ## Relationship to project binding

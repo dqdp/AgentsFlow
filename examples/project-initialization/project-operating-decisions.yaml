@@ -109,8 +109,23 @@ review_cycle_policy:
     - mandatory_evidence_added
     - human_requested
   do_not_rerun_on:
-    - nonblocking_findings_only
+    - nonblocking_findings_with_non_material_fixes_only
     - irrelevant_findings_rejected_with_reason
+  materiality_classification:
+    required_after_review_fixes: true
+    material_triggers_take_precedence_over_do_not_rerun: true
+    material_if_changes:
+      - project_overlay_or_binding
+      - workflow_or_gate_policy
+      - review_cycle_policy
+      - schema_or_validator
+      - mandatory_evidence
+      - verification_gate_output
+      - examples_used_as_evidence
+    non_material_if_only:
+      - report_editorial_changes_only
+      - duplicate_consolidation
+      - non_source_of_truth_notes
   escalate_to_human_on:
     - validated_blocking_finding_disputed
     - gate_override_requested
@@ -171,7 +186,7 @@ decision_log:
     source: human-dialogue
   - id: review_cycle.max_review_cycles
     question: What is the maximum number of review cycles before escalation?
-    answer: 1
+    answer: 5
     status: confirmed
     source: human-dialogue
 

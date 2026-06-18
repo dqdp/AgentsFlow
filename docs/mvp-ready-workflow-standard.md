@@ -122,26 +122,61 @@ The Claude provider is in v0.2 MVP scope, but narrowly:
 
 ### project-initialization
 
-Mandatory application/onboarding workflow:
+Mandatory application workflow with mode-gated continuations:
 
 ```text
-intake -> raw scan -> structured inventory -> domain identification
--> legacy adoption decision -> expert assessment -> human operating-decisions interview
--> draft project overlay -> validate project binding -> initialization report
--> human approval
+intake with intent_mode -> raw scan -> structured inventory -> domain identification
+-> triad expert assessment -> mode-specific exit or continuation
 ```
 
-Default mode: `scan-only + draft-overlay`.
+Mode-specific continuations:
+
+```text
+unknown-discovery
+  stop after scan, inventory, assessments and questions unless the human asks to continue
+
+risk-domain-assessment
+  stop after domain/risk assessment and domain-expertise questions unless the human asks to continue
+
+adoption-onboarding
+  legacy adoption decision/migration plan when legacy artifacts are in scope
+  -> human operating-decisions interview -> draft overlay/bindings/gates
+  -> validate draft overlay -> initialization review -> finding validation
+  -> initialization report -> human approval
+
+prepare-workflow
+  require target_workflow -> confirm sufficient target workflow operating context
+  -> capture missing target workflow decisions as a run-level decision packet
+  -> draft target workflow binding/readiness artifacts only when needed
+  -> target workflow readiness gate -> initialization review -> finding validation
+
+legacy-cleanup
+  legacy adoption decision -> migration/quarantine plan -> draft active instruction map
+  -> human approval before activation
+```
+
+Overlay drafting, validation and approval are not universal initialization
+outputs. They apply to adoption-onboarding, legacy activation, or
+prepare-workflow binding/policy activation. `prepare-workflow` requires
+`target_workflow` and enough operating context for that workflow: project or
+draft binding, gate policy, review policy, evidence location and human-owned
+decisions.
 
 ### big-feature-contract-first
 
 Reference end-to-end development workflow:
 
 ```text
-intake -> repository grounding -> contract -> behavior bindings -> plan gate
--> red capture (contract scenarios as executable tests, failing run) -> implementation
--> verification gate (green re-run) -> review -> finding validation -> fusion -> final decision
+intake -> operating context preflight -> repository grounding -> contract
+-> behavior bindings -> plan gate (L3/L4) -> red capture (contract scenarios as executable tests, failing run)
+-> implementation -> verification gate (green re-run) -> review
+-> fusion -> finding validation -> final decision
 ```
+
+Open questions are classified in the task contract. Unresolved
+`blocking-material` questions pause the workflow; nonblocking questions are
+recorded as defaults, limitations or follow-up items. Post-review fixes are
+classified as material or non-material before deciding whether to rerun review.
 
 ### bugfix-regression-capture
 
@@ -149,7 +184,8 @@ Lightweight bugfix workflow:
 
 ```text
 bug intake -> reproduction/diagnosis -> regression scenario -> minimal fix plan
--> implementation -> regression verification gate -> evidence -> final decision
+-> implementation -> regression verification gate -> evidence -> review
+-> finding validation -> final decision
 ```
 
 Default rule:
@@ -168,7 +204,7 @@ Review utility workflow:
 
 ```text
 existing artifact/evidence -> evidence availability gate -> independent read-only reviews
--> finding validation -> fusion -> final decision support
+-> fusion -> finding validation -> final decision support
 ```
 
 It does not run implementation checks itself. If implementation evidence is required but missing, it returns `needs-verification-evidence`.
@@ -180,7 +216,8 @@ Specification workflow, not an implementation workflow in v0.2:
 ```text
 problem framing -> target system spec -> enabling system spec -> term map
 -> research brief -> options/decision contracts -> architecture sketch
--> initial contracts -> roadmap -> spec review gate -> final specification package
+-> initial contracts -> roadmap -> spec review gate -> spec review
+-> finding validation -> final specification package
 ```
 
 ## Language and artifact policy

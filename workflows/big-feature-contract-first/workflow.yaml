@@ -10,6 +10,7 @@ outputs:
 - impact map
 - implementation plan
 - evidence report
+- human decision packet when blocking questions exist
 - review/fusion reports when enabled
 uses:
   skills:
@@ -31,10 +32,18 @@ uses:
   - evidence_validate
   templates:
   - task.contract.md
+  - repository-grounding-report.md
+  - plan.md
+  - task-breakdown.md
+  - decision-contract.md
   - impact-map.yaml
   - evidence-report.md
+  - human-questions.yaml
+  - human-decisions.yaml
   - reviewer-report.md
   - fusion-report.md
+  - finding-validation-report.md
+  - review-cycle-report.md
   packs:
   - agentic-system
   - coding-agent
@@ -69,6 +78,7 @@ review:
   gates:
   - contract_gate
   - impact_gate
+  - plan_gate
   - verification_gate
   - evidence_gate
   - fusion_gate
@@ -78,6 +88,51 @@ review:
     p1_blocks: true
     majority_cannot_override_blocker: true
     missing_evidence: needs-additional-verification
+human_interaction:
+  mode: main-agent-mediated
+  reviewers_may_ask_human: false
+  pause_state: paused_waiting_for_human
+  question_artifact: human-questions.yaml
+  decision_artifact: human-decisions.yaml
+  allowed_pause_phases:
+  - operating_context_preflight
+  - contract
+  - finding_validation
+  - final_decision
+  pause_on:
+  - unresolved_blocking_material_question
+  - scope_or_contract_amendment
+  - accepted_decision_or_adr_conflict
+  - exhausted_review_cycles
+  - final_human_acceptance_required_by_project_policy
+operating_context_preflight:
+  sufficient_context_required: true
+  prior_project_initialization_required: false
+  accepted_sources:
+  - project-operating-decisions.yaml
+  - workflow binding
+  - task contract
+  - explicit human decision packet
+  blockers:
+  - needs-project-binding
+  - needs-verification-gate
+  - needs-review-policy
+  - needs-evidence-location
+  - needs-red-capture-policy
+  - needs-human-authority-decision
+open_question_policy:
+  classification_required: true
+  classifications:
+  - blocking-material
+  - nonblocking-follow-up
+  - nonblocking-known-limitation
+  - out-of-scope
+  default_behavior:
+    blocking-material: pause_for_human
+    nonblocking-follow-up: record_followup
+    nonblocking-known-limitation: record_default_or_limitation
+    out-of-scope: record_out_of_scope
+  grouped_decision_packet_required: true
 supported_profiles:
   strictness:
   - L1
@@ -89,8 +144,33 @@ supported_profiles:
   - homogeneous-plus-focused
   - heterogeneous-variable
 phases:
+- name: operating-context-preflight
+  id: operating_context_preflight
+  kind: planning
+  mode: human_guided
+  coordinator: main-agent
+  purpose: Confirm sufficient operating context for the target workflow before
+    contract drafting or implementation. The project may have completed
+    project-initialization, may be partly initialized, or may have been developed
+    with AgentsFlow from the start; missing required context is recorded as a
+    concrete blocker.
+  outputs:
+  - task contract operating context preflight
+  - human-questions.yaml when blocking questions exist
+  - human-decisions.yaml when answers are provided
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: task.contract.md open questions
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: task.contract.md
+    allowed_resume_states:
+    - answered
+    - unresolved
 - name: contract
-  purpose: Write/approve task contract.
+  purpose: Write/approve task contract, including operating context preflight and
+    classified open questions.
   skills:
   - contract-authoring
   - bdd-scenario-design
@@ -98,13 +178,26 @@ phases:
   - contract_lint
   - gherkin_lint
   outputs:
-  - task contract
+  - task.contract.md
+  - grouped decision packet when needed
   id: contract
   kind: specification
   mode: human_guided
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+  inputs:
+  - operating context preflight
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: task.contract.md open questions
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: task.contract.md
+    allowed_resume_states:
+    - answered
+    - unresolved
 - name: impact
   purpose: Map changed areas to required checks.
   skills:
@@ -120,9 +213,54 @@ phases:
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+- name: technical-plan
+  id: technical_plan
+  kind: specification
+  applies_to_strictness:
+  - L3
+  - L4
+  purpose: Produce the grounded plan artifacts required by the higher-strictness
+    plan gate before red capture or implementation begins.
+  runs_after:
+  - impact
+  skills:
+  - contract-authoring
+  - impact-map-builder
+  scripts: []
+  templates:
+  - repository-grounding-report.md
+  - plan.md
+  - task-breakdown.md
+  - decision-contract.md
+  outputs:
+  - repository-grounding-report.md
+  - plan.md
+  - task-breakdown.md
+  - decision-contract.md
+- name: plan-gate
+  purpose: Validate that the implementation plan is grounded, scoped, testable
+    and ready for implementation before red capture or code changes begin.
+  skills:
+  - evidence-reporting
+  scripts: []
+  outputs:
+  - plan-gate-report.md
+  - plan-gate-report.json
+  id: plan_gate
+  kind: gate
+  gate: plan_gate
+  runs_after:
+  - technical_plan
+  applies_to_strictness:
+  - L3
+  - L4
+  owns_evidence_production: true
 - name: red-capture
   purpose: Turn contract scenarios into executable tests and run them against the
     not-yet-implemented state, capturing the expected failing result.
+  runs_after:
+  - plan_gate
+  runs_after_policy: after_applicable_strictness_gate
   skills:
   - evidence-reporting
   scripts:
@@ -186,10 +324,9 @@ phases:
   skills:
   - reviewer-generalist
   - reviewer-adversarial
-  - fusion-synthesis
   scripts: []
   outputs:
-  - review/fusion reports
+  - reviewer reports
   id: review
   kind: review
   default_permissions:
@@ -199,11 +336,72 @@ phases:
     run_verification_instruments: false
     run_tools: false
   explicit_tool_exceptions_allowed: true
+- name: fusion
+  id: fusion
+  kind: fusion
+  purpose: Synthesize candidate findings and preserve candidate blockers without
+    treating reviewer majority as authoritative truth.
+  skills:
+  - fusion-synthesis
+  scripts: []
+  runs_after:
+  - review
+  outputs:
+  - fusion-report.md
+- name: finding-validation
+  id: finding_validation
+  kind: finding_validation
+  purpose: Validate reviewer and fusion findings against the contract, diff,
+    verification evidence, accepted decisions and scope; record blocker status
+    and post-fix materiality classification before deciding whether another review
+    cycle is required.
+  runs_after:
+  - fusion
+  outputs:
+  - finding-validation-report.md
+  - review-cycle-report.md
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: finding-validation-report.md
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: finding-validation-report.md
+    allowed_resume_states:
+    - answered
+    - unresolved
+- name: final-decision
+  id: final_decision
+  kind: decision
+  purpose: Close the workflow when no validated blockers or mandatory evidence gaps
+    remain, or pause for final human acceptance when project policy requires it.
+  runs_after:
+  - finding_validation
+  outputs:
+  - final decision summary
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: review-cycle-report.md
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: final decision summary
+    allowed_resume_states:
+    - answered
+    - defaulted
+    - unresolved
 exit_criteria:
 - Required artifacts are produced.
+- Operating context preflight completed, or unresolved blocking-material items
+  are recorded as a workflow pause/blocker.
 - Required scripts pass or skipped items are explicitly justified.
 - Verification gate produced a gate report/evidence bundle.
 - Review agents ran after the verification gate and did not run tests/scripts themselves.
+- P0/P1 candidate findings were relevance-validated and no validated blockers or
+  mandatory evidence gaps remain.
+- Post-review fixes were classified as material or non-material before deciding
+  whether to rerun review.
+- Human final acceptance was recorded when required by project policy.
 - Evidence is sufficient for the selected strictness profile.
 review_control_rules:
   review_agents_read_only: true
@@ -219,6 +417,7 @@ review_control_rules:
   default_exit_when_no_validated_blocking_findings: true
   missing_mandatory_evidence_blocks_acceptance: true
   p0_p1_findings_require_recorded_validation: true
+  post_fix_materiality_classification_required: true
 review_cycle:
   default_exit_when: no_validated_blocking_findings
   max_review_cycles_required: true
@@ -231,10 +430,27 @@ review_cycle:
   - verification_gate_materially_changed
   - human_requested
   do_not_rerun_on:
-  - nonblocking_findings_only
+  - nonblocking_findings_with_non_material_fixes_only
   - duplicate_consolidation
   - irrelevant_findings_rejected_with_reason
   - fusion_rewording_only
+  materiality_classification:
+    required_after_review_fixes: true
+    material_triggers_take_precedence_over_do_not_rerun: true
+    material_if_changes:
+    - task_contract_or_scope
+    - behavior_bindings
+    - workflow_or_gate_policy
+    - review_cycle_policy
+    - schema_or_validator
+    - project_overlay_or_binding
+    - mandatory_evidence
+    - verification_gate_output
+    - examples_used_as_evidence
+    non_material_if_only:
+    - report_editorial_changes_only
+    - duplicate_consolidation
+    - non_source_of_truth_notes
   blocking_default:
     severities:
     - P0
@@ -297,6 +513,7 @@ concrete_gates:
 - evidence_gate
 - fusion_gate
 - impact_gate
+- plan_gate
 - verification_gate
 mvp_status: v0.2-mvp
 binding_model:

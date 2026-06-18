@@ -5,10 +5,23 @@ Workflow: <workflow-name>
 Domain Pack: <domain-pack>
 Strictness: <L0-L4>
 Review Topology: <none|homogeneous-dual|homogeneous-plus-focused|heterogeneous-variable>
+Target Workflow: <workflow-name>
 
 ## Intent
 
 Describe what this task is trying to achieve and why it matters.
+
+## Operating Context Preflight
+
+| Item | Required? | Source | Status | Blocking code / notes |
+|---|---:|---|---|---|
+| Project binding or accepted project policy | yes | `.agentsflow/` or project decision | present/missing | `needs-project-binding` |
+| Verification gate binding and runner | yes | `.agentsflow/gates/*` | present/missing | `needs-verification-gate` |
+| Review policy and reviewer count | yes | project operating decisions / binding | present/missing | `needs-review-policy` |
+| Evidence and run artifact location | yes | project policy / binding | present/missing | `needs-evidence-location` |
+| Red-capture applicability | implementation workflows only | contract / binding | required/not-required | `needs-red-capture-policy` |
+| Human authority / approval boundaries | yes | project operating decisions / accepted decision packet | present/missing | `needs-human-authority-decision` |
+| Human final acceptance policy | policy-defined | project operating decisions | required/not-required | `needs-human-authority-decision` when required but missing |
 
 ## Non-goals
 
@@ -74,7 +87,19 @@ The final evidence report must include:
 
 ## Open Questions
 
-- ...
+Questions are classified before asking the human. Blocking questions pause the
+workflow; nonblocking questions use a recorded default when one is allowed.
+
+| ID | Question | Classification | Default | Answer required before implementation? | Decision / status | Affected artifacts |
+|---|---|---|---|---:|---|---|
+| Q-001 | ... | blocking-material / nonblocking-follow-up / nonblocking-known-limitation / out-of-scope | ... | yes/no | open/confirmed/unresolved; defaulted only for nonblocking classifications with an allowed default | ... |
+
+## Grouped Decision Packet
+
+When human input is needed, the main agent asks one grouped decision prompt:
+blocking-material questions first, then nonblocking questions with proposed
+defaults. The agent records answers in `human-decisions.yaml` and updates this
+contract instead of asking the human to fill structured files by hand.
 
 ## Hidden Regression Candidates
 

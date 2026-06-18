@@ -7,7 +7,11 @@ conversational human operating-decisions interview.
 
 ## Purpose
 
-Project initialization creates the project overlay needed to use AgentsFlow in a concrete repository. It must not assume that the agent already understands the project.
+Project initialization is a mode-gated application workflow for understanding a
+project, onboarding it, preparing one target workflow, cleaning up legacy agent
+instructions, or assessing domain risk. It must not assume that the agent already
+understands the project. It creates or activates project overlay artifacts only
+in intent modes that require binding or policy activation.
 
 Initialization separates:
 
@@ -26,11 +30,19 @@ No project analysis without an explicit research assignment.
 Unknown project does not mean empty assignment.
 No inferred metadata without provenance and confidence.
 No domain assumption without evidence and confirmation status.
-No project-bound gate or review policy before the human operating decisions interview.
+No persistent project-bound gate or review policy activation before the human
+operating decisions interview.
 No project overlay without human approval.
+No `prepare-workflow` initialization without a declared target workflow.
 No code-only scan when documentation/history exist.
 No review-agent-to-human questioning; human interaction is mediated by the main agent.
 ```
+
+`prepare-workflow` may use existing project policy/workflow binding evidence, or
+record missing target-workflow gate/review/evidence/authority context in the
+run-level `target_workflow_context_decision_packet`. That packet is not a
+substitute for persistent `project-operating-decisions.yaml` unless the human
+explicitly chooses onboarding or policy activation.
 
 ## Input artifact: project intake / research assignment
 
@@ -56,6 +68,11 @@ templates/research-assignment.unknown-project.md
 ```
 
 The assignment is passed to researcher agents and expert assessment agents. It gives them context, known goals, constraints, domain assumptions, and analysis focus.
+
+Every initialization run must record an `intent_mode`. When `intent_mode` is
+`prepare-workflow`, the intake must also record `target_workflow` so that the
+agent can bind the scan, assessment and human decision prompts to the concrete
+workflow being prepared.
 
 The project intake is not the same thing as project operating decisions. Intake
 answers what should be studied and why. Operating decisions answer how AgentsFlow
@@ -121,19 +138,32 @@ Initialization must ask or record domain-expertise questions for the user:
 - Are there accepted domain decisions that should be treated as fixed constraints?
 ```
 
-## Two initialization modes
+## Intent modes
 
-### Unknown project discovery
+Initialization uses an explicit intent mode rather than relying on one implicit
+onboarding path.
 
-Used when no reliable prior context is known.
+| Intent mode | Purpose | Required target workflow? | Output rule |
+|---|---|---:|---|
+| `unknown-discovery` | Understand an unknown or weakly understood project. | no | Raw scan, inventory, domain questions, triad assessment and operating-decision questions. |
+| `adoption-onboarding` | Prepare an existing project to use AgentsFlow generally. | no | Draft overlay, operating decisions, legacy adoption decision and active instruction map. |
+| `prepare-workflow` | Prepare one concrete AgentsFlow workflow for a project that may already be partly initialized or may have used AgentsFlow from the start. | yes | Workflow binding draft, gate/evidence readiness, task preflight findings and missing decision packet for the target workflow. |
+| `legacy-cleanup` | Resolve existing agent/process instruction conflicts before normal workflow use. | no | Legacy inventory, adoption decision, migration/quarantine plan and draft active instruction map. |
+| `risk-domain-assessment` | Deepen domain, compliance, safety or operational risk understanding before choosing gates/review topology. | optional | Domain/risk assessment, human domain-expertise questions and gate/review recommendations. |
 
-This is not an empty assignment. It uses the standard exploratory research assignment and emphasizes observed facts, inferred judgments, domain assumptions, unknowns, and questions for humans.
+`unknown-discovery` is not an empty assignment. It uses the standard exploratory
+research assignment and emphasizes observed facts, inferred judgments, domain
+assumptions, unknowns, and questions for humans.
 
-### Directed onboarding
+`adoption-onboarding` is used when the project owner provides known goals and
+intended direction. The analysis must take those inputs into account; for
+example, assessing readiness for specific AgentsFlow workflows or gate policies.
 
-Used when the project owner provides known goals and intended direction.
-
-The analysis must take those inputs into account; for example, assessing readiness for specific AgentsFlow workflows or gate policies.
+`prepare-workflow` does not require that the repository previously completed a
+full project-initialization run. It requires enough project context for the
+target workflow to execute safely: project binding or draft binding, gate policy,
+review policy, evidence location and any human-owned decisions that affect the
+target workflow.
 
 ## Data layers
 
@@ -166,18 +196,19 @@ Domain-related fields must additionally separate observed evidence from domain a
 
 ### Layer 3: expert assessment
 
-Read-only expert agents produce candidate assessments:
+Read-only expert agents produce candidate assessments. The default v0.2
+assessment shape is a triad:
 
 ```text
-architecture readiness
-verification strategy
-workflow recommendations
-gate recommendations
-domain risks
-open questions
+architecture assessment
+verification assessment
+adversarial assessment
+synthesis assessment
 ```
 
-Their findings are candidate findings and follow the review-finding validation model.
+The role reports may overlap. They produce candidate workflow/gate/risk
+recommendations, open questions and human-decision items. Their findings are
+candidate findings and follow the review-finding validation model.
 
 ### Layer 4: human operating-decisions interview
 
@@ -203,8 +234,12 @@ The dialogue decides:
 ```
 
 The agent must ask focused questions, offer conservative defaults when supported
-by evidence, summarize decisions back to the human, and then normalize the result
-into `project-operating-decisions.yaml`.
+by evidence, and summarize decisions back to the human. For
+`adoption-onboarding` or explicit persistent policy activation, the normalized
+result is `project-operating-decisions.yaml`. For `prepare-workflow`, missing
+target-workflow operating context is recorded in the run-level
+`target_workflow_context_decision_packet` unless the human explicitly switches to
+onboarding or persistent policy activation.
 
 Each material decision is marked as one of:
 
@@ -225,22 +260,44 @@ domain assumptions, workflow selection, gate strategy and operating decisions.
 
 ## Initialization workflow
 
+The shared backbone is:
+
 ```text
 1. Read project intake / research assignment.
 2. Ask or record preflight user context/domain-expertise questions.
-3. Attach or verify pinned AgentsFlow upstream.
+3. Attach or verify pinned AgentsFlow upstream when the run will produce overlay
+   or workflow-binding artifacts.
 4. Run raw project scan.
 5. Discover documentation and implementation history.
 6. Produce structured project inventory, including domain identification.
-7. Run expert assessments.
-8. Conduct the human operating-decisions interview.
-9. Normalize the dialogue into `project-operating-decisions.yaml`.
-10. Draft project overlay.
-11. Draft project-bound gates.
-12. Optionally use haft/quint-code for advanced decision engineering.
-13. Validate project overlay.
-14. Produce initialization report.
-15. Human approval.
+7. Run triad expert assessments and synthesize candidate recommendations.
+```
+
+The remaining steps are mode-gated:
+
+```text
+unknown-discovery
+  Stop after inventory, assessment and human questions unless the human asks to
+  continue into onboarding.
+
+adoption-onboarding
+  Conduct the human operating-decisions interview, normalize
+  `project-operating-decisions.yaml`, draft overlay/gates as draft artifacts,
+  validate them, produce initialization report and wait for human approval.
+
+prepare-workflow
+  Confirm `target_workflow`, check whether sufficient gate/review/evidence and
+  authority context exists, capture missing context in a run-level target workflow
+  human decision packet, draft only target-workflow binding/readiness artifacts
+  when needed, and ask grouped human questions only for missing material context.
+
+legacy-cleanup
+  Select legacy adoption mode, draft migration/quarantine and
+  `active-instruction-map.yaml`, then wait for human approval before activation.
+
+risk-domain-assessment
+  Stop after domain/risk assessment and human domain-expertise questions unless
+  the human asks to continue into onboarding or prepare-workflow.
 ```
 
 ## Human interaction protocol
@@ -258,6 +315,7 @@ Declared human-pause phases:
 read_project_intake
 legacy_adoption_mode_decision
 operating_decisions_interview
+target_workflow_context_decision_packet
 human_approval
 ```
 
@@ -276,13 +334,21 @@ scan-only
   Produce raw scan, inventory, assessment and questions. Do not create overlay files.
 
 draft-overlay
-  Create draft `.agentsflow/` overlay files for human review.
+  Create draft `.agentsflow/` overlay files for human review. This is used by
+  onboarding and activation paths, not by discovery-only or risk-only exits.
 
 apply-approved
   Apply approved overlay after human confirmation.
 ```
 
-Default mode should be `scan-only + draft-overlay`.
+Default unknown/risk discovery stops at scan, inventory, assessment and
+questions. `draft-overlay` is a continuation for adoption-onboarding,
+legacy-cleanup activation, or prepare-workflow binding/policy activation.
+
+Before human approval, generated overlay files are draft-only. The agent may
+write normalized draft artifacts for review, but must not treat them as active
+project policy, rewrite `AGENTS.md`, activate a migration, or replace existing
+instructions without explicit approval.
 
 
 ## Legacy agent-system adoption

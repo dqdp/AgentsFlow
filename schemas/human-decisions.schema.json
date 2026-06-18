@@ -18,6 +18,7 @@
           "answer",
           "status",
           "answered_by",
+          "classification",
           "affected_artifacts"
         ],
         "additionalProperties": true,
@@ -31,12 +32,34 @@
             "enum": ["confirmed", "defaulted", "unresolved", "rejected", "superseded"]
           },
           "answered_by": {"type": "string"},
+          "classification": {
+            "type": "string",
+            "enum": ["blocking-material", "nonblocking-follow-up", "nonblocking-known-limitation", "out-of-scope"]
+          },
           "rationale": {"type": "string"},
           "affected_artifacts": {
             "type": "array",
             "items": {"type": "string"}
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "classification": {"const": "blocking-material"}
+              },
+              "required": ["classification"]
+            },
+            "then": {
+              "not": {
+                "properties": {
+                  "status": {"const": "defaulted"}
+                },
+                "required": ["status"]
+              }
+            }
+          }
+        ]
       }
     }
   }

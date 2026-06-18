@@ -27,6 +27,7 @@ Docs/specs/<name>.contract.md
 
 - `Non-goals`
 - `Assumptions`
+- `Operating Context Preflight`
 - `Open Questions`
 - `Risk Notes`
 - `Hidden Regression Candidates`
@@ -36,6 +37,46 @@ Docs/specs/<name>.contract.md
 A contract constrains implementation and review. Review agents should check whether the work satisfies the contract, not invent unrelated preferences.
 
 When the contract is wrong or incomplete, the correct behavior is to propose a contract change, not silently implement outside it.
+
+## Operating context preflight
+
+For implementation workflows, the task contract should record whether enough
+project context exists to run the workflow safely. A project may have completed
+`project-initialization`, may be partly initialized, or may have been developed
+with AgentsFlow from the start; the requirement is sufficient operating context,
+not a mandatory prior onboarding run.
+
+The preflight should identify concrete blockers such as:
+
+```text
+needs-project-binding
+needs-verification-gate
+needs-review-policy
+needs-evidence-location
+needs-red-capture-policy
+needs-human-authority-decision
+```
+
+Unresolved blockers pause the workflow before implementation. Missing optional
+or advisory context is recorded as a nonblocking known limitation or follow-up.
+
+## Open questions
+
+Open questions are not all equivalent. Each question must be classified before
+the main/orchestrating agent decides whether to ask the human or proceed with a
+default:
+
+| Classification | Meaning | Default behavior |
+|---|---|---|
+| `blocking-material` | The answer can change scope, contract, gate policy, authority, evidence requirements, safety/compliance posture or accepted decisions. | Pause and ask the human. |
+| `nonblocking-follow-up` | Useful later, but not required for the current acceptance decision. | Record follow-up; do not pause by default. |
+| `nonblocking-known-limitation` | Current work can proceed with a stated limitation. | Record limitation and allowed default. |
+| `out-of-scope` | The question belongs outside the current task. | Record as out of scope; do not pause. |
+
+When multiple questions need human input, the main agent groups them into one
+decision prompt: blocking-material questions first, then nonblocking questions
+with proposed defaults. Answers are recorded in `human-decisions.yaml` and
+reflected back into the task contract.
 
 ## BDD scenarios
 

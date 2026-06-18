@@ -4,8 +4,31 @@
   "basis": {
     "intake": "project-intake.yaml",
     "raw_scan": "project-raw-scan.json",
-    "inventory": "project-inventory.json"
+    "inventory": "project-inventory.json",
+    "role_reports": [
+      "project-assessment.architecture.json",
+      "project-assessment.verification.json",
+      "project-assessment.adversarial.json"
+    ]
   },
+  "role": "synthesis",
+  "role_reports": [
+    {
+      "role": "architecture",
+      "artifact": "project-assessment.architecture.json",
+      "authority": "candidate"
+    },
+    {
+      "role": "verification",
+      "artifact": "project-assessment.verification.json",
+      "authority": "candidate"
+    },
+    {
+      "role": "adversarial",
+      "artifact": "project-assessment.adversarial.json",
+      "authority": "candidate"
+    }
+  ],
   "candidate_findings": [],
   "domain_assessment": {
     "domain_assumptions": [],

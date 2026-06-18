@@ -70,6 +70,19 @@ For every P0/P1 candidate finding, record one of:
 - needs more evidence;
 - escalated to human decision.
 
+## Post-Fix Materiality
+
+Classify every fix made after review before deciding whether to rerun reviewers.
+
+| Fix ID | Finding IDs | Changed artifacts | Material? | Reason | Required next action |
+|---|---|---|---:|---|---|
+| fix-001 | F-001 | `schemas/...`, `docs/...` | yes/no | ... | rerun-verification / rerun-review / no-rerun |
+
+A fix is material when it changes contracts, schemas, validators, workflow or
+gate policy, project bindings, mandatory evidence, verification output, reviewed
+behavior, or examples used as evidence. Editorial/report-only cleanup is
+non-material by default.
+
 ## Review Cycle Decision
 
 Default exit criterion:

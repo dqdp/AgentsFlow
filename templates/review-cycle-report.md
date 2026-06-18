@@ -63,6 +63,19 @@ reviewers inspect the batch.
 
 - ...
 
+## Post-Fix Materiality Classification
+
+Use this section when any accepted finding is fixed before the cycle closes.
+
+| Fix ID | Finding IDs | Changed artifacts | Material review input changed? | Verification refreshed? | Review rerun required? | Reason |
+|---|---|---|---:|---:|---:|---|
+| fix-001 | F-002 | `docs/...` | no | no | no | Editorial non-source-of-truth cleanup only. |
+
+Material changes include contract/scope changes, workflow or review-cycle policy
+changes, schema/validator changes, project overlay or binding changes, mandatory
+evidence changes, verification-result changes, and examples used as current
+evidence. A P2 finding can produce a material fix.
+
 ## Rerun Decision
 
 <exit-review-cycle|rerun-verification-gate|rerun-review-agents|revise-artifact|escalate-human>

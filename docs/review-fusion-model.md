@@ -109,6 +109,7 @@ Fusion receives:
 - test/script results;
 - evidence report;
 - independent reviewer reports.
+- prior finding validation reports when this is a later review cycle.
 
 Fusion outputs:
 
@@ -160,10 +161,10 @@ In AgentsFlow, Fusion Agent is a read-only synthesis actor, not a default
 orchestrator. It consumes already-produced artifacts and reports:
 
 - reviewer reports;
-- finding validation reports;
 - verification gate reports;
 - evidence bundles;
 - workflow context and accepted decisions.
+- prior finding validation reports when available from earlier cycles.
 
 It produces decision support: consensus, disagreement, blocker summary,
 non-blocking concerns, and human-decision items.

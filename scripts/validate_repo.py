@@ -64,6 +64,35 @@ def parse_yaml(path: Path) -> object:
         raise ValueError(f"YAML parse error in {path}: {exc}") from exc
 
 
+class UniqueKeyLoader(yaml.SafeLoader):
+    """YAML loader that rejects duplicate mapping keys."""
+
+
+def _construct_unique_mapping(loader: UniqueKeyLoader, node: yaml.MappingNode, deep: bool = False) -> dict:
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            mark = key_node.start_mark
+            raise ValueError(f"duplicate YAML key {key!r} at line {mark.line + 1}, column {mark.column + 1}")
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
+def validate_no_duplicate_yaml_keys(path: Path) -> list[str]:
+    try:
+        yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
+    except Exception as exc:  # noqa: BLE001
+        return [f"{path}: {exc}"]
+    return []
+
+
 def parse_json(path: Path) -> object:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -899,7 +928,7 @@ def validate_project_gate_manifest(
     return errors
 
 
-def required_workflow_gates(workflow_path: Path) -> set[str]:
+def required_workflow_gates(workflow_path: Path, selected_strictness: object) -> set[str]:
     if not workflow_path.exists():
         return set()
     data = parse_yaml(workflow_path) or {}
@@ -907,7 +936,13 @@ def required_workflow_gates(workflow_path: Path) -> set[str]:
         return set()
     gates: set[str] = set()
     for phase in data.get("phases", []) or []:
-        if isinstance(phase, dict) and phase.get("gate"):
+        if not isinstance(phase, dict) or not phase.get("gate"):
+            continue
+        applies = phase.get("applies_to_strictness")
+        if not applies:
+            gates.add(str(phase["gate"]))
+            continue
+        if str(selected_strictness) in {str(item) for item in applies or []}:
             gates.add(str(phase["gate"]))
     return gates
 
@@ -966,8 +1001,10 @@ def validate_project_initialization_operating_decisions(path: Path, data: dict) 
         for phase in phases
         if isinstance(phase, dict) and phase.get("id")
     }
-    if "project-operating-decisions.yaml" not in outputs:
-        errors.append(f"{path}: project-initialization must output project-operating-decisions.yaml")
+    mode_outputs = data.get("mode_gated_outputs", {}) or {}
+    onboarding_outputs = set(mode_outputs.get("adoption-onboarding", []) or [])
+    if "project-operating-decisions.yaml" not in onboarding_outputs:
+        errors.append(f"{path}: adoption-onboarding outputs must include project-operating-decisions.yaml")
     if "project-operating-decisions-interview" not in skills:
         errors.append(f"{path}: project-initialization must use project-operating-decisions-interview skill")
     if "project-operating-decisions.yaml" not in templates:
@@ -975,11 +1012,34 @@ def validate_project_initialization_operating_decisions(path: Path, data: dict) 
     interview = phase_by_id.get("operating_decisions_interview")
     if not interview:
         errors.append(f"{path}: project-initialization must include operating_decisions_interview phase")
-    elif "project-operating-decisions.yaml" not in set(interview.get("outputs", []) or []):
-        errors.append(f"{path}: operating_decisions_interview must output project-operating-decisions.yaml")
+    else:
+        interview_applies = set(str(item) for item in interview.get("applies_to_intent_modes", []) or [])
+        if interview_applies != {"adoption-onboarding"}:
+            errors.append(f"{path}: operating_decisions_interview must apply only to adoption-onboarding")
+        if "project-operating-decisions.yaml" not in set(interview.get("outputs", []) or []):
+            errors.append(f"{path}: operating_decisions_interview must output project-operating-decisions.yaml")
+    target_decisions = phase_by_id.get("target_workflow_context_decision_packet")
+    if not isinstance(target_decisions, dict):
+        errors.append(f"{path}: project-initialization must include target_workflow_context_decision_packet phase")
+    else:
+        applies = set(str(item) for item in target_decisions.get("applies_to_intent_modes", []) or [])
+        if applies != {"prepare-workflow"}:
+            errors.append(f"{path}: target_workflow_context_decision_packet must apply only to prepare-workflow")
+        outputs = set(str(item) for item in target_decisions.get("outputs", []) or [])
+        if "target workflow human decision packet" not in outputs:
+            errors.append(f"{path}: target_workflow_context_decision_packet must output target workflow human decision packet")
+        human = target_decisions.get("human_interaction", {}) or {}
+        if human.get("response_artifact") == "project-operating-decisions.yaml":
+            errors.append(f"{path}: target_workflow_context_decision_packet must not write project-operating-decisions.yaml")
     overlay = phase_by_id.get("overlay_draft")
-    if overlay and "project-operating-decisions.yaml" not in set(overlay.get("inputs", []) or []):
-        errors.append(f"{path}: overlay_draft must consume project-operating-decisions.yaml")
+    if overlay:
+        inputs = set(overlay.get("inputs", []) or [])
+        has_operating_decisions = any(str(item).startswith("project-operating-decisions.yaml") for item in inputs)
+        has_existing_policy = any("existing project policy/workflow binding" in str(item) for item in inputs)
+        if not has_operating_decisions:
+            errors.append(f"{path}: overlay_draft must consume project-operating-decisions.yaml for onboarding")
+        if not has_existing_policy:
+            errors.append(f"{path}: overlay_draft must allow existing project policy/workflow binding for prepare-workflow")
     return errors
 
 
@@ -1004,6 +1064,7 @@ def validate_project_initialization_human_interaction(path: Path, data: dict) ->
         "read_project_intake",
         "legacy_adoption_mode_decision",
         "operating_decisions_interview",
+        "target_workflow_context_decision_packet",
         "human_approval",
     }
     declared = set(human.get("allowed_pause_phases", []) or [])
@@ -1028,6 +1089,414 @@ def validate_project_initialization_human_interaction(path: Path, data: dict) ->
             errors.append(f"{path}: phase {phase_id} must use human-questions.yaml")
         if phase_human.get("decision_artifact") != "human-decisions.yaml":
             errors.append(f"{path}: phase {phase_id} must use human-decisions.yaml")
+    return errors
+
+
+def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    if data.get("name") != "project-initialization":
+        return errors
+
+    intent_modes = data.get("intent_modes", {}) or {}
+    supported = set(str(item) for item in intent_modes.get("supported", []) or [])
+    required_modes = {
+        "unknown-discovery",
+        "adoption-onboarding",
+        "prepare-workflow",
+        "legacy-cleanup",
+        "risk-domain-assessment",
+    }
+    missing = sorted(required_modes - supported)
+    if intent_modes.get("required") is not True:
+        errors.append(f"{path}: project-initialization intent_modes.required must be true")
+    if intent_modes.get("prepare_workflow_requires_target_workflow") is not True:
+        errors.append(f"{path}: prepare-workflow must require target_workflow")
+    if missing:
+        errors.append(f"{path}: intent_modes.supported missing: {', '.join(missing)}")
+    outputs = set(str(item) for item in data.get("outputs", []) or [])
+    mode_outputs = {
+        str(mode): [str(item) for item in outputs_for_mode or []]
+        for mode, outputs_for_mode in (data.get("mode_gated_outputs", {}) or {}).items()
+    }
+
+    def mode_has(mode: str, text: str) -> bool:
+        return any(text in item for item in mode_outputs.get(mode, []))
+
+    def mode_missing(mode: str, required_texts: list[str]) -> list[str]:
+        return [text for text in required_texts if not mode_has(mode, text)]
+
+    onboarding_only_output_patterns = [
+        ".agentsflow/agentsflow.lock.yaml",
+        ".agentsflow/project.yaml",
+        "project-operating-decisions.yaml",
+        "workflow bindings",
+        "workflow bindings draft",
+        "project-bound gate drafts",
+        "initialization-report.md",
+        "legacy-agent-system-inventory.json",
+        "legacy-adoption-decision.yaml",
+        "active-instruction-map.yaml",
+    ]
+    leaked_outputs = sorted(
+        item
+        for item in outputs
+        if any(pattern in item for pattern in onboarding_only_output_patterns)
+    )
+    if leaked_outputs:
+        errors.append(
+            f"{path}: top-level outputs must be mode-neutral; move mode-specific outputs to mode_gated_outputs: "
+            + ", ".join(leaked_outputs)
+        )
+    required_mode_outputs = {
+        "unknown-discovery": [
+            "project-raw-scan.json",
+            "project-inventory.json",
+            "project-assessment.architecture.json",
+            "project-assessment.verification.json",
+            "project-assessment.adversarial.json",
+            "project-assessment.json",
+            "human-questions.yaml",
+        ],
+        "adoption-onboarding": [
+            "project-operating-decisions.yaml",
+            ".agentsflow/project.yaml draft",
+            "workflow bindings draft",
+            "project-bound gate drafts",
+            "active-instruction-map.yaml draft",
+            "legacy-agent-system-inventory.json when legacy artifacts are in scope",
+            "legacy-adoption-decision.yaml when legacy artifacts are in scope",
+            "agent-instruction-migration-plan.md when legacy artifacts are in scope",
+            "legacy-backup-manifest.yaml when legacy artifacts are in scope",
+            "initialization-report.md",
+        ],
+        "prepare-workflow": [
+            "target workflow binding draft",
+            "target workflow gate readiness report",
+            "target workflow human decision packet",
+            "finding-validation-report.md",
+            "review-cycle-report.md",
+        ],
+        "legacy-cleanup": [
+            "legacy-agent-system-inventory.json",
+            "legacy-adoption-decision.yaml",
+            "agent-instruction-migration-plan.md",
+            "active-instruction-map.yaml draft",
+        ],
+        "risk-domain-assessment": [
+            "domain-identification section",
+            "project-assessment.architecture.json",
+            "project-assessment.verification.json",
+            "project-assessment.adversarial.json",
+            "project-assessment.json",
+            "human domain-expertise questions",
+        ],
+    }
+    for mode, required_texts in required_mode_outputs.items():
+        missing_mode_outputs = mode_missing(mode, required_texts)
+        if missing_mode_outputs:
+            errors.append(
+                f"{path}: mode_gated_outputs.{mode} missing: {', '.join(missing_mode_outputs)}"
+            )
+    forbidden_mode_outputs = {
+        "unknown-discovery": [
+            ".agentsflow/project.yaml",
+            "workflow bindings",
+            "project-bound gate",
+            "project-operating-decisions.yaml",
+            "initialization-report.md",
+            "active-instruction-map.yaml",
+        ],
+        "prepare-workflow": [
+            ".agentsflow/project.yaml",
+            "project-operating-decisions.yaml",
+            "workflow bindings draft",
+            "project-bound gate drafts",
+            "initialization-report.md",
+            "active-instruction-map.yaml",
+        ],
+        "risk-domain-assessment": [
+            ".agentsflow/project.yaml",
+            "workflow bindings",
+            "project-bound gate",
+            "project-operating-decisions.yaml",
+            "initialization-report.md",
+            "active-instruction-map.yaml",
+        ],
+    }
+    for mode, forbidden_texts in forbidden_mode_outputs.items():
+        forbidden_present = [
+            item
+            for item in mode_outputs.get(mode, [])
+            if any(forbidden_text in item for forbidden_text in forbidden_texts)
+        ]
+        if forbidden_present:
+            errors.append(
+                f"{path}: mode_gated_outputs.{mode} must not include activation outputs: "
+                + ", ".join(forbidden_present)
+            )
+
+    phase_policy = data.get("intent_mode_phase_policy", {}) or {}
+    unknown_policy = phase_policy.get("unknown-discovery", {}) or {}
+    risk_policy = phase_policy.get("risk-domain-assessment", {}) or {}
+    prepare_policy = phase_policy.get("prepare-workflow", {}) or {}
+    must_not_require = set(str(item) for item in unknown_policy.get("must_not_require", []) or [])
+    risk_must_not_require = set(str(item) for item in risk_policy.get("must_not_require", []) or [])
+    mode_specific_activation_phases = [
+        "operating_decisions_interview",
+        "overlay_draft",
+        "project_initialization_gate",
+        "target_workflow_context_decision_packet",
+        "target_workflow_readiness_gate",
+        "initialization_review",
+        "finding_validation",
+        "human_approval",
+    ]
+    for phase_id in mode_specific_activation_phases:
+        if phase_id not in must_not_require:
+            errors.append(f"{path}: unknown-discovery must not require {phase_id}")
+    for phase_id in [
+        "overlay_draft",
+        "project_initialization_gate",
+        "target_workflow_context_decision_packet",
+        "target_workflow_readiness_gate",
+        "initialization_review",
+        "finding_validation",
+        "human_approval",
+    ]:
+        if phase_id not in risk_must_not_require:
+            errors.append(f"{path}: risk-domain-assessment must not require {phase_id}")
+    if prepare_policy.get("requires_target_workflow") is not True:
+        errors.append(f"{path}: prepare-workflow phase policy must require target_workflow")
+    if prepare_policy.get("requires_sufficient_operating_context") is not True:
+        errors.append(f"{path}: prepare-workflow phase policy must require sufficient operating context")
+    if prepare_policy.get("target_workflow_context_decision_packet") != "conditional_when_target_workflow_policy_is_missing":
+        errors.append(f"{path}: prepare-workflow phase policy must use target_workflow_context_decision_packet for missing context")
+    if "operating_decisions_interview" in prepare_policy:
+        errors.append(f"{path}: prepare-workflow phase policy must not use operating_decisions_interview")
+    prepare_requires = set(str(item) for item in prepare_policy.get("requires", []) or [])
+    prepare_conditional_requires = set(str(item) for item in prepare_policy.get("conditional_requires", []) or [])
+    if "target_workflow_context_decision_packet" in prepare_requires:
+        errors.append(f"{path}: prepare-workflow must not require target_workflow_context_decision_packet unconditionally")
+    if "target_workflow_context_decision_packet" not in prepare_conditional_requires:
+        errors.append(f"{path}: prepare-workflow conditional_requires must include target_workflow_context_decision_packet")
+
+    phase_by_id = {
+        phase.get("id"): phase
+        for phase in data.get("phases", []) or []
+        if isinstance(phase, dict) and phase.get("id")
+    }
+    for phase_id in [
+        "operating_decisions_interview",
+        "overlay_draft",
+        "project_initialization_gate",
+        "target_workflow_context_decision_packet",
+        "target_workflow_readiness_gate",
+        "initialization_review",
+        "finding_validation",
+        "human_approval",
+    ]:
+        phase = phase_by_id.get(phase_id)
+        if not isinstance(phase, dict):
+            continue
+        applies = set(str(item) for item in phase.get("applies_to_intent_modes", []) or [])
+        if not applies:
+            errors.append(f"{path}: phase {phase_id} must declare applies_to_intent_modes")
+        if "unknown-discovery" in applies:
+            errors.append(f"{path}: phase {phase_id} must not apply to unknown-discovery by default")
+        if "risk-domain-assessment" in applies:
+            errors.append(f"{path}: phase {phase_id} must not apply to risk-domain-assessment by default")
+    attach = phase_by_id.get("attach_or_verify_upstream")
+    if isinstance(attach, dict):
+        attach_applies = set(str(item) for item in attach.get("applies_to_intent_modes", []) or [])
+        if not attach_applies:
+            errors.append(f"{path}: attach_or_verify_upstream must declare applies_to_intent_modes")
+        for mode in ["unknown-discovery", "risk-domain-assessment"]:
+            if mode in attach_applies:
+                errors.append(f"{path}: attach_or_verify_upstream must not apply to {mode} by default")
+    for phase_id in ["operating_decisions_interview", "human_approval"]:
+        phase = phase_by_id.get(phase_id, {}) or {}
+        human = phase.get("human_interaction", {}) or {}
+        if human.get("required") is True:
+            errors.append(f"{path}: phase {phase_id} human_interaction.required must be conditional")
+
+    expected_mode_phases = {
+        "legacy_agent_system_discovery": {"adoption-onboarding", "legacy-cleanup"},
+        "project_initialization_gate": {"adoption-onboarding"},
+        "target_workflow_context_decision_packet": {"prepare-workflow"},
+        "target_workflow_readiness_gate": {"prepare-workflow"},
+        "initialization_review": {"adoption-onboarding", "prepare-workflow"},
+        "finding_validation": {"adoption-onboarding", "prepare-workflow"},
+    }
+    for phase_id, expected_modes in expected_mode_phases.items():
+        phase = phase_by_id.get(phase_id)
+        if not isinstance(phase, dict):
+            errors.append(f"{path}: project-initialization must include {phase_id} phase")
+            continue
+        applies = set(str(item) for item in phase.get("applies_to_intent_modes", []) or [])
+        if applies != expected_modes:
+            errors.append(
+                f"{path}: phase {phase_id} must apply exactly to: {', '.join(sorted(expected_modes))}"
+            )
+
+    project_gate = phase_by_id.get("project_initialization_gate", {}) or {}
+    if project_gate.get("gate") != "project_initialization_gate":
+        errors.append(f"{path}: project_initialization_gate phase must bind project_initialization_gate")
+    target_gate = phase_by_id.get("target_workflow_readiness_gate", {}) or {}
+    if target_gate.get("kind") != "gate":
+        errors.append(f"{path}: target_workflow_readiness_gate phase must be kind gate")
+    if target_gate.get("gate") != "target_workflow_readiness_gate":
+        errors.append(f"{path}: target_workflow_readiness_gate phase must bind target_workflow_readiness_gate")
+
+    initialization_review = phase_by_id.get("initialization_review", {}) or {}
+    if initialization_review.get("kind") != "review":
+        errors.append(f"{path}: initialization_review phase must be kind review")
+    review_runs_after = set(str(item) for item in initialization_review.get("runs_after", []) or [])
+    for required_gate_phase in ["project_initialization_gate", "target_workflow_readiness_gate"]:
+        if required_gate_phase not in review_runs_after:
+            errors.append(f"{path}: initialization_review must run after {required_gate_phase}")
+    if initialization_review.get("runs_after_policy") != "after_applicable_intent_mode_gate":
+        errors.append(f"{path}: initialization_review must use after_applicable_intent_mode_gate runs_after_policy")
+
+    finding_validation = phase_by_id.get("finding_validation", {}) or {}
+    if finding_validation.get("kind") != "finding_validation":
+        errors.append(f"{path}: finding_validation phase must be kind finding_validation")
+    validation_runs_after = set(str(item) for item in finding_validation.get("runs_after", []) or [])
+    if "initialization_review" not in validation_runs_after:
+        errors.append(f"{path}: finding_validation phase must run after initialization_review")
+
+    human_approval = phase_by_id.get("human_approval", {}) or {}
+    human_runs_after = set(str(item) for item in human_approval.get("runs_after", []) or [])
+    for required_phase in ["finding_validation", "legacy_migration_or_quarantine_plan"]:
+        if required_phase not in human_runs_after:
+            errors.append(f"{path}: human_approval must run after {required_phase} when applicable")
+    if human_approval.get("runs_after_policy") != "after_applicable_intent_mode_preapproval_phase":
+        errors.append(f"{path}: human_approval must use after_applicable_intent_mode_preapproval_phase runs_after_policy")
+
+    phase_order = {
+        str(phase.get("id")): index
+        for index, phase in enumerate(data.get("phases", []) or [])
+        if isinstance(phase, dict) and phase.get("id")
+    }
+    ordered_backbone = [
+        "raw_project_scan",
+        "structured_project_inventory",
+        "domain_identification",
+        "expert_assessment",
+    ]
+    for before, after in zip(ordered_backbone, ordered_backbone[1:]):
+        if before in phase_order and after in phase_order and phase_order[before] >= phase_order[after]:
+            errors.append(f"{path}: {before} must appear before {after}")
+    for legacy_phase in ["legacy_adoption_mode_decision", "legacy_migration_or_quarantine_plan"]:
+        if (
+            legacy_phase in phase_order
+            and "expert_assessment" in phase_order
+            and phase_order[legacy_phase] <= phase_order["expert_assessment"]
+        ):
+            errors.append(f"{path}: {legacy_phase} must run after expert_assessment")
+
+    forbidden_phase_outputs_by_mode = {
+        "prepare-workflow": ["project-operating-decisions.yaml"],
+        "unknown-discovery": [
+            "project-operating-decisions.yaml",
+            "project.yaml draft",
+            "workflow bindings draft",
+            "project-bound gate drafts",
+            "active-instruction-map.yaml",
+        ],
+        "risk-domain-assessment": [
+            "project-operating-decisions.yaml",
+            "project.yaml draft",
+            "workflow bindings draft",
+            "project-bound gate drafts",
+            "active-instruction-map.yaml",
+        ],
+    }
+    for phase in data.get("phases", []) or []:
+        if not isinstance(phase, dict):
+            continue
+        applies = set(str(item) for item in phase.get("applies_to_intent_modes", []) or [])
+        if not applies and phase_policy.get("phases_without_applies_to_intent_modes_apply_to_all") is True:
+            applies = supported
+        phase_outputs = [str(item) for item in phase.get("outputs", []) or []]
+        phase_human = phase.get("human_interaction", {}) or {}
+        response_artifact = str(phase_human.get("response_artifact", ""))
+        for mode, forbidden_patterns in forbidden_phase_outputs_by_mode.items():
+            if mode not in applies:
+                continue
+            forbidden_present = [
+                item
+                for item in [*phase_outputs, response_artifact]
+                if any(pattern in item for pattern in forbidden_patterns)
+            ]
+            if forbidden_present:
+                errors.append(
+                    f"{path}: phase {phase.get('id')} must not produce {mode} forbidden artifact(s): "
+                    + ", ".join(sorted(set(forbidden_present)))
+                )
+
+    review = data.get("review", {}) or {}
+    if isinstance(review, dict) and review.get("topology") not in {None, "none"}:
+        gates = set(str(item) for item in review.get("gates", []) or [])
+        for gate_id in ["project_initialization_gate", "target_workflow_readiness_gate"]:
+            if gate_id not in gates:
+                errors.append(f"{path}: project-initialization review.gates must include {gate_id}")
+    return errors
+
+
+def validate_big_feature_plan_gate_policy(path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    if data.get("name") != "big-feature-contract-first":
+        return errors
+    phases = [
+        phase
+        for phase in data.get("phases", []) or []
+        if isinstance(phase, dict)
+    ]
+    phase_by_id = {str(phase.get("id")): phase for phase in phases if phase.get("id")}
+    technical_plan = phase_by_id.get("technical_plan")
+    plan_gate = phase_by_id.get("plan_gate")
+    red_capture = phase_by_id.get("red_capture")
+    required_plan_artifacts = {
+        "repository-grounding-report.md",
+        "plan.md",
+        "task-breakdown.md",
+        "decision-contract.md",
+    }
+    if not isinstance(technical_plan, dict):
+        errors.append(f"{path}: big-feature-contract-first must include technical_plan phase before plan_gate")
+    else:
+        outputs = set(str(item) for item in technical_plan.get("outputs", []) or [])
+        missing_outputs = sorted(required_plan_artifacts - outputs)
+        if missing_outputs:
+            errors.append(f"{path}: technical_plan phase missing outputs: {', '.join(missing_outputs)}")
+        applies = set(str(item) for item in technical_plan.get("applies_to_strictness", []) or [])
+        if applies != {"L3", "L4"}:
+            errors.append(f"{path}: technical_plan phase must apply exactly to strictness L3 and L4")
+    if not isinstance(plan_gate, dict):
+        errors.append(f"{path}: big-feature-contract-first must include plan_gate phase")
+    else:
+        if plan_gate.get("kind") not in {"gate", "verification"}:
+            errors.append(f"{path}: plan_gate phase must be kind gate or verification")
+        if plan_gate.get("gate") != "plan_gate":
+            errors.append(f"{path}: plan_gate phase must bind gate plan_gate")
+        applies = set(str(item) for item in plan_gate.get("applies_to_strictness", []) or [])
+        if applies != {"L3", "L4"}:
+            errors.append(f"{path}: plan_gate phase must apply exactly to strictness L3 and L4")
+        runs_after = set(str(item) for item in plan_gate.get("runs_after", []) or [])
+        if "technical_plan" not in runs_after:
+            errors.append(f"{path}: plan_gate phase must run after technical_plan")
+    if isinstance(red_capture, dict):
+        runs_after = set(str(item) for item in red_capture.get("runs_after", []) or [])
+        if "plan_gate" not in runs_after:
+            errors.append(f"{path}: red_capture phase must run after plan_gate")
+        if red_capture.get("runs_after_policy") != "after_applicable_strictness_gate":
+            errors.append(f"{path}: red_capture phase must use after_applicable_strictness_gate runs_after_policy")
+    review_gates = set(str(item) for item in ((data.get("review", {}) or {}).get("gates", []) or []))
+    if "plan_gate" not in review_gates:
+        errors.append(f"{path}: review.gates must include plan_gate")
+    concrete_gates = set(str(item) for item in data.get("concrete_gates", []) or [])
+    if "plan_gate" not in concrete_gates:
+        errors.append(f"{path}: concrete_gates must include plan_gate")
     return errors
 
 
@@ -1207,6 +1676,11 @@ def validate_required_review_gate_order(path: Path, data: dict) -> list[str]:
             "gate_phase": "spec_review_gate",
             "gate": "spec_review_gate",
         },
+        "bugfix-regression-capture": {
+            "review_phase": "review",
+            "gate_phase": "regression_verification_gate",
+            "gate": "regression_gate",
+        },
     }
     rule = required_by_workflow.get(str(data.get("name")))
     if not rule:
@@ -1242,6 +1716,85 @@ def validate_required_review_gate_order(path: Path, data: dict) -> list[str]:
         review_index = phases.index(review_phase)
         if gate_index >= review_index:
             errors.append(f"{path}: phase {rule['gate_phase']} must appear before {rule['review_phase']}")
+    return errors
+
+
+def validate_review_fusion_validation_order(path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    if data.get("name") not in MVP_WORKFLOWS:
+        return errors
+    phases = [
+        phase
+        for phase in data.get("phases", []) or []
+        if isinstance(phase, dict)
+    ]
+    validation_phase = next((phase for phase in phases if phase.get("kind") == "finding_validation"), None)
+    review_phases = [phase for phase in phases if phase.get("kind") == "review"]
+    post_gate_review_phases = [
+        phase for phase in review_phases if phase.get("runs_after")
+    ]
+    fusion_phases = [phase for phase in phases if phase.get("kind") == "fusion"]
+    if not post_gate_review_phases and not fusion_phases:
+        return errors
+    if validation_phase is None:
+        errors.append(f"{path}: MVP workflow with post-gate review or fusion must include finding_validation phase")
+        return errors
+    if fusion_phases and not review_phases:
+        errors.append(f"{path}: MVP workflow with fusion phase must include review phase")
+        return errors
+    first_review_index = min(phases.index(phase) for phase in (post_gate_review_phases or review_phases))
+    validation_index = phases.index(validation_phase)
+    validation_runs_after = set(str(item) for item in validation_phase.get("runs_after", []) or [])
+    if fusion_phases:
+        first_fusion_index = min(phases.index(phase) for phase in fusion_phases)
+        if not (first_review_index < first_fusion_index < validation_index):
+            errors.append(f"{path}: review/fusion/validation order must be review -> fusion -> finding_validation")
+        fusion_ids = {str(phase.get("id")) for phase in fusion_phases if phase.get("id")}
+        if fusion_ids and not (fusion_ids & validation_runs_after):
+            errors.append(f"{path}: finding_validation phase must run after fusion")
+    else:
+        if not (first_review_index < validation_index):
+            errors.append(f"{path}: review/validation order must be review -> finding_validation")
+        review_ids_for_validation = {str(phase.get("id")) for phase in post_gate_review_phases if phase.get("id")}
+        if review_ids_for_validation and not (review_ids_for_validation & validation_runs_after):
+            errors.append(f"{path}: finding_validation phase must run after review")
+    review_ids = {str(phase.get("id")) for phase in review_phases if phase.get("id")}
+    for fusion in fusion_phases:
+        runs_after = set(str(item) for item in fusion.get("runs_after", []) or [])
+        if review_ids and not (review_ids & runs_after):
+            errors.append(f"{path}: fusion phase {fusion.get('id')} must run after review")
+    return errors
+
+
+def validate_mvp_review_materiality_policy(path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    if data.get("name") not in MVP_WORKFLOWS:
+        return errors
+    review_cycle = data.get("review_cycle")
+    if not isinstance(review_cycle, dict):
+        return errors
+    do_not_rerun = set(str(item) for item in review_cycle.get("do_not_rerun_on", []) or [])
+    if "nonblocking_findings_only" in do_not_rerun:
+        errors.append(f"{path}: do_not_rerun_on must not use ambiguous nonblocking_findings_only")
+    if "nonblocking_findings_with_non_material_fixes_only" not in do_not_rerun:
+        errors.append(f"{path}: do_not_rerun_on must include nonblocking_findings_with_non_material_fixes_only")
+    materiality = review_cycle.get("materiality_classification")
+    if not isinstance(materiality, dict):
+        errors.append(f"{path}: review_cycle.materiality_classification is required")
+        return errors
+    if materiality.get("required_after_review_fixes") is not True:
+        errors.append(f"{path}: materiality_classification.required_after_review_fixes must be true")
+    if materiality.get("material_triggers_take_precedence_over_do_not_rerun") is not True:
+        errors.append(
+            f"{path}: materiality_classification.material_triggers_take_precedence_over_do_not_rerun must be true"
+        )
+    if not materiality.get("material_if_changes"):
+        errors.append(f"{path}: materiality_classification.material_if_changes is required")
+    if not materiality.get("non_material_if_only"):
+        errors.append(f"{path}: materiality_classification.non_material_if_only is required")
+    controls = data.get("review_control_rules", {}) or {}
+    if controls.get("post_fix_materiality_classification_required") is not True:
+        errors.append(f"{path}: review_control_rules.post_fix_materiality_classification_required must be true")
     return errors
 
 
@@ -1310,7 +1863,10 @@ def validate_project_overlay_example(
                 errors.append(f"{binding_file}: upstream workflow does not exist: {extends}")
             gates = binding.get("gates", {}) or {}
             if extends_path and extends_path.exists() and isinstance(gates, dict):
-                missing_gates = sorted(required_workflow_gates(extends_path) - set(str(key) for key in gates))
+                missing_gates = sorted(
+                    required_workflow_gates(extends_path, binding.get("strictness"))
+                    - set(str(key) for key in gates)
+                )
                 if missing_gates:
                     errors.append(f"{binding_file}: missing project gate binding(s): {', '.join(missing_gates)}")
             for gate_id, cfg in (binding.get("gates", {}) or {}).items():
@@ -1349,11 +1905,13 @@ def main() -> int:
     errors: list[str] = []
 
     for p in root.rglob("*.yaml"):
+        errors.extend(validate_no_duplicate_yaml_keys(p))
         try:
             parse_yaml(p)
         except ValueError as exc:
             errors.append(str(exc))
     for p in root.rglob("*.yml"):
+        errors.extend(validate_no_duplicate_yaml_keys(p))
         try:
             parse_yaml(p)
         except ValueError as exc:
@@ -1517,10 +2075,14 @@ def main() -> int:
         errors.extend(validate_test_framed_implementation(wf, data))
         errors.extend(validate_project_initialization_operating_decisions(wf, data))
         errors.extend(validate_project_initialization_human_interaction(wf, data))
+        errors.extend(validate_project_initialization_intent_mode_policy(wf, data))
+        errors.extend(validate_big_feature_plan_gate_policy(wf, data))
         errors.extend(validate_supported_review_topologies(wf, data))
         errors.extend(validate_upstream_review_cycle_policy(wf, data))
         errors.extend(validate_mvp_review_phase_policy(wf, data))
         errors.extend(validate_required_review_gate_order(wf, data))
+        errors.extend(validate_review_fusion_validation_order(wf, data))
+        errors.extend(validate_mvp_review_materiality_policy(wf, data))
         errors.extend(validate_phase_scripts_declared(wf, data))
         uses = data.get("uses", {}) or {}
         for s in uses.get("skills", []) or []:

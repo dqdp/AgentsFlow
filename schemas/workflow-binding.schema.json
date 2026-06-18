@@ -6,6 +6,7 @@
     "workflow",
     "extends",
     "agentsflow_version",
+    "strictness",
     "binding",
     "gates"
   ],
@@ -22,6 +23,10 @@
         "string",
         "number"
       ]
+    },
+    "strictness": {
+      "type": "string",
+      "enum": ["L1", "L2", "L3", "L4"]
     },
     "binding": {
       "type": "object"

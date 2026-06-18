@@ -183,7 +183,8 @@
         "max_review_cycles",
         "control_reviewer_count",
         "control_review_trigger",
-        "control_review_context_policy"
+        "control_review_context_policy",
+        "materiality_classification"
       ],
       "additionalProperties": true,
       "properties": {
@@ -226,6 +227,34 @@
         "rerun_review_on": {
           "type": "array",
           "items": {"type": "string"}
+        },
+        "do_not_rerun_on": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "materiality_classification": {
+          "type": "object",
+          "required": [
+            "required_after_review_fixes",
+            "material_triggers_take_precedence_over_do_not_rerun",
+            "material_if_changes",
+            "non_material_if_only"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "required_after_review_fixes": {"const": true},
+            "material_triggers_take_precedence_over_do_not_rerun": {"const": true},
+            "material_if_changes": {
+              "type": "array",
+              "items": {"type": "string"},
+              "minItems": 1
+            },
+            "non_material_if_only": {
+              "type": "array",
+              "items": {"type": "string"},
+              "minItems": 1
+            }
+          }
         },
         "escalate_to_human_on": {
           "type": "array",
