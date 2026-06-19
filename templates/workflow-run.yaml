@@ -15,6 +15,26 @@ reviewer_context:
   fork_conversation_context: false
 status: in_progress
 
+phase_guard:
+  current_phase: operating_context_preflight
+  completed_phases: []
+  allowed_next_phases:
+    - contract
+  allowed_outputs:
+    - human-questions.yaml
+    - human-decisions.yaml
+  draft_artifacts:
+    - task.contract.md
+  forbidden_outputs_until_phase_exit:
+    - path: plan.md
+      until_phase: technical_plan
+      reason: Implementation plans are not operating-context-preflight outputs.
+    - path: evidence-report.md
+      until_phase: verification_gate
+      reason: Evidence reports are produced after verification evidence exists.
+  blocked: false
+  blocked_by: []
+
 human_interaction:
   question_artifact: human-questions.yaml
   decision_artifact: human-decisions.yaml
@@ -27,11 +47,8 @@ human_interaction:
 
 artifacts:
   root: Docs/agentsflow/runs/YYYY-MM-DD-task-slug
-  contract: task.contract.md
-  plan: plan.md
-  behavior_bindings: behavior.bindings.yaml
-  review_prompt_contract: review-prompt-contract.yaml
-  evidence_report: evidence-report.md
-  final_report: final-report.md
+  human_questions: human-questions.yaml
+  human_decisions: human-decisions.yaml
+  task_contract_draft: task.contract.md
 
 phase_status: []

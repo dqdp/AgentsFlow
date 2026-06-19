@@ -1285,6 +1285,640 @@ def test_primary_e2e_workflow_run_artifacts_schema_pass() -> None:
         )
 
 
+def test_workflow_run_phase_guard_rejects_future_phase_artifact(tmp_path) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "project-initialization",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/project-initialization.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "raw_scan",
+                    "allowed_next_phases": ["project_inventory"],
+                    "allowed_outputs": ["project-raw-scan.json", "observed-facts.md"],
+                    "draft_artifacts": [],
+                    "forbidden_outputs_until_phase_exit": [
+                        {
+                            "path": "task.contract.md",
+                            "until_phase": "contract",
+                            "reason": "Feature contracts are not raw-scan outputs.",
+                        }
+                    ],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "raw_scan": "project-raw-scan.json",
+                    "contract": "task.contract.md",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert errors
+    joined = "\n".join(errors)
+    assert "current phase raw_scan" in joined
+    assert "task.contract.md" in joined
+
+
+def test_workflow_run_phase_guard_rejects_unlisted_artifact_without_explicit_forbidden(
+    tmp_path,
+) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "project-initialization",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/project-initialization.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "raw_scan",
+                    "allowed_next_phases": ["project_inventory"],
+                    "allowed_outputs": ["project-raw-scan.json", "observed-facts.md"],
+                    "draft_artifacts": [],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "raw_scan": "project-raw-scan.json",
+                    "contract": "task.contract.md",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert errors
+    joined = "\n".join(errors)
+    assert "not allowed in current phase raw_scan" in joined
+    assert "task.contract.md" in joined
+
+
+def test_workflow_run_phase_guard_checks_phase_evidence_and_status_artifacts(
+    tmp_path,
+) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "project-initialization",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/project-initialization.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "raw_scan",
+                    "allowed_next_phases": ["project_inventory"],
+                    "allowed_outputs": ["project-raw-scan.json", "observed-facts.md"],
+                    "draft_artifacts": [],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "raw_scan": "project-raw-scan.json",
+                },
+                "phase_evidence": {
+                    "contract": "task.contract.md",
+                    "root": "evidence-report.md",
+                },
+                "phase_status": [
+                    {
+                        "phase": "raw_scan",
+                        "status": "in_progress",
+                        "artifacts": ["observed-facts.md"],
+                        "gate_report": "verification-gate-report.md",
+                        "notes": ["ordinary status text is not an artifact"],
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert errors
+    joined = "\n".join(errors)
+    assert "phase_evidence.contract path task.contract.md" in joined
+    assert "phase_evidence.root path evidence-report.md" in joined
+    assert "phase_status[0].gate_report path verification-gate-report.md" in joined
+    assert "ordinary status text" not in joined
+
+
+def test_workflow_run_phase_guard_rejects_list_shaped_phase_evidence(tmp_path) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "project-initialization",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/project-initialization.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "raw_scan",
+                    "allowed_next_phases": ["project_inventory"],
+                    "allowed_outputs": ["project-raw-scan.json", "observed-facts.md"],
+                    "draft_artifacts": [],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "raw_scan": "project-raw-scan.json",
+                },
+                "phase_evidence": ["task.contract.md"],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert errors
+    joined = "\n".join(errors)
+    assert "phase_evidence" in joined
+    assert "task.contract.md" in joined
+
+
+def test_workflow_run_phase_guard_rejects_draft_artifact_as_evidence_or_output(
+    tmp_path,
+) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "big-feature-contract-first",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/big-feature-contract-first.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "operating_context_preflight",
+                    "allowed_next_phases": ["contract"],
+                    "allowed_outputs": ["human-questions.yaml", "human-decisions.yaml"],
+                    "draft_artifacts": ["task.contract.md"],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "task_contract_draft": "task.contract.md",
+                },
+                "phase_evidence": {
+                    "contract": "task.contract.md",
+                },
+                "phase_status": [
+                    {
+                        "phase": "operating_context_preflight",
+                        "outputs": ["task.contract.md"],
+                        "task_contract_draft": "task.contract.md",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert errors
+    joined = "\n".join(errors)
+    assert "phase_evidence.contract path task.contract.md" in joined
+    assert "phase_status[0].outputs[0] path task.contract.md" in joined
+    assert "phase_status[0].task_contract_draft path task.contract.md" in joined
+    assert "artifacts.task_contract_draft path task.contract.md" not in joined
+
+
+def test_workflow_run_phase_guard_rejects_allowed_and_draft_overlap(tmp_path) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "big-feature-contract-first",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/big-feature-contract-first.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "operating_context_preflight",
+                    "allowed_next_phases": ["contract"],
+                    "allowed_outputs": ["task.contract.md"],
+                    "draft_artifacts": ["task.contract.md"],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "task_contract_draft": "task.contract.md",
+                },
+                "phase_evidence": {
+                    "contract": "task.contract.md",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert errors
+    joined = "\n".join(errors)
+    assert "allowed_outputs and draft_artifacts must not overlap" in joined
+    assert "phase_evidence.contract path task.contract.md" in joined
+
+
+def test_workflow_run_phase_guard_uses_top_level_draft_slot(tmp_path) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    invalid_path = tmp_path / "invalid-run.yaml"
+    invalid_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "big-feature-contract-first",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/big-feature-contract-first.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "operating_context_preflight",
+                    "allowed_next_phases": ["contract"],
+                    "allowed_outputs": ["human-questions.yaml"],
+                    "draft_artifacts": ["task.contract.md"],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "contract": {
+                        "draft_path": "task.contract.md",
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    invalid_errors = validate_repo.validate_workflow_run_artifact(ROOT, invalid_path)
+    assert invalid_errors
+    assert "artifacts.contract.draft_path path task.contract.md" in "\n".join(invalid_errors)
+
+    not_draft_path = tmp_path / "not-draft-run.yaml"
+    not_draft_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "big-feature-contract-first",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/big-feature-contract-first.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "operating_context_preflight",
+                    "allowed_next_phases": ["contract"],
+                    "allowed_outputs": ["human-questions.yaml"],
+                    "draft_artifacts": ["task.contract.md"],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "not_draft_contract": "task.contract.md",
+                    "nondraft_contract": "task.contract.md",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    not_draft_errors = validate_repo.validate_workflow_run_artifact(ROOT, not_draft_path)
+    assert not_draft_errors
+    joined_not_draft_errors = "\n".join(not_draft_errors)
+    assert "artifacts.not_draft_contract path task.contract.md" in joined_not_draft_errors
+    assert "artifacts.nondraft_contract path task.contract.md" in joined_not_draft_errors
+
+    valid_path = tmp_path / "valid-run.yaml"
+    valid_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "big-feature-contract-first",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/big-feature-contract-first.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "operating_context_preflight",
+                    "allowed_next_phases": ["contract"],
+                    "allowed_outputs": ["human-questions.yaml"],
+                    "draft_artifacts": ["task.contract.md"],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "task_contract_draft": {
+                        "path": "task.contract.md",
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    assert validate_repo.validate_workflow_run_artifact(ROOT, valid_path) == []
+
+
+def test_workflow_run_phase_guard_checks_review_and_evidence_phase_status_keys(
+    tmp_path,
+) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "big-feature-contract-first",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/big-feature-contract-first.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "operating_context_preflight",
+                    "allowed_next_phases": ["contract"],
+                    "allowed_outputs": ["human-questions.yaml"],
+                    "draft_artifacts": [],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "human_questions": "human-questions.yaml",
+                },
+                "phase_status": [
+                    {
+                        "phase": "operating_context_preflight",
+                        "review_prompt_contract": "review-prompt-contract.yaml",
+                        "review_packets": ["review-packets/generalist-a.json"],
+                        "reviewer_report_summaries": ["reviewer-report.generalist-a.md"],
+                        "evidence_bundle": "evidence-report.md",
+                        "report_summaries": ["final-report.md"],
+                        "phase_output": "task.contract.md",
+                        "red_capture_evidence": "red-capture-gate-report.md",
+                        "task_contract": "task.contract.md",
+                        "bundle": "task.contract.md",
+                        "ref": "task.contract.md",
+                        "artifact_refs": ["task.contract.md"],
+                        "output_refs": ["plan.md"],
+                        "red_capture_evidence_bundle": "red-capture-gate-report.md",
+                        "target_workflow_context_decision_packet": (
+                            "target-workflow-context-decision-packet.yaml"
+                        ),
+                        "review_packet_summary": "review-packet-summary.md",
+                        "technical_plan": "plan.md",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert errors
+    joined = "\n".join(errors)
+    assert "phase_status[0].review_prompt_contract path review-prompt-contract.yaml" in joined
+    assert "phase_status[0].review_packets[0] path review-packets/generalist-a.json" in joined
+    assert "phase_status[0].reviewer_report_summaries[0] path reviewer-report.generalist-a.md" in joined
+    assert "phase_status[0].evidence_bundle path evidence-report.md" in joined
+    assert "phase_status[0].report_summaries[0] path final-report.md" in joined
+    assert "phase_status[0].phase_output path task.contract.md" in joined
+    assert "phase_status[0].red_capture_evidence path red-capture-gate-report.md" in joined
+    assert "phase_status[0].task_contract path task.contract.md" in joined
+    assert "phase_status[0].bundle path task.contract.md" in joined
+    assert "phase_status[0].ref path task.contract.md" in joined
+    assert "phase_status[0].artifact_refs[0] path task.contract.md" in joined
+    assert "phase_status[0].output_refs[0] path plan.md" in joined
+    assert (
+        "phase_status[0].red_capture_evidence_bundle path red-capture-gate-report.md"
+        in joined
+    )
+    assert (
+        "phase_status[0].target_workflow_context_decision_packet path "
+        "target-workflow-context-decision-packet.yaml"
+    ) in joined
+    assert "phase_status[0].review_packet_summary path review-packet-summary.md" in joined
+    assert "phase_status[0].technical_plan path plan.md" in joined
+
+
+def test_workflow_run_phase_guard_rejects_malformed_artifacts_root_paths(
+    tmp_path,
+) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "project-initialization",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/project-initialization.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "raw_scan",
+                    "allowed_next_phases": ["project_inventory"],
+                    "allowed_outputs": ["project-raw-scan.json"],
+                    "draft_artifacts": [],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": {
+                        "contract": "task.contract.md",
+                    },
+                    "raw_scan": "project-raw-scan.json",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert errors
+    joined = "\n".join(errors)
+    assert "artifacts.root.contract path task.contract.md" in joined
+
+
+def test_workflow_run_phase_guard_allows_current_phase_artifacts(tmp_path) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_path = tmp_path / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-bro-shadow",
+                "workflow": "project-initialization",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/project-initialization.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "raw_scan",
+                    "allowed_next_phases": ["project_inventory"],
+                    "allowed_outputs": ["project-raw-scan.json", "observed-facts.md"],
+                    "draft_artifacts": [],
+                    "forbidden_outputs_until_phase_exit": [
+                        {
+                            "path": "task.contract.md",
+                            "until_phase": "contract",
+                            "reason": "Feature contracts are not raw-scan outputs.",
+                        }
+                    ],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-bro-shadow",
+                    "raw_scan": "project-raw-scan.json",
+                    "facts": "observed-facts.md",
+                },
+                "phase_evidence": {
+                    "raw_scan": "project-raw-scan.json",
+                },
+                "phase_status": [
+                    {
+                        "phase": "raw_scan",
+                        "status": "in_progress",
+                        "artifacts": ["observed-facts.md"],
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    assert validate_repo.validate_workflow_run_artifact(ROOT, run_path) == []
+
+
+def test_repo_validation_checks_top_level_workflow_run_phase_guard(tmp_path) -> None:
+    import shutil
+
+    import yaml
+
+    root = tmp_path / "repo"
+    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    run_dir = root / "Docs/agentsflow/runs/2026-06-19-phase-guard"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-phase-guard",
+                "workflow": "project-initialization",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/project-initialization.binding.yaml",
+                "status": "in_progress",
+                "phase_guard": {
+                    "current_phase": "raw_scan",
+                    "allowed_next_phases": ["project_inventory"],
+                    "allowed_outputs": ["project-raw-scan.json"],
+                    "draft_artifacts": [],
+                    "forbidden_outputs_until_phase_exit": [],
+                },
+                "artifacts": {
+                    "root": "Docs/agentsflow/runs/2026-06-19-phase-guard",
+                    "raw_scan": "project-raw-scan.json",
+                    "contract": "task.contract.md",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = run("scripts/validate_repo.py", "--root", str(root))
+    assert result.returncode != 0
+    joined = result.stdout + result.stderr
+    assert "Docs/agentsflow/runs/2026-06-19-phase-guard/run.yaml" in joined
+    assert "task.contract.md" in joined
+
+
 def test_repository_validation_passes() -> None:
     result = run("scripts/validate_repo.py", "--root", ".")
     assert result.returncode == 0, result.stdout + result.stderr

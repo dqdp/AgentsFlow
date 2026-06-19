@@ -243,3 +243,70 @@ bindings:
           - "schemas/review-prompt-contract.schema.json"
     gates:
       - verification_gate
+  - id: AF-V02-BHV-014
+    scenario: "Workflow run phase guard rejects future-phase artifacts"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-phase-guard-rejects-future-artifact
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_future_phase_artifact"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-unlisted-artifact
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_unlisted_artifact_without_explicit_forbidden"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-checks-phase-evidence
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_phase_evidence_and_status_artifacts"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-list-shaped-phase-evidence
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_list_shaped_phase_evidence"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-draft-artifact-promotion
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_draft_artifact_as_evidence_or_output"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-allowed-draft-overlap
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_allowed_and_draft_overlap"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-checks-top-level-draft-slot
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_uses_top_level_draft_slot"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-checks-review-evidence-status-keys
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_review_and_evidence_phase_status_keys"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-malformed-artifacts-root
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_malformed_artifacts_root_paths"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-checks-top-level-run-root
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_repo_validation_checks_top_level_workflow_run_phase_guard"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-allows-current-artifacts
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_allows_current_phase_artifacts"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate

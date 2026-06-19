@@ -72,6 +72,10 @@ The repository validator is expected to enforce:
   structured `.agentsflow/workflows/*.binding.yaml`.
 - An implementation phase is structurally framed by a preceding red-capture phase
   and a following green-verify phase.
+- When `workflow-run.yaml` declares `phase_guard`, declared run artifact paths in
+  `artifacts`, `phase_evidence` and artifact-like `phase_status` fields are
+  checked against the current phase's allowed outputs; draft artifacts are
+  accepted only in draft-labeled top-level `artifacts` slots.
 ```
 
 ## v0.2 policy-only or partial controls
@@ -89,6 +93,9 @@ These controls are important, but are not full deterministic guarantees in v0.2:
 - Semantic quality of a reviewer role definition beyond schema presence.
 - Human authority choices beyond the existence/status of the decision artifact.
 - Red/green evidence-pair content validation inside gate reports.
+- `phase_guard` as a full runtime state machine. v0.2 validation is ledger-only:
+  it checks declared artifact paths, not whether an agent performed every action
+  in the correct order.
 ```
 
 The red/green phase topology is enforced at workflow-manifest level. Checking the
@@ -110,3 +117,20 @@ claims. If the control is not script-enforced, either:
 2. mark it as schema_validated, represented_as_artifact, agent_protocol,
    human_decision, or accepted_not_implemented.
 ```
+
+## Validator and schema change review rule
+
+Small diffs to schemas or validators can still be high-risk when they change
+artifact authority, gate behavior, review policy, evidence semantics or workflow
+phase progression. Treat these changes as governance-boundary changes, not as
+ordinary documentation or plumbing edits.
+
+Before accepting such a change, check:
+
+- every artifact surface the validator is expected to read;
+- which surfaces are authoritative outputs, evidence, reports or draft-only
+  placeholders;
+- which malformed shapes must fail closed instead of being skipped;
+- whether templates teach the same artifact authority model as the workflow;
+- whether negative tests cover bypasses through each declared surface;
+- whether docs state the exact enforcement level and limitation.

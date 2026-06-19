@@ -78,6 +78,14 @@ Human interaction in v0.2 is main-agent mediated. Workflows that need human
 decisions declare pause-capable phases and record questions/answers as run
 artifacts; review agents do not question humans directly.
 
+Workflow runs may use `phase_guard` in `workflow-run.yaml` as a lightweight
+phase pointer. The guard records the current phase, allowed next phases and
+allowed outputs. It is deliberately smaller than a workflow runtime: v0.2
+validators check the declared run artifacts against the current phase's allowed
+outputs, with draft artifacts accepted only in draft-labeled top-level artifact
+slots, so future-phase artifacts are not silently promoted during project
+initialization or other phased workflows.
+
 ## DoD interpretation
 
 Soft DoD terms are interpreted as operational checks:

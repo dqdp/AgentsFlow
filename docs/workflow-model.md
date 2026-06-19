@@ -63,6 +63,26 @@ runtime; it tells the main/orchestrating agent when a workflow run may enter
 `paused_waiting_for_human`, which question/decision artifacts to update, and which
 resume states are allowed. See `docs/human-interaction-protocol.md`.
 
+Workflow runs may declare a lightweight `phase_guard` in `workflow-run.yaml`.
+This is not a workflow engine. It is a run-state pointer for the
+main/orchestrating agent:
+
+- `current_phase`;
+- `completed_phases`;
+- `allowed_next_phases`;
+- `allowed_outputs`;
+- `draft_artifacts`;
+- `forbidden_outputs_until_phase_exit`;
+- `blocked` / `blocked_by`.
+
+When `phase_guard` is present, repository validation checks declared run
+artifacts against the current phase's allowed outputs. `draft_artifacts` may
+appear only in draft-labeled top-level `artifacts` slots; evidence, output and
+report ledger fields require `allowed_outputs`. This prevents an agent from
+making a future-phase artifact look authoritative before the current phase
+exits. The guard is intentionally protocol-level in v0.2: it validates the run
+artifact ledger, not every file that may exist on disk.
+
 ## Current workflows
 
 | Workflow | Purpose |

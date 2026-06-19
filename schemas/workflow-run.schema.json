@@ -13,7 +13,56 @@
     "review_topology": {"type": "string"},
     "status": {"type": "string"},
     "human_interaction": {"type": "object"},
-    "artifacts": {"type": "object"},
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "root": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "phase_evidence": {"type": "object"},
+    "phase_guard": {
+      "type": "object",
+      "required": ["current_phase", "allowed_next_phases", "allowed_outputs"],
+      "properties": {
+        "current_phase": {"type": "string", "minLength": 1},
+        "completed_phases": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "allowed_next_phases": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "allowed_outputs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "draft_artifacts": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "forbidden_outputs_until_phase_exit": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "until_phase", "reason"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "until_phase": {"type": "string", "minLength": 1},
+              "reason": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": true
+          }
+        },
+        "blocked": {"type": "boolean"},
+        "blocked_by": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "additionalProperties": true
+    },
     "phase_status": {"type": "array"}
   },
   "additionalProperties": true

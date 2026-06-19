@@ -141,6 +141,13 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then v0.2 validators must check the declared artifact policy
     And the implementation must not claim machine proof that reviewer processes received no hidden context
 
+  Scenario: Workflow run phase guard rejects future-phase artifacts
+    Given a workflow run declares current_phase "raw_scan"
+    And the phase guard allows only raw-scan outputs
+    When the run artifact ledger includes task.contract.md
+    Then workflow run validation must fail
+    And the failure must identify the current phase and disallowed artifact
+
 ## Verification Binding
 
 | Scenario | Verification |
@@ -158,6 +165,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch`; `pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch` |
 | Review cycle caps are optional project policy or workflow binding | `pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles`; `pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles` |
 | Reviewer fresh-context is protocol-level in v0.2 | Manual evidence: `docs/review-agent-interaction-protocol.md`, `docs/review-prompt-contract.md`, `schemas/review-prompt-contract.schema.json` |
+| Workflow run phase guard rejects future-phase artifacts | `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_future_phase_artifact`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_unlisted_artifact_without_explicit_forbidden`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_phase_evidence_and_status_artifacts`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_list_shaped_phase_evidence`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_draft_artifact_as_evidence_or_output`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_allowed_and_draft_overlap`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_uses_top_level_draft_slot`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_review_and_evidence_phase_status_keys`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_malformed_artifacts_root_paths`; `pytest tests/test_scripts_smoke.py::test_repo_validation_checks_top_level_workflow_run_phase_guard`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_allows_current_phase_artifacts` |
 
 ## Evidence Required
 
