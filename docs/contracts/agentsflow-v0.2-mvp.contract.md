@@ -108,6 +108,13 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then the workflow may require target_workflow_context_decision_packet conditionally
     And it must not normalize that run-level packet into project-operating-decisions.yaml
 
+  Scenario: Existing-project initialization records documentation disposition
+    Given project-initialization runs in adoption-onboarding, prepare-workflow or legacy-cleanup mode
+    When current project documentation or Markdown implementation history exists
+    Then the workflow must record project-documentation-disposition.yaml
+    And prepare-workflow must use that artifact as run-level target workflow context
+    And initialization must not rewrite or delete project documentation without human approval
+
   Scenario: Big-feature plan gate is strictness-aware
     Given a big-feature-contract-first project binding declares strictness L2
     When the binding omits plan_gate
@@ -160,6 +167,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Homogeneous plus focused keeps baseline reviewers unfocused | `pytest tests/test_scripts_smoke.py::test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone` |
 | Prepare-workflow target is limited to MVP user workflows | `pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow`; `pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target` |
 | Prepare-workflow missing context uses a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement` |
+| Existing-project initialization records documentation disposition | `pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes`; `pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition` |
 | Big-feature plan gate is strictness-aware | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2` |
 | Evidence probe reports are evidence-only | `pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources` |
 | Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch`; `pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch` |

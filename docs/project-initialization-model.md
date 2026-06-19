@@ -210,7 +210,40 @@ The role reports may overlap. They produce candidate workflow/gate/risk
 recommendations, open questions and human-decision items. Their findings are
 candidate findings and follow the review-finding validation model.
 
-### Layer 4: human operating-decisions interview
+### Layer 4: documentation disposition
+
+For existing projects, initialization must classify the current documentation
+corpus after structured inventory and expert assessment exist, and before
+drafting overlays, preparing a target workflow, or resolving legacy agent/process
+artifacts.
+
+This is broader than legacy agent-system adoption. It covers README files,
+architecture notes, ADRs, runbooks, implementation history, process documents and
+domain documentation, not only agent instructions.
+
+Output: `project-documentation-disposition.yaml`.
+
+Each material document or document group is classified as one of:
+
+```text
+keep-authoritative
+keep-evidence
+extract-and-normalize
+mark-stale-or-superseded
+needs-human-decision
+rewrite-or-delete-after-approval
+```
+
+The default is conservative: unclassified documents require a human decision or
+remain evidence-only. Initialization must not delete, rewrite or silently
+de-authorize existing project documentation without explicit human approval.
+
+For `prepare-workflow`, this artifact is run-level context. It tells the target
+workflow which documents may be treated as authority, evidence, normalized input
+or unresolved context, without promoting those decisions into long-lived project
+policy unless the human explicitly chooses onboarding or policy activation.
+
+### Layer 5: human operating-decisions interview
 
 After the structured inventory and expert assessment exist, the main/orchestrating
 agent conducts a dialogue with the human project owner. This is not a request for
@@ -253,7 +286,7 @@ rejected
 
 Unresolved decisions remain visible and must not silently become project defaults.
 
-### Layer 5: human confirmation
+### Layer 6: human confirmation
 
 The human approves or corrects the project overlay, disputed inventory fields,
 domain assumptions, workflow selection, gate strategy and operating decisions.
@@ -271,6 +304,8 @@ The shared backbone is:
 5. Discover documentation and implementation history.
 6. Produce structured project inventory, including domain identification.
 7. Run triad expert assessments and synthesize candidate recommendations.
+8. For existing-project modes, record project documentation disposition before
+   legacy adoption, target-workflow readiness or overlay drafting.
 ```
 
 The remaining steps are mode-gated:
@@ -281,18 +316,22 @@ unknown-discovery
   continue into onboarding.
 
 adoption-onboarding
+  Record `project-documentation-disposition.yaml`, then resolve legacy adoption
+  when legacy artifacts are in scope.
   Conduct the human operating-decisions interview, normalize
   `project-operating-decisions.yaml`, draft overlay/gates as draft artifacts,
   validate them, produce initialization report and wait for human approval.
 
 prepare-workflow
-  Confirm `target_workflow`, check whether sufficient gate/review/evidence and
-  authority context exists, capture missing context in a run-level target workflow
-  human decision packet, draft only target-workflow binding/readiness artifacts
-  when needed, and ask grouped human questions only for missing material context.
+  Confirm `target_workflow`, record run-level `project-documentation-disposition.yaml`,
+  check whether sufficient gate/review/evidence and authority context exists,
+  capture missing context in a run-level target workflow human decision packet,
+  draft only target-workflow binding/readiness artifacts when needed, and ask
+  grouped human questions only for missing material context.
 
 legacy-cleanup
-  Select legacy adoption mode, draft migration/quarantine and
+  Record `project-documentation-disposition.yaml`, select legacy adoption mode,
+  draft migration/quarantine and
   `active-instruction-map.yaml`, then wait for human approval before activation.
 
 risk-domain-assessment
@@ -313,6 +352,7 @@ Declared human-pause phases:
 
 ```text
 read_project_intake
+documentation_disposition_decision
 legacy_adoption_mode_decision
 operating_decisions_interview
 target_workflow_context_decision_packet
@@ -353,7 +393,14 @@ instructions without explicit approval.
 
 ## Legacy agent-system adoption
 
-Existing projects may already contain agent instructions, skills, prompts, workflow docs and process artifacts. Initialization must not simply add AgentsFlow on top of them.
+Existing projects may already contain agent instructions, skills, prompts,
+workflow docs and process artifacts. Initialization must not simply add
+AgentsFlow on top of them.
+
+Legacy adoption consumes `project-documentation-disposition.yaml` but does not
+replace it. Documentation disposition answers "what is the status of current
+project documentation?" Legacy adoption answers "what is the active agent/process
+authority layer?"
 
 Before drafting the final project overlay, initialization must run a legacy adoption step:
 

@@ -142,6 +142,33 @@ bindings:
           - pytest-output
     gates:
       - verification_gate
+  - id: AF-V02-BHV-015
+    scenario: "Existing-project initialization records documentation disposition"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-documentation-disposition-schema
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-workflow-wiring
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-readiness-gate
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
   - id: AF-V02-BHV-009
     scenario: "Big-feature plan gate is strictness-aware"
     required: true

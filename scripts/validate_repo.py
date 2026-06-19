@@ -256,6 +256,18 @@ def validate_gate_manifest(root: Path, path: Path) -> list[str]:
                 errors.append(f"{path}: pass_policy missing {key}")
     else:
         errors.append(f"{path}: pass_policy must be a mapping")
+    if data.get("id") in {"project_initialization_gate", "target_workflow_readiness_gate"}:
+        gate_id = str(data.get("id"))
+        inputs = set(str(item) for item in data.get("inputs", []) or [])
+        if "project-documentation-disposition.yaml" not in inputs:
+            errors.append(
+                f"{path}: {gate_id} inputs must include project-documentation-disposition.yaml"
+            )
+        required_evidence = set(str(item) for item in data.get("required_evidence", []) or [])
+        if not any("project-documentation-disposition.yaml" in item for item in required_evidence):
+            errors.append(
+                f"{path}: {gate_id} required_evidence must include project-documentation-disposition.yaml"
+            )
     return errors
 
 
@@ -1099,6 +1111,14 @@ def validate_workflow_run_artifact(root: Path, path: Path) -> list[str]:
     return errors
 
 
+def validate_project_documentation_disposition_artifact(root: Path, path: Path) -> list[str]:
+    schema = parse_json(root / "schemas" / "project-documentation-disposition.schema.json")
+    data = parse_yaml(path) or {}
+    if not isinstance(data, dict):
+        return [f"{path}: project documentation disposition must be a mapping"]
+    return validate_against_schema(path, data, schema)
+
+
 def validate_reviewer_report_artifact(root: Path, path: Path) -> list[str]:
     schema = parse_json(root / "schemas" / "reviewer-report.schema.json")
     data = parse_json(path)
@@ -1226,6 +1246,8 @@ def validate_project_initialization_operating_decisions(path: Path, data: dict) 
         errors.append(f"{path}: project-initialization must use project-operating-decisions-interview skill")
     if "project-operating-decisions.yaml" not in templates:
         errors.append(f"{path}: project-initialization must use project-operating-decisions.yaml template")
+    if "project-documentation-disposition.yaml" not in templates:
+        errors.append(f"{path}: project-initialization must use project-documentation-disposition.yaml template")
     interview = phase_by_id.get("operating_decisions_interview")
     if not interview:
         errors.append(f"{path}: project-initialization must include operating_decisions_interview phase")
@@ -1248,6 +1270,9 @@ def validate_project_initialization_operating_decisions(path: Path, data: dict) 
         human = target_decisions.get("human_interaction", {}) or {}
         if human.get("response_artifact") == "project-operating-decisions.yaml":
             errors.append(f"{path}: target_workflow_context_decision_packet must not write project-operating-decisions.yaml")
+        inputs = set(str(item) for item in target_decisions.get("inputs", []) or [])
+        if "project-documentation-disposition.yaml" not in inputs:
+            errors.append(f"{path}: target_workflow_context_decision_packet must consume project-documentation-disposition.yaml")
     overlay = phase_by_id.get("overlay_draft")
     if overlay:
         inputs = set(overlay.get("inputs", []) or [])
@@ -1257,6 +1282,8 @@ def validate_project_initialization_operating_decisions(path: Path, data: dict) 
             errors.append(f"{path}: overlay_draft must consume project-operating-decisions.yaml for onboarding")
         if not has_existing_policy:
             errors.append(f"{path}: overlay_draft must allow existing project policy/workflow binding for prepare-workflow")
+        if "project-documentation-disposition.yaml" not in inputs:
+            errors.append(f"{path}: overlay_draft must consume project-documentation-disposition.yaml")
     return errors
 
 
@@ -1278,6 +1305,7 @@ def validate_project_initialization_human_interaction(path: Path, data: dict) ->
         errors.append(f"{path}: project-initialization decision_artifact must be human-decisions.yaml")
 
     required_pause_phases = {
+        "documentation_disposition_decision",
         "read_project_intake",
         "legacy_adoption_mode_decision",
         "operating_decisions_interview",
@@ -1346,6 +1374,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         ".agentsflow/agentsflow.lock.yaml",
         ".agentsflow/project.yaml",
         "project-operating-decisions.yaml",
+        "project-documentation-disposition.yaml",
         "workflow bindings",
         "workflow bindings draft",
         "project-bound gate drafts",
@@ -1375,6 +1404,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
             "human-questions.yaml",
         ],
         "adoption-onboarding": [
+            "project-documentation-disposition.yaml",
             "project-operating-decisions.yaml",
             ".agentsflow/project.yaml draft",
             "workflow bindings draft",
@@ -1387,6 +1417,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
             "initialization-report.md",
         ],
         "prepare-workflow": [
+            "project-documentation-disposition.yaml",
             "target workflow binding draft",
             "target workflow gate readiness report",
             "target workflow human decision packet",
@@ -1394,6 +1425,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
             "review-cycle-report.md",
         ],
         "legacy-cleanup": [
+            "project-documentation-disposition.yaml",
             "legacy-agent-system-inventory.json",
             "legacy-adoption-decision.yaml",
             "agent-instruction-migration-plan.md",
@@ -1462,6 +1494,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         "operating_decisions_interview",
         "overlay_draft",
         "project_initialization_gate",
+        "documentation_disposition_decision",
         "target_workflow_context_decision_packet",
         "target_workflow_readiness_gate",
         "initialization_review",
@@ -1474,6 +1507,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
     for phase_id in [
         "overlay_draft",
         "project_initialization_gate",
+        "documentation_disposition_decision",
         "target_workflow_context_decision_packet",
         "target_workflow_readiness_gate",
         "initialization_review",
@@ -1503,6 +1537,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         if isinstance(phase, dict) and phase.get("id")
     }
     for phase_id in [
+        "documentation_disposition_decision",
         "operating_decisions_interview",
         "overlay_draft",
         "project_initialization_gate",
@@ -1537,6 +1572,11 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
             errors.append(f"{path}: phase {phase_id} human_interaction.required must be conditional")
 
     expected_mode_phases = {
+        "documentation_disposition_decision": {
+            "adoption-onboarding",
+            "legacy-cleanup",
+            "prepare-workflow",
+        },
         "legacy_agent_system_discovery": {"adoption-onboarding", "legacy-cleanup"},
         "project_initialization_gate": {"adoption-onboarding"},
         "target_workflow_context_decision_packet": {"prepare-workflow"},
@@ -1573,6 +1613,32 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
             errors.append(f"{path}: initialization_review must run after {required_gate_phase}")
     if initialization_review.get("runs_after_policy") != "after_applicable_intent_mode_gate":
         errors.append(f"{path}: initialization_review must use after_applicable_intent_mode_gate runs_after_policy")
+
+    documentation_disposition = phase_by_id.get("documentation_disposition_decision", {}) or {}
+    if documentation_disposition.get("kind") != "decision":
+        errors.append(f"{path}: documentation_disposition_decision phase must be kind decision")
+    doc_outputs = set(str(item) for item in documentation_disposition.get("outputs", []) or [])
+    if "project-documentation-disposition.yaml" not in doc_outputs:
+        errors.append(
+            f"{path}: documentation_disposition_decision must output project-documentation-disposition.yaml"
+        )
+    doc_inputs = set(str(item) for item in documentation_disposition.get("inputs", []) or [])
+    for required_input in [
+        "documentation-history-index.md",
+        "project-inventory.json",
+        "project-assessment.json",
+    ]:
+        if required_input not in doc_inputs:
+            errors.append(f"{path}: documentation_disposition_decision must consume {required_input}")
+    doc_runs_after = set(str(item) for item in documentation_disposition.get("runs_after", []) or [])
+    for required_phase in ["documentation_and_history_discovery", "expert_assessment"]:
+        if required_phase not in doc_runs_after:
+            errors.append(f"{path}: documentation_disposition_decision must run after {required_phase}")
+
+    legacy_decision = phase_by_id.get("legacy_adoption_mode_decision", {}) or {}
+    legacy_inputs = set(str(item) for item in legacy_decision.get("inputs", []) or [])
+    if "project-documentation-disposition.yaml" not in legacy_inputs:
+        errors.append(f"{path}: legacy_adoption_mode_decision must consume project-documentation-disposition.yaml")
 
     finding_validation = phase_by_id.get("finding_validation", {}) or {}
     if finding_validation.get("kind") != "finding_validation":
@@ -2176,6 +2242,11 @@ def main() -> int:
         )
     )
     errors.extend(validate_workflow_run_artifact(root, root / "templates" / "workflow-run.yaml"))
+    for documentation_disposition in [
+        root / "templates" / "project-documentation-disposition.yaml",
+        root / "examples" / "project-initialization" / "project-documentation-disposition.yaml",
+    ]:
+        errors.extend(validate_project_documentation_disposition_artifact(root, documentation_disposition))
     run_artifact_patterns = [
         "Docs/agentsflow/runs/*/run.yaml",
         "examples/**/Docs/agentsflow/runs/*/run.yaml",
@@ -2226,6 +2297,7 @@ def main() -> int:
         "templates/project-inventory.json",
         "templates/project-assessment.json",
         "templates/project-operating-decisions.yaml",
+        "templates/project-documentation-disposition.yaml",
         "templates/human-questions.yaml",
         "templates/human-decisions.yaml",
         "templates/initialization-report.md",
@@ -2235,6 +2307,7 @@ def main() -> int:
         "schemas/project-inventory.schema.json",
         "schemas/project-assessment.schema.json",
         "schemas/project-operating-decisions.schema.json",
+        "schemas/project-documentation-disposition.schema.json",
         "schemas/human-questions.schema.json",
         "schemas/human-decisions.schema.json",
         "schemas/workflow-run.schema.json",

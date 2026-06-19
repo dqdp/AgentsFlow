@@ -15,6 +15,11 @@ and `project-assessment.adversarial.json` are read-only candidate assessment
 reports. `project-assessment.json` is the synthesis artifact; it does not make
 the role reports authoritative.
 
+`project-documentation-disposition.yaml` records how current project
+documentation should be treated before overlay drafting or target-workflow
+preparation: authoritative, evidence-only, extracted/normalized,
+stale/superseded, unresolved, or rewrite/delete only after explicit approval.
+
 `project-operating-decisions.yaml` represents the normalized result of a dialogue
 with the project owner. It is not a blank form the human is expected to fill by
 hand.

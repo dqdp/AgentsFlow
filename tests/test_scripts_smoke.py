@@ -413,6 +413,161 @@ def test_project_operating_decisions_schema_passes() -> None:
     assert list(validator.iter_errors(missing_materiality))
 
 
+def test_project_documentation_disposition_schema_passes() -> None:
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads(
+        (ROOT / "schemas/project-documentation-disposition.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    validator = jsonschema.Draft202012Validator(schema)
+    for rel in [
+        "templates/project-documentation-disposition.yaml",
+        "examples/project-initialization/project-documentation-disposition.yaml",
+    ]:
+        data = yaml.safe_load((ROOT / rel).read_text(encoding="utf-8"))
+        validator.validate(data)
+
+    invalid_delete_without_approval = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_delete_without_approval["documents"][0]["disposition"] = (
+        "rewrite-or-delete-after-approval"
+    )
+    invalid_delete_without_approval["documents"][0]["human_approval_required"] = False
+    assert list(validator.iter_errors(invalid_delete_without_approval))
+
+    invalid_authority_without_confidence = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_authority_without_confidence["documents"][0]["disposition"] = (
+        "keep-authoritative"
+    )
+    invalid_authority_without_confidence["documents"][0].pop("confidence")
+    assert list(validator.iter_errors(invalid_authority_without_confidence))
+
+    invalid_prepare_not_run_level = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_prepare_not_run_level["scope"]["intent_mode"] = "prepare-workflow"
+    invalid_prepare_not_run_level["scope"]["run_level_only"] = False
+    assert list(validator.iter_errors(invalid_prepare_not_run_level))
+
+    invalid_prepare_missing_target = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_prepare_missing_target["scope"]["intent_mode"] = "prepare-workflow"
+    invalid_prepare_missing_target["scope"].pop("target_workflow")
+    assert list(validator.iter_errors(invalid_prepare_missing_target))
+
+    invalid_authority_null_scope = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_authority_null_scope["documents"][0]["disposition"] = "keep-authoritative"
+    invalid_authority_null_scope["documents"][0]["authority_scope"] = None
+    assert list(validator.iter_errors(invalid_authority_null_scope))
+
+    invalid_authority_blank_scope = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_authority_blank_scope["documents"][0]["disposition"] = "keep-authoritative"
+    invalid_authority_blank_scope["documents"][0]["authority_scope"] = ""
+    assert list(validator.iter_errors(invalid_authority_blank_scope))
+
+    invalid_stale_without_approval = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_stale_without_approval["documents"][0]["disposition"] = (
+        "mark-stale-or-superseded"
+    )
+    invalid_stale_without_approval["documents"][0]["human_approval_required"] = False
+    assert list(validator.iter_errors(invalid_stale_without_approval))
+
+    invalid_prepare_persistent_targets = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_prepare_persistent_targets["scope"]["intent_mode"] = "prepare-workflow"
+    invalid_prepare_persistent_targets["scope"]["run_level_only"] = True
+    invalid_prepare_persistent_targets["documents"][0]["normalized_targets"] = [
+        "project-operating-decisions.yaml",
+        "active-instruction-map.yaml",
+    ]
+    assert list(validator.iter_errors(invalid_prepare_persistent_targets))
+
+    invalid_prepare_canonical_persistent_targets = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_prepare_canonical_persistent_targets["scope"]["intent_mode"] = "prepare-workflow"
+    invalid_prepare_canonical_persistent_targets["scope"]["run_level_only"] = True
+    invalid_prepare_canonical_persistent_targets["documents"][0]["normalized_targets"] = [
+        ".agentsflow/project-operating-decisions.yaml",
+        ".agentsflow/active-instruction-map.yaml",
+    ]
+    assert list(validator.iter_errors(invalid_prepare_canonical_persistent_targets))
+
+    empty_documents = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    empty_documents["documents"] = []
+    empty_documents["no_material_documents_rationale"] = (
+        "No material project documentation or Markdown implementation history was observed."
+    )
+    validator.validate(empty_documents)
+
+    empty_documents_without_rationale = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    empty_documents_without_rationale["documents"] = []
+    empty_documents_without_rationale.pop("no_material_documents_rationale", None)
+    assert list(validator.iter_errors(empty_documents_without_rationale))
+
+
+def test_project_initialization_example_claimed_files_exist() -> None:
+    import json
+    import yaml
+
+    example_root = ROOT / "examples/project-initialization"
+    raw_scan = json.loads((example_root / "project-raw-scan.json").read_text(encoding="utf-8"))
+    for rel in raw_scan["observed_files"]:
+        assert (example_root / rel).exists(), rel
+
+    disposition = yaml.safe_load(
+        (example_root / "project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    for document in disposition["documents"]:
+        assert (example_root / document["path"]).exists(), document["path"]
+        for evidence in document["evidence"]:
+            assert (example_root / evidence).exists(), evidence
+
+
 def test_human_interaction_artifact_schemas_pass() -> None:
     import json
 
@@ -1074,6 +1229,73 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_order)
     assert errors
     assert "legacy_adoption_mode_decision must run after expert_assessment" in "\n".join(errors)
+
+
+def test_project_initialization_requires_documentation_disposition_decision() -> None:
+    import yaml
+
+    path = ROOT / "workflows/project-initialization/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    templates = set(workflow["uses"]["templates"])
+    assert "project-documentation-disposition.yaml" in templates
+
+    mode_outputs = workflow["mode_gated_outputs"]
+    for mode in ["adoption-onboarding", "prepare-workflow", "legacy-cleanup"]:
+        assert any(
+            "project-documentation-disposition.yaml" in output
+            for output in mode_outputs[mode]
+        ), mode
+
+    phases = workflow["phases"]
+    phase_by_id = {phase["id"]: phase for phase in phases if "id" in phase}
+    disposition = phase_by_id.get("documentation_disposition_decision")
+    assert disposition is not None
+    assert set(disposition["applies_to_intent_modes"]) == {
+        "adoption-onboarding",
+        "prepare-workflow",
+        "legacy-cleanup",
+    }
+    assert "project-documentation-disposition.yaml" in disposition["outputs"]
+    assert "documentation-history-index.md" in disposition["inputs"]
+    assert "project-inventory.json" in disposition["inputs"]
+    assert "project-assessment.json" in disposition["inputs"]
+    assert "documentation_and_history_discovery" in disposition["runs_after"]
+    assert "expert_assessment" in disposition["runs_after"]
+
+    legacy = phase_by_id["legacy_adoption_mode_decision"]
+    target = phase_by_id["target_workflow_context_decision_packet"]
+    overlay = phase_by_id["overlay_draft"]
+    for phase in [legacy, target, overlay]:
+        assert "project-documentation-disposition.yaml" in phase["inputs"]
+
+
+def test_target_workflow_readiness_gate_requires_documentation_disposition() -> None:
+    import yaml
+
+    gate = yaml.safe_load((ROOT / "gates/target_workflow_readiness_gate.yaml").read_text(encoding="utf-8"))
+    assert "project-documentation-disposition.yaml" in gate["inputs"]
+    assert any(
+        "project-documentation-disposition.yaml" in evidence
+        for evidence in gate["required_evidence"]
+    )
+
+
+def test_project_initialization_gate_requires_documentation_disposition() -> None:
+    import yaml
+
+    gate = yaml.safe_load((ROOT / "gates/project_initialization_gate.yaml").read_text(encoding="utf-8"))
+    assert "project-documentation-disposition.yaml" in gate["inputs"]
+    assert any(
+        "project-documentation-disposition.yaml" in evidence
+        for evidence in gate["required_evidence"]
+    )
+
+
+def test_human_interaction_protocol_lists_documentation_disposition_pause() -> None:
+    protocol = (ROOT / "docs/human-interaction-protocol.md").read_text(encoding="utf-8")
+    assert "documentation_disposition_decision" in protocol
+    normalized = " ".join(protocol.split())
+    assert "before legacy adoption, target-workflow readiness, or overlay drafting" in normalized
 
 
 def test_big_feature_requires_manifest_plan_gate() -> None:

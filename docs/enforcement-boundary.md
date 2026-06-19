@@ -66,6 +66,9 @@ The repository validator is expected to enforce:
   context policy and no session persistence.
 - `project-initialization` wires the human operating-decisions interview and
   `project-operating-decisions.yaml`.
+- `project-initialization` wires project documentation disposition for existing
+  project modes and schema-validates `project-documentation-disposition.yaml`
+  template/example artifacts.
 - `project-initialization` declares main-agent-mediated human-pause phases and
   question/decision artifacts.
 - Canonical project overlay examples use flat `.agentsflow/project.yaml` and
@@ -92,6 +95,7 @@ These controls are important, but are not full deterministic guarantees in v0.2:
   zero inherited conversation context.
 - Semantic quality of a reviewer role definition beyond schema presence.
 - Human authority choices beyond the existence/status of the decision artifact.
+- Correctness of model-produced documentation disposition classifications.
 - Red/green evidence-pair content validation inside gate reports.
 - `phase_guard` as a full runtime state machine. v0.2 validation is ledger-only:
   it checks declared artifact paths, not whether an agent performed every action

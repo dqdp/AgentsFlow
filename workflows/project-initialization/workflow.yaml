@@ -56,6 +56,7 @@ uses:
   - finding-validation-report.md
   - review-cycle-report.md
   - documentation-history-index.md
+  - project-documentation-disposition.yaml
   - project.yaml
   - workflow.binding.yaml
   - initialization-report.md
@@ -98,6 +99,7 @@ mode_gated_outputs:
   adoption-onboarding:
   - .agentsflow/agentsflow.lock.yaml
   - project-operating-decisions.yaml
+  - project-documentation-disposition.yaml
   - legacy-agent-system-inventory.json when legacy artifacts are in scope
   - legacy-adoption-decision.yaml when legacy artifacts are in scope
   - agent-instruction-migration-plan.md when legacy artifacts are in scope
@@ -109,12 +111,14 @@ mode_gated_outputs:
   - initialization-report.md
   prepare-workflow:
   - .agentsflow/agentsflow.lock.yaml when needed
+  - project-documentation-disposition.yaml
   - target workflow binding draft
   - target workflow gate readiness report
   - target workflow human decision packet when target workflow operating context is missing
   - finding-validation-report.md
   - review-cycle-report.md
   legacy-cleanup:
+  - project-documentation-disposition.yaml
   - legacy-agent-system-inventory.json
   - legacy-adoption-decision.yaml
   - agent-instruction-migration-plan.md
@@ -131,6 +135,7 @@ intent_mode_phase_policy:
   unknown-discovery:
     may_exit_after: expert_assessment
     must_not_require:
+    - documentation_disposition_decision
     - operating_decisions_interview
     - overlay_draft
     - project_initialization_gate
@@ -141,6 +146,7 @@ intent_mode_phase_policy:
     - human_approval
   adoption-onboarding:
     requires:
+    - documentation_disposition_decision
     - operating_decisions_interview
     - overlay_draft
     - project_initialization_gate
@@ -153,6 +159,7 @@ intent_mode_phase_policy:
     target_workflow_context_decision_packet: conditional_when_target_workflow_policy_is_missing
     overlay_scope: target_workflow_binding_and_gate_readiness_only
     requires:
+    - documentation_disposition_decision
     - target_workflow_readiness_gate
     - initialization_review
     - finding_validation
@@ -161,12 +168,14 @@ intent_mode_phase_policy:
     human_approval: required_only_before_activating_binding_or_policy
   legacy-cleanup:
     requires:
+    - documentation_disposition_decision
     - legacy_adoption_mode_decision
     - legacy_migration_or_quarantine_plan
     - human_approval
   risk-domain-assessment:
     may_exit_after: expert_assessment
     must_not_require:
+    - documentation_disposition_decision
     - overlay_draft
     - project_initialization_gate
     - target_workflow_context_decision_packet
@@ -194,6 +203,7 @@ human_interaction:
   decision_artifact: human-decisions.yaml
   allowed_pause_phases:
   - read_project_intake
+  - documentation_disposition_decision
   - legacy_adoption_mode_decision
   - operating_decisions_interview
   - target_workflow_context_decision_packet
@@ -285,6 +295,39 @@ phases:
   - project-assessment.verification.json
   - project-assessment.adversarial.json
   - project-assessment.json
+- id: documentation_disposition_decision
+  kind: decision
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - prepare-workflow
+  - legacy-cleanup
+  purpose: Classify current project documentation and Markdown history as authoritative,
+    evidence-only, extract-and-normalize, stale/superseded, needs-human-decision
+    or rewrite/delete only after approval. This decision is broader than legacy
+    agent-system adoption and must not rewrite or delete existing project docs
+    during initialization.
+  runs_after:
+  - documentation_and_history_discovery
+  - expert_assessment
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: documentation-history-index.md
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: project-documentation-disposition.yaml
+    allowed_resume_states:
+    - answered
+    - defaulted
+    - unresolved
+  inputs:
+  - documentation-history-index.md
+  - project-inventory.json
+  - project-assessment.json
+  outputs:
+  - project-documentation-disposition.yaml
 - id: legacy_adoption_mode_decision
   kind: decision
   applies_to_intent_modes:
@@ -309,6 +352,7 @@ phases:
   inputs:
   - project-inventory.json
   - project-assessment.json
+  - project-documentation-disposition.yaml
   - legacy-agent-system-inventory.json
   outputs:
   - legacy-adoption-decision.yaml
@@ -378,6 +422,7 @@ phases:
   - project-intake.yaml
   - project-inventory.json
   - project-assessment.json
+  - project-documentation-disposition.yaml
   - existing project policy/workflow binding when available
   outputs:
   - target workflow human decision packet
@@ -395,6 +440,7 @@ phases:
   inputs:
   - project-inventory.json
   - project-assessment.json
+  - project-documentation-disposition.yaml
   - project-operating-decisions.yaml when adoption-onboarding mode drafts a project overlay
   - target workflow human decision packet when prepare-workflow mode has missing context
   - existing project policy/workflow binding when prepare-workflow mode already has sufficient context
@@ -483,6 +529,8 @@ exit_criteria:
   prepare-workflow.
 - Raw scan and structured inventory exist.
 - Documentation and Markdown implementation history were considered when present.
+- Current project documentation disposition was recorded before legacy adoption,
+  target-workflow readiness or overlay drafting for existing-project modes.
 - Domain identification and user domain-expertise questions were recorded.
 - For adoption-onboarding, human operating decisions were collected through an
   agent-led dialogue or explicitly marked as unresolved before overlay drafting.

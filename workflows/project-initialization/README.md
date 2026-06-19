@@ -19,6 +19,13 @@ Expert assessment uses read-only architecture, verification and adversarial role
 reports plus a synthesis report. These are candidate assessments for the main
 agent and human; they are not authoritative decisions.
 
+Existing-project modes record `project-documentation-disposition.yaml` before
+legacy adoption, target-workflow readiness or overlay drafting. This classifies
+current project documentation as authoritative, evidence-only,
+extract-and-normalize, stale/superseded, needs-human-decision, or
+rewrite/delete only after approval. It does not rewrite or delete project docs
+during initialization.
+
 The human operating-decisions step is conversational. In `adoption-onboarding`,
 the agent asks focused questions, summarizes decisions back to the human, and
 records the normalized long-lived result as `project-operating-decisions.yaml`.

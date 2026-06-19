@@ -134,7 +134,8 @@ Mandatory application workflow with mode-gated continuations:
 
 ```text
 intake with intent_mode -> raw scan -> structured inventory -> domain identification
--> triad expert assessment -> mode-specific exit or continuation
+-> triad expert assessment -> documentation disposition for existing-project modes
+-> mode-specific exit or continuation
 ```
 
 Mode-specific continuations:
@@ -147,19 +148,21 @@ risk-domain-assessment
   stop after domain/risk assessment and domain-expertise questions unless the human asks to continue
 
 adoption-onboarding
-  legacy adoption decision/migration plan when legacy artifacts are in scope
+  documentation disposition -> legacy adoption decision/migration plan when legacy artifacts are in scope
   -> human operating-decisions interview -> draft overlay/bindings/gates
   -> validate draft overlay -> initialization review -> finding validation
   -> initialization report -> human approval
 
 prepare-workflow
-  require target_workflow -> confirm sufficient target workflow operating context
+  require target_workflow -> documentation disposition
+  -> confirm sufficient target workflow operating context
   -> capture missing target workflow decisions as a run-level decision packet
   -> draft target workflow binding/readiness artifacts only when needed
   -> target workflow readiness gate -> initialization review -> finding validation
 
 legacy-cleanup
-  legacy adoption decision -> migration/quarantine plan -> draft active instruction map
+  documentation disposition -> legacy adoption decision
+  -> migration/quarantine plan -> draft active instruction map
   -> human approval before activation
 ```
 

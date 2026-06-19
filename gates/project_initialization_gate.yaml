@@ -1,7 +1,7 @@
 id: project_initialization_gate
 name: Project Initialization Gate
 kind: gate
-purpose: Validate that project initialization artifacts are structurally present and that project overlay drafting is based on intake, raw scan, inventory and assessment artifacts.
+purpose: Validate that project initialization artifacts are structurally present and that project overlay drafting is based on intake, raw scan, inventory, assessment and documentation-disposition artifacts.
 runner: scripts/gates/run_project_initialization_gate.py
 may_modify_files: false
 inputs:
@@ -9,6 +9,7 @@ inputs:
   - project-raw-scan.json
   - project-inventory.json
   - project-assessment.json
+  - project-documentation-disposition.yaml
   - project.yaml
   - workflow bindings
 instruments:
@@ -32,6 +33,7 @@ bdd_bindings: []
 required_evidence:
   - project intake validation result
   - project inventory validation result
+  - project-documentation-disposition.yaml as documented input to overlay drafting
   - project overlay validation result
 outputs:
   - project-initialization-gate-report.md

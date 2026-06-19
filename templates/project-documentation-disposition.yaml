@@ -1,0 +1,56 @@
+version: 1
+
+scope:
+  intent_mode: prepare-workflow
+  target_workflow: big-feature-contract-first
+  project_root: .
+  run_level_only: true
+
+default_policy:
+  do_not_delete_or_rewrite_without_human_approval: true
+  unclassified_documents: needs-human-decision
+
+documents:
+  - path: README.md
+    source_type: readme
+    disposition: keep-authoritative
+    authority_scope: project overview and supported entry points
+    confidence: medium
+    evidence:
+      - README.md
+    rationale: "Current project overview appears intentionally maintained."
+    normalized_targets: []
+    human_approval_required: false
+    questions_for_human: []
+  - path: Docs/history/example-plan.md
+    source_type: implementation-history
+    disposition: keep-evidence
+    authority_scope: null
+    confidence: medium
+    evidence:
+      - Docs/history/example-plan.md
+    rationale: "Useful historical context, but not an active source of workflow authority."
+    normalized_targets: []
+    human_approval_required: false
+    questions_for_human: []
+  - path: Docs/old-process.md
+    source_type: process-artifact
+    disposition: extract-and-normalize
+    authority_scope: null
+    confidence: low
+    evidence:
+      - Docs/old-process.md
+    rationale: "Contains useful process knowledge that should be normalized before use."
+    normalized_targets:
+      - human-decisions.yaml
+      - target-workflow-readiness-gate-report.md
+    human_approval_required: true
+    questions_for_human:
+      - Should this process document remain active after the AgentsFlow overlay is approved?
+
+unresolved:
+  - "Confirm whether older process documents remain authoritative."
+
+destructive_changes:
+  allowed_without_human_approval: false
+  human_approval_required: true

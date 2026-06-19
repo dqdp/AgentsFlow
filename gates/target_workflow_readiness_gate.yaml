@@ -10,6 +10,7 @@ inputs:
 - project-intake.yaml
 - project-inventory.json
 - project-assessment.json
+- project-documentation-disposition.yaml
 - target workflow binding draft
 - target workflow gate readiness report
 - human decision packet when operating context is incomplete
@@ -28,6 +29,7 @@ bdd_bindings: []
 required_evidence:
 - project intake validation result
 - declared target_workflow for prepare-workflow
+- project-documentation-disposition.yaml as run-level target workflow context
 - target workflow binding or readiness draft
 - gate, review, evidence and authority policy evidence or human decision packet
 outputs:

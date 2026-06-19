@@ -156,6 +156,7 @@ After the human answers, the main/orchestrating agent:
 
 ```text
 read_project_intake
+documentation_disposition_decision
 legacy_adoption_mode_decision
 operating_decisions_interview
 target_workflow_context_decision_packet
@@ -166,6 +167,11 @@ Only `operating_decisions_interview` and `human_approval` are always human-owned
 decision points for normal existing-project onboarding. `read_project_intake` and
 `legacy_adoption_mode_decision` are conditional: they pause when required context
 is missing or when legacy agent/process artifacts create human-owned decisions.
+`documentation_disposition_decision` is conditional for existing-project modes:
+it classifies current documentation and Markdown implementation history before
+legacy adoption, target-workflow readiness, or overlay drafting. It must not
+delete, rewrite or silently de-authorize existing documentation without explicit
+human approval.
 `target_workflow_context_decision_packet` is conditional for `prepare-workflow`:
 it captures missing target-workflow gate, review, evidence or authority context
 as a run-level decision packet and does not normalize those answers into

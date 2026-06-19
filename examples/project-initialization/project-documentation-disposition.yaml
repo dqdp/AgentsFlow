@@ -1,0 +1,45 @@
+version: 1
+
+scope:
+  intent_mode: adoption-onboarding
+  target_workflow: null
+  project_root: examples/project-initialization
+  run_level_only: false
+
+default_policy:
+  do_not_delete_or_rewrite_without_human_approval: true
+  unclassified_documents: needs-human-decision
+
+documents:
+  - path: README.md
+    source_type: readme
+    disposition: keep-authoritative
+    authority_scope: project overview for initialization
+    confidence: high
+    evidence:
+      - README.md
+    rationale: "The README is the current project overview for this example."
+    normalized_targets: []
+    human_approval_required: false
+    questions_for_human: []
+  - path: Docs/adr/ADR-0001.md
+    source_type: adr
+    disposition: extract-and-normalize
+    authority_scope: null
+    confidence: medium
+    evidence:
+      - Docs/adr/ADR-0001.md
+    rationale: "Observed ADR history should be normalized before any accepted-decision authority is inferred."
+    normalized_targets:
+      - project-inventory.json
+      - Docs/adr/
+    human_approval_required: true
+    questions_for_human:
+      - Which ADR entries are accepted decisions rather than historical context?
+
+unresolved:
+  - "Confirm whether Docs/adr/ADR-0001.md contains accepted decisions."
+
+destructive_changes:
+  allowed_without_human_approval: false
+  human_approval_required: true
