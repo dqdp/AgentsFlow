@@ -31,8 +31,6 @@ from .required_files import REQUIRED_FILES
 from .review import (
     validate_enabled_review_minimum,
     validate_evidence_probe_report_artifact,
-    validate_mvp_review_materiality_policy,
-    validate_mvp_review_phase_policy,
     validate_required_review_gate_order,
     validate_review_fusion_validation_order,
     validate_review_manifest_collection,
@@ -44,6 +42,8 @@ from .review import (
     validate_reviewer_report_artifact,
     validate_supported_review_topologies,
     validate_upstream_review_cycle_policy,
+    validate_v02_review_control_materiality_policy,
+    validate_v02_review_control_phase_policy,
 )
 from .workflow_runs import validate_workflow_run_artifact
 from .workflows import (
@@ -183,10 +183,10 @@ def validate_repository(root: Path) -> list[str]:
         errors.extend(validate_big_feature_plan_gate_policy(wf, data))
         errors.extend(validate_supported_review_topologies(wf, data))
         errors.extend(validate_upstream_review_cycle_policy(wf, data))
-        errors.extend(validate_mvp_review_phase_policy(wf, data))
+        errors.extend(validate_v02_review_control_phase_policy(wf, data))
         errors.extend(validate_required_review_gate_order(wf, data))
         errors.extend(validate_review_fusion_validation_order(wf, data))
-        errors.extend(validate_mvp_review_materiality_policy(wf, data))
+        errors.extend(validate_v02_review_control_materiality_policy(wf, data))
         errors.extend(validate_phase_scripts_declared(wf, data))
         uses = data.get('uses', {}) or {}
         for s in uses.get('skills', []) or []:

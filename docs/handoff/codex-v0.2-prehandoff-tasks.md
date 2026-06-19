@@ -463,8 +463,8 @@ python3 scripts/reviewers/run_external_reviewer.py \
 Low-risk, no design decisions. Apply all:
 
 - **CLD-DR-003** (`docs/specification-development-roadmap.md`): add one line
-  noting `new-project-spec-first` is already in v0.2 MVP; this roadmap is the
-  later deep-research track.
+  noting `new-project-spec-first` is reference/next in v0.2, not a supported
+  target workflow; this roadmap is the later deep-research track.
 - **CLD-DR-004** (`examples/e2e/minimal-python-project/.agentsflow/`): pick one
   concrete `upstream_mode` (e.g. `git-submodule`) in `project.yaml` and add a
   minimal `agentsflow.lock.yaml` from `templates/agentsflow.lock.yaml`.

@@ -16,7 +16,7 @@ ALLOWED_INTENT_MODES = {
 }
 
 
-def known_mvp_user_workflow_ids(root: Path) -> set[str]:
+def known_supported_target_workflow_ids(root: Path) -> set[str]:
     workflow_ids: set[str] = set()
     workflows_dir = root / "workflows"
     if not workflows_dir.exists():
@@ -63,10 +63,10 @@ def main() -> int:
         ):
             errors.append("target_workflow must be a non-empty string when intent_mode is prepare-workflow")
         elif data.get("intent_mode") == "prepare-workflow":
-            known_workflows = known_mvp_user_workflow_ids(root)
+            known_workflows = known_supported_target_workflow_ids(root)
             if target_workflow not in known_workflows:
                 errors.append(
-                    "target_workflow must match a v0.2 MVP user workflow id when intent_mode is prepare-workflow"
+                    "target_workflow must match a v0.2 supported target workflow id when intent_mode is prepare-workflow"
                 )
     if errors:
         print("Project intake validation failed:")

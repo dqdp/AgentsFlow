@@ -119,18 +119,22 @@ artifact ledger, not every file that may exist on disk.
 
 ## Current workflows
 
-| Workflow | Purpose |
-|---|---|
-| `new-project-spec-first` | Start a new project with problem framing, specs, ADR seeds, and initial contracts. |
-| `big-feature-contract-first` | Implement a large feature through contract, BDD scenarios, impact map, verification, evidence. |
-| `agentic-system-hardening` | Harden agent systems: prompts, tools, memory, context, policy, model router, traces. |
-| `prompt-behavior-eval` | Evaluate changes to prompts/skills/instructions using behavioral scenarios. |
-| `safe-refactor` | Perform scoped refactoring with boundary and regression protection. |
-| `bugfix-regression-capture` | Reproduce a bug, fix it, and convert it into a regression scenario. |
-| `research-to-ADR` | Turn research into decision memos and ADRs. |
-| `review-only-fusion` | Run independent review and fusion on an existing artifact or diff. |
+| Workflow | v0.2 status | Purpose |
+|---|---|---|
+| `big-feature-contract-first` | supported target | Implement a large feature through contract, BDD scenarios, impact map, verification, evidence. |
+| `review-only-fusion` | utility | Run independent review and fusion on an existing artifact or diff. |
+| `new-project-spec-first` | reference/next | Start a new project with problem framing, specs, ADR seeds, and initial contracts. |
+| `bugfix-regression-capture` | reference/next | Reproduce a bug, fix it, and convert it into a regression scenario. |
+| `agentic-system-hardening` | reference/experimental | Harden agent systems: prompts, tools, memory, context, policy, model router, traces. |
+| `prompt-behavior-eval` | reference/experimental | Evaluate changes to prompts/skills/instructions using behavioral scenarios. |
+| `safe-refactor` | reference/experimental | Perform scoped refactoring with boundary and regression protection. |
+| `research-to-ADR` | reference/experimental | Turn research into decision memos and ADRs. |
 
 ## Workflow selection guidance
+
+For v0.2 `prepare-workflow`, only `big-feature-contract-first` is a supported
+target workflow. Other workflows are utility, reference or experimental unless a
+future accepted decision promotes them into the supported target set.
 
 Use `new-project-spec-first` when the main risk is ambiguous initial direction.
 

@@ -13,7 +13,9 @@ their intent mode requires.
 
 Each run declares an `intent_mode`. `prepare-workflow` also declares a
 `target_workflow`, because preparing a concrete workflow is allowed even when the
-project was not previously initialized through the full onboarding path.
+project was not previously initialized through the full onboarding path. In v0.2
+the only supported `prepare-workflow.target_workflow` is
+`big-feature-contract-first`; other workflows remain utility or reference paths.
 
 Expert assessment uses read-only architecture, verification and adversarial role
 reports plus a synthesis report. These are candidate assessments for the main

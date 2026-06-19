@@ -6,7 +6,8 @@ Accepted for AgentsFlow v0.2 and updated in v0.1.13.
 
 ## v0.2 MVP scope
 
-AgentsFlow v0.2 has one mandatory application/onboarding workflow and four MVP user workflows.
+AgentsFlow v0.2 has one application/onboarding workflow, one supported target
+workflow and one review utility workflow.
 
 Application workflow:
 
@@ -14,29 +15,40 @@ Application workflow:
 project-initialization
 ```
 
-MVP user workflows:
+MVP supported target workflow:
 
 ```text
 big-feature-contract-first
-bugfix-regression-capture
+```
+
+v0.2 utility workflow:
+
+```text
 review-only-fusion
-new-project-spec-first
 ```
 
 Non-MVP workflows remain in the repository as reference/experimental workflows and must remain schema-valid only:
 
 ```text
 agentic-system-hardening
+bugfix-regression-capture
+new-project-spec-first
 prompt-behavior-eval
 safe-refactor
 research-to-ADR
+```
+
+The supported v0.2 end-to-end path is:
+
+```text
+project-initialization.prepare-workflow -> big-feature-contract-first
 ```
 
 ## MVP-ready definition
 
 A workflow is MVP-ready when it is not just a prose idea but a reproducible workflow definition usable by a main/orchestrating agent and a human.
 
-Each MVP workflow must have:
+The MVP supported target workflow must have:
 
 - validated `workflow.yaml`;
 - explicit phase sequence;
@@ -59,7 +71,7 @@ AgentsFlow v0.2 is done when:
 
 - repository validation passes;
 - tests pass;
-- MVP workflows are schema-valid;
+- the MVP supported target workflow is schema-valid;
 - project-initialization path is coherent;
 - project overlay model is represented;
 - project-bound gates are represented;
@@ -175,12 +187,13 @@ legacy-cleanup
 Overlay drafting, validation and approval are not universal initialization
 outputs. They apply to adoption-onboarding, legacy activation, or
 prepare-workflow binding/policy activation. `prepare-workflow` requires
-`target_workflow` and enough operating context for that workflow: project or
-draft binding, gate policy, review policy, evidence location and human-owned
-decisions. Material design forks discovered while preparing that target workflow
-are handled as human-mediated checkpoints and recorded in the same run-level
-decision packet before readiness validation. Unresolved blocking-material forks
-block readiness unless explicitly deferred with stated constraints.
+`target_workflow: big-feature-contract-first` and enough operating context for
+that workflow: project or draft binding, gate policy, review policy, evidence
+location and human-owned decisions. Material design forks discovered while
+preparing that target workflow are handled as human-mediated checkpoints and
+recorded in the same run-level decision packet before readiness validation.
+Unresolved blocking-material forks block readiness unless explicitly deferred
+with stated constraints.
 
 ### big-feature-contract-first
 
@@ -210,7 +223,10 @@ classified as material or non-material before deciding whether to rerun review.
 
 ### bugfix-regression-capture
 
-Lightweight bugfix workflow:
+Reference/next workflow in v0.2. It remains schema-valid, but is not a supported
+`prepare-workflow.target_workflow` and is not part of the v0.2 end-to-end pilot.
+
+Lightweight bugfix shape:
 
 ```text
 bug intake -> reproduction/diagnosis -> regression scenario -> minimal fix plan
@@ -230,7 +246,10 @@ fix, and the regression gate confirms the green re-run after.
 
 ### review-only-fusion
 
-Review utility workflow:
+v0.2 utility workflow. It supports review-control modeling and can be invoked as
+a utility pattern, but is not a supported `prepare-workflow.target_workflow`.
+
+Review utility shape:
 
 ```text
 existing artifact/evidence -> evidence availability gate -> independent read-only reviews
@@ -241,7 +260,12 @@ It does not run implementation checks itself. If implementation evidence is requ
 
 ### new-project-spec-first
 
-Specification workflow, not an implementation workflow in v0.2:
+Reference/next workflow in v0.2. It remains schema-valid, but is not a supported
+`prepare-workflow.target_workflow`. The v0.2 pilot targets an existing project
+through `project-initialization.prepare-workflow -> big-feature-contract-first`,
+not greenfield project specification.
+
+Specification workflow shape:
 
 ```text
 problem framing -> target system spec -> enabling system spec -> term map

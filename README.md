@@ -42,22 +42,33 @@ Application workflow:
 project-initialization
 ```
 
-MVP user workflows:
+MVP supported target workflow:
 
 ```text
 big-feature-contract-first
-bugfix-regression-capture
+```
+
+v0.2 utility workflow:
+
+```text
 review-only-fusion
-new-project-spec-first
 ```
 
 Non-MVP workflows remain reference/experimental and schema-valid only:
 
 ```text
 agentic-system-hardening
+bugfix-regression-capture
+new-project-spec-first
 prompt-behavior-eval
 safe-refactor
 research-to-ADR
+```
+
+The supported v0.2 application path is:
+
+```text
+project-initialization.prepare-workflow -> big-feature-contract-first
 ```
 
 Primary end-to-end example target:

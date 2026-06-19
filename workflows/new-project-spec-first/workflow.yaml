@@ -313,7 +313,7 @@ concrete_gates:
 - problem_framing_gate
 - scope_gate
 - spec_review_gate
-mvp_status: v0.2-mvp
+mvp_status: post-v0.2-reference
 binding_model:
   upstream_workflow_definition: true
   requires_project_binding_for_execution: true

@@ -231,7 +231,7 @@ fusion:
   may_launch_reviewers: false
   may_run_gates: false
   may_request_additional_review: true
-mvp_status: v0.2-mvp
+mvp_status: v0.2-utility
 binding_model:
   upstream_workflow_definition: true
   requires_project_binding_for_execution: true

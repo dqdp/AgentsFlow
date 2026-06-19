@@ -15,13 +15,15 @@ from .common import (
 
 
 ROLE_CONTRACT_PREFIXES = ('profiles/reviewer_roles/', '.agentsflow/profiles/reviewer_roles/')
-MVP_WORKFLOWS = {
-    'project-initialization',
+V0_2_SUPPORTED_TARGET_WORKFLOWS = {
     'big-feature-contract-first',
-    'bugfix-regression-capture',
-    'review-only-fusion',
-    'new-project-spec-first',
 }
+V0_2_UTILITY_WORKFLOWS = {
+    'review-only-fusion',
+}
+V0_2_REVIEW_CONTROL_WORKFLOWS = (
+    V0_2_SUPPORTED_TARGET_WORKFLOWS | V0_2_UTILITY_WORKFLOWS
+)
 
 
 def validate_review_manifest_collection(root: Path) -> list[str]:
@@ -681,15 +683,15 @@ def validate_supported_review_topologies(path: Path, data: dict) -> list[str]:
     return errors
 
 
-def validate_mvp_review_phase_policy(path: Path, data: dict) -> list[str]:
-    if data.get("name") not in MVP_WORKFLOWS:
+def validate_v02_review_control_phase_policy(path: Path, data: dict) -> list[str]:
+    if data.get("name") not in V0_2_REVIEW_CONTROL_WORKFLOWS:
         return []
     has_review_phase = any(
         isinstance(phase, dict) and phase.get("kind") == "review"
         for phase in data.get("phases", []) or []
     )
     if has_review_phase and not isinstance(data.get("review"), dict):
-        return [f"{path}: MVP workflow with review phase must declare top-level review policy"]
+        return [f"{path}: v0.2 review-control workflow with review phase must declare top-level review policy"]
     return []
 
 
@@ -704,16 +706,6 @@ def validate_required_review_gate_order(path: Path, data: dict) -> list[str]:
             "review_phase": "independent_review",
             "gate_phase": "evidence_gate",
             "gate": "evidence_gate",
-        },
-        "new-project-spec-first": {
-            "review_phase": "spec_review",
-            "gate_phase": "spec_review_gate",
-            "gate": "spec_review_gate",
-        },
-        "bugfix-regression-capture": {
-            "review_phase": "review",
-            "gate_phase": "regression_verification_gate",
-            "gate": "regression_gate",
         },
     }
     rule = required_by_workflow.get(str(data.get("name")))
@@ -755,7 +747,7 @@ def validate_required_review_gate_order(path: Path, data: dict) -> list[str]:
 
 def validate_review_fusion_validation_order(path: Path, data: dict) -> list[str]:
     errors: list[str] = []
-    if data.get("name") not in MVP_WORKFLOWS:
+    if data.get("name") not in V0_2_REVIEW_CONTROL_WORKFLOWS:
         return errors
     phases = [
         phase
@@ -771,10 +763,10 @@ def validate_review_fusion_validation_order(path: Path, data: dict) -> list[str]
     if not post_gate_review_phases and not fusion_phases:
         return errors
     if validation_phase is None:
-        errors.append(f"{path}: MVP workflow with post-gate review or fusion must include finding_validation phase")
+        errors.append(f"{path}: v0.2 review-control workflow with post-gate review or fusion must include finding_validation phase")
         return errors
     if fusion_phases and not review_phases:
-        errors.append(f"{path}: MVP workflow with fusion phase must include review phase")
+        errors.append(f"{path}: v0.2 review-control workflow with fusion phase must include review phase")
         return errors
     first_review_index = min(phases.index(phase) for phase in (post_gate_review_phases or review_phases))
     validation_index = phases.index(validation_phase)
@@ -800,9 +792,9 @@ def validate_review_fusion_validation_order(path: Path, data: dict) -> list[str]
     return errors
 
 
-def validate_mvp_review_materiality_policy(path: Path, data: dict) -> list[str]:
+def validate_v02_review_control_materiality_policy(path: Path, data: dict) -> list[str]:
     errors: list[str] = []
-    if data.get("name") not in MVP_WORKFLOWS:
+    if data.get("name") not in V0_2_REVIEW_CONTROL_WORKFLOWS:
         return errors
     review_cycle = data.get("review_cycle")
     if not isinstance(review_cycle, dict):
@@ -830,4 +822,3 @@ def validate_mvp_review_materiality_policy(path: Path, data: dict) -> list[str]:
     if controls.get("post_fix_materiality_classification_required") is not True:
         errors.append(f"{path}: review_control_rules.post_fix_materiality_classification_required must be true")
     return errors
-

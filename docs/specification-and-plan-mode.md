@@ -70,16 +70,16 @@ A plan gate does not implement.
 
 ## Workflow binding
 
-- `new-project-spec-first`: deep specification stack.
+- `new-project-spec-first`: reference/next deep specification stack.
 - `big-feature-contract-first`: plan gate required when effective strictness
   includes the plan-gate depth, inherited from the workflow default unless
   explicitly overridden.
 - `agentic-system-hardening`: behavior/prompt/tool/policy planning required.
 - `prompt-behavior-eval`: eval scenarios before prompt changes.
 - `safe-refactor`: refactor boundary and rollback plan required.
-- `bugfix-regression-capture`: lightweight diagnosis and regression plan.
+- `bugfix-regression-capture`: reference/next lightweight diagnosis and regression plan.
 - `research-to-ADR`: frame / explore / compare / decide / verify.
-- `review-only-fusion`: reviews existing plans/specs/evidence only.
+- `review-only-fusion`: v0.2 utility that reviews existing plans/specs/evidence only.
 
 ## haft / quint code relation
 

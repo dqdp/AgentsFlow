@@ -378,19 +378,28 @@ def test_project_intake_prepare_workflow_requires_target_workflow(tmp_path) -> N
     path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
     result = run("scripts/validate_project_intake.py", "--intake", str(path))
     assert result.returncode != 0
-    assert "target_workflow must match a v0.2 MVP user workflow id" in (result.stdout + result.stderr)
+    assert "target_workflow must match a v0.2 supported target workflow id" in (result.stdout + result.stderr)
 
     intake["target_workflow"] = "safe-refactor"
     path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
     result = run("scripts/validate_project_intake.py", "--intake", str(path))
     assert result.returncode != 0
-    assert "target_workflow must match a v0.2 MVP user workflow id" in (result.stdout + result.stderr)
+    assert "target_workflow must match a v0.2 supported target workflow id" in (result.stdout + result.stderr)
 
     intake["target_workflow"] = "project-initialization"
     path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
     result = run("scripts/validate_project_intake.py", "--intake", str(path))
     assert result.returncode != 0
-    assert "target_workflow must match a v0.2 MVP user workflow id" in (result.stdout + result.stderr)
+    assert "target_workflow must match a v0.2 supported target workflow id" in (result.stdout + result.stderr)
+
+    for target_workflow in ["bugfix-regression-capture", "new-project-spec-first", "review-only-fusion"]:
+        intake["target_workflow"] = target_workflow
+        path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
+        result = run("scripts/validate_project_intake.py", "--intake", str(path))
+        assert result.returncode != 0
+        assert "target_workflow must match a v0.2 supported target workflow id" in (
+            result.stdout + result.stderr
+        )
 
     intake["target_workflow"] = "big-feature-contract-first"
     path.write_text(yaml.safe_dump(intake, sort_keys=False), encoding="utf-8")
@@ -414,7 +423,14 @@ def test_project_intake_schema_restricts_prepare_workflow_target() -> None:
     valid["target_workflow"] = "big-feature-contract-first"
     validator.validate(valid)
 
-    for target_workflow in ["safe-refactor", "project-initialization", "not-a-real-workflow"]:
+    for target_workflow in [
+        "bugfix-regression-capture",
+        "new-project-spec-first",
+        "review-only-fusion",
+        "safe-refactor",
+        "project-initialization",
+        "not-a-real-workflow",
+    ]:
         invalid = copy.deepcopy(intake)
         invalid["target_workflow"] = target_workflow
         assert list(validator.iter_errors(invalid))
@@ -558,6 +574,15 @@ def test_project_documentation_disposition_schema_passes() -> None:
     invalid_prepare_missing_target["scope"]["intent_mode"] = "prepare-workflow"
     invalid_prepare_missing_target["scope"].pop("target_workflow")
     assert list(validator.iter_errors(invalid_prepare_missing_target))
+
+    invalid_prepare_reference_target = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_prepare_reference_target["scope"]["intent_mode"] = "prepare-workflow"
+    invalid_prepare_reference_target["scope"]["target_workflow"] = "review-only-fusion"
+    assert list(validator.iter_errors(invalid_prepare_reference_target))
 
     invalid_authority_null_scope = yaml.safe_load(
         (ROOT / "templates/project-documentation-disposition.yaml").read_text(
@@ -1044,7 +1069,7 @@ def test_review_prompt_contract_allows_reviewed_artifact_subject() -> None:
     assert "one of inputs.task_contract" in "\n".join(errors)
 
 
-def test_mvp_review_phase_requires_top_level_review_policy() -> None:
+def test_v02_review_control_phase_requires_top_level_review_policy() -> None:
     import copy
     import sys
 
@@ -1057,7 +1082,7 @@ def test_mvp_review_phase_requires_top_level_review_policy() -> None:
     broken = copy.deepcopy(workflow)
     broken.pop("review", None)
 
-    errors = validate_repo.validate_mvp_review_phase_policy(
+    errors = validate_repo.validate_v02_review_control_phase_policy(
         ROOT / "workflows/review-only-fusion/workflow.yaml",
         broken,
     )
@@ -1098,7 +1123,7 @@ def test_upstream_review_cycle_rejects_hardcoded_max_cycles() -> None:
     assert "max_review_cycles_source must be project_policy_or_workflow_binding" in "\n".join(errors)
 
 
-def test_mvp_review_fusion_requires_validation_after_fusion() -> None:
+def test_v02_review_control_fusion_requires_validation_after_fusion() -> None:
     import copy
     import sys
 
@@ -1140,7 +1165,7 @@ def test_review_only_fusion_requires_finding_validation_phase() -> None:
     assert "must include finding_validation phase" in "\n".join(errors)
 
 
-def test_mvp_review_without_fusion_requires_finding_validation_phase() -> None:
+def test_reference_workflow_without_fusion_is_not_v02_review_control_surface() -> None:
     import copy
     import sys
 
@@ -1155,11 +1180,10 @@ def test_mvp_review_without_fusion_requires_finding_validation_phase() -> None:
     broken["phases"] = [phase for phase in broken["phases"] if phase.get("id") != "finding_validation"]
 
     errors = validate_repo.validate_review_fusion_validation_order(path, broken)
-    assert errors
-    assert "must include finding_validation phase" in "\n".join(errors)
+    assert not errors
 
 
-def test_mvp_review_cycle_requires_materiality_policy() -> None:
+def test_v02_review_cycle_requires_materiality_policy() -> None:
     import copy
     import sys
 
@@ -1168,12 +1192,12 @@ def test_mvp_review_cycle_requires_materiality_policy() -> None:
     sys.path.insert(0, str(ROOT / "scripts"))
     import validate_repo  # noqa: PLC0415
 
-    path = ROOT / "workflows/bugfix-regression-capture/workflow.yaml"
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
     broken = copy.deepcopy(workflow)
     broken["review_cycle"].pop("materiality_classification")
 
-    errors = validate_repo.validate_mvp_review_materiality_policy(path, broken)
+    errors = validate_repo.validate_v02_review_control_materiality_policy(path, broken)
     assert errors
     assert "review_cycle.materiality_classification is required" in "\n".join(errors)
 
@@ -1182,7 +1206,7 @@ def test_mvp_review_cycle_requires_materiality_policy() -> None:
         "nonblocking_findings_with_non_material_fixes_only"
     )
     broken_missing_token["review_cycle"].pop("materiality_classification")
-    errors = validate_repo.validate_mvp_review_materiality_policy(path, broken_missing_token)
+    errors = validate_repo.validate_v02_review_control_materiality_policy(path, broken_missing_token)
     assert "do_not_rerun_on must include nonblocking_findings_with_non_material_fixes_only" in "\n".join(errors)
     assert "review_cycle.materiality_classification is required" in "\n".join(errors)
 
@@ -1765,7 +1789,7 @@ def test_repo_validation_rejects_duplicate_yaml_keys(tmp_path) -> None:
     assert "duplicate YAML key" in (result.stdout + result.stderr)
 
 
-def test_mvp_review_phase_requires_required_gate_order() -> None:
+def test_v02_review_control_requires_required_gate_order() -> None:
     import copy
     import sys
 
@@ -1807,7 +1831,7 @@ def test_big_feature_review_phase_requires_verification_gate_order() -> None:
     assert "must run after verification_gate" in "\n".join(errors)
 
 
-def test_mvp_review_gate_order_rejects_wrong_phase_kinds() -> None:
+def test_v02_review_control_gate_order_rejects_wrong_phase_kinds() -> None:
     import copy
     import sys
 

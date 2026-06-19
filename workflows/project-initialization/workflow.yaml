@@ -14,7 +14,8 @@ entry_criteria:
 - A project intake/research assignment is provided. Unknown-project discovery uses
   the standard exploratory assignment, not an empty prompt.
 - The intake declares intent_mode. If intent_mode is prepare-workflow, it also
-  declares target_workflow.
+  declares the supported target_workflow. In v0.2 the supported target is
+  big-feature-contract-first.
 outputs:
 - project-intake.yaml
 - project-raw-scan.json
@@ -220,7 +221,7 @@ phases:
 - id: read_project_intake
   kind: intake
   purpose: Read project-intake / research assignment, including intent_mode and
-    target_workflow when intent_mode is prepare-workflow. Unknown-project discovery
+    the supported target_workflow when intent_mode is prepare-workflow. Unknown-project discovery
     uses the standard exploratory assignment and gives the user a chance to provide
     context.
   mode: human_guided

@@ -53,7 +53,7 @@ bindings:
     gates:
       - verification_gate
   - id: AF-V02-BHV-004
-    scenario: "MVP review phase requires top-level review policy"
+    scenario: "v0.2 review-control workflow requires top-level review policy"
     required: true
     status: executable
     source:
@@ -62,9 +62,9 @@ bindings:
       section: Behavioral Scenarios
     severity_if_unverified: P1
     checks:
-      - id: pytest-mvp-review-policy
+      - id: pytest-v02-review-control-policy
         type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_mvp_review_phase_requires_top_level_review_policy"
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_v02_review_control_phase_requires_top_level_review_policy"
         evidence:
           - pytest-output
     gates:
@@ -104,7 +104,7 @@ bindings:
     gates:
       - verification_gate
   - id: AF-V02-BHV-007
-    scenario: "Prepare-workflow target is limited to MVP user workflows"
+    scenario: "Prepare-workflow target is limited to the supported target workflow"
     required: true
     status: executable
     source:

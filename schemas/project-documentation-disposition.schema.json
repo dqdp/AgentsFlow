@@ -63,7 +63,9 @@
             "properties": {
               "target_workflow": {
                 "type": "string",
-                "minLength": 1
+                "enum": [
+                  "big-feature-contract-first"
+                ]
               },
               "run_level_only": {
                 "const": true

@@ -78,8 +78,8 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then project binding validation must fail
     And the failure must identify the mismatched upstream gate id
 
-  Scenario: MVP review phase requires top-level review policy
-    Given an MVP workflow contains a phase with kind review
+  Scenario: v0.2 review-control workflow requires top-level review policy
+    Given a v0.2 supported target or utility review-control workflow contains a phase with kind review
     When the workflow omits the top-level review policy
     Then repository validation must reject the workflow
     And the workflow must declare reviewer count, prompt policy and fresh-context policy
@@ -96,11 +96,11 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then review-packet schema validation must still pass
     And focused non-baseline reviewers must still require focus_zone
 
-  Scenario: Prepare-workflow target is limited to MVP user workflows
+  Scenario: Prepare-workflow target is limited to the supported target workflow
     Given a project intake declares intent_mode "prepare-workflow"
-    When target_workflow is missing, project-initialization or a non-MVP reference workflow
+    When target_workflow is missing, project-initialization, a utility workflow or a reference workflow
     Then intake validation must fail
-    And schema validation must accept only the v0.2 MVP user workflow ids
+    And schema validation must accept only "big-feature-contract-first" as the v0.2 supported target workflow id
 
   Scenario: Prepare-workflow missing context or design forks use a run-level decision packet
     Given project-initialization runs in prepare-workflow mode
@@ -173,10 +173,10 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Live external reviewer requires run-scope prompt contract | `pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_rejects_live_example_scope` |
 | Homogeneous dual review requires shared prompt and packet hashes | `pytest tests/test_scripts_smoke.py::test_review_prompt_contract_rejects_missing_shared_hash` |
 | Project gate binding must match the upstream gate id | `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_wrong_upstream_gate_id` |
-| MVP review phase requires top-level review policy | `pytest tests/test_scripts_smoke.py::test_mvp_review_phase_requires_top_level_review_policy` |
+| v0.2 review-control workflow requires top-level review policy | `pytest tests/test_scripts_smoke.py::test_v02_review_control_phase_requires_top_level_review_policy` |
 | Primary e2e run metadata and reviewer reports are schema-valid | `pytest tests/test_scripts_smoke.py::test_primary_e2e_workflow_run_artifacts_schema_pass` |
 | Homogeneous plus focused keeps baseline reviewers unfocused | `pytest tests/test_scripts_smoke.py::test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone` |
-| Prepare-workflow target is limited to MVP user workflows | `pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow`; `pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target` |
+| Prepare-workflow target is limited to the supported target workflow | `pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow`; `pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target` |
 | Prepare-workflow missing context or design forks use a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions` |
 | Existing-project initialization records documentation disposition | `pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes`; `pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition` |
 | Big-feature plan gate follows effective strictness | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2`; `pytest tests/test_scripts_smoke.py::test_project_binding_strictness_override_requires_reason`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_raw_strictness_without_override_source`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_unsupported_strictness_override`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_strictness_override_without_workflow_support_list`; `pytest tests/test_scripts_smoke.py::test_workflow_run_strictness_requires_source_and_override_reason`; `pytest tests/test_scripts_smoke.py::test_workflow_run_rejects_disguised_workflow_default_strictness` |

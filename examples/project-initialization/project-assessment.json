@@ -47,7 +47,7 @@
     "domain_pack_recommendation": null,
     "requires_human_confirmation": true
   },
-  "workflow_recommendations": ["big-feature-contract-first", "bugfix-regression-capture"],
+  "workflow_recommendations": ["big-feature-contract-first"],
   "gate_recommendations": ["verification_gate should run pytest once confirmed"],
   "risks": ["Canonical verification command is not yet confirmed", "Domain constraints are not yet confirmed"],
   "open_questions": ["Which review topology should be default for high-risk changes?", "What domain should be treated as authoritative for this project?"],

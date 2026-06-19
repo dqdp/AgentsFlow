@@ -290,7 +290,7 @@ concrete_gates:
 - evidence_gate
 - regression_gate
 - verification_gate
-mvp_status: v0.2-mvp
+mvp_status: post-v0.2-reference
 binding_model:
   upstream_workflow_definition: true
   requires_project_binding_for_execution: true

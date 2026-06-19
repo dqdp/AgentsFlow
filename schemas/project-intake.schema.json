@@ -42,10 +42,7 @@
           "target_workflow": {
             "type": "string",
             "enum": [
-              "big-feature-contract-first",
-              "bugfix-regression-capture",
-              "review-only-fusion",
-              "new-project-spec-first"
+              "big-feature-contract-first"
             ]
           }
         }

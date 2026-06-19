@@ -41,21 +41,14 @@ my-project/
 
     workflows/                    # project bindings for upstream workflows
       big-feature-contract-first.binding.yaml
-      bugfix-regression-capture.binding.yaml
-      review-only-fusion.binding.yaml
-      new-project-spec-first.binding.yaml
 
     gates/                        # project-bound executable gate manifests
       plan_gate.yaml
       verification_gate.yaml
-      regression_gate.yaml
-      evidence_gate.yaml
-      spec_review_gate.yaml
 
     scripts/                      # project-specific deterministic runners/checks
       run_plan_gate.sh
       run_verification_gate.sh
-      run_regression_gate.sh
       collect_evidence.sh
       check_boundaries.py
 
