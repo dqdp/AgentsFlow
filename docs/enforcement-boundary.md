@@ -69,6 +69,10 @@ The repository validator is expected to enforce:
 - `project-initialization` wires project documentation disposition for existing
   project modes and schema-validates `project-documentation-disposition.yaml`
   template/example artifacts.
+- `project-initialization` declares the expert-assessment strict-JSON output
+  contract, validates the invoked assessment skill contract, schema-validates
+  project-assessment template/example artifacts, and checks example synthesis
+  references to schema-valid JSON role reports.
 - `project-initialization` declares main-agent-mediated human-pause phases and
   question/decision artifacts.
 - Canonical project overlay examples use flat `.agentsflow/project.yaml` and
@@ -90,6 +94,10 @@ These controls are important, but are not full deterministic guarantees in v0.2:
 - Whether a test truly exercises a required behavior.
 - Truth of model-produced project inventory fields.
 - Quality of expert assessment and review/fusion reasoning.
+- Live-run proof that every expert-assessment agent actually returned strict JSON
+  before synthesis. v0.2 validates declared workflow/skill/example artifacts and
+  deterministic synthesis references; arbitrary project-run assessment outputs
+  still require project-bound validation or main-agent protocol enforcement.
 - Reviewer finding relevance before the main agent validates it.
 - Runtime proof that a non-wrapper/internal reviewer was actually launched with
   zero inherited conversation context.

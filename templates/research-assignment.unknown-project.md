@@ -116,7 +116,7 @@ Produce or help produce:
 
 - project-raw-scan.json;
 - project-inventory.json;
-- project-assessment.json or project-assessment.md;
+- schema-valid project-assessment.*.json role reports and project-assessment.json synthesis;
 - workflow-recommendations.yaml;
 - gate-recommendations.yaml;
 - open-questions.md;

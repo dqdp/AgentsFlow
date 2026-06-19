@@ -471,9 +471,142 @@ def test_project_assessment_schema_requires_triad_synthesis() -> None:
     ]
     assert list(validator.iter_errors(missing_adversarial))
 
+    markdown_artifact = copy.deepcopy(synthesis)
+    markdown_artifact["role_reports"][0]["artifact"] = "project-assessment.architecture.md"
+    assert list(validator.iter_errors(markdown_artifact))
+
     invalid_role = json.loads((ROOT / "templates/project-assessment.role.json").read_text(encoding="utf-8"))
     invalid_role["role"] = "generalist"
     assert list(validator.iter_errors(invalid_role))
+
+    missing_readiness = json.loads((ROOT / "templates/project-assessment.role.json").read_text(encoding="utf-8"))
+    missing_readiness.pop("readiness")
+    assert list(validator.iter_errors(missing_readiness))
+
+    invalid_readiness = json.loads((ROOT / "templates/project-assessment.role.json").read_text(encoding="utf-8"))
+    invalid_readiness["readiness"] = "looks-good"
+    assert list(validator.iter_errors(invalid_readiness))
+
+    missing_validation = copy.deepcopy(synthesis)
+    missing_validation.pop("role_report_validation")
+    assert list(validator.iter_errors(missing_validation))
+
+    invalid_validation = copy.deepcopy(synthesis)
+    invalid_validation["role_report_validation"]["all_role_reports_schema_valid"] = False
+    assert list(validator.iter_errors(invalid_validation))
+
+    authoritative_finding = copy.deepcopy(synthesis)
+    authoritative_finding["candidate_findings"] = [
+        {
+            "id": "AF-INIT-BAD",
+            "severity": "P1",
+            "finding": "This incorrectly claims main-agent validation.",
+            "status": "accepted-relevant",
+        }
+    ]
+    assert list(validator.iter_errors(authoritative_finding))
+
+    prompt_role = json.loads((ROOT / "templates/project-assessment.role.json").read_text(encoding="utf-8"))
+    prompt_role["role"] = "prompt_engineering"
+    validator.validate(prompt_role)
+
+
+def test_project_assessment_synthesis_validates_referenced_role_reports(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    run_dir = tmp_path / "project-initialization"
+    shutil.copytree(ROOT / "examples" / "project-initialization", run_dir)
+    synthesis_path = run_dir / "project-assessment.json"
+
+    assert validate_repo.validate_project_assessment_synthesis_artifact(ROOT, synthesis_path) == []
+
+    missing_role_dir = tmp_path / "missing-role"
+    shutil.copytree(run_dir, missing_role_dir)
+    (missing_role_dir / "project-assessment.architecture.json").unlink()
+    errors = validate_repo.validate_project_assessment_synthesis_artifact(
+        ROOT,
+        missing_role_dir / "project-assessment.json",
+    )
+    assert "missing referenced role report artifact" in "\n".join(errors)
+
+    markdown_ref_dir = tmp_path / "markdown-ref"
+    shutil.copytree(run_dir, markdown_ref_dir)
+    synthesis = json.loads((markdown_ref_dir / "project-assessment.json").read_text(encoding="utf-8"))
+    synthesis["role_reports"][0]["artifact"] = "project-assessment.architecture.md"
+    (markdown_ref_dir / "project-assessment.json").write_text(
+        json.dumps(synthesis, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    errors = validate_repo.validate_project_assessment_synthesis_artifact(
+        ROOT,
+        markdown_ref_dir / "project-assessment.json",
+    )
+    assert "must reference a .json role report artifact" in "\n".join(errors)
+
+    invalid_role_dir = tmp_path / "invalid-role"
+    shutil.copytree(run_dir, invalid_role_dir)
+    role_report = json.loads((invalid_role_dir / "project-assessment.architecture.json").read_text(encoding="utf-8"))
+    role_report.pop("readiness")
+    (invalid_role_dir / "project-assessment.architecture.json").write_text(
+        json.dumps(role_report, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    errors = validate_repo.validate_project_assessment_synthesis_artifact(
+        ROOT,
+        invalid_role_dir / "project-assessment.json",
+    )
+    assert "schema error" in "\n".join(errors)
+
+
+def test_project_onboarding_assessment_skill_carries_schema_bound_contract() -> None:
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    errors = validate_repo.validate_project_onboarding_assessment_skill_contract(ROOT)
+    assert errors == []
+
+
+def test_project_initialization_expert_assessment_requires_schema_bound_json_contract() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/project-initialization/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    errors = validate_repo.validate_project_initialization_expert_assessment_contract(path, workflow)
+    assert not errors
+
+    missing_contract = copy.deepcopy(workflow)
+    missing_contract.pop("expert_assessment_output_contract", None)
+    errors = validate_repo.validate_project_initialization_expert_assessment_contract(path, missing_contract)
+    assert "expert_assessment_output_contract is required" in "\n".join(errors)
+
+    weak_contract = copy.deepcopy(workflow)
+    weak_contract["expert_assessment_output_contract"]["response_format"] = "markdown"
+    errors = validate_repo.validate_project_initialization_expert_assessment_contract(path, weak_contract)
+    assert "response_format must be strict_json" in "\n".join(errors)
+
+    no_validation = copy.deepcopy(workflow)
+    no_validation["expert_assessment_output_contract"]["validation_required_before_synthesis"] = False
+    errors = validate_repo.validate_project_initialization_expert_assessment_contract(path, no_validation)
+    assert "validation_required_before_synthesis must be true" in "\n".join(errors)
+
+    no_prompt = copy.deepcopy(workflow)
+    no_prompt["expert_assessment_output_contract"].pop("launch_prompt_requirements")
+    errors = validate_repo.validate_project_initialization_expert_assessment_contract(path, no_prompt)
+    assert "launch_prompt_requirements missing" in "\n".join(errors)
 
 
 def test_project_operating_decisions_schema_passes() -> None:

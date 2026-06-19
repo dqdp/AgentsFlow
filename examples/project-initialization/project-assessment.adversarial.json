@@ -2,12 +2,24 @@
   "version": 1,
   "assessment_type": "project-onboarding",
   "role": "adversarial",
+  "readiness": "ready_with_blockers",
   "basis": {
     "intake": "project-intake.yaml",
     "raw_scan": "project-raw-scan.json",
     "inventory": "project-inventory.json"
   },
   "candidate_findings": [],
+  "open_questions_for_main_agent": [
+    {
+      "question": "Are any existing agent instructions authoritative and in conflict with AgentsFlow?",
+      "blocking": true,
+      "rationale": "Legacy instruction authority affects whether overlay activation is safe."
+    }
+  ],
+  "positive_evidence": [
+    "Overlay remains draft-only until human approval."
+  ],
+  "recommended_next_phase": "proceed_to_documentation_disposition",
   "workflow_recommendations": [],
   "gate_recommendations": [
     "Keep the overlay draft-only until human approval to avoid silently changing project authority."

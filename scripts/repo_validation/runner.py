@@ -21,10 +21,13 @@ from .common import (
 from .external_reviewers import validate_external_review_provider
 from .gates import validate_gate_manifest
 from .project_initialization import (
+    validate_project_assessment_synthesis_artifact,
+    validate_project_initialization_expert_assessment_contract,
     validate_project_documentation_disposition_artifact,
     validate_project_initialization_human_interaction,
     validate_project_initialization_intent_mode_policy,
     validate_project_initialization_operating_decisions,
+    validate_project_onboarding_assessment_skill_contract,
 )
 from .project_overlay import validate_project_overlay_example
 from .required_files import REQUIRED_FILES
@@ -118,6 +121,13 @@ def validate_repository(root: Path) -> list[str]:
         root / 'examples' / 'project-initialization' / 'project-documentation-disposition.yaml',
     ]:
         errors.extend(validate_project_documentation_disposition_artifact(root, documentation_disposition))
+    errors.extend(validate_project_onboarding_assessment_skill_contract(root))
+    errors.extend(
+        validate_project_assessment_synthesis_artifact(
+            root,
+            root / 'examples' / 'project-initialization' / 'project-assessment.json',
+        )
+    )
     run_artifact_patterns = [
         'Docs/agentsflow/runs/*/run.yaml',
         'examples/**/Docs/agentsflow/runs/*/run.yaml',
@@ -179,6 +189,7 @@ def validate_repository(root: Path) -> list[str]:
         errors.extend(validate_test_framed_implementation(wf, data))
         errors.extend(validate_project_initialization_operating_decisions(wf, data))
         errors.extend(validate_project_initialization_human_interaction(wf, data))
+        errors.extend(validate_project_initialization_expert_assessment_contract(wf, data))
         errors.extend(validate_project_initialization_intent_mode_policy(wf, data))
         errors.extend(validate_big_feature_plan_gate_policy(wf, data))
         errors.extend(validate_supported_review_topologies(wf, data))

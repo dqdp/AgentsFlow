@@ -24,6 +24,7 @@ outputs:
 - project-assessment.architecture.json
 - project-assessment.verification.json
 - project-assessment.adversarial.json
+- project-assessment.prompt-engineering.json when target workflow is prompt-sensitive
 - domain-identification section
 - human questions or decisions when the selected intent mode requires them
 - mode-gated artifacts declared in mode_gated_outputs
@@ -96,6 +97,7 @@ mode_gated_outputs:
   - project-assessment.architecture.json
   - project-assessment.verification.json
   - project-assessment.adversarial.json
+  - project-assessment.prompt-engineering.json when target workflow is prompt-sensitive
   - project-assessment.json
   - human-questions.yaml
   adoption-onboarding:
@@ -129,6 +131,7 @@ mode_gated_outputs:
   - project-assessment.architecture.json
   - project-assessment.verification.json
   - project-assessment.adversarial.json
+  - project-assessment.prompt-engineering.json when target workflow is prompt-sensitive
   - project-assessment.json
   - human domain-expertise questions
 intent_mode_phase_policy:
@@ -194,11 +197,34 @@ overlay_policy:
 expert_assessment:
   topology: triad-synthesis
   reviewers_read_only: true
+  fresh_context_no_fork: true
   role_reports:
   - architecture
   - verification
   - adversarial
+  conditional_role_reports:
+  - role: prompt_engineering
+    when: target_workflow_or_target_feature_changes_prompt_specs_output_contracts_or_model_tool_use
   synthesis_report: project-assessment.json
+expert_assessment_output_contract:
+  response_format: strict_json
+  schema: schemas/project-assessment.schema.json
+  role_report_template: templates/project-assessment.role.json
+  synthesis_template: templates/project-assessment.json
+  validation_required_before_synthesis: true
+  invalid_output_policy: reject_and_rerun_or_pause
+  raw_prose_must_not_be_normalized_as_authoritative: true
+  launch_prompt_requirements:
+  - return_only_valid_json
+  - no_markdown_or_prose_outside_json
+  - must_conform_to_schema
+  - no_human_questions_directly
+  - read_only_no_tests_no_edits
+  synthesis_requirements:
+  - all_role_reports_schema_valid
+  - role_report_validation_recorded
+  - invalid_role_output_blocks_synthesis
+  - candidate_findings_not_authoritative
 human_interaction:
   mode: main-agent-mediated
   reviewers_may_ask_human: false
@@ -291,14 +317,17 @@ phases:
 - id: expert_assessment
   kind: review
   purpose: Read-only architecture, verification and adversarial assessment agents
-    produce candidate workflow/gate/risk recommendations; the main agent synthesizes
-    them into project-assessment.json.
+    produce schema-valid JSON candidate workflow/gate/risk recommendations; prompt-sensitive
+    target workflows may add a prompt-engineering assessment. The main agent may
+    synthesize them into project-assessment.json only after schema validation passes.
   skills:
   - project-onboarding-assessment
+  output_contract: expert_assessment_output_contract
   outputs:
   - project-assessment.architecture.json
   - project-assessment.verification.json
   - project-assessment.adversarial.json
+  - project-assessment.prompt-engineering.json when target workflow is prompt-sensitive
   - project-assessment.json
 - id: documentation_disposition_decision
   kind: decision

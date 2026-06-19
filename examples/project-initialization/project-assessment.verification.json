@@ -2,6 +2,7 @@
   "version": 1,
   "assessment_type": "project-onboarding",
   "role": "verification",
+  "readiness": "ready_with_blockers",
   "basis": {
     "intake": "project-intake.yaml",
     "raw_scan": "project-raw-scan.json",
@@ -12,9 +13,20 @@
       "id": "AF-INIT-VER-001",
       "severity": "P2",
       "finding": "The canonical test command is not confirmed until the human operating-decisions interview records it.",
-      "status": "candidate"
+      "status": "candidate-unvalidated"
     }
   ],
+  "open_questions_for_main_agent": [
+    {
+      "question": "Which checks are mandatory blockers and which are advisory?",
+      "blocking": true,
+      "rationale": "Verification blocker policy affects project-bound gate semantics."
+    }
+  ],
+  "positive_evidence": [
+    "The project has a candidate verification surface to bind after human confirmation."
+  ],
+  "recommended_next_phase": "proceed_to_documentation_disposition",
   "workflow_recommendations": [],
   "gate_recommendations": [
     "Bind verification_gate to the confirmed pytest command before using implementation workflows."

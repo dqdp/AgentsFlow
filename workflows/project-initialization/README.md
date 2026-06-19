@@ -19,7 +19,12 @@ the only supported `prepare-workflow.target_workflow` is
 
 Expert assessment uses read-only architecture, verification and adversarial role
 reports plus a synthesis report. These are candidate assessments for the main
-agent and human; they are not authoritative decisions.
+agent and human; they are not authoritative decisions. Role reports are strict
+JSON artifacts bound to `schemas/project-assessment.schema.json`; synthesis is
+blocked until all required role reports validate. Markdown or prose-only role
+output is rejected, rerun or paused instead of normalized as authoritative. A
+prompt-engineering role report may be added for prompt-sensitive target
+workflows, but it does not replace the required triad.
 
 Existing-project modes record `project-documentation-disposition.yaml` before
 legacy adoption, target-workflow readiness or overlay drafting. This classifies

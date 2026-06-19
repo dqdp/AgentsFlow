@@ -207,6 +207,17 @@ adversarial assessment
 synthesis assessment
 ```
 
+Role reports are phase-boundary artifacts, so they must be returned as strict
+JSON conforming to `schemas/project-assessment.schema.json`. Markdown or
+prose-only assessment output is invalid workflow evidence: the main agent must
+reject it and rerun or pause instead of silently normalizing it as authoritative.
+Synthesis is allowed only after all required role reports validate against the
+schema and the synthesis artifact records that validation.
+
+For prompt-sensitive target workflows, initialization may add a
+`prompt_engineering` role report. This is additive; the architecture,
+verification and adversarial triad remains required.
+
 The role reports may overlap. They produce candidate workflow/gate/risk
 recommendations, open questions and human-decision items. Their findings are
 candidate findings and follow the review-finding validation model.
@@ -317,7 +328,8 @@ The shared backbone is:
 4. Run raw project scan.
 5. Discover documentation and implementation history.
 6. Produce structured project inventory, including domain identification.
-7. Run triad expert assessments and synthesize candidate recommendations.
+7. Run schema-bound triad expert assessments and synthesize candidate
+   recommendations only after all required role reports validate.
 8. For existing-project modes, record project documentation disposition before
    legacy adoption, target-workflow readiness or overlay drafting.
 ```
@@ -471,7 +483,7 @@ term-map.md
 target-system-spec.md
 enabling-system-spec.md
 decision-contract.md
-project-assessment.md
+project-assessment.json
 initialization-report.md
 ```
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .common import parse_json, parse_yaml, validate_against_schema
+from .common import parse_json, parse_yaml, safe_resolve, validate_against_schema
 
 
 TARGET_WORKFLOW_DECISION_CATEGORIES = {
@@ -16,6 +16,113 @@ TARGET_WORKFLOW_DECISION_CATEGORIES = {
     "authority",
     "workflow-design",
 }
+
+PROJECT_ASSESSMENT_ROLE_ARTIFACTS = {
+    "architecture": "project-assessment.architecture.json",
+    "verification": "project-assessment.verification.json",
+    "adversarial": "project-assessment.adversarial.json",
+    "prompt_engineering": "project-assessment.prompt-engineering.json",
+}
+PROJECT_ASSESSMENT_REQUIRED_ROLES = {"architecture", "verification", "adversarial"}
+
+
+def validate_project_assessment_synthesis_artifact(root: Path, path: Path) -> list[str]:
+    errors: list[str] = []
+    schema = parse_json(root / "schemas" / "project-assessment.schema.json")
+    data = parse_json(path)
+    if not isinstance(data, dict):
+        return [f"{path}: project assessment synthesis must be a mapping"]
+
+    errors.extend(validate_against_schema(path, data, schema))
+    if data.get("role") != "synthesis":
+        errors.append(f"{path}: project assessment synthesis role must be synthesis")
+
+    role_reports = data.get("role_reports", []) or []
+    if not isinstance(role_reports, list):
+        return errors
+
+    seen_roles: set[str] = set()
+    for idx, report in enumerate(role_reports):
+        if not isinstance(report, dict):
+            continue
+        role = str(report.get("role", ""))
+        artifact = report.get("artifact")
+        if role:
+            seen_roles.add(role)
+        if not isinstance(artifact, str):
+            continue
+        label = f"{path}: role_reports[{idx}].artifact"
+        if not artifact.endswith(".json"):
+            errors.append(f"{label} must reference a .json role report artifact")
+            continue
+        expected_artifact = PROJECT_ASSESSMENT_ROLE_ARTIFACTS.get(role)
+        if expected_artifact and artifact != expected_artifact:
+            errors.append(f"{path}: role_reports[{idx}] artifact for {role} must be {expected_artifact}")
+        artifact_path = safe_resolve(path.parent, artifact, label, errors)
+        if artifact_path is None:
+            continue
+        if not artifact_path.exists():
+            errors.append(f"{path}: missing referenced role report artifact: {artifact}")
+            continue
+        try:
+            role_data = parse_json(artifact_path)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        if not isinstance(role_data, dict):
+            errors.append(f"{artifact_path}: role report must be a mapping")
+            continue
+        errors.extend(validate_against_schema(artifact_path, role_data, schema))
+        if role_data.get("role") != role:
+            errors.append(f"{artifact_path}: role report role must match synthesis role_reports entry {role}")
+        if role_data.get("role") == "synthesis":
+            errors.append(f"{artifact_path}: role report must not be a synthesis artifact")
+
+    missing_roles = sorted(PROJECT_ASSESSMENT_REQUIRED_ROLES - seen_roles)
+    if missing_roles:
+        errors.append(f"{path}: role_reports missing required roles: {', '.join(missing_roles)}")
+
+    return errors
+
+
+def validate_project_onboarding_assessment_skill_contract(root: Path) -> list[str]:
+    errors: list[str] = []
+    skill_dir = root / "skills" / "project-onboarding-assessment"
+    skill_md = skill_dir / "SKILL.md"
+    skill_yaml = skill_dir / "skill.yaml"
+
+    manifest = parse_yaml(skill_yaml) or {}
+    if not isinstance(manifest, dict):
+        return [f"{skill_yaml}: skill manifest must be a mapping"]
+
+    outputs = set(str(item) for item in manifest.get("outputs", []) or [])
+    required_outputs = {
+        "project-assessment.architecture.json",
+        "project-assessment.verification.json",
+        "project-assessment.adversarial.json",
+        "project-assessment.prompt-engineering.json when prompt-sensitive",
+        "project-assessment.json",
+    }
+    missing_outputs = sorted(required_outputs - outputs)
+    if missing_outputs:
+        errors.append(f"{skill_yaml}: outputs missing: {', '.join(missing_outputs)}")
+
+    text = skill_md.read_text(encoding="utf-8")
+    lower_text = text.lower()
+    required_phrases = {
+        "schemas/project-assessment.schema.json": "schema reference",
+        "templates/project-assessment.role.json": "role report template reference",
+        "strict json": "strict JSON requirement",
+        "before synthesis": "validation-before-synthesis rule",
+        "reject": "invalid-output rejection rule",
+        "markdown or prose-only": "Markdown/prose-only invalid-output rule",
+        "prompt_engineering": "conditional prompt-engineering role",
+    }
+    for phrase, label in required_phrases.items():
+        if phrase not in lower_text:
+            errors.append(f"{skill_md}: missing {label}: {phrase}")
+
+    return errors
 
 
 def validate_project_documentation_disposition_artifact(root: Path, path: Path) -> list[str]:
@@ -186,6 +293,115 @@ def validate_project_initialization_human_interaction(path: Path, data: dict) ->
             errors.append(f"{path}: phase {phase_id} must use human-questions.yaml")
         if phase_human.get("decision_artifact") != "human-decisions.yaml":
             errors.append(f"{path}: phase {phase_id} must use human-decisions.yaml")
+    return errors
+
+
+def validate_project_initialization_expert_assessment_contract(path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    if data.get("name") != "project-initialization":
+        return errors
+
+    contract = data.get("expert_assessment_output_contract")
+    if not isinstance(contract, dict):
+        return [f"{path}: expert_assessment_output_contract is required"]
+
+    if contract.get("response_format") != "strict_json":
+        errors.append(f"{path}: expert_assessment_output_contract.response_format must be strict_json")
+    if contract.get("schema") != "schemas/project-assessment.schema.json":
+        errors.append(
+            f"{path}: expert_assessment_output_contract.schema must be schemas/project-assessment.schema.json"
+        )
+    if contract.get("role_report_template") != "templates/project-assessment.role.json":
+        errors.append(
+            f"{path}: expert_assessment_output_contract.role_report_template must be templates/project-assessment.role.json"
+        )
+    if contract.get("synthesis_template") != "templates/project-assessment.json":
+        errors.append(
+            f"{path}: expert_assessment_output_contract.synthesis_template must be templates/project-assessment.json"
+        )
+    if contract.get("validation_required_before_synthesis") is not True:
+        errors.append(
+            f"{path}: expert_assessment_output_contract.validation_required_before_synthesis must be true"
+        )
+    if contract.get("invalid_output_policy") != "reject_and_rerun_or_pause":
+        errors.append(
+            f"{path}: expert_assessment_output_contract.invalid_output_policy must be reject_and_rerun_or_pause"
+        )
+    if contract.get("raw_prose_must_not_be_normalized_as_authoritative") is not True:
+        errors.append(
+            f"{path}: expert_assessment_output_contract.raw_prose_must_not_be_normalized_as_authoritative must be true"
+        )
+
+    prompt_requirements = set(str(item) for item in contract.get("launch_prompt_requirements", []) or [])
+    required_prompt_requirements = {
+        "return_only_valid_json",
+        "no_markdown_or_prose_outside_json",
+        "must_conform_to_schema",
+        "no_human_questions_directly",
+        "read_only_no_tests_no_edits",
+    }
+    missing_prompt_requirements = sorted(required_prompt_requirements - prompt_requirements)
+    if missing_prompt_requirements:
+        errors.append(
+            f"{path}: expert_assessment_output_contract.launch_prompt_requirements missing: "
+            + ", ".join(missing_prompt_requirements)
+        )
+
+    synthesis_requirements = set(str(item) for item in contract.get("synthesis_requirements", []) or [])
+    required_synthesis_requirements = {
+        "all_role_reports_schema_valid",
+        "role_report_validation_recorded",
+        "invalid_role_output_blocks_synthesis",
+        "candidate_findings_not_authoritative",
+    }
+    missing_synthesis_requirements = sorted(required_synthesis_requirements - synthesis_requirements)
+    if missing_synthesis_requirements:
+        errors.append(
+            f"{path}: expert_assessment_output_contract.synthesis_requirements missing: "
+            + ", ".join(missing_synthesis_requirements)
+        )
+
+    expert = data.get("expert_assessment", {}) or {}
+    if expert.get("fresh_context_no_fork") is not True:
+        errors.append(f"{path}: expert_assessment.fresh_context_no_fork must be true")
+    if expert.get("reviewers_read_only") is not True:
+        errors.append(f"{path}: expert_assessment.reviewers_read_only must be true")
+    role_reports = set(str(item) for item in expert.get("role_reports", []) or [])
+    required_roles = {"architecture", "verification", "adversarial"}
+    missing_roles = sorted(required_roles - role_reports)
+    if missing_roles:
+        errors.append(f"{path}: expert_assessment.role_reports missing: {', '.join(missing_roles)}")
+
+    conditional_roles = expert.get("conditional_role_reports", []) or []
+    prompt_role_present = any(
+        isinstance(item, dict) and item.get("role") == "prompt_engineering"
+        for item in conditional_roles
+    )
+    if not prompt_role_present:
+        errors.append(f"{path}: expert_assessment.conditional_role_reports must include prompt_engineering")
+
+    phase_by_id = {
+        phase.get("id"): phase
+        for phase in data.get("phases", []) or []
+        if isinstance(phase, dict) and phase.get("id")
+    }
+    expert_phase = phase_by_id.get("expert_assessment", {}) or {}
+    if expert_phase.get("output_contract") != "expert_assessment_output_contract":
+        errors.append(f"{path}: expert_assessment phase must bind expert_assessment_output_contract")
+    phase_outputs = set(str(item) for item in expert_phase.get("outputs", []) or [])
+    for required_output in [
+        "project-assessment.architecture.json",
+        "project-assessment.verification.json",
+        "project-assessment.adversarial.json",
+        "project-assessment.json",
+    ]:
+        if required_output not in phase_outputs:
+            errors.append(f"{path}: expert_assessment phase outputs missing {required_output}")
+    if not any("project-assessment.prompt-engineering.json" in item for item in phase_outputs):
+        errors.append(
+            f"{path}: expert_assessment phase outputs must allow project-assessment.prompt-engineering.json"
+        )
+
     return errors
 
 

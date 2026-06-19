@@ -151,9 +151,14 @@ Mandatory application workflow with mode-gated continuations:
 
 ```text
 intake with intent_mode -> raw scan -> structured inventory -> domain identification
--> triad expert assessment -> documentation disposition for existing-project modes
+-> schema-bound triad expert assessment -> documentation disposition for existing-project modes
 -> mode-specific exit or continuation
 ```
+
+Expert assessment role reports are strict JSON artifacts bound to
+`schemas/project-assessment.schema.json`. Synthesis is not allowed until all
+required role reports are schema-valid; Markdown or prose-only role output is
+rejected, rerun or paused instead of normalized as authoritative evidence.
 
 Mode-specific continuations:
 

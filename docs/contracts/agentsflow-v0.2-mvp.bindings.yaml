@@ -174,6 +174,38 @@ bindings:
           - pytest-output
     gates:
       - verification_gate
+  - id: AF-V02-BHV-016
+    scenario: "Expert assessment role reports are schema-bound before synthesis"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-project-assessment-schema-bound
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_assessment_schema_requires_triad_synthesis"
+        evidence:
+          - pytest-output
+      - id: pytest-project-assessment-referenced-artifacts
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_assessment_synthesis_validates_referenced_role_reports"
+        evidence:
+          - pytest-output
+      - id: pytest-project-assessment-skill-contract
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_onboarding_assessment_skill_carries_schema_bound_contract"
+        evidence:
+          - pytest-output
+      - id: pytest-project-assessment-workflow-contract
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_expert_assessment_requires_schema_bound_json_contract"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
   - id: AF-V02-BHV-009
     scenario: "Big-feature plan gate follows effective strictness"
     required: true

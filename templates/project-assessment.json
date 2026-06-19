@@ -29,6 +29,13 @@
       "authority": "candidate"
     }
   ],
+  "role_report_validation": {
+    "schema": "schemas/project-assessment.schema.json",
+    "all_role_reports_schema_valid": true,
+    "invalid_role_report_policy": "reject_and_rerun_or_pause",
+    "synthesis_allowed": true,
+    "raw_prose_normalized_as_authoritative": false
+  },
   "candidate_findings": [],
   "domain_assessment": {
     "domain_assumptions": [],

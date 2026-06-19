@@ -117,6 +117,13 @@ Feature: AgentsFlow v0.2 MVP contract layer
     And prepare-workflow must use that artifact as run-level target workflow context
     And initialization must not rewrite or delete project documentation without human approval
 
+  Scenario: Expert assessment role reports are schema-bound before synthesis
+    Given project-initialization runs the expert_assessment phase
+    When assessment agents return role reports
+    Then each role report must be strict JSON conforming to project-assessment.schema.json
+    And synthesis must be forbidden until all role reports are schema-valid
+    And Markdown or prose-only role output must be rejected, rerun or paused instead of normalized as authoritative
+
   Scenario: Big-feature plan gate follows effective strictness
     Given big-feature-contract-first declares default_strictness L3
     When a project binding inherits the workflow default and omits plan_gate
@@ -179,6 +186,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Prepare-workflow target is limited to the supported target workflow | `pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow`; `pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target` |
 | Prepare-workflow missing context or design forks use a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions` |
 | Existing-project initialization records documentation disposition | `pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes`; `pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition` |
+| Expert assessment role reports are schema-bound before synthesis | `pytest tests/test_scripts_smoke.py::test_project_assessment_schema_requires_triad_synthesis`; `pytest tests/test_scripts_smoke.py::test_project_assessment_synthesis_validates_referenced_role_reports`; `pytest tests/test_scripts_smoke.py::test_project_onboarding_assessment_skill_carries_schema_bound_contract`; `pytest tests/test_scripts_smoke.py::test_project_initialization_expert_assessment_requires_schema_bound_json_contract` |
 | Big-feature plan gate follows effective strictness | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2`; `pytest tests/test_scripts_smoke.py::test_project_binding_strictness_override_requires_reason`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_raw_strictness_without_override_source`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_unsupported_strictness_override`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_strictness_override_without_workflow_support_list`; `pytest tests/test_scripts_smoke.py::test_workflow_run_strictness_requires_source_and_override_reason`; `pytest tests/test_scripts_smoke.py::test_workflow_run_rejects_disguised_workflow_default_strictness` |
 | Evidence probe reports are evidence-only | `pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources` |
 | Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch`; `pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch` |
