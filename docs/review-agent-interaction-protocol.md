@@ -261,7 +261,7 @@ For each finding, the main agent must inspect the available relevant inputs:
 - verification gate report;
 - evidence bundle and command logs;
 - relevant ADRs and accepted decisions;
-- workflow profile, strictness, review topology;
+- workflow profile, effective strictness, review topology;
 - scope, non-goals, and explicit exclusions;
 - prior validated findings, if any.
 

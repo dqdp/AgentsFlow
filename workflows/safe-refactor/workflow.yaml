@@ -2,6 +2,7 @@ name: safe-refactor
 version: 0.1
 intent: Perform a scoped refactor while preserving behavior and preventing unrelated
   changes.
+default_strictness: L2
 entry_criteria:
 - Behavior should remain stable; structural change is desired.
 outputs:
@@ -123,7 +124,7 @@ phases:
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 review_control_rules:
   review_agents_read_only: true
   review_agents_run_after: verification_gate

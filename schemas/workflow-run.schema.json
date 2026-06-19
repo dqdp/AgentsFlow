@@ -9,7 +9,15 @@
     "workflow": {"type": "string"},
     "agentsflow_version": {"type": "string"},
     "binding": {"type": "string"},
-    "strictness": {"type": "string"},
+    "strictness": {
+      "type": "string",
+      "enum": ["L0", "L1", "L2", "L3", "L4"]
+    },
+    "strictness_source": {
+      "type": "string",
+      "enum": ["workflow_default", "project_override", "task_override", "legacy_selected"]
+    },
+    "strictness_override_reason": {"type": "string", "minLength": 1},
     "review_topology": {"type": "string"},
     "status": {"type": "string"},
     "human_interaction": {"type": "object"},
@@ -65,5 +73,36 @@
     },
     "phase_status": {"type": "array"}
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "required": ["strictness"]
+      },
+      "then": {
+        "required": ["strictness_source"]
+      }
+    },
+    {
+      "if": {
+        "required": ["strictness_source"]
+      },
+      "then": {
+        "required": ["strictness"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "strictness_source": {
+            "enum": ["project_override", "task_override", "legacy_selected"]
+          }
+        },
+        "required": ["strictness_source"]
+      },
+      "then": {
+        "required": ["strictness_override_reason"]
+      }
+    }
+  ]
 }

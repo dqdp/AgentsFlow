@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .common import parse_yaml, safe_resolve, validate_against_schema
-from .gates import required_workflow_gates, validate_project_gate_manifest
+from .gates import required_workflow_gates, validate_binding_strictness_policy, validate_project_gate_manifest
 from .review import validate_enabled_review_minimum
 
 
@@ -58,8 +58,17 @@ def validate_project_overlay_example(
                 errors.append(f"{binding_file}: upstream workflow does not exist: {extends}")
             gates = binding.get("gates", {}) or {}
             if extends_path and extends_path.exists() and isinstance(gates, dict):
+                workflow = parse_yaml(extends_path) or {}
+                if not isinstance(workflow, dict):
+                    workflow = {}
+                strictness_errors, override_strictness = validate_binding_strictness_policy(
+                    binding_file,
+                    binding,
+                    workflow,
+                )
+                errors.extend(strictness_errors)
                 missing_gates = sorted(
-                    required_workflow_gates(extends_path, binding.get("strictness"))
+                    required_workflow_gates(extends_path, override_strictness)
                     - set(str(key) for key in gates)
                 )
                 if missing_gates:
@@ -90,4 +99,3 @@ def validate_project_overlay_example(
                 if runner_path and not runner_path.exists():
                     errors.append(f"{binding_file}: gate {gate_id} runner missing: {runner}")
     return errors
-

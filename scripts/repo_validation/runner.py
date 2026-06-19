@@ -50,6 +50,7 @@ from .workflows import (
     validate_big_feature_plan_gate_policy,
     validate_phase_scripts_declared,
     validate_test_framed_implementation,
+    validate_workflow_default_strictness,
 )
 
 
@@ -174,6 +175,7 @@ def validate_repository(root: Path) -> list[str]:
             errors.append(f'Workflow {wf} is not a mapping')
             continue
         errors.extend(validate_against_schema(wf, data, wf_schema))
+        errors.extend(validate_workflow_default_strictness(wf, data))
         errors.extend(validate_test_framed_implementation(wf, data))
         errors.extend(validate_project_initialization_operating_decisions(wf, data))
         errors.extend(validate_project_initialization_human_interaction(wf, data))
@@ -233,4 +235,3 @@ def main() -> int:
         return 1
     print('Repository validation passed.')
     return 0
-

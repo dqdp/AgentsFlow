@@ -78,6 +78,11 @@ Human interaction in v0.2 is main-agent mediated. Workflows that need human
 decisions declare pause-capable phases and record questions/answers as run
 artifacts; review agents do not question humans directly.
 
+When a workflow says "gate", it must not hide who has authority. Deterministic
+gates are runner-decided, review gates are reviewer-output plus relevance
+validation, and human-mediated gates require main-agent synthesis plus a
+recorded human decision.
+
 Workflow runs may use `phase_guard` in `workflow-run.yaml` as a lightweight
 phase pointer. The guard records the current phase, allowed next phases and
 allowed outputs. It is deliberately smaller than a workflow runtime: v0.2
@@ -183,10 +188,20 @@ Reference end-to-end development workflow:
 
 ```text
 intake -> operating context preflight -> repository grounding -> contract
--> behavior bindings -> plan gate (L3/L4) -> red capture (contract scenarios as executable tests, failing run)
+-> behavior bindings -> plan gate when effective strictness requires it
+-> red capture (contract scenarios as executable tests, failing run)
 -> implementation -> verification gate (green re-run) -> review
 -> fusion -> finding validation -> final decision
 ```
+
+`big-feature-contract-first` declares a workflow default for its normal depth.
+Project bindings inherit that default unless they explicitly record a lighter or
+heavier strictness override with a reason.
+
+If a project requires agentic review of the plan followed by human approval
+before red capture, model it explicitly as a human-mediated gate or a declared
+project-bound policy. Do not treat that step as an implicit side effect of
+`plan_gate`.
 
 Open questions are classified in the task contract. Unresolved
 `blocking-material` questions pause the workflow; nonblocking questions are

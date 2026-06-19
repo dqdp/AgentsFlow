@@ -9,7 +9,8 @@ identity:
   review_profile: heterogeneous-variable
   topology: heterogeneous-variable
   composition: heterogeneous
-  strictness: L3
+  effective_strictness: L3
+  strictness_source: workflow_default
   primary_gate: true
 
 inputs:

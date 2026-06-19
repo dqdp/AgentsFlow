@@ -11,6 +11,10 @@ v0.2 also replaces the early narrative topology labels below with the canonical
 profile names `homogeneous-dual`, `homogeneous-plus-focused`,
 `heterogeneous-variable`, and `collision-control`.
 
+Updated for default strictness: review topology remains separate from strictness.
+Workflows own their normal depth through `default_strictness`; project or run
+overrides are explicit deviations, not routine setup choices.
+
 ## Context
 
 Multi-model review and fusion are valuable but should not become a separate heavyweight mode that competes with workflows.
@@ -32,7 +36,7 @@ Historical seed examples:
 Positive:
 
 - workflows decide when review is needed;
-- strictness controls depth;
+- workflow default/effective strictness controls depth;
 - fusion can be reused across workflows;
 - blocking issues can be surfaced consistently.
 

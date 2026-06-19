@@ -75,7 +75,7 @@ artifact evidence-pair validation is not.)
   green runs happen by construction and keeps the workflow definition honest. The
   deterministic evidence check is retained, but as the *enforcement* of this rule,
   not as a substitute for it.
-- **A strictness-profile-scaled mandate (mandatory only at L3/L4).** Rejected as
+- **A strictness-scaled mandate (mandatory only at reviewed/critical depth).** Rejected as
   overcomplicated for v0.2: the rule is about the presence of an implementation
   phase, not about risk level. Workflows without an implementation phase
   (review-only, spec-first) are simply unaffected, which already provides

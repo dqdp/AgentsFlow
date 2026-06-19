@@ -1,6 +1,7 @@
 name: research-to-ADR
 version: 0.1
 intent: Convert research into a decision memo and ADR draft without premature implementation.
+default_strictness: L2
 entry_criteria:
 - A design question needs external/internal research before implementation.
 outputs:
@@ -75,7 +76,7 @@ phases:
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 review_control_rules:
   review_findings_are_candidate_findings: true
   main_agent_must_validate_finding_relevance: true

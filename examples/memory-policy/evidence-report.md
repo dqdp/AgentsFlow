@@ -3,7 +3,7 @@
 Status: pass-with-notes
 Contract: `examples/memory-policy/Docs/contracts/memory-policy.contract.md`
 Workflow: `agentic-system-hardening`
-Strictness: `L2`
+Effective Strictness: `L2`
 
 ## Summary
 

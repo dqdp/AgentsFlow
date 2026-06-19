@@ -17,7 +17,7 @@ Reviewer findings are candidate findings. They become accepted issues only after
 - [ ] verification gate report
 - [ ] evidence bundle / logs
 - [ ] relevant ADRs / accepted decisions
-- [ ] workflow profile / strictness / topology
+- [ ] workflow profile / effective strictness / topology
 - [ ] scope and non-goals
 
 ## Validation Table

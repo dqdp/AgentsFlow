@@ -25,7 +25,8 @@
                      │ parameterize
 ┌───────────────────────────────────────────┐
 │ Domain Packs / Profiles                    │
-│ domain rules, strictness, review topology  │
+│ domain rules, default/effective strictness │
+│ and review topology                        │
 └───────────────────────────────────────────┘
 ```
 
@@ -36,7 +37,7 @@ User intent
   ↓
 Workflow selection
   ↓
-Domain pack + strictness + review topology
+Domain pack + workflow default strictness + review topology
   ↓
 Contract/specification authoring
   ↓
@@ -78,7 +79,8 @@ Acceptance proof
 | Gate manifest | Declares executable gate and runner | `gates/<gate-id>.yaml` |
 | Evidence report | Completion proof | target project or task artifact |
 | Domain pack | Domain rules | `packs/<domain>/PACK.md` |
-| Strictness profile | Gate depth | `profiles/strictness/*.yaml` |
+| Default strictness | Workflow-owned baseline gate depth | `workflows/<name>/workflow.yaml` |
+| Strictness override | Explicit project/run deviation from the workflow default | `.agentsflow/workflows/*.binding.yaml`, workflow run metadata |
 
 ## Design boundaries
 

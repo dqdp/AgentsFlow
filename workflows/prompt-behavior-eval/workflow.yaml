@@ -2,6 +2,7 @@ name: prompt-behavior-eval
 version: 0.1
 intent: Evaluate prompt, skill, or instruction changes through behavior scenarios
   and regression checks.
+default_strictness: L3
 entry_criteria:
 - Primary artifact is a prompt, instruction, or skill behavior change.
 outputs:
@@ -92,7 +93,7 @@ phases:
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 review_control_rules:
   review_agents_read_only: true
   review_agents_run_after: verification_gate

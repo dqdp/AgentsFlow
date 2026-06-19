@@ -1,5 +1,15 @@
 # Gate Report
 
+Gate authority mode:
+
+- `deterministic_gate`
+- `review_gate`
+- `human_mediated_gate`
+
+Use the mode that matches who has decision authority for this report. A
+deterministic gate report must not silently include human approval or reviewer
+acceptance unless those are declared inputs/evidence for the gate.
+
 ## Gate
 
 - Name:

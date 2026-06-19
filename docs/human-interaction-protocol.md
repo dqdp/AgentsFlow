@@ -20,6 +20,36 @@ Human interaction is mediated by the main/orchestrating agent.
 Review agents do not ask the human questions directly.
 ```
 
+## Human-mediated gates
+
+A `human_mediated_gate` is a workflow control point where the human makes or
+confirms the exit decision after the main/orchestrating agent has synthesized the
+relevant evidence, reviewer outputs, options and consequences.
+
+It is different from:
+
+```text
+deterministic_gate
+  A runner evaluates declared checks/evidence and emits a gate report.
+
+review_gate
+  Review agents emit candidate findings and the main agent validates relevance.
+```
+
+The human does not manually fill YAML. The main/orchestrating agent asks the
+decision question in dialogue, then records the normalized result in
+`human-decisions.yaml` and updates affected artifacts.
+
+For example, a pre-red-capture plan decision may be modeled as:
+
+```text
+technical_plan -> deterministic plan_gate -> plan review reports
+-> main-agent synthesis -> human_mediated_gate decision -> red_capture
+```
+
+The exact phase shape must be declared by the workflow or project binding. A
+phase-transition checker must not infer this gate from conversation alone.
+
 Review agents may produce:
 
 ```text

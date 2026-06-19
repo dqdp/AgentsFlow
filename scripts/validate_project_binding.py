@@ -246,10 +246,64 @@ def validate_project_gate_manifest(
     return errors
 
 
+STRICTNESS_OVERRIDE_SOURCES = {"project_override", "task_override", "legacy_selected"}
+
+
+def supported_workflow_strictness(workflow: dict) -> set[str]:
+    return {str(item) for item in ((workflow.get("supported_profiles") or {}).get("strictness") or [])}
+
+
+def validate_binding_strictness_policy(path: Path, binding: dict, workflow: dict) -> tuple[list[str], object]:
+    errors: list[str] = []
+    local_strictness = binding.get("strictness")
+    source = binding.get("strictness_source")
+    reason = binding.get("strictness_override_reason")
+    supported = supported_workflow_strictness(workflow)
+    default = workflow.get("default_strictness")
+
+    if default is not None and supported and str(default) not in supported:
+        errors.append(f"{path}: workflow default_strictness {default} is not listed in supported_profiles.strictness")
+
+    override_valid = False
+    if local_strictness is not None:
+        if not supported:
+            errors.append(
+                f"{path}: local strictness override requires upstream workflow "
+                "supported_profiles.strictness"
+            )
+        if source not in STRICTNESS_OVERRIDE_SOURCES:
+            errors.append(
+                f"{path}: local strictness requires strictness_source "
+                "project_override, task_override, or legacy_selected"
+            )
+        if not reason:
+            errors.append(f"{path}: local strictness requires strictness_override_reason")
+        if supported and str(local_strictness) not in supported:
+            errors.append(
+                f"{path}: strictness {local_strictness} is not supported by upstream workflow "
+                f"{workflow.get('name', binding.get('workflow'))}"
+            )
+        override_valid = bool(
+            source in STRICTNESS_OVERRIDE_SOURCES
+            and reason
+            and supported
+            and str(local_strictness) in supported
+        )
+
+    return errors, local_strictness if override_valid else None
+
+
+def effective_strictness(workflow: dict, selected_strictness: object) -> object:
+    if selected_strictness is not None:
+        return selected_strictness
+    return workflow.get("default_strictness")
+
+
 def required_workflow_gates(workflow_path: Path, selected_strictness: object) -> set[str]:
     if not workflow_path.exists():
         return set()
     workflow = load_yaml(workflow_path)
+    selected_strictness = effective_strictness(workflow, selected_strictness)
     gates: set[str] = set()
     for phase in workflow.get("phases", []) or []:
         if not isinstance(phase, dict) or not phase.get("gate"):
@@ -312,8 +366,15 @@ def main() -> int:
                 errors.append(f"{binding_file}: gates must be a mapping")
                 continue
             if extends_path and extends_path.exists():
+                workflow = load_yaml(extends_path)
+                strictness_errors, override_strictness = validate_binding_strictness_policy(
+                    binding_file,
+                    binding,
+                    workflow,
+                )
+                errors.extend(strictness_errors)
                 missing_gates = sorted(
-                    required_workflow_gates(extends_path, binding.get("strictness"))
+                    required_workflow_gates(extends_path, override_strictness)
                     - set(str(key) for key in gates)
                 )
                 if missing_gates:

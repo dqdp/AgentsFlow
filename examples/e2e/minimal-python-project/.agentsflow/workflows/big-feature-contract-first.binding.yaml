@@ -2,6 +2,8 @@ workflow: big-feature-contract-first
 extends: workflows/big-feature-contract-first/workflow.yaml
 agentsflow_version: 0.2
 strictness: L2
+strictness_source: project_override
+strictness_override_reason: "Minimal e2e fixture uses the lighter contract profile to avoid overclaiming plan-gate evidence."
 binding:
   project: minimal-python-project
   docs_root: Docs/

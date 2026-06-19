@@ -2,6 +2,7 @@ name: new-project-spec-first
 version: 0.1
 intent: Turn a vague project idea into a project brief, architecture options, ADR
   seeds, and first behavioral contracts before implementation.
+default_strictness: L2
 entry_criteria:
 - Project idea exists but implementation should not start yet.
 outputs:
@@ -202,7 +203,7 @@ phases:
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 - Spec review candidate blockers were relevance-validated before final specification
   decision support.
 review_control_rules:

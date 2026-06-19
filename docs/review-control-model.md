@@ -136,12 +136,20 @@ mandatory evidence gaps.
 The project core defines the shared interfaces and invariants:
 
 ```text
-Gate = decision point.
+Gate = workflow control point with explicit exit criteria and authority mode.
 Reviewer = independent read-only evaluator.
 Fusion = synthesis of reviewer outputs.
 Evidence = artifact proving what was checked.
 Topology = configuration of the review process.
 Blocking issue = issue that cannot be overridden by majority vote.
+```
+
+Gate authority mode must be explicit when it affects workflow behavior:
+
+```text
+deterministic_gate = runner/check evidence -> gate report
+review_gate = reviewer reports -> main-agent relevance validation
+human_mediated_gate = evidence/review synthesis -> recorded human decision
 ```
 
 The project core does **not** decide that every task must use review, full gates,
@@ -157,6 +165,7 @@ A workflow decides:
 - how many reviewers to run;
 - which reviewer roles to use;
 - which gates are mandatory or optional;
+- which gate authority modes are used;
 - whether fusion is required;
 - what counts as pass/fail/needs-human-decision;
 - which checks belong inside the verification gate.

@@ -3,7 +3,8 @@ run_id: "YYYY-MM-DD-task-slug"
 workflow: big-feature-contract-first
 agentsflow_version: v0.2.0
 binding: .agentsflow/workflows/big-feature-contract-first.binding.yaml
-strictness: L2
+strictness: L3
+strictness_source: workflow_default
 review_topology: homogeneous-dual
 review_composition: homogeneous
 prompt_policy:

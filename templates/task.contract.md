@@ -3,7 +3,7 @@
 Status: Draft
 Workflow: <workflow-name>
 Domain Pack: <domain-pack>
-Strictness: <L0-L4>
+Effective Strictness: <workflow-default-or-explicit-override>
 Review Topology: <none|homogeneous-dual|homogeneous-plus-focused|heterogeneous-variable>
 Target Workflow: <workflow-name>
 

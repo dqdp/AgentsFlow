@@ -14,7 +14,9 @@ AgentsFlow treats Specification / Plan Mode as a reusable phase pattern and arti
 
 It is not a new top-level abstraction and not a single global workflow.
 
-Workflows may include planning/specification phases at different depth depending on workflow type, strictness, risk, and domain pack.
+Workflows may include planning/specification phases at different depth depending
+on workflow type, workflow default strictness, effective project/run strictness,
+risk, and domain pack.
 
 AgentsFlow core provides lightweight native planning skills/templates/gates. Advanced decision-engineering systems such as haft/quint code may be used as optional external planning providers.
 

@@ -158,11 +158,98 @@ def test_project_binding_does_not_require_higher_strictness_gate_for_l2(tmp_path
     binding_path = project / ".agentsflow/workflows/big-feature-contract-first.binding.yaml"
     binding = yaml.safe_load(binding_path.read_text(encoding="utf-8"))
     binding["strictness"] = "L2"
+    binding["strictness_source"] = "project_override"
+    binding["strictness_override_reason"] = "Test fixture intentionally exercises the lighter contract profile."
     binding["gates"].pop("plan_gate")
     binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
 
     result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_project_binding_strictness_override_requires_reason(tmp_path) -> None:
+    import shutil
+    import yaml
+
+    project = tmp_path / "project"
+    shutil.copytree(ROOT / "examples/e2e/minimal-python-project/.agentsflow", project / ".agentsflow")
+    binding_path = project / ".agentsflow/workflows/big-feature-contract-first.binding.yaml"
+    binding = yaml.safe_load(binding_path.read_text(encoding="utf-8"))
+    binding["strictness_source"] = "project_override"
+    binding.pop("strictness_override_reason", None)
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "strictness_override_reason" in (result.stdout + result.stderr)
+
+
+def test_project_binding_rejects_raw_strictness_without_override_source(tmp_path) -> None:
+    import shutil
+    import yaml
+
+    project = tmp_path / "project"
+    shutil.copytree(ROOT / "examples/project-overlay/.agentsflow", project / ".agentsflow")
+    binding_path = project / ".agentsflow/workflows/big-feature-contract-first.binding.yaml"
+    binding = yaml.safe_load(binding_path.read_text(encoding="utf-8"))
+    binding["strictness"] = "L2"
+    binding.pop("strictness_source", None)
+    binding.pop("strictness_override_reason", None)
+    binding["gates"].pop("plan_gate")
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    output = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert "strictness_source" in output
+    assert "strictness_override_reason" in output
+    assert "missing project gate binding(s): plan_gate" in output
+
+
+def test_project_binding_rejects_unsupported_strictness_override(tmp_path) -> None:
+    import shutil
+    import yaml
+
+    project = tmp_path / "project"
+    shutil.copytree(ROOT / "examples/project-overlay/.agentsflow", project / ".agentsflow")
+    binding_path = project / ".agentsflow/workflows/big-feature-contract-first.binding.yaml"
+    binding = yaml.safe_load(binding_path.read_text(encoding="utf-8"))
+    binding["strictness"] = "L0"
+    binding["strictness_source"] = "project_override"
+    binding["strictness_override_reason"] = "Exercise unsupported strictness validation."
+    binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "strictness L0 is not supported by upstream workflow" in (result.stdout + result.stderr)
+
+
+def test_project_binding_rejects_strictness_override_without_workflow_support_list(tmp_path) -> None:
+    import shutil
+    import yaml
+
+    agentsflow_root = tmp_path / "agentsflow"
+    for dirname in ["schemas", "profiles", "gates", "workflows"]:
+        shutil.copytree(ROOT / dirname, agentsflow_root / dirname)
+    workflow_path = agentsflow_root / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    workflow["supported_profiles"].pop("strictness", None)
+    workflow_path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+
+    project = tmp_path / "project"
+    shutil.copytree(ROOT / "examples/e2e/minimal-python-project/.agentsflow", project / ".agentsflow")
+
+    result = run(
+        "scripts/validate_project_binding.py",
+        "--project",
+        str(project),
+        "--agentsflow-root",
+        str(agentsflow_root),
+    )
+    assert result.returncode != 0
+    assert "local strictness override requires upstream workflow supported_profiles.strictness" in (
+        result.stdout + result.stderr
+    )
 
 
 def test_project_binding_rejects_invalid_review_policy(tmp_path) -> None:
@@ -1578,8 +1665,8 @@ def test_big_feature_requires_manifest_plan_gate() -> None:
             phase["applies_to_strictness"] = ["L2", "L3", "L4"]
     errors = validate_repo.validate_big_feature_plan_gate_policy(path, broken_strictness)
     joined = "\n".join(errors)
-    assert "technical_plan phase must apply exactly to strictness L3 and L4" in joined
-    assert "plan_gate phase must apply exactly to strictness L3 and L4" in joined
+    assert "technical_plan phase must apply exactly to effective strictness values L3 and L4" in joined
+    assert "plan_gate phase must apply exactly to effective strictness values L3 and L4" in joined
 
     broken_gate_order = copy.deepcopy(workflow)
     for phase in broken_gate_order["phases"]:
@@ -1745,6 +1832,48 @@ def test_mvp_review_gate_order_rejects_wrong_phase_kinds() -> None:
     assert "must be kind review" in joined
 
 
+def test_workflow_default_strictness_is_required() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken.pop("default_strictness", None)
+
+    schema_errors = validate_repo.validate_against_schema(
+        path,
+        broken,
+        validate_repo.workflow_schema(ROOT),
+    )
+    policy_errors = validate_repo.validate_workflow_default_strictness(path, broken)
+    joined = "\n".join(schema_errors + policy_errors)
+    assert "default_strictness" in joined
+
+
+def test_workflow_default_strictness_must_be_supported() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    broken["default_strictness"] = "L0"
+
+    errors = validate_repo.validate_workflow_default_strictness(path, broken)
+    assert "default_strictness L0 must be listed in supported_profiles.strictness" in "\n".join(errors)
+
+
 def test_primary_e2e_workflow_run_artifacts_schema_pass() -> None:
     import json
 
@@ -1762,6 +1891,74 @@ def test_primary_e2e_workflow_run_artifacts_schema_pass() -> None:
         jsonschema.Draft202012Validator(report_schema).validate(
             json.loads((run_root / name).read_text(encoding="utf-8"))
         )
+
+
+def test_workflow_run_strictness_requires_source_and_override_reason(tmp_path) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    base = {
+        "version": 1,
+        "run_id": "2026-06-19-strictness-run",
+        "workflow": "big-feature-contract-first",
+        "agentsflow_version": "v0.2.0",
+        "binding": ".agentsflow/workflows/big-feature-contract-first.binding.yaml",
+        "status": "in_progress",
+    }
+
+    raw_path = tmp_path / "raw-run.yaml"
+    raw = dict(base)
+    raw["strictness"] = "L2"
+    raw_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    raw_errors = validate_repo.validate_workflow_run_artifact(ROOT, raw_path)
+    assert "strictness_source" in "\n".join(raw_errors)
+
+    override_path = tmp_path / "override-run.yaml"
+    override = dict(base)
+    override["strictness"] = "L2"
+    override["strictness_source"] = "project_override"
+    override_path.write_text(yaml.safe_dump(override, sort_keys=False), encoding="utf-8")
+    override_errors = validate_repo.validate_workflow_run_artifact(ROOT, override_path)
+    assert "strictness_override_reason" in "\n".join(override_errors)
+
+
+def test_workflow_run_rejects_disguised_workflow_default_strictness(tmp_path) -> None:
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    project = tmp_path / "project"
+    shutil.copytree(ROOT / "examples/project-overlay/.agentsflow", project / ".agentsflow")
+    run_dir = project / "Docs/agentsflow/runs/2026-06-19-disguised-default"
+    run_dir.mkdir(parents=True)
+    run_path = run_dir / "run.yaml"
+    run_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "run_id": "2026-06-19-disguised-default",
+                "workflow": "big-feature-contract-first",
+                "agentsflow_version": "v0.2.0",
+                "binding": ".agentsflow/workflows/big-feature-contract-first.binding.yaml",
+                "strictness": "L2",
+                "strictness_source": "workflow_default",
+                "status": "in_progress",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_workflow_run_artifact(ROOT, run_path)
+    assert "strictness_source workflow_default requires strictness L3" in "\n".join(errors)
 
 
 def test_workflow_run_phase_guard_rejects_future_phase_artifact(tmp_path) -> None:

@@ -4,6 +4,7 @@ intent: Run a mode-gated project initialization path for discovery, onboarding,
   target-workflow preparation, legacy cleanup or risk/domain assessment. Overlay
   drafting, validation and human approval are required only for modes that
   activate or prepare project bindings/policy.
+default_strictness: L3
 category: onboarding
 mvp_status: support-workflow
 entry_criteria:

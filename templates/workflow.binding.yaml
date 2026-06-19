@@ -1,7 +1,9 @@
 workflow: big-feature-contract-first
 extends: workflows/big-feature-contract-first/workflow.yaml
 agentsflow_version: 0.2
-strictness: L2
+strictness_source: workflow_default
+# Optional: set `strictness` only when overriding the workflow default, and
+# include `strictness_override_reason`.
 
 binding:
   project: my-project
@@ -9,6 +11,10 @@ binding:
   runs_root: Docs/agentsflow/runs/
 
 gates:
+  plan_gate:
+    extends: gates/plan_gate.yaml
+    manifest: .agentsflow/gates/plan_gate.yaml
+    runner: .agentsflow/scripts/run_plan_gate.sh
   verification_gate:
     extends: gates/verification_gate.yaml
     manifest: .agentsflow/gates/verification_gate.yaml

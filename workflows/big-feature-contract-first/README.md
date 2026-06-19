@@ -48,9 +48,11 @@ re-run; the red→green evidence pair is a byproduct of this structure. `workflo
 now represents this topology with `test_framing` markers, and `validate_repo.py`
 checks the structural framing.
 
-For higher strictness levels, the workflow includes a manifest-level `plan_gate`
-before red capture. The gate validates that the plan is grounded, scoped,
-testable and ready for implementation; it is not a prose-only step.
+When effective strictness reaches the workflow's plan-gate depth, the workflow
+includes a manifest-level `plan_gate` before red capture. The gate validates that
+the plan is grounded, scoped, testable and ready for implementation; it is not a
+prose-only step. Project bindings inherit the workflow default unless they
+explicitly record a strictness override reason.
 
 After review, fixes are classified as material or non-material before deciding
 whether another review cycle is required. A P2 finding can still produce a

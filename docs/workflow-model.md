@@ -12,23 +12,56 @@ A workflow answers:
 - Which scripts are mandatory or optional?
 - Which templates should be used?
 - Which domain packs can parameterize it?
-- Which strictness profiles are supported?
+- What default strictness and supported override values apply?
 - Which review topologies make sense?
 
 ## Workflow is the primary abstraction
 
-Strictness is not the primary abstraction. Strictness only changes how deep the gates go.
+Strictness is not the primary abstraction. A workflow owns its normal depth through
+`default_strictness`; a project binding or run may explicitly override it only
+with a reason.
 
 Example:
 
 ```yaml
 workflow: prompt-behavior-eval
 domain_pack: coding-agent
-strictness: L4
+default_strictness: L3
+effective_strictness: L3
 review_topology: heterogeneous-variable
 ```
 
-The workflow defines the type of work. The strictness profile controls depth.
+The workflow defines the type of work and its baseline gate/review/evidence
+depth. The effective strictness controls conditional gates for a concrete
+binding or run. Humans should not be asked to choose an `L*` value by default;
+the main agent should inherit the workflow default and ask only when project risk
+or task constraints justify an override.
+
+The number of strictness labels is not a goal. v0.2 remains compatible with the
+current `L*` identifiers, but the model should also support a smaller future
+taxonomy such as standard/elevated/critical without changing the workflow
+boundary.
+
+When a workflow uses the term "gate", it should be clear which authority mode is
+intended:
+
+```text
+deterministic_gate
+  A project-bound runner decides from declared checks/evidence.
+
+review_gate
+  Reviewer reports are relevance-validated before the workflow exits.
+
+human_mediated_gate
+  The main agent presents synthesized evidence/options and records the human
+  decision before proceeding.
+```
+
+The distinction matters most around planning. A `plan_gate` can be a
+deterministic check that the plan packet is grounded and complete; an agentic
+review of that plan followed by human approval is a separate
+`human_mediated_gate` unless the workflow or project binding explicitly models
+it as part of the plan gate's required evidence and decision policy.
 
 ## Workflow manifest shape
 
@@ -40,6 +73,7 @@ Minimal fields:
 name: big-feature-contract-first
 version: 0.1
 intent: "Design and implement a large feature through a contract-first process."
+default_strictness: L3
 entry_criteria: []
 outputs: []
 uses:

@@ -2,6 +2,7 @@ name: big-feature-contract-first
 version: 0.1
 intent: Implement a large feature through contract, BDD scenarios, impact map, verification
   gates, and evidence.
+default_strictness: L3
 entry_criteria:
 - Feature is large enough to risk scope creep or architectural drift.
 outputs:
@@ -219,8 +220,8 @@ phases:
   applies_to_strictness:
   - L3
   - L4
-  purpose: Produce the grounded plan artifacts required by the higher-strictness
-    plan gate before red capture or implementation begins.
+  purpose: Produce the grounded plan artifacts required when effective strictness
+    includes the plan gate before red capture or implementation begins.
   runs_after:
   - impact
   skills:
@@ -402,7 +403,7 @@ exit_criteria:
 - Post-review fixes were classified as material or non-material before deciding
   whether to rerun review.
 - Human final acceptance was recorded when required by project policy.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 review_control_rules:
   review_agents_read_only: true
   review_agents_run_after: verification_gate

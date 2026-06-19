@@ -4,7 +4,8 @@
 
 AgentsFlow treats Specification / Plan Mode as a reusable phase pattern, not as a new top-level abstraction and not as a single global workflow.
 
-A workflow may include this phase pattern with different depth depending on workflow type, strictness, risk, and domain pack.
+A workflow may include this phase pattern with different depth depending on
+workflow type, workflow default strictness, project risk and domain pack.
 
 ## Native model
 
@@ -70,7 +71,9 @@ A plan gate does not implement.
 ## Workflow binding
 
 - `new-project-spec-first`: deep specification stack.
-- `big-feature-contract-first`: plan gate required for higher strictness levels.
+- `big-feature-contract-first`: plan gate required when effective strictness
+  includes the plan-gate depth, inherited from the workflow default unless
+  explicitly overridden.
 - `agentic-system-hardening`: behavior/prompt/tool/policy planning required.
 - `prompt-behavior-eval`: eval scenarios before prompt changes.
 - `safe-refactor`: refactor boundary and rollback plan required.

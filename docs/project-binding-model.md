@@ -122,7 +122,11 @@ Workflow bindings live under `.agentsflow/workflows/*.binding.yaml`.
 workflow: big-feature-contract-first
 extends: workflows/big-feature-contract-first/workflow.yaml
 agentsflow_version: 0.2
-strictness: L2
+strictness_source: workflow_default
+# Optional override:
+# strictness: L2
+# strictness_source: project_override
+# strictness_override_reason: "Minimal pilot fixture; plan-gate evidence is intentionally out of scope."
 
 binding:
   project: my-project
@@ -130,6 +134,10 @@ binding:
   runs_root: Docs/agentsflow/runs/
 
 gates:
+  plan_gate:
+    extends: gates/plan_gate.yaml
+    manifest: .agentsflow/gates/plan_gate.yaml
+    runner: .agentsflow/scripts/run_plan_gate.sh
   verification_gate:
     extends: gates/verification_gate.yaml
     manifest: .agentsflow/gates/verification_gate.yaml
@@ -159,12 +167,23 @@ review:
 
 This shape is validated by `scripts/validate_project_binding.py`.
 
-The `strictness` field is the selected strictness profile for this project
-workflow binding. Binding validation requires all unconditional workflow gates
-and also requires conditional gates whose `applies_to_strictness` includes the
-selected strictness. For example, `big-feature-contract-first` does not require
-`plan_gate` for an L2 binding, but an L3 or L4 binding must provide a project
-`plan_gate` binding.
+Strictness is inherited from the upstream workflow by default. The workflow's
+`default_strictness` is the baseline source of truth; a project binding sets
+`strictness` only when it intentionally overrides that baseline. Overrides should
+include `strictness_source: project_override` or `task_override` and a
+`strictness_override_reason`.
+
+A raw local `strictness` value without override source and reason is invalid.
+The override value must also be listed in the upstream workflow's
+`supported_profiles.strictness`; otherwise it must not affect required gate
+selection.
+
+Binding validation requires all unconditional workflow gates and also requires
+conditional gates whose `applies_to_strictness` includes the effective
+strictness. For example, `big-feature-contract-first` has `default_strictness:
+L3`, so a binding that inherits the default must provide a project `plan_gate`
+binding. A deliberately lighter L2 fixture may omit `plan_gate` only if the
+binding explicitly records the override.
 
 `review_cycle.max_review_cycles` is optional. If omitted, review cycles are not
 limited by count; the workflow still exits when there are no validated blocking

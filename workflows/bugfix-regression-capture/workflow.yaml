@@ -2,6 +2,7 @@ name: bugfix-regression-capture
 version: 0.1
 intent: Fix a bug by first reproducing it and then turning it into a permanent regression
   scenario.
+default_strictness: L2
 entry_criteria:
 - A bug or failure mode is known.
 outputs:
@@ -182,7 +183,7 @@ phases:
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 - Review candidate blockers were relevance-validated before final bugfix decision.
 review_control_rules:
   review_findings_are_candidate_findings: true

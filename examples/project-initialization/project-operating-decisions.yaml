@@ -31,15 +31,15 @@ workflow_defaults:
   default_workflow:
     value: big-feature-contract-first
     status: confirmed
-  low_risk_strictness:
-    value: L1
+  strictness_source:
+    value: workflow_default
     status: confirmed
-  normal_strictness:
-    value: L2
+  strictness_override_policy:
+    value: "Use workflow defaults unless project risk or pilot scope justifies an explicit override."
     status: confirmed
-  high_risk_strictness:
-    value: L3
-    status: confirmed
+  preferred_strictness_taxonomy:
+    value: compact
+    status: follow-up
   default_review_topology:
     value: homogeneous-dual
     status: confirmed

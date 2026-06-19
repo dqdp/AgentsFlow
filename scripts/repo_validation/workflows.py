@@ -3,6 +3,21 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def validate_workflow_default_strictness(path: Path, data: dict) -> list[str]:
+    default = data.get("default_strictness")
+    supported = {
+        str(item)
+        for item in ((data.get("supported_profiles") or {}).get("strictness") or [])
+    }
+    if default is None:
+        return [f"{path}: workflow must declare default_strictness"]
+    if supported and str(default) not in supported:
+        return [
+            f"{path}: default_strictness {default} must be listed in supported_profiles.strictness"
+        ]
+    return []
+
+
 def validate_test_framed_implementation(path: Path, data: dict) -> list[str]:
     errors: list[str] = []
     phases = data.get("phases", []) or []
@@ -71,7 +86,7 @@ def validate_big_feature_plan_gate_policy(path: Path, data: dict) -> list[str]:
             errors.append(f"{path}: technical_plan phase missing outputs: {', '.join(missing_outputs)}")
         applies = set(str(item) for item in technical_plan.get("applies_to_strictness", []) or [])
         if applies != {"L3", "L4"}:
-            errors.append(f"{path}: technical_plan phase must apply exactly to strictness L3 and L4")
+            errors.append(f"{path}: technical_plan phase must apply exactly to effective strictness values L3 and L4")
     if not isinstance(plan_gate, dict):
         errors.append(f"{path}: big-feature-contract-first must include plan_gate phase")
     else:
@@ -81,7 +96,7 @@ def validate_big_feature_plan_gate_policy(path: Path, data: dict) -> list[str]:
             errors.append(f"{path}: plan_gate phase must bind gate plan_gate")
         applies = set(str(item) for item in plan_gate.get("applies_to_strictness", []) or [])
         if applies != {"L3", "L4"}:
-            errors.append(f"{path}: plan_gate phase must apply exactly to strictness L3 and L4")
+            errors.append(f"{path}: plan_gate phase must apply exactly to effective strictness values L3 and L4")
         runs_after = set(str(item) for item in plan_gate.get("runs_after", []) or [])
         if "technical_plan" not in runs_after:
             errors.append(f"{path}: plan_gate phase must run after technical_plan")
@@ -112,4 +127,3 @@ def validate_phase_scripts_declared(path: Path, data: dict) -> list[str]:
     if missing:
         return [f"{path}: phase scripts missing from uses.scripts: {', '.join(sorted(missing))}"]
     return []
-

@@ -175,7 +175,7 @@ bindings:
     gates:
       - verification_gate
   - id: AF-V02-BHV-009
-    scenario: "Big-feature plan gate is strictness-aware"
+    scenario: "Big-feature plan gate follows effective strictness"
     required: true
     status: executable
     source:
@@ -184,14 +184,44 @@ bindings:
       section: Behavioral Scenarios
     severity_if_unverified: P1
     checks:
-      - id: pytest-plan-gate-l3-required
+      - id: pytest-plan-gate-default-required
         type: test
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates"
         evidence:
           - pytest-output
-      - id: pytest-plan-gate-l2-optional
+      - id: pytest-plan-gate-l2-override-optional
         type: test
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2"
+        evidence:
+          - pytest-output
+      - id: pytest-strictness-override-reason-required
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_strictness_override_requires_reason"
+        evidence:
+          - pytest-output
+      - id: pytest-raw-strictness-source-required
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_rejects_raw_strictness_without_override_source"
+        evidence:
+          - pytest-output
+      - id: pytest-unsupported-strictness-override-rejected
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_rejects_unsupported_strictness_override"
+        evidence:
+          - pytest-output
+      - id: pytest-strictness-override-requires-workflow-support-list
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_rejects_strictness_override_without_workflow_support_list"
+        evidence:
+          - pytest-output
+      - id: pytest-workflow-run-strictness-source-required
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_strictness_requires_source_and_override_reason"
+        evidence:
+          - pytest-output
+      - id: pytest-workflow-run-default-strictness-must-match
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_rejects_disguised_workflow_default_strictness"
         evidence:
           - pytest-output
     gates:

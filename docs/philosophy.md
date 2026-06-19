@@ -82,11 +82,12 @@ Domain packs should not replace workflows. They parameterize them.
 
 A profile tunes execution depth:
 
-- strictness level;
+- workflow default/effective strictness;
 - review topology;
 - evidence level.
 
-Strictness is metadata, not the main abstraction.
+Strictness is metadata, not the main abstraction. A workflow owns the default;
+project bindings and runs record explicit overrides only when needed.
 
 ## Why not “BDD framework”?
 
@@ -142,7 +143,14 @@ phase before it and a green-verify phase after it. See `docs/adr/ADR-0017-test-f
 
 Do not use heavy process for small work.
 
-The same workflow can be executed with different strictness profiles. A low-risk change may need only boundaries and evidence; a high-risk prompt/policy/runtime change may need BDD scenarios, impact map, independent reviewers, fusion, and hidden regressions.
+Each workflow should declare the normal depth it needs. A low-risk bugfix
+workflow can default to a lighter path; a big-feature or agentic-system workflow
+can default to deeper planning, review and evidence. A project or run can still
+override that default, but the override must be explicit and reasoned.
+
+This avoids turning strictness into a routine human setup question. The human
+should decide material risk exceptions, not manually pick process levels for
+every workflow run.
 
 ## Review controls are composable, not hard-coded
 
@@ -153,7 +161,8 @@ gates and reviewers it needs, which topology to use, and how strict the final
 acceptance decision should be.
 
 This preserves the project philosophy: skills and scripts are reusable bricks,
-workflows are assemblies, and strictness/review topology are parameters of assembly.
+workflows are assemblies, and workflow defaults plus explicit overrides control
+assembly depth.
 
 
 ## Reviewer findings are candidate findings

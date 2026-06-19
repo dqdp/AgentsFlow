@@ -169,11 +169,11 @@ fix uses `bugfix-regression-capture` at L1 with topology `none` ≈ 3 artifacts
 ~13-artifact load is specific to `big-feature-contract-first` at high strictness,
 not to all changes. **The lightweight path already exists.**
 
-**Decision — the human selects the workflow + strictness + topology at task setup.**
-Altitude selection is NOT delegated to agents. It is part of the design/setup stage
-where humans are legitimately involved: an upfront input that constrains the path,
-not a runtime human-in-the-loop stop, so it does not break automation. The agent
-then runs the chosen path automatically (review loop, relevance side-branch, etc.).
+**Superseded direction — see ADR-0019.** The human still confirms workflow choice
+and material risk exceptions, but strictness is no longer a routine task-setup
+selection. The workflow declares `default_strictness`; a project binding or run
+records `strictness` only as an explicit override with a reason. Review topology
+remains an explicit workflow/binding policy.
 
 **Small follow-up (Codex cleanup, not a design decision):** `L0.yaml` exists but is
 not listed in any workflow's `supported_profiles` (workflows start at L1). Either

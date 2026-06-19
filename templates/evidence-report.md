@@ -3,7 +3,7 @@
 Status: <pass|pass-with-notes|needs-changes|blocked>
 Contract: `<path/to/contract.md>`
 Workflow: `<workflow-name>`
-Strictness: `<L0-L4>`
+Effective Strictness: `<workflow-default-or-explicit-override>`
 
 ## Summary
 

@@ -3,7 +3,7 @@
 Status: Active
 Workflow: repository-validation
 Domain Pack: coding-agent
-Strictness: L2
+Effective Strictness: L2
 Review Topology: homogeneous-dual
 
 ## Intent
@@ -117,11 +117,20 @@ Feature: AgentsFlow v0.2 MVP contract layer
     And prepare-workflow must use that artifact as run-level target workflow context
     And initialization must not rewrite or delete project documentation without human approval
 
-  Scenario: Big-feature plan gate is strictness-aware
-    Given a big-feature-contract-first project binding declares strictness L2
+  Scenario: Big-feature plan gate follows effective strictness
+    Given big-feature-contract-first declares default_strictness L3
+    When a project binding inherits the workflow default and omits plan_gate
+    Then project binding validation must fail
+    Given a big-feature-contract-first project binding explicitly overrides strictness to L2
     When the binding omits plan_gate
     Then project binding validation must pass
-    Given the same workflow binding declares strictness L3 or L4
+    And a strictness override without a reason must fail validation
+    And raw local strictness without override source must not suppress plan_gate
+    And unsupported strictness overrides must fail validation
+    And overrides without workflow strictness support must fail validation
+    And workflow run strictness metadata must require source and override reason
+    And workflow run strictness_source "workflow_default" must match the workflow default
+    Given the same workflow binding declares effective strictness L3 or L4
     When the binding omits plan_gate
     Then project binding validation must fail
 
@@ -170,7 +179,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Prepare-workflow target is limited to MVP user workflows | `pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow`; `pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target` |
 | Prepare-workflow missing context or design forks use a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions` |
 | Existing-project initialization records documentation disposition | `pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes`; `pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition` |
-| Big-feature plan gate is strictness-aware | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2` |
+| Big-feature plan gate follows effective strictness | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2`; `pytest tests/test_scripts_smoke.py::test_project_binding_strictness_override_requires_reason`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_raw_strictness_without_override_source`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_unsupported_strictness_override`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_strictness_override_without_workflow_support_list`; `pytest tests/test_scripts_smoke.py::test_workflow_run_strictness_requires_source_and_override_reason`; `pytest tests/test_scripts_smoke.py::test_workflow_run_rejects_disguised_workflow_default_strictness` |
 | Evidence probe reports are evidence-only | `pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources` |
 | Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch`; `pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch` |
 | Review cycle caps are optional project policy or workflow binding | `pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles`; `pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles` |

@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .common import compare_hash, parse_json, parse_yaml, sha256_file, sha256_text, validate_against_schema
+from .common import (
+    compare_hash,
+    parse_json,
+    parse_yaml,
+    safe_resolve,
+    sha256_file,
+    sha256_text,
+    validate_against_schema,
+)
+from .gates import STRICTNESS_OVERRIDE_SOURCES, supported_workflow_strictness
 
 
 def _collect_artifact_paths(value: object, prefix: str) -> list[tuple[str, str]]:
@@ -218,12 +227,73 @@ def validate_workflow_run_phase_guard(path: Path, data: dict) -> list[str]:
     return errors
 
 
+def _find_project_root_for_run(root: Path, path: Path) -> Path | None:
+    current = path.parent.resolve()
+    repo_root = root.resolve()
+    while True:
+        if (current / ".agentsflow").is_dir():
+            return current
+        if current == repo_root or current.parent == current:
+            return None
+        current = current.parent
+
+
+def validate_workflow_run_strictness(root: Path, path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    if "strictness" not in data and "strictness_source" not in data:
+        return errors
+
+    project_root = _find_project_root_for_run(root, path)
+    if not project_root:
+        return errors
+
+    binding_path = safe_resolve(project_root, data.get("binding"), f"{path}: binding", errors)
+    if not binding_path or not binding_path.exists():
+        return errors
+
+    binding = parse_yaml(binding_path) or {}
+    if not isinstance(binding, dict):
+        errors.append(f"{binding_path}: workflow binding must be a mapping")
+        return errors
+
+    extends_path = safe_resolve(root, binding.get("extends"), f"{binding_path}: extends", errors)
+    if not extends_path or not extends_path.exists():
+        return errors
+
+    workflow = parse_yaml(extends_path) or {}
+    if not isinstance(workflow, dict):
+        errors.append(f"{extends_path}: workflow must be a mapping")
+        return errors
+
+    strictness = data.get("strictness")
+    source = data.get("strictness_source")
+    supported = supported_workflow_strictness(workflow)
+    default = workflow.get("default_strictness")
+
+    if source == "workflow_default" and default is not None and strictness != default:
+        errors.append(
+            f"{path}: strictness_source workflow_default requires strictness {default}, "
+            f"got {strictness}"
+        )
+    if source in STRICTNESS_OVERRIDE_SOURCES:
+        if supported and str(strictness) not in supported:
+            errors.append(
+                f"{path}: strictness {strictness} is not supported by upstream workflow "
+                f"{workflow.get('name', data.get('workflow'))}"
+            )
+        if not supported:
+            errors.append(
+                f"{path}: strictness override requires upstream workflow supported_profiles.strictness"
+            )
+    return errors
+
+
 def validate_workflow_run_artifact(root: Path, path: Path) -> list[str]:
     schema = parse_json(root / "schemas" / "workflow-run.schema.json")
     data = parse_yaml(path) or {}
     if not isinstance(data, dict):
         return [f"{path}: workflow run metadata must be a mapping"]
     errors = validate_against_schema(path, data, schema)
+    errors.extend(validate_workflow_run_strictness(root, path, data))
     errors.extend(validate_workflow_run_phase_guard(path, data))
     return errors
-

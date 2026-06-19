@@ -6,7 +6,6 @@
     "workflow",
     "extends",
     "agentsflow_version",
-    "strictness",
     "binding",
     "gates"
   ],
@@ -26,7 +25,15 @@
     },
     "strictness": {
       "type": "string",
-      "enum": ["L1", "L2", "L3", "L4"]
+      "enum": ["L0", "L1", "L2", "L3", "L4"]
+    },
+    "strictness_source": {
+      "type": "string",
+      "enum": ["workflow_default", "project_override", "task_override", "legacy_selected"]
+    },
+    "strictness_override_reason": {
+      "type": "string",
+      "minLength": 1
     },
     "binding": {
       "type": "object"
@@ -275,5 +282,33 @@
         }
       ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["strictness"]
+      },
+      "then": {
+        "required": ["strictness_source", "strictness_override_reason"],
+        "properties": {
+          "strictness_source": {
+            "enum": ["project_override", "task_override", "legacy_selected"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "strictness_source": {
+            "enum": ["project_override", "task_override", "legacy_selected"]
+          }
+        },
+        "required": ["strictness_source"]
+      },
+      "then": {
+        "required": ["strictness", "strictness_override_reason"]
+      }
+    }
+  ]
 }

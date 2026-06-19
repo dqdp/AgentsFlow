@@ -253,7 +253,7 @@ the human to manually fill a YAML or JSON file.
 The dialogue decides:
 
 ```text
-- default workflows and strictness profiles;
+- default workflows and strictness override policy;
 - verification gate blockers and advisory checks;
 - canonical test/lint/typecheck/security/performance/domain commands;
 - required evidence for gate acceptance;

@@ -2,6 +2,7 @@ name: review-only-fusion
 version: 0.1
 intent: Run independent review and fusion on an existing spec, diff, contract, or
   architecture.
+default_strictness: L3
 entry_criteria:
 - Artifact already exists; the task is review rather than implementation.
 outputs:
@@ -123,7 +124,7 @@ phases:
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 - Fusion candidate blockers were relevance-validated before final decision support.
 review_control_rules:
   review_agents_read_only: true

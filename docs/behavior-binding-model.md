@@ -52,10 +52,10 @@ status: specification-only
 means the scenario is a useful specification or future coverage candidate, but
 it does not block the current workflow by default.
 
-Workflow profiles may strengthen this rule, for example:
+Workflow effective strictness may strengthen this rule, for example:
 
 ```text
-L3/L4: all P0/P1 acceptance scenarios must have executable bindings.
+reviewed/critical depth: all P0/P1 acceptance scenarios must have executable bindings.
 ```
 
 ## Binding shape

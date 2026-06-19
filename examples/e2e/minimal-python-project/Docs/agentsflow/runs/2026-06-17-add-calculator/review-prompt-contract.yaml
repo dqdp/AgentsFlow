@@ -9,7 +9,8 @@ identity:
   review_profile: homogeneous-dual
   topology: homogeneous-dual
   composition: homogeneous
-  strictness: L2
+  effective_strictness: L2
+  strictness_source: project_override
   primary_gate: true
 
 inputs:

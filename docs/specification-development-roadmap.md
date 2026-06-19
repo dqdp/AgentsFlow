@@ -95,4 +95,6 @@ Plan mode should be a phase pattern implemented by reusable skills/scripts,
 not a single global workflow.
 ```
 
-Workflows such as `new-project-spec-first`, `big-feature-contract-first`, and `safe-refactor` can each invoke plan-mode skills with different strictness.
+Workflows such as `new-project-spec-first`, `big-feature-contract-first`, and
+`safe-refactor` can each invoke plan-mode skills at the depth declared by their
+workflow default, with explicit project/run overrides only when justified.
