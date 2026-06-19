@@ -1405,6 +1405,18 @@ def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:
     assert "not declared in allowed_instruments" in (result.stdout + result.stderr)
 
 
+def test_validate_repo_uses_modular_facade() -> None:
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+    from repo_validation.runner import validate_repository  # noqa: PLC0415
+
+    assert validate_repo.validate_repository is validate_repository
+    facade_lines = (ROOT / "scripts/validate_repo.py").read_text(encoding="utf-8").splitlines()
+    assert len(facade_lines) <= 160
+
+
 def test_repo_validation_rejects_duplicate_yaml_keys(tmp_path) -> None:
     import shutil
 

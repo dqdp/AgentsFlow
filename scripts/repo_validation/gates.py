@@ -1,0 +1,135 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from .common import parse_yaml, safe_resolve
+
+
+VALID_GATE_INSTRUMENT_TYPES = {
+    'tests',
+    'deterministic_script',
+    'bdd_runner',
+    'static_analysis',
+    'dynamic_analysis',
+    'debugger',
+    'trace_analysis',
+    'log_analysis',
+    'network_traffic_analysis',
+    'profiler',
+    'fuzzer',
+    'benchmark',
+    'security_scanner',
+    'domain_tool',
+    'manual_evidence_check',
+    'schema_validation',
+    'fusion_protocol_check',
+    'review_protocol_check',
+}
+
+
+def validate_gate_manifest(root: Path, path: Path) -> list[str]:
+    errors: list[str] = []
+    data = parse_yaml(path) or {}
+    if not isinstance(data, dict):
+        return [f"Gate {path} is not a mapping"]
+    required = ["id", "name", "kind", "purpose", "runner", "inputs", "instruments", "outputs", "result_states", "pass_policy"]
+    for key in required:
+        if key not in data:
+            errors.append(f"{path}: missing required gate field: {key}")
+    if data.get("kind") != "gate":
+        errors.append(f"{path}: kind must be 'gate'")
+    runner = data.get("runner")
+    if runner:
+        runner_path = root / str(runner)
+        if not runner_path.exists():
+            errors.append(f"{path}: generic runner path does not exist: {runner}")
+    if data.get("binding_level") and data.get("binding_level") != "upstream_gate_contract":
+        errors.append(f"{path}: upstream gates should use binding_level=upstream_gate_contract")
+    instruments = data.get("instruments", []) or []
+    if not isinstance(instruments, list) or not instruments:
+        errors.append(f"{path}: instruments must be a non-empty list")
+    else:
+        for idx, inst in enumerate(instruments):
+            if not isinstance(inst, dict):
+                errors.append(f"{path}: instrument #{idx} is not a mapping")
+                continue
+            if "id" not in inst or "type" not in inst:
+                errors.append(f"{path}: instrument #{idx} must include id and type")
+    pass_policy = data.get("pass_policy", {}) or {}
+    if isinstance(pass_policy, dict):
+        for key in ["fail_on", "inconclusive_on"]:
+            if key not in pass_policy:
+                errors.append(f"{path}: pass_policy missing {key}")
+    else:
+        errors.append(f"{path}: pass_policy must be a mapping")
+    if data.get("id") in {"project_initialization_gate", "target_workflow_readiness_gate"}:
+        gate_id = str(data.get("id"))
+        inputs = set(str(item) for item in data.get("inputs", []) or [])
+        if "project-documentation-disposition.yaml" not in inputs:
+            errors.append(
+                f"{path}: {gate_id} inputs must include project-documentation-disposition.yaml"
+            )
+        required_evidence = set(str(item) for item in data.get("required_evidence", []) or [])
+        if not any("project-documentation-disposition.yaml" in item for item in required_evidence):
+            errors.append(
+                f"{path}: {gate_id} required_evidence must include project-documentation-disposition.yaml"
+            )
+    return errors
+
+
+def validate_project_gate_manifest(
+    path: Path,
+    project_root: Path,
+    binding_extends: object,
+    binding_runner: object,
+) -> list[str]:
+    errors: list[str] = []
+    data = parse_yaml(path) or {}
+    if not isinstance(data, dict):
+        return [f"{path}: project gate manifest must be a mapping"]
+    for key in ["extends", "runner", "instruments", "outputs"]:
+        if key not in data:
+            errors.append(f"{path}: project gate manifest missing {key}")
+    if data.get("runner") != binding_runner:
+        errors.append(f"{path}: runner must match workflow binding runner")
+    if data.get("extends") not in {binding_extends, f".agentsflow/upstream/{binding_extends}"}:
+        errors.append(f"{path}: extends must match workflow binding gate extends")
+    runner_path = safe_resolve(project_root, data.get("runner"), f"{path}: runner", errors)
+    if runner_path and not runner_path.exists():
+        errors.append(f"{path}: runner does not exist: {data.get('runner')}")
+    instruments = data.get("instruments", []) or []
+    if not isinstance(instruments, list) or not instruments:
+        errors.append(f"{path}: project gate manifest instruments must be a non-empty list")
+    else:
+        for idx, instrument in enumerate(instruments):
+            if not isinstance(instrument, dict):
+                errors.append(f"{path}: instrument #{idx} must be a mapping")
+                continue
+            if not instrument.get("id") or not instrument.get("type"):
+                errors.append(f"{path}: instrument #{idx} must include id and type")
+            instrument_type = instrument.get("type")
+            if instrument_type not in VALID_GATE_INSTRUMENT_TYPES:
+                errors.append(f"{path}: instrument {instrument.get('id')} has unknown type {instrument_type}")
+            if instrument_type in {"tests", "deterministic_script"} and not instrument.get("command"):
+                errors.append(f"{path}: instrument {instrument.get('id')} must include command")
+    return errors
+
+
+def required_workflow_gates(workflow_path: Path, selected_strictness: object) -> set[str]:
+    if not workflow_path.exists():
+        return set()
+    data = parse_yaml(workflow_path) or {}
+    if not isinstance(data, dict):
+        return set()
+    gates: set[str] = set()
+    for phase in data.get("phases", []) or []:
+        if not isinstance(phase, dict) or not phase.get("gate"):
+            continue
+        applies = phase.get("applies_to_strictness")
+        if not applies:
+            gates.add(str(phase["gate"]))
+            continue
+        if str(selected_strictness) in {str(item) for item in applies or []}:
+            gates.add(str(phase["gate"]))
+    return gates
+

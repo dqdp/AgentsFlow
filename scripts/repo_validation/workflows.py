@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def validate_test_framed_implementation(path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    phases = data.get("phases", []) or []
+    if not isinstance(phases, list):
+        return errors
+    for idx, phase in enumerate(phases):
+        if not isinstance(phase, dict) or phase.get("kind") != "implementation":
+            continue
+        phase_id = phase.get("id", phase.get("name", f"#{idx}"))
+        previous = phases[idx - 1] if idx > 0 and isinstance(phases[idx - 1], dict) else {}
+        following = phases[idx + 1] if idx + 1 < len(phases) and isinstance(phases[idx + 1], dict) else {}
+        valid_previous = previous.get("test_framing") == "red_capture" or (
+            previous.get("test_framing") == "baseline_capture"
+            and phase.get("change_type") == "refactor"
+        )
+        if not valid_previous:
+            errors.append(
+                f"{path}: implementation phase {phase_id} must be immediately preceded by a red-capture phase "
+                "with test_framing: red_capture, or by baseline_capture for change_type: refactor"
+            )
+        elif previous.get("kind") not in {"verification", "gate"} or not previous.get("gate"):
+            errors.append(
+                f"{path}: implementation phase {phase_id} framing phase must be verification/gate with gate"
+            )
+        if following.get("test_framing") != "green_verify":
+            errors.append(
+                f"{path}: implementation phase {phase_id} must be immediately followed by a green-verify phase "
+                "with test_framing: green_verify"
+            )
+        elif following.get("kind") not in {"verification", "gate"} or not following.get("gate"):
+            errors.append(
+                f"{path}: implementation phase {phase_id} green phase must be verification/gate with gate"
+            )
+        elif previous.get("gate") and following.get("gate") and previous.get("gate") != following.get("gate"):
+            errors.append(
+                f"{path}: implementation phase {phase_id} framing phases should use the same gate"
+            )
+    return errors
+
+
+def validate_big_feature_plan_gate_policy(path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    if data.get("name") != "big-feature-contract-first":
+        return errors
+    phases = [
+        phase
+        for phase in data.get("phases", []) or []
+        if isinstance(phase, dict)
+    ]
+    phase_by_id = {str(phase.get("id")): phase for phase in phases if phase.get("id")}
+    technical_plan = phase_by_id.get("technical_plan")
+    plan_gate = phase_by_id.get("plan_gate")
+    red_capture = phase_by_id.get("red_capture")
+    required_plan_artifacts = {
+        "repository-grounding-report.md",
+        "plan.md",
+        "task-breakdown.md",
+        "decision-contract.md",
+    }
+    if not isinstance(technical_plan, dict):
+        errors.append(f"{path}: big-feature-contract-first must include technical_plan phase before plan_gate")
+    else:
+        outputs = set(str(item) for item in technical_plan.get("outputs", []) or [])
+        missing_outputs = sorted(required_plan_artifacts - outputs)
+        if missing_outputs:
+            errors.append(f"{path}: technical_plan phase missing outputs: {', '.join(missing_outputs)}")
+        applies = set(str(item) for item in technical_plan.get("applies_to_strictness", []) or [])
+        if applies != {"L3", "L4"}:
+            errors.append(f"{path}: technical_plan phase must apply exactly to strictness L3 and L4")
+    if not isinstance(plan_gate, dict):
+        errors.append(f"{path}: big-feature-contract-first must include plan_gate phase")
+    else:
+        if plan_gate.get("kind") not in {"gate", "verification"}:
+            errors.append(f"{path}: plan_gate phase must be kind gate or verification")
+        if plan_gate.get("gate") != "plan_gate":
+            errors.append(f"{path}: plan_gate phase must bind gate plan_gate")
+        applies = set(str(item) for item in plan_gate.get("applies_to_strictness", []) or [])
+        if applies != {"L3", "L4"}:
+            errors.append(f"{path}: plan_gate phase must apply exactly to strictness L3 and L4")
+        runs_after = set(str(item) for item in plan_gate.get("runs_after", []) or [])
+        if "technical_plan" not in runs_after:
+            errors.append(f"{path}: plan_gate phase must run after technical_plan")
+    if isinstance(red_capture, dict):
+        runs_after = set(str(item) for item in red_capture.get("runs_after", []) or [])
+        if "plan_gate" not in runs_after:
+            errors.append(f"{path}: red_capture phase must run after plan_gate")
+        if red_capture.get("runs_after_policy") != "after_applicable_strictness_gate":
+            errors.append(f"{path}: red_capture phase must use after_applicable_strictness_gate runs_after_policy")
+    review_gates = set(str(item) for item in ((data.get("review", {}) or {}).get("gates", []) or []))
+    if "plan_gate" not in review_gates:
+        errors.append(f"{path}: review.gates must include plan_gate")
+    concrete_gates = set(str(item) for item in data.get("concrete_gates", []) or [])
+    if "plan_gate" not in concrete_gates:
+        errors.append(f"{path}: concrete_gates must include plan_gate")
+    return errors
+
+
+def validate_phase_scripts_declared(path: Path, data: dict) -> list[str]:
+    uses_scripts = set((data.get("uses") or {}).get("scripts", []) or [])
+    missing: set[str] = set()
+    for phase in data.get("phases", []) or []:
+        if not isinstance(phase, dict):
+            continue
+        for script in phase.get("scripts", []) or []:
+            if script not in uses_scripts:
+                missing.add(str(script))
+    if missing:
+        return [f"{path}: phase scripts missing from uses.scripts: {', '.join(sorted(missing))}"]
+    return []
+
