@@ -102,7 +102,11 @@ For `prepare-workflow` initialization, the project does not have to prove that a
 full onboarding workflow already ran. It must provide enough operating context
 for the target workflow: project or draft binding, verification gate policy,
 review policy, evidence/run artifact location and any human-owned authority
-decisions that affect the workflow.
+decisions that affect the workflow. If preparation reveals a material design
+fork that affects scope, ADR alignment, risk posture, contracts, gates, review,
+evidence, authority or workflow-design, the run records it as a human-mediated
+target-workflow decision checkpoint before the binding/readiness artifacts are
+treated as ready.
 
 ## Operational rules
 

@@ -57,6 +57,8 @@ The main/orchestrating agent may ask the human only when:
 - required intake is missing or the invocation mode is unclear;
 - analysis is blocked by missing human-owned context;
 - a declared human-owned decision is required;
+- a material design fork affects scope, ADR alignment, risk posture, contract,
+  gate, review, evidence, authority or workflow-design for the active workflow;
 - final approval is required.
 ```
 
@@ -136,7 +138,12 @@ defaulted
 unresolved
 rejected
 superseded
+explicitly_deferred_with_constraints
 ```
+
+`explicitly_deferred_with_constraints` requires a `deferral_constraints` object
+with at least one stated constraint. It is the only allowed resume path for a
+blocking-material decision that is intentionally deferred instead of resolved.
 
 ## Resume rule
 
@@ -173,10 +180,32 @@ legacy adoption, target-workflow readiness, or overlay drafting. It must not
 delete, rewrite or silently de-authorize existing documentation without explicit
 human approval.
 `target_workflow_context_decision_packet` is conditional for `prepare-workflow`:
-it captures missing target-workflow gate, review, evidence or authority context
-as a run-level decision packet and does not normalize those answers into
+it captures missing target-workflow gate, review, evidence or authority context,
+plus material scope, ADR, risk, contract, gate, review, evidence, authority or
+workflow-design forks discovered during target-workflow preparation, as a
+run-level decision packet. It does not normalize those answers into
 `project-operating-decisions.yaml` unless the human explicitly chooses onboarding
 or persistent policy activation.
+
+### Human-mediated design decision checkpoints
+
+A material design fork is a human-mediated checkpoint, not an informal side
+conversation and not a review-agent gate. The main/orchestrating agent pauses,
+groups the decision options, records questions in `human-questions.yaml`, records
+answers in `human-decisions.yaml`, updates the affected run artifacts, and then
+resumes the workflow.
+
+The checkpoint may exit only when:
+
+```text
+- blocking-material decisions are confirmed or explicitly deferred with stated constraints;
+- decision packet and preflight run artifacts are updated;
+- unresolved nonblocking questions are recorded as defaults, limitations or follow-ups;
+- no unresolved design decision blocks the next workflow gate.
+```
+
+Target workflow binding/readiness handoff artifacts are drafted only after
+`target_workflow_readiness_gate` accepts the operating context.
 
 ## Big-feature contract-first
 
@@ -185,6 +214,8 @@ records one of these conditions:
 
 ```text
 unresolved blocking-material question
+material design fork affecting scope, ADR alignment, risk posture, contract,
+gate, review, evidence or authority
 scope or task-contract amendment
 accepted decision or ADR conflict
 exhausted review cycles

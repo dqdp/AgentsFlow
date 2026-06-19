@@ -3,7 +3,18 @@ name: Target Workflow Readiness Gate
 kind: gate
 purpose: Validate that prepare-workflow mode has a declared target workflow and
   enough project-bound operating context to prepare that workflow, or has captured
-  the missing decisions as human-mediated evidence.
+  the missing context and material gate, review, evidence, authority or design
+  decisions as human-mediated evidence.
+decision_categories:
+- scope
+- adr
+- risk
+- contract
+- gate
+- review
+- evidence
+- authority
+- workflow-design
 runner: scripts/gates/run_gate.py
 may_modify_files: false
 inputs:
@@ -11,9 +22,9 @@ inputs:
 - project-inventory.json
 - project-assessment.json
 - project-documentation-disposition.yaml
-- target workflow binding draft
-- target workflow gate readiness report
-- human decision packet when operating context is incomplete
+- existing project policy/workflow binding evidence when available
+- target workflow preflight findings when available
+- human decision packet when operating context is incomplete or material design decisions are discovered
 instruments:
 - id: validate_project_intake
   type: deterministic_script
@@ -30,8 +41,8 @@ required_evidence:
 - project intake validation result
 - declared target_workflow for prepare-workflow
 - project-documentation-disposition.yaml as run-level target workflow context
-- target workflow binding or readiness draft
-- gate, review, evidence and authority policy evidence or human decision packet
+- existing project policy/workflow binding evidence or target workflow preflight findings
+- gate, review, evidence, authority and material design decision evidence or human decision packet
 outputs:
 - target-workflow-readiness-gate-report.md
 - target-workflow-readiness-gate-report.json
@@ -58,6 +69,7 @@ pass_policy:
   - missing_review_policy
   - missing_evidence_location
   - missing_authority_boundary
+  - unresolved_material_design_decision
 binding_level: upstream_gate_contract
 requires_project_binding: true
 runner_interface: deterministic_runner_entrypoint

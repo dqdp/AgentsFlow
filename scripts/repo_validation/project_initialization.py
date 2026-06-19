@@ -5,6 +5,19 @@ from pathlib import Path
 from .common import parse_json, parse_yaml, validate_against_schema
 
 
+TARGET_WORKFLOW_DECISION_CATEGORIES = {
+    "scope",
+    "adr",
+    "risk",
+    "contract",
+    "gate",
+    "review",
+    "evidence",
+    "authority",
+    "workflow-design",
+}
+
+
 def validate_project_documentation_disposition_artifact(root: Path, path: Path) -> list[str]:
     schema = parse_json(root / "schemas" / "project-documentation-disposition.schema.json")
     data = parse_yaml(path) or {}
@@ -53,26 +66,71 @@ def validate_project_initialization_operating_decisions(path: Path, data: dict) 
         applies = set(str(item) for item in target_decisions.get("applies_to_intent_modes", []) or [])
         if applies != {"prepare-workflow"}:
             errors.append(f"{path}: target_workflow_context_decision_packet must apply only to prepare-workflow")
+        decision_categories = set(str(item) for item in target_decisions.get("decision_categories", []) or [])
+        missing_categories = sorted(TARGET_WORKFLOW_DECISION_CATEGORIES - decision_categories)
+        if missing_categories:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet decision_categories missing: {', '.join(missing_categories)}"
+            )
         outputs = set(str(item) for item in target_decisions.get("outputs", []) or [])
         if "target workflow human decision packet" not in outputs:
             errors.append(f"{path}: target_workflow_context_decision_packet must output target workflow human decision packet")
         human = target_decisions.get("human_interaction", {}) or {}
         if human.get("response_artifact") == "project-operating-decisions.yaml":
             errors.append(f"{path}: target_workflow_context_decision_packet must not write project-operating-decisions.yaml")
+        resume_states = set(str(item) for item in human.get("allowed_resume_states", []) or [])
+        if "unresolved" in resume_states:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet must not allow bare unresolved resume state"
+            )
+        if "answered" not in resume_states:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet must allow answered resume state"
+            )
+        if "explicitly_deferred_with_constraints" not in resume_states:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet must allow explicitly_deferred_with_constraints resume state"
+            )
+        resume_policy = human.get("resume_policy", {}) or {}
+        if resume_policy.get("unresolved_blocking_material_decisions") != "block_target_workflow_readiness":
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet must block readiness on unresolved blocking-material decisions"
+            )
         inputs = set(str(item) for item in target_decisions.get("inputs", []) or [])
         if "project-documentation-disposition.yaml" not in inputs:
             errors.append(f"{path}: target_workflow_context_decision_packet must consume project-documentation-disposition.yaml")
     overlay = phase_by_id.get("overlay_draft")
     if overlay:
+        overlay_applies = set(str(item) for item in overlay.get("applies_to_intent_modes", []) or [])
+        if overlay_applies != {"adoption-onboarding"}:
+            errors.append(f"{path}: overlay_draft must apply only to adoption-onboarding")
         inputs = set(overlay.get("inputs", []) or [])
         has_operating_decisions = any(str(item).startswith("project-operating-decisions.yaml") for item in inputs)
-        has_existing_policy = any("existing project policy/workflow binding" in str(item) for item in inputs)
         if not has_operating_decisions:
             errors.append(f"{path}: overlay_draft must consume project-operating-decisions.yaml for onboarding")
-        if not has_existing_policy:
-            errors.append(f"{path}: overlay_draft must allow existing project policy/workflow binding for prepare-workflow")
         if "project-documentation-disposition.yaml" not in inputs:
             errors.append(f"{path}: overlay_draft must consume project-documentation-disposition.yaml")
+    target_binding = phase_by_id.get("target_workflow_binding_draft")
+    if not isinstance(target_binding, dict):
+        errors.append(f"{path}: project-initialization must include target_workflow_binding_draft phase")
+    else:
+        applies = set(str(item) for item in target_binding.get("applies_to_intent_modes", []) or [])
+        if applies != {"prepare-workflow"}:
+            errors.append(f"{path}: target_workflow_binding_draft must apply only to prepare-workflow")
+        runs_after = set(str(item) for item in target_binding.get("runs_after", []) or [])
+        if "target_workflow_readiness_gate" not in runs_after:
+            errors.append(f"{path}: target_workflow_binding_draft must run after target_workflow_readiness_gate")
+        inputs = set(str(item) for item in target_binding.get("inputs", []) or [])
+        for required_input in [
+            "project-documentation-disposition.yaml",
+            "target-workflow-readiness-gate-report.md",
+        ]:
+            if required_input not in inputs:
+                errors.append(f"{path}: target_workflow_binding_draft must consume {required_input}")
+        if not any("target workflow human decision packet" in item for item in inputs):
+            errors.append(f"{path}: target_workflow_binding_draft must allow target workflow human decision packet")
+        if not any("existing project policy/workflow binding" in item for item in inputs):
+            errors.append(f"{path}: target_workflow_binding_draft must allow existing project policy/workflow binding")
     return errors
 
 
@@ -92,6 +150,11 @@ def validate_project_initialization_human_interaction(path: Path, data: dict) ->
         errors.append(f"{path}: project-initialization question_artifact must be human-questions.yaml")
     if human.get("decision_artifact") != "human-decisions.yaml":
         errors.append(f"{path}: project-initialization decision_artifact must be human-decisions.yaml")
+    allowed_resume_states = set(str(item) for item in human.get("allowed_resume_states", []) or [])
+    if "explicitly_deferred_with_constraints" not in allowed_resume_states:
+        errors.append(
+            f"{path}: human_interaction.allowed_resume_states must include explicitly_deferred_with_constraints"
+        )
 
     required_pause_phases = {
         "documentation_disposition_decision",
@@ -208,7 +271,6 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         "prepare-workflow": [
             "project-documentation-disposition.yaml",
             "target workflow binding draft",
-            "target workflow gate readiness report",
             "target workflow human decision packet",
             "finding-validation-report.md",
             "review-cycle-report.md",
@@ -286,6 +348,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         "documentation_disposition_decision",
         "target_workflow_context_decision_packet",
         "target_workflow_readiness_gate",
+        "target_workflow_binding_draft",
         "initialization_review",
         "finding_validation",
         "human_approval",
@@ -299,6 +362,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         "documentation_disposition_decision",
         "target_workflow_context_decision_packet",
         "target_workflow_readiness_gate",
+        "target_workflow_binding_draft",
         "initialization_review",
         "finding_validation",
         "human_approval",
@@ -309,12 +373,19 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         errors.append(f"{path}: prepare-workflow phase policy must require target_workflow")
     if prepare_policy.get("requires_sufficient_operating_context") is not True:
         errors.append(f"{path}: prepare-workflow phase policy must require sufficient operating context")
-    if prepare_policy.get("target_workflow_context_decision_packet") != "conditional_when_target_workflow_policy_is_missing":
-        errors.append(f"{path}: prepare-workflow phase policy must use target_workflow_context_decision_packet for missing context")
+    if (
+        prepare_policy.get("target_workflow_context_decision_packet")
+        != "conditional_when_target_workflow_context_or_material_design_decision_is_missing"
+    ):
+        errors.append(
+            f"{path}: prepare-workflow phase policy must use target_workflow_context_decision_packet for missing context or material design decisions"
+        )
     if "operating_decisions_interview" in prepare_policy:
         errors.append(f"{path}: prepare-workflow phase policy must not use operating_decisions_interview")
     prepare_requires = set(str(item) for item in prepare_policy.get("requires", []) or [])
     prepare_conditional_requires = set(str(item) for item in prepare_policy.get("conditional_requires", []) or [])
+    if "target_workflow_binding_draft" not in prepare_requires:
+        errors.append(f"{path}: prepare-workflow requires must include target_workflow_binding_draft")
     if "target_workflow_context_decision_packet" in prepare_requires:
         errors.append(f"{path}: prepare-workflow must not require target_workflow_context_decision_packet unconditionally")
     if "target_workflow_context_decision_packet" not in prepare_conditional_requires:
@@ -332,6 +403,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         "project_initialization_gate",
         "target_workflow_context_decision_packet",
         "target_workflow_readiness_gate",
+        "target_workflow_binding_draft",
         "initialization_review",
         "finding_validation",
         "human_approval",
@@ -370,6 +442,7 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         "project_initialization_gate": {"adoption-onboarding"},
         "target_workflow_context_decision_packet": {"prepare-workflow"},
         "target_workflow_readiness_gate": {"prepare-workflow"},
+        "target_workflow_binding_draft": {"prepare-workflow"},
         "initialization_review": {"adoption-onboarding", "prepare-workflow"},
         "finding_validation": {"adoption-onboarding", "prepare-workflow"},
     }
@@ -392,6 +465,22 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         errors.append(f"{path}: target_workflow_readiness_gate phase must be kind gate")
     if target_gate.get("gate") != "target_workflow_readiness_gate":
         errors.append(f"{path}: target_workflow_readiness_gate phase must bind target_workflow_readiness_gate")
+    target_gate_runs_after = set(str(item) for item in target_gate.get("runs_after", []) or [])
+    if "target_workflow_context_decision_packet" not in target_gate_runs_after:
+        errors.append(f"{path}: target_workflow_readiness_gate must run after target_workflow_context_decision_packet when required")
+    if (
+        target_gate.get("runs_after_policy")
+        != "after_conditional_target_workflow_context_decision_packet_when_required"
+    ):
+        errors.append(
+            f"{path}: target_workflow_readiness_gate must use after_conditional_target_workflow_context_decision_packet_when_required runs_after_policy"
+        )
+    target_binding = phase_by_id.get("target_workflow_binding_draft", {}) or {}
+    if target_binding.get("kind") != "specification":
+        errors.append(f"{path}: target_workflow_binding_draft phase must be kind specification")
+    target_binding_runs_after = set(str(item) for item in target_binding.get("runs_after", []) or [])
+    if "target_workflow_readiness_gate" not in target_binding_runs_after:
+        errors.append(f"{path}: target_workflow_binding_draft must run after target_workflow_readiness_gate")
 
     initialization_review = phase_by_id.get("initialization_review", {}) or {}
     if initialization_review.get("kind") != "review":
@@ -400,8 +489,15 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
     for required_gate_phase in ["project_initialization_gate", "target_workflow_readiness_gate"]:
         if required_gate_phase not in review_runs_after:
             errors.append(f"{path}: initialization_review must run after {required_gate_phase}")
-    if initialization_review.get("runs_after_policy") != "after_applicable_intent_mode_gate":
-        errors.append(f"{path}: initialization_review must use after_applicable_intent_mode_gate runs_after_policy")
+    if "target_workflow_binding_draft" not in review_runs_after:
+        errors.append(f"{path}: initialization_review must run after target_workflow_binding_draft")
+    if (
+        initialization_review.get("runs_after_policy")
+        != "after_applicable_intent_mode_gate_and_prepare_workflow_binding_draft"
+    ):
+        errors.append(
+            f"{path}: initialization_review must use after_applicable_intent_mode_gate_and_prepare_workflow_binding_draft runs_after_policy"
+        )
 
     documentation_disposition = phase_by_id.get("documentation_disposition_decision", {}) or {}
     if documentation_disposition.get("kind") != "decision":
@@ -458,6 +554,26 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
     for before, after in zip(ordered_backbone, ordered_backbone[1:]):
         if before in phase_order and after in phase_order and phase_order[before] >= phase_order[after]:
             errors.append(f"{path}: {before} must appear before {after}")
+    if (
+        "target_workflow_context_decision_packet" in phase_order
+        and "target_workflow_readiness_gate" in phase_order
+        and phase_order["target_workflow_context_decision_packet"] >= phase_order["target_workflow_readiness_gate"]
+    ):
+        errors.append(
+            f"{path}: target_workflow_context_decision_packet must appear before target_workflow_readiness_gate"
+        )
+    if (
+        "target_workflow_readiness_gate" in phase_order
+        and "target_workflow_binding_draft" in phase_order
+        and phase_order["target_workflow_readiness_gate"] >= phase_order["target_workflow_binding_draft"]
+    ):
+        errors.append(f"{path}: target_workflow_readiness_gate must appear before target_workflow_binding_draft")
+    if (
+        "target_workflow_binding_draft" in phase_order
+        and "initialization_review" in phase_order
+        and phase_order["target_workflow_binding_draft"] >= phase_order["initialization_review"]
+    ):
+        errors.append(f"{path}: target_workflow_binding_draft must appear before initialization_review")
     for legacy_phase in ["legacy_adoption_mode_decision", "legacy_migration_or_quarantine_plan"]:
         if (
             legacy_phase in phase_order
@@ -483,6 +599,15 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
             "active-instruction-map.yaml",
         ],
     }
+    prepare_workflow_pre_binding_forbidden_outputs = [
+        "target workflow binding draft",
+        "target workflow gate readiness report",
+        "target workflow readiness report",
+        "target workflow readiness handoff",
+    ]
+    prepare_workflow_pre_gate_forbidden_outputs = [
+        "target-workflow-readiness-gate-report",
+    ]
     for phase in data.get("phases", []) or []:
         if not isinstance(phase, dict):
             continue
@@ -505,6 +630,28 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
                     f"{path}: phase {phase.get('id')} must not produce {mode} forbidden artifact(s): "
                     + ", ".join(sorted(set(forbidden_present)))
                 )
+        if "prepare-workflow" in applies and phase.get("id") != "target_workflow_binding_draft":
+            pre_binding_present = [
+                item
+                for item in [*phase_outputs, response_artifact]
+                if any(pattern in item for pattern in prepare_workflow_pre_binding_forbidden_outputs)
+            ]
+            if pre_binding_present:
+                errors.append(
+                    f"{path}: phase {phase.get('id')} must not produce target workflow binding/readiness handoff before target_workflow_binding_draft: "
+                    + ", ".join(sorted(set(pre_binding_present)))
+                )
+        if "prepare-workflow" in applies and phase.get("id") != "target_workflow_readiness_gate":
+            pre_gate_present = [
+                item
+                for item in [*phase_outputs, response_artifact]
+                if any(pattern in item for pattern in prepare_workflow_pre_gate_forbidden_outputs)
+            ]
+            if pre_gate_present:
+                errors.append(
+                    f"{path}: phase {phase.get('id')} must not produce target workflow readiness gate report before target_workflow_readiness_gate: "
+                    + ", ".join(sorted(set(pre_gate_present)))
+                )
 
     review = data.get("review", {}) or {}
     if isinstance(review, dict) and review.get("topology") not in {None, "none"}:
@@ -513,4 +660,3 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
             if gate_id not in gates:
                 errors.append(f"{path}: project-initialization review.gates must include {gate_id}")
     return errors
-

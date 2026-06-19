@@ -126,7 +126,7 @@ bindings:
     gates:
       - verification_gate
   - id: AF-V02-BHV-008
-    scenario: "Prepare-workflow missing context uses a run-level decision packet"
+    scenario: "Prepare-workflow missing context or design forks use a run-level decision packet"
     required: true
     status: executable
     source:
@@ -138,6 +138,11 @@ bindings:
       - id: pytest-prepare-context-packet
         type: test
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement"
+        evidence:
+          - pytest-output
+      - id: pytest-prepare-readiness-blocks-material-design
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions"
         evidence:
           - pytest-output
     gates:

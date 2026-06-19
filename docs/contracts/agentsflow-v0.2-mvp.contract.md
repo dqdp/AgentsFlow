@@ -102,11 +102,13 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then intake validation must fail
     And schema validation must accept only the v0.2 MVP user workflow ids
 
-  Scenario: Prepare-workflow missing context uses a run-level decision packet
+  Scenario: Prepare-workflow missing context or design forks use a run-level decision packet
     Given project-initialization runs in prepare-workflow mode
     When target workflow gate, review, evidence or authority context is missing
+    And a material scope, ADR, risk, contract, gate, review, evidence, authority or workflow-design fork may be discovered
     Then the workflow may require target_workflow_context_decision_packet conditionally
     And it must not normalize that run-level packet into project-operating-decisions.yaml
+    And unresolved blocking-material design decisions must block target workflow readiness
 
   Scenario: Existing-project initialization records documentation disposition
     Given project-initialization runs in adoption-onboarding, prepare-workflow or legacy-cleanup mode
@@ -166,7 +168,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Primary e2e run metadata and reviewer reports are schema-valid | `pytest tests/test_scripts_smoke.py::test_primary_e2e_workflow_run_artifacts_schema_pass` |
 | Homogeneous plus focused keeps baseline reviewers unfocused | `pytest tests/test_scripts_smoke.py::test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone` |
 | Prepare-workflow target is limited to MVP user workflows | `pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow`; `pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target` |
-| Prepare-workflow missing context uses a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement` |
+| Prepare-workflow missing context or design forks use a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions` |
 | Existing-project initialization records documentation disposition | `pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes`; `pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition` |
 | Big-feature plan gate is strictness-aware | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2` |
 | Evidence probe reports are evidence-only | `pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources` |

@@ -13,3 +13,20 @@ decisions:
     rationale: "Use model diversity for high-risk reviews."
     affected_artifacts:
       - project-operating-decisions.yaml
+  - decision_id: target_workflow.deferred_scope_boundary
+    phase_id: target_workflow_context_decision_packet
+    question_ref: target_workflow.deferred_scope_boundary
+    answer: defer-with-explicit-boundary
+    status: explicitly_deferred_with_constraints
+    answered_by: human
+    classification: blocking-material
+    rationale: "The deferred scope is not needed for the current target workflow run."
+    deferral_constraints:
+      constraints:
+        - The target workflow binding must mark the deferred scope out of scope for this run.
+        - The readiness gate must not treat the deferred item as implemented or accepted policy.
+      owner: human
+      review_before: "Before activating persistent project policy."
+    affected_artifacts:
+      - human-decisions.yaml
+      - target workflow binding draft

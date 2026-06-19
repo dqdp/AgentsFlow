@@ -646,6 +646,25 @@ def test_human_decisions_reject_defaulted_blocking_material() -> None:
     defaulted_blocking["decisions"][0]["status"] = "defaulted"
     assert list(validator.iter_errors(defaulted_blocking))
 
+    deferred_blocking = copy.deepcopy(data)
+    deferred_blocking["decisions"][0]["status"] = "explicitly_deferred_with_constraints"
+    deferred_blocking["decisions"][0]["deferral_constraints"] = {
+        "constraints": ["The deferred decision is out of scope for this run."],
+    }
+    assert not list(validator.iter_errors(deferred_blocking))
+
+    missing_constraints = copy.deepcopy(deferred_blocking)
+    missing_constraints["decisions"][0].pop("deferral_constraints")
+    assert list(validator.iter_errors(missing_constraints))
+
+    empty_constraints = copy.deepcopy(deferred_blocking)
+    empty_constraints["decisions"][0]["deferral_constraints"]["constraints"] = []
+    assert list(validator.iter_errors(empty_constraints))
+
+    blank_constraints = copy.deepcopy(deferred_blocking)
+    blank_constraints["decisions"][0]["deferral_constraints"]["constraints"] = ["   "]
+    assert list(validator.iter_errors(blank_constraints))
+
 
 def test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone() -> None:
     import copy
@@ -1092,6 +1111,30 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
 
     path = ROOT / "workflows/project-initialization/workflow.yaml"
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert "explicitly_deferred_with_constraints" in workflow["human_interaction"]["allowed_resume_states"]
+    prepare_policy = workflow["intent_mode_phase_policy"]["prepare-workflow"]
+    assert (
+        prepare_policy["target_workflow_context_decision_packet"]
+        == "conditional_when_target_workflow_context_or_material_design_decision_is_missing"
+    )
+    target_phase = next(
+        phase
+        for phase in workflow["phases"]
+        if phase.get("id") == "target_workflow_context_decision_packet"
+    )
+    required_decision_categories = {
+        "scope",
+        "adr",
+        "risk",
+        "contract",
+        "gate",
+        "review",
+        "evidence",
+        "authority",
+        "workflow-design",
+    }
+    assert set(target_phase["decision_categories"]) == required_decision_categories
+
     broken = copy.deepcopy(workflow)
     broken["intent_mode_phase_policy"]["unknown-discovery"]["must_not_require"].remove("human_approval")
 
@@ -1112,6 +1155,13 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_attach)
     assert errors
     assert "attach_or_verify_upstream must not apply to unknown-discovery" in "\n".join(errors)
+
+    broken_top_level_resume_state = copy.deepcopy(workflow)
+    broken_top_level_resume_state["human_interaction"]["allowed_resume_states"].remove(
+        "explicitly_deferred_with_constraints"
+    )
+    errors = validate_repo.validate_project_initialization_human_interaction(path, broken_top_level_resume_state)
+    assert "human_interaction.allowed_resume_states must include explicitly_deferred_with_constraints" in "\n".join(errors)
 
     broken_outputs = copy.deepcopy(workflow)
     broken_outputs["outputs"].append("project-operating-decisions.yaml")
@@ -1153,11 +1203,49 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     )
     broken_prepare_policy["intent_mode_phase_policy"]["prepare-workflow"][
         "operating_decisions_interview"
-    ] = "conditional_when_target_workflow_policy_is_missing"
+    ] = "conditional_when_target_workflow_context_or_material_design_decision_is_missing"
     errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_policy)
     joined = "\n".join(errors)
     assert "target_workflow_context_decision_packet" in joined
     assert "must not use operating_decisions_interview" in joined
+
+    broken_prepare_policy_value = copy.deepcopy(workflow)
+    broken_prepare_policy_value["intent_mode_phase_policy"]["prepare-workflow"][
+        "target_workflow_context_decision_packet"
+    ] = "conditional_when_target_workflow_policy_is_missing"
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_policy_value)
+    assert "missing context or material design decisions" in "\n".join(errors)
+
+    broken_target_design_scope = copy.deepcopy(workflow)
+    for phase in broken_target_design_scope["phases"]:
+        if phase.get("id") == "target_workflow_context_decision_packet":
+            phase["decision_categories"].remove("authority")
+    errors = validate_repo.validate_project_initialization_operating_decisions(path, broken_target_design_scope)
+    assert "target_workflow_context_decision_packet decision_categories missing: authority" in "\n".join(errors)
+
+    broken_target_resume = copy.deepcopy(workflow)
+    for phase in broken_target_resume["phases"]:
+        if phase.get("id") == "target_workflow_context_decision_packet":
+            phase["human_interaction"]["allowed_resume_states"].append("unresolved")
+            phase["human_interaction"].pop("resume_policy")
+    errors = validate_repo.validate_project_initialization_operating_decisions(path, broken_target_resume)
+    joined = "\n".join(errors)
+    assert "must not allow bare unresolved resume state" in joined
+    assert "must block readiness on unresolved blocking-material decisions" in joined
+
+    broken_target_deferred_resume = copy.deepcopy(workflow)
+    for phase in broken_target_deferred_resume["phases"]:
+        if phase.get("id") == "target_workflow_context_decision_packet":
+            phase["human_interaction"]["allowed_resume_states"].remove("explicitly_deferred_with_constraints")
+    errors = validate_repo.validate_project_initialization_operating_decisions(path, broken_target_deferred_resume)
+    assert "must allow explicitly_deferred_with_constraints resume state" in "\n".join(errors)
+
+    broken_target_answered_resume = copy.deepcopy(workflow)
+    for phase in broken_target_answered_resume["phases"]:
+        if phase.get("id") == "target_workflow_context_decision_packet":
+            phase["human_interaction"]["allowed_resume_states"].remove("answered")
+    errors = validate_repo.validate_project_initialization_operating_decisions(path, broken_target_answered_resume)
+    assert "must allow answered resume state" in "\n".join(errors)
 
     broken_unconditional_packet = copy.deepcopy(workflow)
     broken_unconditional_packet["intent_mode_phase_policy"]["prepare-workflow"]["requires"].append(
@@ -1185,13 +1273,78 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     assert errors
     assert "must include target_workflow_readiness_gate phase" in "\n".join(errors)
 
+    broken_target_gate_order = copy.deepcopy(workflow)
+    for phase in broken_target_gate_order["phases"]:
+        if phase.get("id") == "target_workflow_readiness_gate":
+            phase.pop("runs_after")
+            phase.pop("runs_after_policy")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_target_gate_order)
+    joined = "\n".join(errors)
+    assert "target_workflow_readiness_gate must run after target_workflow_context_decision_packet" in joined
+    assert "after_conditional_target_workflow_context_decision_packet_when_required" in joined
+
+    broken_target_gate_position = copy.deepcopy(workflow)
+    phases = broken_target_gate_position["phases"]
+    packet_index = next(
+        index
+        for index, phase in enumerate(phases)
+        if phase.get("id") == "target_workflow_context_decision_packet"
+    )
+    gate_index = next(
+        index
+        for index, phase in enumerate(phases)
+        if phase.get("id") == "target_workflow_readiness_gate"
+    )
+    phases[packet_index], phases[gate_index] = phases[gate_index], phases[packet_index]
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_target_gate_position)
+    assert "target_workflow_context_decision_packet must appear before target_workflow_readiness_gate" in "\n".join(errors)
+
+    broken_target_binding = copy.deepcopy(workflow)
+    broken_target_binding["phases"] = [
+        phase for phase in broken_target_binding["phases"] if phase.get("id") != "target_workflow_binding_draft"
+    ]
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_target_binding)
+    assert "must include target_workflow_binding_draft phase" in "\n".join(errors)
+
+    broken_target_binding_required = copy.deepcopy(workflow)
+    broken_target_binding_required["intent_mode_phase_policy"]["prepare-workflow"]["requires"].remove(
+        "target_workflow_binding_draft"
+    )
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_target_binding_required)
+    assert "prepare-workflow requires must include target_workflow_binding_draft" in "\n".join(errors)
+
+    broken_target_binding_order = copy.deepcopy(workflow)
+    for phase in broken_target_binding_order["phases"]:
+        if phase.get("id") == "target_workflow_binding_draft":
+            phase["runs_after"] = []
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_target_binding_order)
+    assert "target_workflow_binding_draft must run after target_workflow_readiness_gate" in "\n".join(errors)
+
+    broken_target_binding_position = copy.deepcopy(workflow)
+    phases = broken_target_binding_position["phases"]
+    gate_index = next(
+        index
+        for index, phase in enumerate(phases)
+        if phase.get("id") == "target_workflow_readiness_gate"
+    )
+    binding_index = next(
+        index
+        for index, phase in enumerate(phases)
+        if phase.get("id") == "target_workflow_binding_draft"
+    )
+    phases[gate_index], phases[binding_index] = phases[binding_index], phases[gate_index]
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_target_binding_position)
+    assert "target_workflow_readiness_gate must appear before target_workflow_binding_draft" in "\n".join(errors)
+
     broken_review = copy.deepcopy(workflow)
     for phase in broken_review["phases"]:
         if phase.get("id") == "initialization_review":
             phase["runs_after"] = ["project_initialization_gate"]
     errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_review)
     assert errors
-    assert "initialization_review must run after target_workflow_readiness_gate" in "\n".join(errors)
+    joined = "\n".join(errors)
+    assert "initialization_review must run after target_workflow_readiness_gate" in joined
+    assert "initialization_review must run after target_workflow_binding_draft" in joined
 
     broken_prepare_leak = copy.deepcopy(workflow)
     for phase in broken_prepare_leak["phases"]:
@@ -1200,6 +1353,17 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_leak)
     assert errors
     assert "target_workflow_context_decision_packet must not produce prepare-workflow forbidden artifact" in "\n".join(errors)
+
+    broken_pre_gate_handoff_leak = copy.deepcopy(workflow)
+    for phase in broken_pre_gate_handoff_leak["phases"]:
+        if phase.get("id") == "target_workflow_context_decision_packet":
+            phase["outputs"].append("target workflow binding draft for prepare-workflow")
+            phase["outputs"].append("target workflow gate readiness report for prepare-workflow")
+            phase["outputs"].append("target-workflow-readiness-gate-report.md")
+    errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_pre_gate_handoff_leak)
+    joined = "\n".join(errors)
+    assert "must not produce target workflow binding/readiness handoff before target_workflow_binding_draft" in joined
+    assert "must not produce target workflow readiness gate report before target_workflow_readiness_gate" in joined
 
     broken_operating_scope = copy.deepcopy(workflow)
     for phase in broken_operating_scope["phases"]:
@@ -1264,8 +1428,9 @@ def test_project_initialization_requires_documentation_disposition_decision() ->
 
     legacy = phase_by_id["legacy_adoption_mode_decision"]
     target = phase_by_id["target_workflow_context_decision_packet"]
+    target_binding = phase_by_id["target_workflow_binding_draft"]
     overlay = phase_by_id["overlay_draft"]
-    for phase in [legacy, target, overlay]:
+    for phase in [legacy, target, target_binding, overlay]:
         assert "project-documentation-disposition.yaml" in phase["inputs"]
 
 
@@ -1273,11 +1438,91 @@ def test_target_workflow_readiness_gate_requires_documentation_disposition() -> 
     import yaml
 
     gate = yaml.safe_load((ROOT / "gates/target_workflow_readiness_gate.yaml").read_text(encoding="utf-8"))
+    required_decision_categories = {
+        "scope",
+        "adr",
+        "risk",
+        "contract",
+        "gate",
+        "review",
+        "evidence",
+        "authority",
+        "workflow-design",
+    }
     assert "project-documentation-disposition.yaml" in gate["inputs"]
     assert any(
         "project-documentation-disposition.yaml" in evidence
         for evidence in gate["required_evidence"]
     )
+    assert any("existing project policy/workflow binding evidence" in item for item in gate["inputs"])
+    assert any("target workflow preflight findings" in item for item in gate["inputs"])
+    assert any("human decision packet" in item for item in gate["inputs"])
+    assert any("existing project policy/workflow binding evidence" in item for item in gate["required_evidence"])
+    assert any("human decision packet" in item for item in gate["required_evidence"])
+    assert set(gate["decision_categories"]) == required_decision_categories
+    assert "unresolved_material_design_decision" in gate["pass_policy"]["needs_human_decision_on"]
+
+
+def test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "gates/target_workflow_readiness_gate.yaml"
+    gate = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken_gate = copy.deepcopy(gate)
+    broken_gate["pass_policy"]["needs_human_decision_on"].remove("unresolved_material_design_decision")
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_gate)
+    assert "target_workflow_readiness_gate must block unresolved material design decisions" in "\n".join(errors)
+
+    broken_categories = copy.deepcopy(gate)
+    broken_categories["decision_categories"].remove("evidence")
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_categories)
+    assert "target_workflow_readiness_gate decision_categories missing: evidence" in "\n".join(errors)
+
+    broken_existing_context = copy.deepcopy(gate)
+    broken_existing_context["inputs"] = [
+        item for item in broken_existing_context["inputs"] if "existing project policy/workflow binding evidence" not in item
+    ]
+    broken_existing_context["required_evidence"] = [
+        item
+        for item in broken_existing_context["required_evidence"]
+        if "existing project policy/workflow binding evidence" not in item
+    ]
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_existing_context)
+    joined = "\n".join(errors)
+    assert "inputs must allow existing project policy/workflow binding evidence" in joined
+    assert "required_evidence must include existing project policy/workflow binding evidence or preflight findings" in joined
+
+    broken_preflight = copy.deepcopy(gate)
+    broken_preflight["inputs"] = [
+        item for item in broken_preflight["inputs"] if "target workflow preflight findings" not in item
+    ]
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_preflight)
+    assert "inputs must allow target workflow preflight findings" in "\n".join(errors)
+
+    broken_human_packet = copy.deepcopy(gate)
+    broken_human_packet["inputs"] = [
+        item for item in broken_human_packet["inputs"] if "human decision packet" not in item
+    ]
+    broken_human_packet["required_evidence"] = [
+        item for item in broken_human_packet["required_evidence"] if "human decision packet" not in item
+    ]
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_human_packet)
+    joined = "\n".join(errors)
+    assert "inputs must allow human decision packet" in joined
+    assert "required_evidence must include human decision packet" in joined
+
+    broken_pass_policy = copy.deepcopy(gate)
+    broken_pass_policy["pass_policy"] = "invalid"
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_pass_policy)
+    joined = "\n".join(errors)
+    assert "pass_policy must be a mapping" in joined
+    assert "target_workflow_readiness_gate must block unresolved material design decisions" in joined
 
 
 def test_project_initialization_gate_requires_documentation_disposition() -> None:

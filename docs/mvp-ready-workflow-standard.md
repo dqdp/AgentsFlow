@@ -156,9 +156,10 @@ adoption-onboarding
 prepare-workflow
   require target_workflow -> documentation disposition
   -> confirm sufficient target workflow operating context
-  -> capture missing target workflow decisions as a run-level decision packet
-  -> draft target workflow binding/readiness artifacts only when needed
-  -> target workflow readiness gate -> initialization review -> finding validation
+  -> capture missing target workflow decisions or material design forks as a run-level decision packet
+  -> target workflow readiness gate
+  -> draft target workflow binding/readiness handoff only when ready
+  -> initialization review -> finding validation
 
 legacy-cleanup
   documentation disposition -> legacy adoption decision
@@ -171,7 +172,10 @@ outputs. They apply to adoption-onboarding, legacy activation, or
 prepare-workflow binding/policy activation. `prepare-workflow` requires
 `target_workflow` and enough operating context for that workflow: project or
 draft binding, gate policy, review policy, evidence location and human-owned
-decisions.
+decisions. Material design forks discovered while preparing that target workflow
+are handled as human-mediated checkpoints and recorded in the same run-level
+decision packet before readiness validation. Unresolved blocking-material forks
+block readiness unless explicitly deferred with stated constraints.
 
 ### big-feature-contract-first
 

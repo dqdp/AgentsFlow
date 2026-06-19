@@ -39,10 +39,11 @@ No review-agent-to-human questioning; human interaction is mediated by the main 
 ```
 
 `prepare-workflow` may use existing project policy/workflow binding evidence, or
-record missing target-workflow gate/review/evidence/authority context in the
-run-level `target_workflow_context_decision_packet`. That packet is not a
-substitute for persistent `project-operating-decisions.yaml` unless the human
-explicitly chooses onboarding or policy activation.
+record missing target-workflow gate/review/evidence/authority context and
+material target-workflow design decisions in the run-level
+`target_workflow_context_decision_packet`. That packet is not a substitute for
+persistent `project-operating-decisions.yaml` unless the human explicitly chooses
+onboarding or policy activation.
 
 ## Input artifact: project intake / research assignment
 
@@ -270,21 +271,34 @@ The agent must ask focused questions, offer conservative defaults when supported
 by evidence, and summarize decisions back to the human. For
 `adoption-onboarding` or explicit persistent policy activation, the normalized
 result is `project-operating-decisions.yaml`. For `prepare-workflow`, missing
-target-workflow operating context is recorded in the run-level
+target-workflow operating context and material scope, ADR, risk, contract, gate,
+review, evidence, authority or workflow-design decisions are recorded in the run-level
 `target_workflow_context_decision_packet` unless the human explicitly switches to
 onboarding or persistent policy activation.
+
+For `prepare-workflow`, a material design decision is any human-owned choice that
+can change the target workflow binding, gate set, evidence policy, authority
+model, task contract or downstream implementation scope. It is a declared
+human-mediated checkpoint: the main/orchestrating agent groups options, pauses
+for the human answer, records the answer in the decision packet and preflight run
+artifacts, and resumes only when blocking-material decisions are confirmed or
+explicitly deferred with stated constraints and no unresolved decision blocks the
+next gate. Target workflow binding/readiness handoff artifacts are drafted only
+after `target_workflow_readiness_gate` accepts the operating context.
 
 Each material decision is marked as one of:
 
 ```text
 confirmed
 defaulted
-recommended
 unresolved
 rejected
+explicitly_deferred_with_constraints
 ```
 
 Unresolved decisions remain visible and must not silently become project defaults.
+Blocking-material target-workflow decisions may be deferred only with stated
+constraints; bare unresolved blocking decisions block readiness.
 
 ### Layer 6: human confirmation
 
@@ -325,9 +339,11 @@ adoption-onboarding
 prepare-workflow
   Confirm `target_workflow`, record run-level `project-documentation-disposition.yaml`,
   check whether sufficient gate/review/evidence and authority context exists,
-  capture missing context in a run-level target workflow human decision packet,
-  draft only target-workflow binding/readiness artifacts when needed, and ask
-  grouped human questions only for missing material context.
+  capture missing context or material design forks in a run-level target workflow
+  human decision packet and ask grouped human questions for missing material
+  context, block readiness on unresolved blocking-material forks, run
+  `target_workflow_readiness_gate`, then draft only target-workflow
+  binding/readiness handoff artifacts when ready.
 
 legacy-cleanup
   Record `project-documentation-disposition.yaml`, select legacy adoption mode,

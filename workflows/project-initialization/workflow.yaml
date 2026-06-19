@@ -113,8 +113,7 @@ mode_gated_outputs:
   - .agentsflow/agentsflow.lock.yaml when needed
   - project-documentation-disposition.yaml
   - target workflow binding draft
-  - target workflow gate readiness report
-  - target workflow human decision packet when target workflow operating context is missing
+  - target workflow human decision packet when target workflow operating context is missing or material design decisions are discovered
   - finding-validation-report.md
   - review-cycle-report.md
   legacy-cleanup:
@@ -141,6 +140,7 @@ intent_mode_phase_policy:
     - project_initialization_gate
     - target_workflow_context_decision_packet
     - target_workflow_readiness_gate
+    - target_workflow_binding_draft
     - initialization_review
     - finding_validation
     - human_approval
@@ -156,11 +156,12 @@ intent_mode_phase_policy:
   prepare-workflow:
     requires_target_workflow: true
     requires_sufficient_operating_context: true
-    target_workflow_context_decision_packet: conditional_when_target_workflow_policy_is_missing
+    target_workflow_context_decision_packet: conditional_when_target_workflow_context_or_material_design_decision_is_missing
     overlay_scope: target_workflow_binding_and_gate_readiness_only
     requires:
     - documentation_disposition_decision
     - target_workflow_readiness_gate
+    - target_workflow_binding_draft
     - initialization_review
     - finding_validation
     conditional_requires:
@@ -180,6 +181,7 @@ intent_mode_phase_policy:
     - project_initialization_gate
     - target_workflow_context_decision_packet
     - target_workflow_readiness_gate
+    - target_workflow_binding_draft
     - initialization_review
     - finding_validation
     - human_approval
@@ -212,6 +214,7 @@ human_interaction:
   - answered
   - defaulted
   - unresolved
+  - explicitly_deferred_with_constraints
 phases:
 - id: read_project_intake
   kind: intake
@@ -402,10 +405,23 @@ phases:
   kind: decision
   applies_to_intent_modes:
   - prepare-workflow
-  purpose: Capture missing gate, review, evidence or authority decisions for the
-    declared target workflow as a run-level decision packet. This phase must not
-    promote those answers into long-lived project operating policy unless the
-    human explicitly switches to onboarding or policy activation.
+  purpose: Capture missing gate, review, evidence or authority context, plus
+    material scope, ADR, risk, contract, gate, review, evidence, authority or
+    workflow-design decisions discovered while preparing the declared target
+    workflow, as a run-level decision packet.
+    This phase must not promote those answers into long-lived project operating
+    policy unless the human explicitly switches to onboarding or policy
+    activation.
+  decision_categories:
+  - scope
+  - adr
+  - risk
+  - contract
+  - gate
+  - review
+  - evidence
+  - authority
+  - workflow-design
   mode: human_guided
   coordinator: main-agent
   human_interaction:
@@ -417,13 +433,17 @@ phases:
     response_artifact: human-decisions.yaml
     allowed_resume_states:
     - answered
-    - unresolved
+    - explicitly_deferred_with_constraints
+    resume_policy:
+      unresolved_blocking_material_decisions: block_target_workflow_readiness
+      unresolved_nonblocking_decisions: may_resume_as_follow_up_or_limitation
   inputs:
   - project-intake.yaml
   - project-inventory.json
   - project-assessment.json
   - project-documentation-disposition.yaml
   - existing project policy/workflow binding when available
+  - target workflow preflight findings when available
   outputs:
   - target workflow human decision packet
   - human-decisions.yaml
@@ -431,25 +451,19 @@ phases:
   kind: specification
   applies_to_intent_modes:
   - adoption-onboarding
-  - prepare-workflow
   purpose: Draft .agentsflow project overlay, workflow bindings and project-bound
     gates from inventory, expert recommendations and confirmed or explicitly
-    unresolved operating decisions. In prepare-workflow mode, draft only the
-    target workflow binding/gate readiness artifacts. These artifacts remain
-    draft-only until human approval.
+    unresolved operating decisions. These artifacts remain draft-only until
+    human approval.
   inputs:
   - project-inventory.json
   - project-assessment.json
   - project-documentation-disposition.yaml
   - project-operating-decisions.yaml when adoption-onboarding mode drafts a project overlay
-  - target workflow human decision packet when prepare-workflow mode has missing context
-  - existing project policy/workflow binding when prepare-workflow mode already has sufficient context
   outputs:
   - project.yaml draft for adoption-onboarding
   - workflow bindings draft for adoption-onboarding
   - project-bound gate drafts for adoption-onboarding
-  - target workflow binding draft for prepare-workflow
-  - target workflow gate readiness report for prepare-workflow
 - id: project_initialization_gate
   kind: gate
   applies_to_intent_modes:
@@ -464,11 +478,33 @@ phases:
   applies_to_intent_modes:
   - prepare-workflow
   gate: target_workflow_readiness_gate
+  runs_after:
+  - target_workflow_context_decision_packet
+  runs_after_policy: after_conditional_target_workflow_context_decision_packet_when_required
   purpose: Validate that prepare-workflow has a declared target workflow and enough
     project-bound operating context, or has captured the missing gate, review,
-    evidence and authority decisions as a human decision packet.
+    evidence, authority and material design decisions as a human decision packet.
   outputs:
   - target-workflow-readiness-gate-report.md
+- id: target_workflow_binding_draft
+  kind: specification
+  applies_to_intent_modes:
+  - prepare-workflow
+  runs_after:
+  - target_workflow_readiness_gate
+  purpose: Draft the target workflow binding/readiness handoff after
+    target_workflow_readiness_gate has accepted the operating context. Unresolved
+    blocking-material decisions are routed to human decision handling and block
+    this phase.
+  inputs:
+  - project-inventory.json
+  - project-assessment.json
+  - project-documentation-disposition.yaml
+  - target-workflow-readiness-gate-report.md
+  - target workflow human decision packet when prepare-workflow mode has missing context or material design decisions
+  - existing project policy/workflow binding when prepare-workflow mode already has sufficient context
+  outputs:
+  - target workflow binding draft for prepare-workflow
 - id: initialization_review
   kind: review
   applies_to_intent_modes:
@@ -479,7 +515,8 @@ phases:
   runs_after:
   - project_initialization_gate
   - target_workflow_readiness_gate
-  runs_after_policy: after_applicable_intent_mode_gate
+  - target_workflow_binding_draft
+  runs_after_policy: after_applicable_intent_mode_gate_and_prepare_workflow_binding_draft
   outputs:
   - reviewer reports
 - id: finding_validation
@@ -535,8 +572,10 @@ exit_criteria:
 - For adoption-onboarding, human operating decisions were collected through an
   agent-led dialogue or explicitly marked as unresolved before overlay drafting.
 - For prepare-workflow, sufficient target workflow operating context was found
-  or missing gate/review/evidence/authority decisions were recorded in a human
-  decision packet.
+  or missing gate/review/evidence/authority context and material target-workflow
+  design decisions were confirmed or explicitly deferred with stated constraints
+  in a human decision packet. Unresolved blocking-material decisions block target
+  workflow readiness.
 - For unknown-discovery and risk-domain-assessment, overlay drafting and human
   approval were not required unless explicitly requested.
 - Project overlay or target workflow binding was drafted or explicitly deferred

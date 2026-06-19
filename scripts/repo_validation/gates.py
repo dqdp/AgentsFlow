@@ -26,10 +26,22 @@ VALID_GATE_INSTRUMENT_TYPES = {
     'review_protocol_check',
 }
 
+TARGET_WORKFLOW_DECISION_CATEGORIES = {
+    "scope",
+    "adr",
+    "risk",
+    "contract",
+    "gate",
+    "review",
+    "evidence",
+    "authority",
+    "workflow-design",
+}
 
-def validate_gate_manifest(root: Path, path: Path) -> list[str]:
+
+def validate_gate_manifest(root: Path, path: Path, data: dict | None = None) -> list[str]:
     errors: list[str] = []
-    data = parse_yaml(path) or {}
+    data = data if data is not None else parse_yaml(path) or {}
     if not isinstance(data, dict):
         return [f"Gate {path} is not a mapping"]
     required = ["id", "name", "kind", "purpose", "runner", "inputs", "instruments", "outputs", "result_states", "pass_policy"]
@@ -56,6 +68,7 @@ def validate_gate_manifest(root: Path, path: Path) -> list[str]:
             if "id" not in inst or "type" not in inst:
                 errors.append(f"{path}: instrument #{idx} must include id and type")
     pass_policy = data.get("pass_policy", {}) or {}
+    pass_policy_map = pass_policy if isinstance(pass_policy, dict) else {}
     if isinstance(pass_policy, dict):
         for key in ["fail_on", "inconclusive_on"]:
             if key not in pass_policy:
@@ -74,6 +87,38 @@ def validate_gate_manifest(root: Path, path: Path) -> list[str]:
             errors.append(
                 f"{path}: {gate_id} required_evidence must include project-documentation-disposition.yaml"
             )
+        if gate_id == "target_workflow_readiness_gate":
+            decision_categories = set(str(item) for item in data.get("decision_categories", []) or [])
+            missing_categories = sorted(TARGET_WORKFLOW_DECISION_CATEGORIES - decision_categories)
+            if missing_categories:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate decision_categories missing: {', '.join(missing_categories)}"
+                )
+            if not any("existing project policy/workflow binding evidence" in item for item in inputs):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate inputs must allow existing project policy/workflow binding evidence"
+                )
+            if not any("target workflow preflight findings" in item for item in inputs):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate inputs must allow target workflow preflight findings"
+                )
+            if not any("human decision packet" in item for item in inputs):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate inputs must allow human decision packet"
+                )
+            if not any("existing project policy/workflow binding evidence" in item for item in required_evidence):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate required_evidence must include existing project policy/workflow binding evidence or preflight findings"
+                )
+            if not any("human decision packet" in item for item in required_evidence):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate required_evidence must include human decision packet"
+                )
+            needs_human_decision_on = set(str(item) for item in pass_policy_map.get("needs_human_decision_on", []) or [])
+            if "unresolved_material_design_decision" not in needs_human_decision_on:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate must block unresolved material design decisions"
+                )
     return errors
 
 
@@ -132,4 +177,3 @@ def required_workflow_gates(workflow_path: Path, selected_strictness: object) ->
         if str(selected_strictness) in {str(item) for item in applies or []}:
             gates.add(str(phase["gate"]))
     return gates
-
