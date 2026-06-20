@@ -792,6 +792,499 @@ def test_project_documentation_disposition_schema_passes() -> None:
     empty_documents_without_rationale.pop("no_material_documents_rationale", None)
     assert list(validator.iter_errors(empty_documents_without_rationale))
 
+    missing_documentation_adoption = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    missing_documentation_adoption.pop("documentation_legacy_adoption")
+    assert list(validator.iter_errors(missing_documentation_adoption))
+
+    invalid_agent_selected_documentation_adoption = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_agent_selected_documentation_adoption["documentation_legacy_adoption"][
+        "agent_may_select_without_human"
+    ] = True
+    assert list(validator.iter_errors(invalid_agent_selected_documentation_adoption))
+
+    invalid_unconfirmed_documentation_adoption = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_unconfirmed_documentation_adoption["artifact_role"] = "run_artifact"
+    invalid_unconfirmed_documentation_adoption["documentation_legacy_adoption"][
+        "human_confirmation"
+    ]["status"] = "pending"
+    assert list(validator.iter_errors(invalid_unconfirmed_documentation_adoption))
+
+    invalid_agent_default_confirmation_source = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_agent_default_confirmation_source["documentation_legacy_adoption"][
+        "human_confirmation"
+    ]["source"] = "agent-default"
+    assert list(validator.iter_errors(invalid_agent_default_confirmation_source))
+
+    missing_decision_record = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    missing_decision_record["documentation_legacy_adoption"].pop("decision_record")
+    assert list(validator.iter_errors(missing_decision_record))
+
+    invalid_decision_record = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_decision_record["documentation_legacy_adoption"][
+        "decision_record"
+    ] = "agent-default"
+    assert list(validator.iter_errors(invalid_decision_record))
+
+    invalid_light_as_mode = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_light_as_mode["documentation_legacy_adoption"]["mode"] = "light-extraction"
+    assert list(validator.iter_errors(invalid_light_as_mode))
+
+    missing_extraction_depth = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    missing_extraction_depth["documentation_legacy_adoption"].pop("extraction_depth")
+    assert list(validator.iter_errors(missing_extraction_depth))
+
+    invalid_prepare_project_level_extraction = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_prepare_project_level_extraction["scope"]["intent_mode"] = "prepare-workflow"
+    invalid_prepare_project_level_extraction["documentation_legacy_adoption"][
+        "persistence_scope"
+    ] = "project-level"
+    assert list(validator.iter_errors(invalid_prepare_project_level_extraction))
+
+    invalid_prepare_extraction_artifact = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid_prepare_extraction_artifact["scope"]["intent_mode"] = "prepare-workflow"
+    invalid_prepare_extraction_artifact["documentation_legacy_adoption"][
+        "extraction_artifact"
+    ] = "custom-extraction.md"
+    assert list(validator.iter_errors(invalid_prepare_extraction_artifact))
+
+    light_prepare_without_risk_acceptance = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    light_prepare_without_risk_acceptance["scope"]["intent_mode"] = "prepare-workflow"
+    light_prepare_without_risk_acceptance["documentation_legacy_adoption"][
+        "extraction_depth"
+    ] = "light"
+    validator.validate(light_prepare_without_risk_acceptance)
+
+    light_prepare_with_risk_acceptance = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    light_prepare_with_risk_acceptance["scope"]["intent_mode"] = "prepare-workflow"
+    light_prepare_with_risk_acceptance["documentation_legacy_adoption"][
+        "extraction_depth"
+    ] = "light"
+    light_prepare_with_risk_acceptance["documentation_legacy_adoption"][
+        "implementation_risk_acceptance"
+    ] = {
+        "required": True,
+        "status": "accepted",
+        "source": "human-dialogue",
+        "decision_record": "human-decisions.yaml#documentation-extraction-light-risk",
+    }
+    validator.validate(light_prepare_with_risk_acceptance)
+
+    knowledge_extraction = yaml.safe_load(
+        (ROOT / "templates/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    knowledge_extraction["documentation_legacy_adoption"]["mode"] = "knowledge-extraction"
+    knowledge_extraction["documentation_legacy_adoption"]["extraction_depth"] = "standard"
+    validator.validate(knowledge_extraction)
+
+
+def test_project_documentation_disposition_resolves_human_decision_record(tmp_path: Path) -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    disposition = yaml.safe_load(
+        (ROOT / "examples/project-initialization/project-documentation-disposition.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    decisions = yaml.safe_load(
+        (ROOT / "examples/project-initialization/human-decisions.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    questions = yaml.safe_load(
+        (ROOT / "examples/project-initialization/human-questions.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    extraction_text = (
+        ROOT / "examples/project-initialization/project-knowledge-extraction.md"
+    ).read_text(encoding="utf-8")
+    disposition_path = tmp_path / "project-documentation-disposition.yaml"
+    decisions_path = tmp_path / "human-decisions.yaml"
+    questions_path = tmp_path / "human-questions.yaml"
+    extraction_path = tmp_path / "project-knowledge-extraction.md"
+
+    def write_artifacts(
+        decisions_data: dict | None = None,
+        questions_data: dict | None = None,
+        disposition_data: dict | None = None,
+    ) -> None:
+        disposition_path.write_text(
+            yaml.safe_dump(disposition_data or disposition), encoding="utf-8"
+        )
+        decisions_path.write_text(
+            yaml.safe_dump(decisions_data or decisions), encoding="utf-8"
+        )
+        questions_path.write_text(
+            yaml.safe_dump(questions_data or questions), encoding="utf-8"
+        )
+        extraction_path.write_text(extraction_text, encoding="utf-8")
+
+    write_artifacts()
+    assert not validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+
+    copied_template_disposition = yaml.safe_load(yaml.safe_dump(disposition))
+    copied_template_disposition["artifact_role"] = "template"
+    write_artifacts(disposition_data=copied_template_disposition)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "artifact_role template is reserved" in "\n".join(errors)
+
+    questions_path.unlink()
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "missing human-questions.yaml" in "\n".join(errors)
+
+    missing_question = yaml.safe_load(yaml.safe_dump(questions))
+    missing_question["questions"] = [
+        question
+        for question in missing_question["questions"]
+        if question["decision_id"] != "documentation-legacy-adoption"
+    ]
+    write_artifacts(questions_data=missing_question)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "matching human question not found" in "\n".join(errors)
+
+    defaulted_question = yaml.safe_load(yaml.safe_dump(questions))
+    defaulted_question["questions"][0]["default"]["allowed"] = True
+    write_artifacts(questions_data=defaulted_question)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question must not allow a default" in "\n".join(errors)
+
+    default_id_question = yaml.safe_load(yaml.safe_dump(questions))
+    default_id_question["questions"][0]["default"]["id"] = "knowledge-extraction"
+    write_artifacts(questions_data=default_id_question)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question must not declare a default id" in "\n".join(errors)
+
+    open_question = yaml.safe_load(yaml.safe_dump(questions))
+    open_question["questions"][0]["status"] = "open"
+    write_artifacts(questions_data=open_question)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question must be answered" in "\n".join(errors)
+
+    incomplete_mode_options = yaml.safe_load(yaml.safe_dump(questions))
+    incomplete_mode_options["questions"][0]["options"] = [
+        option
+        for option in incomplete_mode_options["questions"][0]["options"]
+        if option["id"] != "archive-delete"
+    ]
+    write_artifacts(questions_data=incomplete_mode_options)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question options missing modes: archive-delete" in "\n".join(errors)
+
+    extra_mode_option = yaml.safe_load(yaml.safe_dump(questions))
+    extra_mode_option["questions"][0]["options"].append(
+        {
+            "id": "unresolved",
+            "label": "Leave unresolved",
+            "impact": "Blocks the run.",
+        }
+    )
+    write_artifacts(questions_data=extra_mode_option)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question options must not include non-mode ids: unresolved" in "\n".join(errors)
+
+    missing_depth_option = yaml.safe_load(yaml.safe_dump(questions))
+    missing_depth_option["questions"][0]["extraction_depth_options"] = [
+        option
+        for option in missing_depth_option["questions"][0]["extraction_depth_options"]
+        if option["id"] != "deep"
+    ]
+    write_artifacts(questions_data=missing_depth_option)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question extraction_depth_options missing: deep" in "\n".join(errors)
+
+    extra_depth_option = yaml.safe_load(yaml.safe_dump(questions))
+    extra_depth_option["questions"][0]["extraction_depth_options"].append(
+        {
+            "id": "full",
+            "label": "Full",
+            "impact": "Unsupported extraction depth.",
+        }
+    )
+    write_artifacts(questions_data=extra_depth_option)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question extraction_depth_options must not include unsupported ids: full" in "\n".join(errors)
+
+    missing_scope_option = yaml.safe_load(yaml.safe_dump(questions))
+    missing_scope_option["questions"][0]["persistence_scope_options"] = [
+        option
+        for option in missing_scope_option["questions"][0]["persistence_scope_options"]
+        if option["id"] != "project-level"
+    ]
+    write_artifacts(questions_data=missing_scope_option)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question persistence_scope_options missing: project-level" in "\n".join(errors)
+
+    extra_scope_option = yaml.safe_load(yaml.safe_dump(questions))
+    extra_scope_option["questions"][0]["persistence_scope_options"].append(
+        {
+            "id": "global",
+            "label": "Global",
+            "impact": "Unsupported persistence scope.",
+        }
+    )
+    write_artifacts(questions_data=extra_scope_option)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "question persistence_scope_options must not include unsupported ids: global" in "\n".join(errors)
+
+    mismatched_question_ref = yaml.safe_load(yaml.safe_dump(decisions))
+    mismatched_question_ref["decisions"][0]["question_ref"] = "documentation.legacy_adoption"
+    write_artifacts(decisions_data=mismatched_question_ref)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "decision question_ref must match question decision_id" in "\n".join(errors)
+
+    write_artifacts()
+    assert not validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+
+    missing_decision = yaml.safe_load(yaml.safe_dump(decisions))
+    missing_decision["decisions"] = [
+        decision
+        for decision in missing_decision["decisions"]
+        if decision["decision_id"] != "documentation-legacy-adoption"
+    ]
+    write_artifacts(decisions_data=missing_decision)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "decision_record not found" in "\n".join(errors)
+
+    defaulted_decision = yaml.safe_load(yaml.safe_dump(decisions))
+    defaulted_decision["decisions"][0]["status"] = "defaulted"
+    write_artifacts(decisions_data=defaulted_decision)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "decision_record must be confirmed" in "\n".join(errors)
+
+    agent_owned_decision = yaml.safe_load(yaml.safe_dump(decisions))
+    agent_owned_decision["decisions"][0]["answered_by"] = "agent"
+    write_artifacts(decisions_data=agent_owned_decision)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "decision_record must be human-owned" in "\n".join(errors)
+
+    nonblocking_decision = yaml.safe_load(yaml.safe_dump(decisions))
+    nonblocking_decision["decisions"][0]["classification"] = "nonblocking-follow-up"
+    write_artifacts(decisions_data=nonblocking_decision)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "decision_record must be blocking-material" in "\n".join(errors)
+
+    mismatched_decision = yaml.safe_load(yaml.safe_dump(decisions))
+    mismatched_decision["decisions"][0]["answer"]["extraction_depth"] = "deep"
+    write_artifacts(decisions_data=mismatched_decision)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "answer.extraction_depth must match disposition" in "\n".join(errors)
+
+    write_artifacts()
+    extraction_path.unlink()
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "extraction_artifact missing" in "\n".join(errors)
+
+    write_artifacts()
+    extraction_path.write_text("", encoding="utf-8")
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "extraction_artifact must not be empty" in "\n".join(errors)
+
+    wrong_extraction_artifact = yaml.safe_load(yaml.safe_dump(disposition))
+    wrong_extraction_artifact["documentation_legacy_adoption"]["extraction_artifact"] = "README.md"
+    (tmp_path / "README.md").write_text("Not an extraction artifact.", encoding="utf-8")
+    write_artifacts(disposition_data=wrong_extraction_artifact)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "extraction_artifact must be project-knowledge-extraction.md" in "\n".join(errors)
+
+    light_implementation_disposition = yaml.safe_load(yaml.safe_dump(disposition))
+    light_implementation_disposition["scope"]["intent_mode"] = "prepare-workflow"
+    light_implementation_disposition["scope"]["target_workflow"] = "big-feature-contract-first"
+    light_implementation_disposition["scope"]["run_level_only"] = True
+    light_implementation_disposition["documentation_legacy_adoption"][
+        "extraction_depth"
+    ] = "light"
+    light_implementation_decisions = yaml.safe_load(yaml.safe_dump(decisions))
+    light_implementation_decisions["decisions"][0]["answer"]["extraction_depth"] = "light"
+    write_artifacts(
+        decisions_data=light_implementation_decisions,
+        disposition_data=light_implementation_disposition,
+    )
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "light extraction cannot unlock implementation readiness" in "\n".join(errors)
+
+    risk_disposition = yaml.safe_load(yaml.safe_dump(disposition))
+    risk_disposition["scope"]["intent_mode"] = "prepare-workflow"
+    risk_disposition["scope"]["target_workflow"] = "big-feature-contract-first"
+    risk_disposition["scope"]["run_level_only"] = True
+    risk_disposition["documentation_legacy_adoption"]["extraction_depth"] = "light"
+    risk_disposition["documentation_legacy_adoption"][
+        "implementation_risk_acceptance"
+    ] = {
+        "required": True,
+        "status": "accepted",
+        "source": "human-decisions.yaml",
+        "decision_record": "human-decisions.yaml#unrelated-confirmed-decision",
+    }
+    unrelated_risk_decisions = yaml.safe_load(yaml.safe_dump(decisions))
+    unrelated_risk_decisions["decisions"][0]["answer"]["extraction_depth"] = "light"
+    unrelated_risk_decisions["decisions"].append(
+        {
+            "decision_id": "unrelated-confirmed-decision",
+            "phase_id": "target_workflow_context_decision_packet",
+            "question_ref": "unrelated-confirmed-decision",
+            "answer": {
+                "unrelated": True,
+            },
+            "status": "confirmed",
+            "answered_by": "project-owner",
+            "classification": "blocking-material",
+            "affected_artifacts": [
+                "human-decisions.yaml",
+            ],
+        }
+    )
+    write_artifacts(decisions_data=unrelated_risk_decisions, disposition_data=risk_disposition)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "must accept light extraction implementation risk or upgrade depth" in "\n".join(errors)
+
+    nonblocking_risk_decisions = yaml.safe_load(yaml.safe_dump(unrelated_risk_decisions))
+    nonblocking_risk_decision = next(
+        decision
+        for decision in nonblocking_risk_decisions["decisions"]
+        if decision["decision_id"] == "unrelated-confirmed-decision"
+    )
+    nonblocking_risk_decision["answer"] = {
+        "accepts_light_extraction_implementation_risk": True,
+    }
+    nonblocking_risk_decision["classification"] = "nonblocking-follow-up"
+    write_artifacts(decisions_data=nonblocking_risk_decisions, disposition_data=risk_disposition)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "implementation_risk_acceptance decision_record must be blocking-material" in "\n".join(errors)
+
+    risk_decisions = yaml.safe_load(yaml.safe_dump(decisions))
+    risk_decisions["decisions"][0]["answer"]["extraction_depth"] = "light"
+    risk_decisions["decisions"].append(
+        {
+            "decision_id": "documentation-extraction-light-risk",
+            "phase_id": "target_workflow_context_decision_packet",
+            "question_ref": "documentation-extraction-light-risk",
+            "answer": {
+                "accepts_light_extraction_implementation_risk": True,
+            },
+            "status": "confirmed",
+            "answered_by": "project-owner",
+            "classification": "blocking-material",
+            "affected_artifacts": [
+                "project-documentation-disposition.yaml",
+                "target-workflow-readiness-gate-report.md",
+            ],
+        }
+    )
+    risk_disposition["documentation_legacy_adoption"][
+        "implementation_risk_acceptance"
+    ]["decision_record"] = "human-decisions.yaml#documentation-extraction-light-risk"
+    write_artifacts(decisions_data=risk_decisions, disposition_data=risk_disposition)
+    assert not validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+
 
 def test_project_initialization_example_claimed_files_exist() -> None:
     import json
@@ -811,6 +1304,38 @@ def test_project_initialization_example_claimed_files_exist() -> None:
         assert (example_root / document["path"]).exists(), document["path"]
         for evidence in document["evidence"]:
             assert (example_root / evidence).exists(), evidence
+
+    decision_record = disposition["documentation_legacy_adoption"]["decision_record"]
+    decision_file, decision_id = decision_record.split("#", 1)
+    human_decisions = yaml.safe_load(
+        (example_root / decision_file).read_text(encoding="utf-8")
+    )
+    human_questions = yaml.safe_load(
+        (example_root / "human-questions.yaml").read_text(encoding="utf-8")
+    )
+    questions_by_id = {
+        question["decision_id"]: question
+        for question in human_questions["questions"]
+    }
+    decisions_by_id = {
+        decision["decision_id"]: decision
+        for decision in human_decisions["decisions"]
+    }
+    documentation_question = questions_by_id[decision_id]
+    assert documentation_question["phase_id"] == "documentation_disposition_decision"
+    assert documentation_question["classification"] == "blocking-material"
+    assert documentation_question["default"]["allowed"] is False
+    assert "id" not in documentation_question["default"]
+    documentation_decision = decisions_by_id[decision_id]
+    assert documentation_decision["phase_id"] == "documentation_disposition_decision"
+    assert documentation_decision["status"] == "confirmed"
+    assert documentation_decision["answered_by"] in {"human", "project-owner"}
+    assert documentation_decision["answer"]["mode"] == disposition[
+        "documentation_legacy_adoption"
+    ]["mode"]
+    assert documentation_decision["answer"]["extraction_depth"] == disposition[
+        "documentation_legacy_adoption"
+    ]["extraction_depth"]
 
 
 def test_human_interaction_artifact_schemas_pass() -> None:
@@ -1356,6 +1881,8 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     path = ROOT / "workflows/project-initialization/workflow.yaml"
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert "explicitly_deferred_with_constraints" in workflow["human_interaction"]["allowed_resume_states"]
+    assert "defaulted" not in workflow["human_interaction"]["allowed_resume_states"]
+    assert "unresolved" not in workflow["human_interaction"]["allowed_resume_states"]
     prepare_policy = workflow["intent_mode_phase_policy"]["prepare-workflow"]
     assert (
         prepare_policy["target_workflow_context_decision_packet"]
@@ -1406,6 +1933,16 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     )
     errors = validate_repo.validate_project_initialization_human_interaction(path, broken_top_level_resume_state)
     assert "human_interaction.allowed_resume_states must include explicitly_deferred_with_constraints" in "\n".join(errors)
+
+    broken_top_level_defaulted = copy.deepcopy(workflow)
+    broken_top_level_defaulted["human_interaction"]["allowed_resume_states"].append("defaulted")
+    errors = validate_repo.validate_project_initialization_human_interaction(path, broken_top_level_defaulted)
+    assert "human_interaction.allowed_resume_states must not include defaulted as a global resume state" in "\n".join(errors)
+
+    broken_top_level_unresolved = copy.deepcopy(workflow)
+    broken_top_level_unresolved["human_interaction"]["allowed_resume_states"].append("unresolved")
+    errors = validate_repo.validate_project_initialization_human_interaction(path, broken_top_level_unresolved)
+    assert "human_interaction.allowed_resume_states must not include unresolved as a global resume state" in "\n".join(errors)
 
     broken_outputs = copy.deepcopy(workflow)
     broken_outputs["outputs"].append("project-operating-decisions.yaml")
@@ -1664,6 +2201,22 @@ def test_project_initialization_requires_documentation_disposition_decision() ->
         "legacy-cleanup",
     }
     assert "project-documentation-disposition.yaml" in disposition["outputs"]
+    assert "project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction" in disposition["outputs"]
+    assert disposition["legacy_adoption_question_required"] is True
+    assert disposition["agent_may_select_legacy_adoption_without_human"] is False
+    assert "defaulted" not in disposition["human_interaction"]["allowed_resume_states"]
+    assert "unresolved" not in disposition["human_interaction"]["allowed_resume_states"]
+    assert "light-extraction" not in disposition["supported_documentation_legacy_adoption_modes"]
+    assert "knowledge-extraction" in disposition["supported_documentation_legacy_adoption_modes"]
+    assert disposition["supported_documentation_extraction_depths"] == [
+        "light",
+        "standard",
+        "deep",
+    ]
+    assert disposition["default_documentation_extraction_depth_by_intent_mode"][
+        "prepare-workflow"
+    ] == "standard"
+    assert "implementation phase" in disposition["implementation_readiness_rule"]
     assert "documentation-history-index.md" in disposition["inputs"]
     assert "project-inventory.json" in disposition["inputs"]
     assert "project-assessment.json" in disposition["inputs"]
@@ -1676,6 +2229,11 @@ def test_project_initialization_requires_documentation_disposition_decision() ->
     overlay = phase_by_id["overlay_draft"]
     for phase in [legacy, target, target_binding, overlay]:
         assert "project-documentation-disposition.yaml" in phase["inputs"]
+    conditional_extraction_input = (
+        "project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction"
+    )
+    assert conditional_extraction_input in target["inputs"]
+    assert conditional_extraction_input in target_binding["inputs"]
 
 
 def test_target_workflow_readiness_gate_requires_documentation_disposition() -> None:
@@ -1701,9 +2259,15 @@ def test_target_workflow_readiness_gate_requires_documentation_disposition() -> 
     assert any("existing project policy/workflow binding evidence" in item for item in gate["inputs"])
     assert any("target workflow preflight findings" in item for item in gate["inputs"])
     assert any("human decision packet" in item for item in gate["inputs"])
+    assert any("project-knowledge-extraction.md" in item for item in gate["inputs"])
+    assert any("human risk acceptance evidence" in item for item in gate["inputs"])
+    assert any("extraction depth upgrade evidence" in item for item in gate["inputs"])
     assert any("existing project policy/workflow binding evidence" in item for item in gate["required_evidence"])
     assert any("human decision packet" in item for item in gate["required_evidence"])
+    assert any("project-knowledge-extraction.md" in item for item in gate["required_evidence"])
+    assert any("human risk acceptance evidence" in item for item in gate["required_evidence"])
     assert set(gate["decision_categories"]) == required_decision_categories
+    assert "missing_light_extraction_risk_acceptance" in gate["pass_policy"]["needs_human_decision_on"]
     assert "unresolved_material_design_decision" in gate["pass_policy"]["needs_human_decision_on"]
 
 
@@ -1760,6 +2324,53 @@ def test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisi
     joined = "\n".join(errors)
     assert "inputs must allow human decision packet" in joined
     assert "required_evidence must include human decision packet" in joined
+
+    broken_extraction_artifact = copy.deepcopy(gate)
+    broken_extraction_artifact["inputs"] = [
+        item for item in broken_extraction_artifact["inputs"] if "project-knowledge-extraction.md" not in item
+    ]
+    broken_extraction_artifact["required_evidence"] = [
+        item
+        for item in broken_extraction_artifact["required_evidence"]
+        if "project-knowledge-extraction.md" not in item
+    ]
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_extraction_artifact)
+    joined = "\n".join(errors)
+    assert "inputs must include conditional project-knowledge-extraction.md" in joined
+    assert "required_evidence must include conditional project-knowledge-extraction.md" in joined
+
+    broken_light_risk_acceptance = copy.deepcopy(gate)
+    broken_light_risk_acceptance["inputs"] = [
+        item
+        for item in broken_light_risk_acceptance["inputs"]
+        if "human risk acceptance evidence" not in item
+        and "extraction depth upgrade evidence" not in item
+    ]
+    broken_light_risk_acceptance["required_evidence"] = [
+        item
+        for item in broken_light_risk_acceptance["required_evidence"]
+        if "human risk acceptance evidence" not in item
+    ]
+    broken_light_risk_acceptance["pass_policy"]["needs_human_decision_on"].remove(
+        "missing_light_extraction_risk_acceptance"
+    )
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_light_risk_acceptance)
+    joined = "\n".join(errors)
+    assert "inputs must include light extraction risk acceptance evidence" in joined
+    assert "inputs must include light extraction upgrade evidence" in joined
+    assert "required_evidence must include light extraction risk acceptance evidence or upgrade evidence" in joined
+    assert "must block missing light extraction risk acceptance" in joined
+
+    broken_light_upgrade_required_evidence = copy.deepcopy(gate)
+    broken_light_upgrade_required_evidence["required_evidence"] = [
+        item.replace(
+            ", or evidence that extraction_depth was upgraded to standard or deep",
+            "",
+        )
+        for item in broken_light_upgrade_required_evidence["required_evidence"]
+    ]
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_light_upgrade_required_evidence)
+    assert "required_evidence must include light extraction upgrade evidence" in "\n".join(errors)
 
     broken_pass_policy = copy.deepcopy(gate)
     broken_pass_policy["pass_policy"] = "invalid"
@@ -1892,6 +2503,22 @@ def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:
     result = run("scripts/validate_repo.py", "--root", str(root))
     assert result.returncode != 0
     assert "not declared in allowed_instruments" in (result.stdout + result.stderr)
+
+
+def test_repo_validation_checks_all_documentation_disposition_artifacts(tmp_path) -> None:
+    import shutil
+
+    root = tmp_path / "repo"
+    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    rogue_dir = root / "examples" / "symlinked-initialization"
+    rogue_dir.mkdir()
+    (rogue_dir / "project-documentation-disposition.yaml").symlink_to(
+        root / "templates" / "project-documentation-disposition.yaml"
+    )
+
+    result = run("scripts/validate_repo.py", "--root", str(root))
+    assert result.returncode != 0
+    assert "artifact_role template is reserved" in (result.stdout + result.stderr)
 
 
 def test_validate_repo_uses_modular_facade() -> None:

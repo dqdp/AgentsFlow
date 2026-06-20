@@ -208,7 +208,14 @@ is missing or when legacy agent/process artifacts create human-owned decisions.
 it classifies current documentation and Markdown implementation history before
 legacy adoption, target-workflow readiness, or overlay drafting. It must not
 delete, rewrite or silently de-authorize existing documentation without explicit
-human approval.
+human approval. It must also ask the human to choose the documentation legacy
+adoption mode. The agent may recommend `preserve-as-is`,
+`knowledge-extraction`, `rewrite-migration` or `archive-delete`, but it must not
+select the mode without human confirmation; this decision is not defaultable by
+the agent. If the human accepts the agent's recommendation, the workflow records
+that as an answered human decision. When `knowledge-extraction` is selected, the
+agent must also record the human-confirmed extraction depth as `light`,
+`standard` or `deep`.
 `target_workflow_context_decision_packet` is conditional for `prepare-workflow`:
 it captures missing target-workflow gate, review, evidence or authority context,
 plus material scope, ADR, risk, contract, gate, review, evidence, authority or

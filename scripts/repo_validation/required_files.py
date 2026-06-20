@@ -21,6 +21,7 @@ REQUIRED_FILES = [
     "templates/project-assessment.json",
     "templates/project-operating-decisions.yaml",
     "templates/project-documentation-disposition.yaml",
+    "templates/project-knowledge-extraction.md",
     "templates/human-questions.yaml",
     "templates/human-decisions.yaml",
     "templates/initialization-report.md",
@@ -67,4 +68,3 @@ REQUIRED_FILES = [
     "examples/external-reviewers/claude-code/mock-raw-output.json",
     "docs/cmake-fetchcontent-application-pattern.md",
 ]
-

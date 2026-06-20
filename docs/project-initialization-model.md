@@ -349,7 +349,8 @@ adoption-onboarding
   validate them, produce initialization report and wait for human approval.
 
 prepare-workflow
-  Confirm `target_workflow`, record run-level `project-documentation-disposition.yaml`,
+  Confirm `target_workflow`, record run-level `project-documentation-disposition.yaml`
+  with a human-confirmed documentation legacy adoption mode,
   check whether sufficient gate/review/evidence and authority context exists,
   capture missing context or material design forks in a run-level target workflow
   human decision packet and ask grouped human questions for missing material
@@ -358,7 +359,8 @@ prepare-workflow
   binding/readiness handoff artifacts when ready.
 
 legacy-cleanup
-  Record `project-documentation-disposition.yaml`, select legacy adoption mode,
+  Record `project-documentation-disposition.yaml` with a human-confirmed
+  documentation legacy adoption mode, select legacy agent-system adoption mode,
   draft migration/quarantine and
   `active-instruction-map.yaml`, then wait for human approval before activation.
 
@@ -429,6 +431,39 @@ Legacy adoption consumes `project-documentation-disposition.yaml` but does not
 replace it. Documentation disposition answers "what is the status of current
 project documentation?" Legacy adoption answers "what is the active agent/process
 authority layer?"
+
+The documentation disposition phase also records a separate documentation legacy
+adoption choice. This is a human-confirmed project-documentation handling
+decision, not an agent-selected default. The main agent may recommend an option
+and explain tradeoffs, but it must not choose the mode without the human's
+confirmation.
+
+Supported documentation legacy adoption modes:
+
+```text
+preserve-as-is
+knowledge-extraction
+rewrite-migration
+archive-delete
+```
+
+When `knowledge-extraction` is selected, extraction depth is recorded as a
+separate orthogonal choice:
+
+```text
+light
+standard
+deep
+```
+
+`light` depth is for exploratory, design-only or pilot runs and extracts only
+the knowledge needed for the active run or target workflow. It does not unlock an
+implementation phase unless the human explicitly accepts that risk or the
+workflow upgrades depth to `standard` or `deep`. `standard` is the default depth
+for `prepare-workflow` runs that may proceed to implementation. `deep` is for
+large, conflicting, high-risk or documentation-heavy projects.
+`rewrite-migration` and `archive-delete` require explicit human approval plus a
+plan/backups before source documentation changes.
 
 Before drafting the final project overlay, initialization must run a legacy adoption step:
 

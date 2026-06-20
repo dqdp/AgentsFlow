@@ -18,6 +18,27 @@ No ambiguous coexistence.
 
 A project must have one active agent-instruction authority layer. Legacy artifacts may remain as historical evidence or imported knowledge, but they must not remain silently authoritative.
 
+This model is about the legacy agent/process layer. It is separate from the
+documentation legacy adoption decision recorded by
+`project-documentation-disposition.yaml`.
+
+Documentation legacy adoption covers README files, ADRs, architecture notes,
+runbooks, implementation history and domain documentation. It must be selected
+by the human, not by the agent. The agent may recommend one of:
+
+```text
+preserve-as-is
+knowledge-extraction
+rewrite-migration
+archive-delete
+```
+
+When `knowledge-extraction` is selected, extraction depth is recorded separately
+as `light`, `standard` or `deep`. `light` means extracting only the knowledge
+needed by the current run or target workflow into a run-level artifact such as
+`project-knowledge-extraction.md`, while leaving source documentation unchanged
+and without changing its long-lived authority.
+
 ## Legacy adoption modes
 
 ### 1. full-archive-rebuild
@@ -177,6 +198,7 @@ Project initialization must include legacy adoption phases for existing projects
 ```text
 legacy agent-system discovery
 legacy documentation/process classification
+human-confirmed documentation legacy adoption decision
 adoption mode decision
 legacy backup/quarantine
 knowledge extraction / patch / rebuild / shadow pilot

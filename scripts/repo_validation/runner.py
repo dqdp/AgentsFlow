@@ -116,10 +116,13 @@ def validate_repository(root: Path) -> list[str]:
         )
     )
     errors.extend(validate_workflow_run_artifact(root, root / 'templates' / 'workflow-run.yaml'))
-    for documentation_disposition in [
+    documentation_disposition_paths = {
         root / 'templates' / 'project-documentation-disposition.yaml',
-        root / 'examples' / 'project-initialization' / 'project-documentation-disposition.yaml',
-    ]:
+        *root.glob('examples/**/project-documentation-disposition.yaml'),
+        *root.glob('Docs/agentsflow/runs/**/project-documentation-disposition.yaml'),
+        *root.glob('examples/**/Docs/agentsflow/runs/**/project-documentation-disposition.yaml'),
+    }
+    for documentation_disposition in sorted(documentation_disposition_paths):
         errors.extend(validate_project_documentation_disposition_artifact(root, documentation_disposition))
     errors.extend(validate_project_onboarding_assessment_skill_contract(root))
     errors.extend(

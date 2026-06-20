@@ -3,6 +3,53 @@ run_id: "YYYY-MM-DD-task-slug"
 artifact_role: run_question_packet
 
 questions:
+  - decision_id: documentation-legacy-adoption
+    phase_id: documentation_disposition_decision
+    status: open
+    classification: blocking-material
+    grouping: documentation-disposition
+    question: Which documentation legacy adoption mode and extraction depth should this run use?
+    basis:
+      observed:
+        - Existing project documentation or Markdown history may affect the target workflow.
+      reviewer_recommendations:
+        - The agent may recommend a mode and extraction depth, but the human must confirm the decision.
+    options:
+      - id: knowledge-extraction
+        label: Knowledge extraction
+        impact: Produces project-knowledge-extraction.md when selected, without rewriting source docs unless separately approved.
+      - id: preserve-as-is
+        label: Preserve as-is
+        impact: Keeps docs classified but does not produce normalized extraction.
+      - id: rewrite-migration
+        label: Rewrite or migrate
+        impact: Requires explicit approval, migration plan, and backup before source docs change.
+      - id: archive-delete
+        label: Archive or delete
+        impact: Requires explicit approval and backup/quarantine evidence before source docs are archived or deleted.
+    extraction_depth_options:
+      - id: light
+        label: Light
+        impact: Pilot/design-only extraction; cannot unlock implementation readiness without human risk acceptance or upgrade.
+      - id: standard
+        label: Standard
+        impact: Default depth for prepare-workflow runs that may proceed to implementation.
+      - id: deep
+        label: Deep
+        impact: Broader extraction for large, conflicting, high-risk or documentation-heavy projects.
+    persistence_scope_options:
+      - id: run-level
+        label: Run-level
+        impact: Extraction informs this workflow run without becoming persistent project policy.
+      - id: project-level
+        label: Project-level
+        impact: Extraction may seed persistent project artifacts only with explicit approval.
+    default:
+      allowed: false
+    answer_required: true
+    affected_artifacts:
+      - project-documentation-disposition.yaml
+      - project-knowledge-extraction.md
   - decision_id: review_policy.model_diversity
     phase_id: operating_decisions_interview
     status: open

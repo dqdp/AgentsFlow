@@ -162,6 +162,16 @@ bindings:
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes"
         evidence:
           - pytest-output
+      - id: pytest-documentation-disposition-human-decision-record
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_resolves_human_decision_record"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-example-chain
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_example_claimed_files_exist"
+        evidence:
+          - pytest-output
       - id: pytest-documentation-disposition-workflow-wiring
         type: test
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision"
@@ -170,6 +180,11 @@ bindings:
       - id: pytest-documentation-disposition-readiness-gate
         type: test
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-artifact-discovery
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_repo_validation_checks_all_documentation_disposition_artifacts"
         evidence:
           - pytest-output
     gates:

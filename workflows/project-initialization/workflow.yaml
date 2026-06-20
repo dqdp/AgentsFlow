@@ -60,6 +60,7 @@ uses:
   - review-cycle-report.md
   - documentation-history-index.md
   - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md
   - project.yaml
   - workflow.binding.yaml
   - initialization-report.md
@@ -104,6 +105,7 @@ mode_gated_outputs:
   - .agentsflow/agentsflow.lock.yaml
   - project-operating-decisions.yaml
   - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
   - legacy-agent-system-inventory.json when legacy artifacts are in scope
   - legacy-adoption-decision.yaml when legacy artifacts are in scope
   - agent-instruction-migration-plan.md when legacy artifacts are in scope
@@ -116,12 +118,14 @@ mode_gated_outputs:
   prepare-workflow:
   - .agentsflow/agentsflow.lock.yaml when needed
   - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
   - target workflow binding draft
   - target workflow human decision packet when target workflow operating context is missing or material design decisions are discovered
   - finding-validation-report.md
   - review-cycle-report.md
   legacy-cleanup:
   - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
   - legacy-agent-system-inventory.json
   - legacy-adoption-decision.yaml
   - agent-instruction-migration-plan.md
@@ -240,8 +244,6 @@ human_interaction:
   - human_approval
   allowed_resume_states:
   - answered
-  - defaulted
-  - unresolved
   - explicitly_deferred_with_constraints
 phases:
 - id: read_project_intake
@@ -261,7 +263,6 @@ phases:
     response_artifact: project-intake.yaml
     allowed_resume_states:
     - answered
-    - defaulted
     - unresolved
   outputs:
   - project-intake.yaml
@@ -335,11 +336,41 @@ phases:
   - adoption-onboarding
   - prepare-workflow
   - legacy-cleanup
-  purpose: Classify current project documentation and Markdown history as authoritative,
+  purpose: Ask the human to choose an explicit documentation legacy adoption mode,
+    then classify current project documentation and Markdown history as authoritative,
     evidence-only, extract-and-normalize, stale/superseded, needs-human-decision
     or rewrite/delete only after approval. This decision is broader than legacy
     agent-system adoption and must not rewrite or delete existing project docs
     during initialization.
+  legacy_adoption_question_required: true
+  agent_may_select_legacy_adoption_without_human: false
+  supported_documentation_legacy_adoption_modes:
+  - preserve-as-is
+  - knowledge-extraction
+  - rewrite-migration
+  - archive-delete
+  supported_documentation_extraction_depths:
+  - light
+  - standard
+  - deep
+  default_documentation_extraction_depth_by_intent_mode:
+    prepare-workflow: standard
+    adoption-onboarding: standard
+    legacy-cleanup: standard
+  optional_light_depth_allowed_for: exploratory, design-only or pilot runs that
+    do not unlock an implementation phase unless the human explicitly accepts the
+    risk.
+  documentation_legacy_adoption_modes:
+    preserve-as-is: Keep project documentation nearly unchanged and classify it
+      for authority/evidence use.
+    knowledge-extraction: Extract normalized knowledge into AgentsFlow artifacts
+      while preserving source docs unless separately approved. Depth is selected
+      separately as light, standard or deep.
+    rewrite-migration: Rewrite or migrate project documentation after explicit
+      human approval and a migration plan.
+    archive-delete: Archive or delete stale documentation only after explicit
+      human approval and backup/quarantine evidence.
+  implementation_readiness_rule: "extraction_depth: light cannot unlock an implementation phase unless the human explicitly accepts that risk or the workflow upgrades extraction_depth to standard or deep."
   runs_after:
   - documentation_and_history_discovery
   - expert_assessment
@@ -354,14 +385,13 @@ phases:
     response_artifact: project-documentation-disposition.yaml
     allowed_resume_states:
     - answered
-    - defaulted
-    - unresolved
   inputs:
   - documentation-history-index.md
   - project-inventory.json
   - project-assessment.json
   outputs:
   - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
 - id: legacy_adoption_mode_decision
   kind: decision
   applies_to_intent_modes:
@@ -473,6 +503,7 @@ phases:
   - project-inventory.json
   - project-assessment.json
   - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
   - existing project policy/workflow binding when available
   - target workflow preflight findings when available
   outputs:
@@ -531,6 +562,7 @@ phases:
   - project-inventory.json
   - project-assessment.json
   - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
   - target-workflow-readiness-gate-report.md
   - target workflow human decision packet when prepare-workflow mode has missing context or material design decisions
   - existing project policy/workflow binding when prepare-workflow mode already has sufficient context
@@ -599,6 +631,13 @@ exit_criteria:
 - Documentation and Markdown implementation history were considered when present.
 - Current project documentation disposition was recorded before legacy adoption,
   target-workflow readiness or overlay drafting for existing-project modes.
+- Documentation legacy adoption mode was explicitly confirmed by the human;
+  the main agent did not select preserve-as-is, knowledge extraction,
+  rewrite/migration or archive/delete without human confirmation.
+- Documentation extraction depth was recorded separately from adoption mode when
+  knowledge extraction was selected. Light extraction does not unlock an
+  implementation phase unless the human explicitly accepts that risk or the
+  workflow upgrades extraction depth to standard or deep.
 - Domain identification and user domain-expertise questions were recorded.
 - For adoption-onboarding, human operating decisions were collected through an
   agent-led dialogue or explicitly marked as unresolved before overlay drafting.

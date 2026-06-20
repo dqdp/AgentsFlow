@@ -106,6 +106,18 @@ def validate_gate_manifest(root: Path, path: Path, data: dict | None = None) -> 
                 errors.append(
                     f"{path}: target_workflow_readiness_gate inputs must allow human decision packet"
                 )
+            if not any("project-knowledge-extraction.md" in item for item in inputs):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate inputs must include conditional project-knowledge-extraction.md"
+                )
+            if not any("human risk acceptance evidence" in item for item in inputs):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate inputs must include light extraction risk acceptance evidence"
+                )
+            if not any("extraction depth upgrade evidence" in item for item in inputs):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate inputs must include light extraction upgrade evidence"
+                )
             if not any("existing project policy/workflow binding evidence" in item for item in required_evidence):
                 errors.append(
                     f"{path}: target_workflow_readiness_gate required_evidence must include existing project policy/workflow binding evidence or preflight findings"
@@ -114,7 +126,27 @@ def validate_gate_manifest(root: Path, path: Path, data: dict | None = None) -> 
                 errors.append(
                     f"{path}: target_workflow_readiness_gate required_evidence must include human decision packet"
                 )
+            if not any("project-knowledge-extraction.md" in item for item in required_evidence):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate required_evidence must include conditional project-knowledge-extraction.md"
+                )
+            if not any("human risk acceptance evidence" in item for item in required_evidence):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate required_evidence must include light extraction risk acceptance evidence or upgrade evidence"
+                )
+            if not any(
+                "extraction depth upgrade evidence" in item
+                or "upgraded to standard or deep" in item
+                for item in required_evidence
+            ):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate required_evidence must include light extraction upgrade evidence"
+                )
             needs_human_decision_on = set(str(item) for item in pass_policy_map.get("needs_human_decision_on", []) or [])
+            if "missing_light_extraction_risk_acceptance" not in needs_human_decision_on:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate must block missing light extraction risk acceptance"
+                )
             if "unresolved_material_design_decision" not in needs_human_decision_on:
                 errors.append(
                     f"{path}: target_workflow_readiness_gate must block unresolved material design decisions"

@@ -6,6 +6,20 @@ scope:
   project_root: examples/project-initialization
   run_level_only: false
 
+documentation_legacy_adoption:
+  mode: knowledge-extraction
+  extraction_depth: standard
+  persistence_scope: run-level
+  question_required: true
+  agent_may_select_without_human: false
+  recommended_by_agent: knowledge-extraction
+  decision_record: human-decisions.yaml#documentation-legacy-adoption
+  extraction_artifact: project-knowledge-extraction.md
+  human_confirmation:
+    required: true
+    status: confirmed
+    source: human-dialogue
+
 default_policy:
   do_not_delete_or_rewrite_without_human_approval: true
   unclassified_documents: needs-human-decision

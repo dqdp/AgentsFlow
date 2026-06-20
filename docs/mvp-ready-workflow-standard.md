@@ -170,13 +170,14 @@ risk-domain-assessment
   stop after domain/risk assessment and domain-expertise questions unless the human asks to continue
 
 adoption-onboarding
-  documentation disposition -> legacy adoption decision/migration plan when legacy artifacts are in scope
+  documentation disposition with explicit human-confirmed documentation adoption mode
+  -> legacy adoption decision/migration plan when legacy artifacts are in scope
   -> human operating-decisions interview -> draft overlay/bindings/gates
   -> validate draft overlay -> initialization review -> finding validation
   -> initialization report -> human approval
 
 prepare-workflow
-  require target_workflow -> documentation disposition
+  require target_workflow -> documentation disposition with explicit human-confirmed documentation adoption mode
   -> confirm sufficient target workflow operating context
   -> capture missing target workflow decisions or material design forks as a run-level decision packet
   -> target workflow readiness gate
@@ -184,7 +185,7 @@ prepare-workflow
   -> initialization review -> finding validation
 
 legacy-cleanup
-  documentation disposition -> legacy adoption decision
+  documentation disposition with explicit human-confirmed documentation adoption mode -> legacy adoption decision
   -> migration/quarantine plan -> draft active instruction map
   -> human approval before activation
 ```

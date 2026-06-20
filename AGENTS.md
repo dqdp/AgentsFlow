@@ -126,7 +126,14 @@ When applying AgentsFlow to a concrete project:
 - Explicitly identify project domain(s), separate domain assumptions from observed evidence, and ask whether the user has domain expertise that should constrain initialization decisions.
 - Before drafting the project overlay, conduct an agent-led human operating-decisions interview for gate policy, review topology, reviewer/model strategy, maximum review cycles, authority boundaries and evidence storage. Do not ask the human to manually fill a YAML/JSON file; the agent records the normalized `project-operating-decisions.yaml` artifact after the dialogue.
 - Human interaction is main-agent mediated. Review agents must not ask the human questions directly; they produce candidate findings, recommendations and questions for the main agent to synthesize. A workflow may pause for humans only at declared human-interaction phases or true blocking clarifications.
-- Use `knowledge-extraction` as the default legacy adoption mode for existing projects unless evidence supports another mode.
+- For legacy agent-system adoption, recommend `knowledge-extraction` as the
+  conservative default unless evidence supports another mode, but record the
+  human-confirmed decision before acting.
+- Documentation legacy adoption is a separate project-initialization decision.
+  The agent may recommend `preserve-as-is`, `knowledge-extraction`,
+  `rewrite-migration` or `archive-delete`, but must not select the mode without
+  explicit human confirmation. If `knowledge-extraction` is selected, record
+  extraction depth separately as `light`, `standard` or `deep`.
 - Do not rewrite `AGENTS.md` or activate a migration without human approval.
 
 ## Review and fusion rules

@@ -31,7 +31,15 @@ legacy adoption, target-workflow readiness or overlay drafting. This classifies
 current project documentation as authoritative, evidence-only,
 extract-and-normalize, stale/superseded, needs-human-decision, or
 rewrite/delete only after approval. It does not rewrite or delete project docs
-during initialization.
+during initialization. The same step must ask the human to choose the
+documentation legacy adoption mode explicitly; the agent may recommend but must
+not choose the mode without human confirmation. Supported modes are
+`preserve-as-is`, `knowledge-extraction`, `rewrite-migration` and
+`archive-delete`. When `knowledge-extraction` is selected, the same decision
+records extraction depth as `light`, `standard` or `deep`. `light` depth means
+run-level extraction for the current workflow only, with source docs left
+unchanged; it does not unlock implementation unless the human explicitly accepts
+that risk or the workflow upgrades depth to `standard` or `deep`.
 
 The human operating-decisions step is conversational. In `adoption-onboarding`,
 the agent asks focused questions, summarizes decisions back to the human, and

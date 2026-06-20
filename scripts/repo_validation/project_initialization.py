@@ -26,6 +26,20 @@ PROJECT_ASSESSMENT_ROLE_ARTIFACTS = {
 PROJECT_ASSESSMENT_REQUIRED_ROLES = {"architecture", "verification", "adversarial"}
 
 
+def target_workflow_has_implementation_phase(root: Path, target_workflow: object) -> bool:
+    if not isinstance(target_workflow, str) or not target_workflow:
+        return False
+    workflow_path = root / "workflows" / target_workflow / "workflow.yaml"
+    if not workflow_path.exists():
+        return False
+    workflow = parse_yaml(workflow_path) or {}
+    phases = workflow.get("phases", []) if isinstance(workflow, dict) else []
+    return any(
+        isinstance(phase, dict) and phase.get("kind") == "implementation"
+        for phase in phases
+    )
+
+
 def validate_project_assessment_synthesis_artifact(root: Path, path: Path) -> list[str]:
     errors: list[str] = []
     schema = parse_json(root / "schemas" / "project-assessment.schema.json")
@@ -130,7 +144,271 @@ def validate_project_documentation_disposition_artifact(root: Path, path: Path) 
     data = parse_yaml(path) or {}
     if not isinstance(data, dict):
         return [f"{path}: project documentation disposition must be a mapping"]
-    return validate_against_schema(path, data, schema)
+    errors = validate_against_schema(path, data, schema)
+    try:
+        repo_relative_path = path.absolute().relative_to(root.absolute())
+    except ValueError:
+        repo_relative_path = None
+    is_canonical_template = repo_relative_path == Path(
+        "templates/project-documentation-disposition.yaml"
+    )
+    is_template_artifact = data.get("artifact_role") == "template"
+    if is_template_artifact and not is_canonical_template:
+        errors.append(
+            f"{path}: artifact_role template is reserved for templates/project-documentation-disposition.yaml"
+        )
+    if not (is_template_artifact and is_canonical_template):
+        errors.extend(validate_documentation_adoption_decision_record(root, path, data))
+    return errors
+
+
+def validate_documentation_adoption_decision_record(root: Path, path: Path, data: dict) -> list[str]:
+    errors: list[str] = []
+    adoption = data.get("documentation_legacy_adoption", {}) or {}
+    if not isinstance(adoption, dict):
+        return errors
+    decision_record = adoption.get("decision_record")
+    if not isinstance(decision_record, str) or "#" not in decision_record:
+        return errors
+    decision_file, decision_id = decision_record.split("#", 1)
+    if decision_file != "human-decisions.yaml":
+        return errors
+    decisions_path = path.parent / decision_file
+    if not decisions_path.exists():
+        errors.append(f"{path}: documentation_legacy_adoption decision_record missing file: {decision_file}")
+        return errors
+    try:
+        decisions_data = parse_yaml(decisions_path) or {}
+    except ValueError as exc:
+        errors.append(str(exc))
+        return errors
+    decisions = decisions_data.get("decisions", []) if isinstance(decisions_data, dict) else []
+    if not isinstance(decisions, list):
+        errors.append(f"{decisions_path}: decisions must be a list")
+        return errors
+    matching = [
+        decision
+        for decision in decisions
+        if isinstance(decision, dict) and decision.get("decision_id") == decision_id
+    ]
+    if not matching:
+        errors.append(f"{path}: documentation_legacy_adoption decision_record not found: {decision_record}")
+        return errors
+    decision = matching[0]
+    questions_path = path.parent / "human-questions.yaml"
+    if not questions_path.exists():
+        errors.append(f"{path}: documentation_legacy_adoption missing human-questions.yaml")
+    else:
+        try:
+            questions_data = parse_yaml(questions_path) or {}
+        except ValueError as exc:
+            errors.append(str(exc))
+            questions_data = {}
+        questions = questions_data.get("questions", []) if isinstance(questions_data, dict) else []
+        if not isinstance(questions, list):
+            errors.append(f"{questions_path}: questions must be a list")
+        else:
+            question_matching = [
+                question
+                for question in questions
+                if isinstance(question, dict)
+                and question.get("decision_id") in {decision_id, decision.get("question_ref")}
+            ]
+            if not question_matching:
+                errors.append(f"{path}: documentation_legacy_adoption matching human question not found")
+            else:
+                question = question_matching[0]
+                if question.get("phase_id") != "documentation_disposition_decision":
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question must belong to documentation_disposition_decision"
+                    )
+                if question.get("status") != "answered":
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question must be answered"
+                    )
+                if question.get("classification") != "blocking-material":
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question must be blocking-material"
+                    )
+                if question.get("answer_required") is not True:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question must require an answer"
+                    )
+                question_default = question.get("default", {}) or {}
+                if question_default.get("allowed") is not False:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question must not allow a default"
+                    )
+                if question_default.get("id") is not None:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question must not declare a default id"
+                    )
+                if decision.get("question_ref") != question.get("decision_id"):
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption decision question_ref must match question decision_id"
+                    )
+                option_ids = {
+                    str(option.get("id"))
+                    for option in question.get("options", []) or []
+                    if isinstance(option, dict)
+                }
+                required_mode_options = {
+                    "preserve-as-is",
+                    "knowledge-extraction",
+                    "rewrite-migration",
+                    "archive-delete",
+                }
+                missing_options = sorted(required_mode_options - option_ids)
+                extra_options = sorted(option_ids - required_mode_options)
+                if missing_options:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question options missing modes: {', '.join(missing_options)}"
+                    )
+                if extra_options:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question options must not include non-mode ids: {', '.join(extra_options)}"
+                    )
+                depth_option_ids = {
+                    str(option.get("id"))
+                    for option in question.get("extraction_depth_options", []) or []
+                    if isinstance(option, dict)
+                }
+                required_depth_options = {"light", "standard", "deep"}
+                missing_depth_options = sorted(required_depth_options - depth_option_ids)
+                extra_depth_options = sorted(depth_option_ids - required_depth_options)
+                if missing_depth_options:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question extraction_depth_options missing: {', '.join(missing_depth_options)}"
+                    )
+                if extra_depth_options:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question extraction_depth_options must not include unsupported ids: {', '.join(extra_depth_options)}"
+                    )
+                scope_option_ids = {
+                    str(option.get("id"))
+                    for option in question.get("persistence_scope_options", []) or []
+                    if isinstance(option, dict)
+                }
+                required_scope_options = {"run-level", "project-level"}
+                missing_scope_options = sorted(required_scope_options - scope_option_ids)
+                extra_scope_options = sorted(scope_option_ids - required_scope_options)
+                if missing_scope_options:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question persistence_scope_options missing: {', '.join(missing_scope_options)}"
+                    )
+                if extra_scope_options:
+                    errors.append(
+                        f"{path}: documentation_legacy_adoption question persistence_scope_options must not include unsupported ids: {', '.join(extra_scope_options)}"
+                    )
+    if decision.get("phase_id") != "documentation_disposition_decision":
+        errors.append(
+            f"{path}: documentation_legacy_adoption decision_record must point to documentation_disposition_decision"
+        )
+    if decision.get("status") != "confirmed":
+        errors.append(
+            f"{path}: documentation_legacy_adoption decision_record must be confirmed"
+        )
+    if str(decision.get("answered_by", "")) not in {"human", "project-owner"}:
+        errors.append(
+            f"{path}: documentation_legacy_adoption decision_record must be human-owned"
+        )
+    if decision.get("classification") != "blocking-material":
+        errors.append(
+            f"{path}: documentation_legacy_adoption decision_record must be blocking-material"
+        )
+    answer = decision.get("answer", {}) or {}
+    if not isinstance(answer, dict):
+        errors.append(f"{path}: documentation_legacy_adoption decision_record answer must be a mapping")
+        return errors
+    for key in ["mode", "extraction_depth", "persistence_scope"]:
+        adoption_value = adoption.get(key)
+        if adoption_value is None:
+            continue
+        if answer.get(key) != adoption_value:
+            errors.append(
+                f"{path}: documentation_legacy_adoption decision_record answer.{key} must match disposition"
+            )
+    if adoption.get("mode") == "knowledge-extraction":
+        extraction_artifact = adoption.get("extraction_artifact")
+        if not isinstance(extraction_artifact, str) or not extraction_artifact:
+            errors.append(f"{path}: documentation_legacy_adoption extraction_artifact must be set")
+        elif Path(extraction_artifact).name != "project-knowledge-extraction.md":
+            errors.append(
+                f"{path}: documentation_legacy_adoption extraction_artifact must be project-knowledge-extraction.md"
+            )
+        else:
+            artifact_path = safe_resolve(
+                path.parent,
+                extraction_artifact,
+                f"{path}: documentation_legacy_adoption extraction_artifact",
+                errors,
+            )
+            if artifact_path is None:
+                pass
+            elif not artifact_path.exists():
+                errors.append(
+                    f"{path}: documentation_legacy_adoption extraction_artifact missing: {extraction_artifact}"
+                )
+            elif not artifact_path.read_text(encoding="utf-8").strip():
+                errors.append(
+                    f"{path}: documentation_legacy_adoption extraction_artifact must not be empty: {extraction_artifact}"
+                )
+
+    risk_acceptance = adoption.get("implementation_risk_acceptance")
+    scope = data.get("scope", {}) or {}
+    if not isinstance(scope, dict):
+        scope = {}
+    is_light_implementation_prepare = (
+        scope.get("intent_mode") == "prepare-workflow"
+        and adoption.get("extraction_depth") == "light"
+        and target_workflow_has_implementation_phase(root, scope.get("target_workflow"))
+    )
+    if is_light_implementation_prepare and not isinstance(risk_acceptance, dict):
+        errors.append(
+            f"{path}: light extraction cannot unlock implementation readiness without human risk acceptance or depth upgrade evidence"
+        )
+    if isinstance(risk_acceptance, dict):
+        risk_decision_record = risk_acceptance.get("decision_record")
+        if isinstance(risk_decision_record, str) and risk_decision_record.startswith("human-decisions.yaml#"):
+            _, risk_decision_id = risk_decision_record.split("#", 1)
+            risk_matching = [
+                decision
+                for decision in decisions
+                if isinstance(decision, dict) and decision.get("decision_id") == risk_decision_id
+            ]
+            if not risk_matching:
+                errors.append(
+                    f"{path}: implementation_risk_acceptance decision_record not found: {risk_decision_record}"
+                )
+            else:
+                risk_decision = risk_matching[0]
+                if risk_decision.get("status") != "confirmed":
+                    errors.append(f"{path}: implementation_risk_acceptance decision_record must be confirmed")
+                if str(risk_decision.get("answered_by", "")) not in {"human", "project-owner"}:
+                    errors.append(f"{path}: implementation_risk_acceptance decision_record must be human-owned")
+                if risk_decision.get("classification") != "blocking-material":
+                    errors.append(f"{path}: implementation_risk_acceptance decision_record must be blocking-material")
+                if risk_decision.get("phase_id") not in {
+                    "documentation_disposition_decision",
+                    "target_workflow_context_decision_packet",
+                }:
+                    errors.append(
+                        f"{path}: implementation_risk_acceptance decision_record must belong to documentation disposition or target workflow context"
+                    )
+                risk_answer = risk_decision.get("answer", {}) or {}
+                if not isinstance(risk_answer, dict):
+                    errors.append(f"{path}: implementation_risk_acceptance decision_record answer must be a mapping")
+                elif (
+                    risk_answer.get("accepts_light_extraction_implementation_risk") is not True
+                    and risk_answer.get("extraction_depth") != "standard"
+                    and risk_answer.get("extraction_depth") != "deep"
+                ):
+                    errors.append(
+                        f"{path}: implementation_risk_acceptance decision_record must accept light extraction implementation risk or upgrade depth"
+                    )
+        else:
+            errors.append(f"{path}: implementation_risk_acceptance decision_record must reference human-decisions.yaml")
+    return errors
 
 
 def validate_project_initialization_operating_decisions(path: Path, data: dict) -> list[str]:
@@ -206,6 +484,10 @@ def validate_project_initialization_operating_decisions(path: Path, data: dict) 
         inputs = set(str(item) for item in target_decisions.get("inputs", []) or [])
         if "project-documentation-disposition.yaml" not in inputs:
             errors.append(f"{path}: target_workflow_context_decision_packet must consume project-documentation-disposition.yaml")
+        if "project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction" not in inputs:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet must consume conditional project-knowledge-extraction.md"
+            )
     overlay = phase_by_id.get("overlay_draft")
     if overlay:
         overlay_applies = set(str(item) for item in overlay.get("applies_to_intent_modes", []) or [])
@@ -261,6 +543,14 @@ def validate_project_initialization_human_interaction(path: Path, data: dict) ->
     if "explicitly_deferred_with_constraints" not in allowed_resume_states:
         errors.append(
             f"{path}: human_interaction.allowed_resume_states must include explicitly_deferred_with_constraints"
+        )
+    if "defaulted" in allowed_resume_states:
+        errors.append(
+            f"{path}: human_interaction.allowed_resume_states must not include defaulted as a global resume state"
+        )
+    if "unresolved" in allowed_resume_states:
+        errors.append(
+            f"{path}: human_interaction.allowed_resume_states must not include unresolved as a global resume state"
         )
 
     required_pause_phases = {
@@ -697,6 +987,11 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
     target_binding_runs_after = set(str(item) for item in target_binding.get("runs_after", []) or [])
     if "target_workflow_readiness_gate" not in target_binding_runs_after:
         errors.append(f"{path}: target_workflow_binding_draft must run after target_workflow_readiness_gate")
+    target_binding_inputs = set(str(item) for item in target_binding.get("inputs", []) or [])
+    if "project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction" not in target_binding_inputs:
+        errors.append(
+            f"{path}: target_workflow_binding_draft must consume conditional project-knowledge-extraction.md"
+        )
 
     initialization_review = phase_by_id.get("initialization_review", {}) or {}
     if initialization_review.get("kind") != "review":
@@ -722,6 +1017,78 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
     if "project-documentation-disposition.yaml" not in doc_outputs:
         errors.append(
             f"{path}: documentation_disposition_decision must output project-documentation-disposition.yaml"
+        )
+    extraction_output = (
+        "project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction"
+    )
+    if extraction_output not in doc_outputs:
+        errors.append(
+            f"{path}: documentation_disposition_decision must output conditional project-knowledge-extraction.md for extraction modes"
+        )
+    if documentation_disposition.get("legacy_adoption_question_required") is not True:
+        errors.append(
+            f"{path}: documentation_disposition_decision must require explicit documentation legacy adoption question"
+        )
+    if documentation_disposition.get("agent_may_select_legacy_adoption_without_human") is not False:
+        errors.append(
+            f"{path}: documentation_disposition_decision must forbid agent-selected documentation legacy adoption mode"
+        )
+    disposition_resume_states = (
+        documentation_disposition.get("human_interaction", {}).get("allowed_resume_states", [])
+    )
+    if "defaulted" in disposition_resume_states:
+        errors.append(
+            f"{path}: documentation_disposition_decision must not allow agent-defaulted documentation legacy adoption"
+        )
+    if "unresolved" in disposition_resume_states:
+        errors.append(
+            f"{path}: documentation_disposition_decision must not allow unresolved resume for required documentation legacy adoption"
+        )
+    supported_documentation_modes = set(
+        str(item)
+        for item in documentation_disposition.get(
+            "supported_documentation_legacy_adoption_modes", []
+        )
+        or []
+    )
+    required_documentation_modes = {
+        "preserve-as-is",
+        "knowledge-extraction",
+        "rewrite-migration",
+        "archive-delete",
+    }
+    if supported_documentation_modes != required_documentation_modes:
+        errors.append(
+            f"{path}: documentation_disposition_decision supported_documentation_legacy_adoption_modes must be: {', '.join(sorted(required_documentation_modes))}"
+        )
+    supported_extraction_depths = set(
+        str(item)
+        for item in documentation_disposition.get(
+            "supported_documentation_extraction_depths", []
+        )
+        or []
+    )
+    required_extraction_depths = {"light", "standard", "deep"}
+    if supported_extraction_depths != required_extraction_depths:
+        errors.append(
+            f"{path}: documentation_disposition_decision supported_documentation_extraction_depths must be: {', '.join(sorted(required_extraction_depths))}"
+        )
+    extraction_depth_defaults = (
+        documentation_disposition.get(
+            "default_documentation_extraction_depth_by_intent_mode", {}
+        )
+        or {}
+    )
+    if extraction_depth_defaults.get("prepare-workflow") != "standard":
+        errors.append(
+            f"{path}: documentation_disposition_decision must default prepare-workflow extraction depth to standard"
+        )
+    implementation_rule = str(
+        documentation_disposition.get("implementation_readiness_rule", "")
+    )
+    if "light" not in implementation_rule or "implementation phase" not in implementation_rule:
+        errors.append(
+            f"{path}: documentation_disposition_decision must state light extraction implementation readiness rule"
         )
     doc_inputs = set(str(item) for item in documentation_disposition.get("inputs", []) or [])
     for required_input in [
