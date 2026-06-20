@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
+
 from .collect import collect_yaml_manifest_names
 from .common import (
     compare_hash,
@@ -24,6 +26,277 @@ V0_2_UTILITY_WORKFLOWS = {
 V0_2_REVIEW_CONTROL_WORKFLOWS = (
     V0_2_SUPPORTED_TARGET_WORKFLOWS | V0_2_UTILITY_WORKFLOWS
 )
+VERIFICATION_GATE_RESULT_STATES = {
+    "pass",
+    "pass_with_notes",
+    "fail",
+    "inconclusive",
+    "needs_human_decision",
+    "blocked",
+}
+
+
+def _is_agentsflow_run_artifact_path(path: Path) -> bool:
+    parts = path.parts
+    return any(
+        parts[index : index + 3] == ("Docs", "agentsflow", "runs")
+        for index in range(len(parts) - 2)
+    )
+
+
+def _agentsflow_run_dir(path: Path) -> Path | None:
+    parts = path.resolve().parts
+    for index in range(len(parts) - 3):
+        if parts[index : index + 3] == ("Docs", "agentsflow", "runs"):
+            return Path(*parts[: index + 4])
+    return None
+
+
+def _is_within_path(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _is_run_scope_artifact(path: Path, data: dict) -> bool:
+    return data.get("artifact_scope", "run") == "run" or _is_agentsflow_run_artifact_path(path)
+
+
+def _strip_fragment(ref: object) -> str:
+    return str(ref).split("#", 1)[0]
+
+
+def _is_placeholder_ref(ref: object) -> bool:
+    text = str(ref)
+    return ("<" in text and ">" in text) or "YYYY-MM-DD-task-slug" in text
+
+
+def _allows_placeholder_verification_refs(path: Path, data: dict) -> bool:
+    return (
+        not _is_agentsflow_run_artifact_path(path)
+        and data.get("artifact_scope") in {"example", "template"}
+    )
+
+
+def _resolve_review_packet_ref(root: Path, packet_path: Path, ref: object) -> Path | None:
+    text = _strip_fragment(ref).strip()
+    if not text:
+        return None
+    ref_path = Path(text)
+    if ref_path.is_absolute() or ".." in ref_path.parts:
+        return None
+
+    candidates = [root / ref_path, packet_path.parent / ref_path]
+    if packet_path.parent.name == "review-packets":
+        candidates.append(packet_path.parent.parent / ref_path)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    return None
+
+
+def _is_verification_gate_report_artifact(path: Path) -> bool:
+    normalized_name = path.name.replace("_", "-")
+    if "verification-gate-report" not in normalized_name:
+        return False
+    if path.suffix == ".md":
+        try:
+            first_line = path.read_text(encoding="utf-8").splitlines()[0].strip()
+        except (IndexError, OSError, UnicodeDecodeError):
+            return False
+        return first_line == "# Verification Gate Report"
+    if path.suffix == ".json":
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            return False
+        if not isinstance(data, dict):
+            return False
+        return (
+            data.get("kind") == "verification_gate_report"
+            and data.get("result_state") in VERIFICATION_GATE_RESULT_STATES
+            and isinstance(data.get("checks"), list)
+            and bool(data["checks"])
+        )
+    return False
+
+
+def _resolve_verification_gate_report_ref(root: Path, packet_path: Path, ref: object) -> Path | None:
+    resolved = _resolve_review_packet_ref(root, packet_path, ref)
+    if not resolved or not _is_verification_gate_report_artifact(resolved):
+        return None
+    return resolved
+
+
+def _validate_same_run_verification_gate_report_ref(
+    anchor_path: Path,
+    report_path: Path,
+    ref: object,
+    label: str,
+    errors: list[str],
+) -> None:
+    run_dir = _agentsflow_run_dir(anchor_path)
+    if run_dir and not _is_within_path(report_path, run_dir):
+        errors.append(
+            f"{anchor_path}: {label} must reference a verification gate report artifact in the same run directory: {ref}"
+        )
+
+
+def _review_packet_refs_match(root: Path, packet_path: Path, left: object, right: object) -> bool:
+    left_text = str(left).strip()
+    right_text = str(right).strip()
+    if left_text == right_text:
+        return True
+    left_resolved = _resolve_review_packet_ref(root, packet_path, left_text)
+    right_resolved = _resolve_review_packet_ref(root, packet_path, right_text)
+    return bool(left_resolved and right_resolved and left_resolved == right_resolved)
+
+
+def _verification_gate_refs_match(
+    root: Path,
+    packet_path: Path,
+    left: object,
+    right: object,
+    *,
+    allow_placeholders: bool = False,
+) -> bool:
+    left_text = str(left).strip()
+    right_text = str(right).strip()
+    if allow_placeholders and left_text == right_text and _is_placeholder_ref(left_text):
+        return True
+    left_resolved = _resolve_verification_gate_report_ref(root, packet_path, left_text)
+    right_resolved = _resolve_verification_gate_report_ref(root, packet_path, right_text)
+    return bool(left_resolved and right_resolved and left_resolved == right_resolved)
+
+
+def _render_expected_review_prompt(packet: dict, role_contract: dict) -> str:
+    return (
+        "You are an AgentsFlow external read-only reviewer.\n"
+        "Start from zero prior conversation context. Do not use or assume any forked orchestrator context. "
+        "Review only the provided packet. Do not request repository access. Do not modify files. "
+        "Do not run tests. Do not execute scripts. Do not produce patches. Do not update evidence. "
+        "Return JSON only, conforming to the requested reviewer-report schema.\n\n"
+        "All findings must be candidate-unvalidated. Report missing mandatory evidence. "
+        "Report plausible P0/P1 blockers even outside a focused role. "
+        "The main/orchestrating agent validates relevance before findings affect workflow decisions.\n\n"
+        "Resolved reviewer role contract:\n"
+        + yaml.safe_dump(role_contract, sort_keys=False)
+        + "\n"
+        "Review packet:\n"
+        + json.dumps(packet, ensure_ascii=False, indent=2)
+    )
+
+
+def _validate_latest_green_gate_ref(
+    root: Path,
+    packet_path: Path,
+    data: dict,
+    errors: list[str],
+    expected_ref: object | None = None,
+    expected_label: str = "verification_gate_report.path",
+) -> None:
+    freshness = data.get("evidence_freshness")
+    if not isinstance(freshness, dict):
+        return
+    latest_green_gate = freshness.get("latest_green_gate")
+    if not latest_green_gate:
+        return
+
+    allow_placeholders = _allows_placeholder_verification_refs(packet_path, data)
+    if expected_ref:
+        if not _verification_gate_refs_match(
+            root,
+            packet_path,
+            latest_green_gate,
+            expected_ref,
+            allow_placeholders=allow_placeholders,
+        ):
+            errors.append(
+                f"{packet_path}: evidence_freshness.latest_green_gate must match {expected_label}"
+            )
+        if not (allow_placeholders and _is_placeholder_ref(expected_ref)):
+            expected_resolved = _resolve_verification_gate_report_ref(root, packet_path, expected_ref)
+            if not expected_resolved:
+                errors.append(f"{packet_path}: {expected_label} must reference a verification gate report artifact: {expected_ref}")
+            else:
+                _validate_same_run_verification_gate_report_ref(
+                    packet_path,
+                    expected_resolved,
+                    expected_ref,
+                    expected_label,
+                    errors,
+                )
+
+    if not (allow_placeholders and _is_placeholder_ref(latest_green_gate)):
+        latest_resolved = _resolve_verification_gate_report_ref(root, packet_path, latest_green_gate)
+        if not latest_resolved:
+            errors.append(
+                f"{packet_path}: evidence_freshness.latest_green_gate must reference a verification gate report artifact: {latest_green_gate}"
+            )
+        else:
+            _validate_same_run_verification_gate_report_ref(
+                packet_path,
+                latest_resolved,
+                latest_green_gate,
+                "evidence_freshness.latest_green_gate",
+                errors,
+            )
+
+
+def _validate_failure_path_matrix_surface_coverage(path: Path, data: dict, errors: list[str]) -> None:
+    profile = data.get("risk_surface_profile")
+    if not isinstance(profile, dict):
+        return
+    selected_values = profile.get("selected_risk_surfaces", []) or []
+    blank_selected = [
+        str(index)
+        for index, surface in enumerate(selected_values)
+        if isinstance(surface, str) and not surface.strip()
+    ]
+    if blank_selected:
+        errors.append(
+            f"{path}: risk_surface_profile.selected_risk_surfaces must not contain blank entries: {', '.join(blank_selected)}"
+        )
+    selected = {
+        surface.strip()
+        for surface in selected_values
+        if isinstance(surface, str) and surface.strip()
+    }
+
+    matrix = data.get("failure_path_matrix")
+    rows = matrix.get("rows", []) if isinstance(matrix, dict) else []
+    blank_row_surfaces: list[str] = []
+    if isinstance(rows, list):
+        blank_row_surfaces = [
+            str(index)
+            for index, row in enumerate(rows)
+            if isinstance(row, dict)
+            and isinstance(row.get("risk_surface"), str)
+            and not row.get("risk_surface", "").strip()
+        ]
+        if blank_row_surfaces:
+            errors.append(
+                f"{path}: failure_path_matrix.rows risk_surface must not be blank: {', '.join(blank_row_surfaces)}"
+            )
+    if not selected:
+        return
+    if not isinstance(rows, list) or not rows:
+        errors.append(
+            f"{path}: failure_path_matrix.rows must include coverage rows when selected_risk_surfaces is non-empty"
+        )
+        return
+    covered = {
+        row.get("risk_surface", "").strip()
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("risk_surface"), str) and row.get("risk_surface", "").strip()
+    }
+    missing = sorted(selected - covered)
+    if missing:
+        errors.append(
+            f"{path}: failure_path_matrix.rows must cover selected risk surface(s): {', '.join(missing)}"
+        )
 
 
 def validate_review_manifest_collection(root: Path) -> list[str]:
@@ -95,6 +368,7 @@ def validate_review_prompt_contract_invariants(
     reviewers = data.get("reviewer_set", []) or []
     prompts = data.get("rendered_prompts", []) or []
     prompt_policy = data.get("prompt_policy", {}) or {}
+    run_scope_artifact = _is_run_scope_artifact(path, data)
     reviewer_ids = [str(item.get("instance_id")) for item in reviewers if isinstance(item, dict)]
     prompt_ids = [str(item.get("reviewer")) for item in prompts if isinstance(item, dict)]
 
@@ -151,7 +425,7 @@ def validate_review_prompt_contract_invariants(
                 errors.append(f"{path}: homogeneous-dual rendered_prompts must declare {key}")
             elif len(set(str(value) for value in values)) != 1:
                 errors.append(f"{path}: homogeneous-dual rendered_prompts must share {key}")
-            elif data.get("artifact_scope", "run") == "run":
+            elif run_scope_artifact:
                 for value in values:
                     digest = str(value).removeprefix("sha256:")
                     if not str(value).startswith("sha256:") or len(digest) != 64 or not all(c in "0123456789abcdef" for c in digest):
@@ -165,7 +439,7 @@ def validate_review_prompt_contract_invariants(
             errors.append(f"{path}: homogeneous-dual review_packets must declare shared_packet_content_hash")
         elif len(set(str(value) for value in packet_shared_values)) != 1:
             errors.append(f"{path}: homogeneous-dual review_packets must share shared_packet_content_hash")
-        elif data.get("artifact_scope", "run") == "run":
+        elif run_scope_artifact:
             for value in packet_shared_values:
                 digest = str(value).removeprefix("sha256:")
                 if not str(value).startswith("sha256:") or len(digest) != 64 or not all(c in "0123456789abcdef" for c in digest):
@@ -215,7 +489,7 @@ def validate_review_prompt_contract_invariants(
                     errors.append(f"{path}: collision-control missing {key}")
             if collision.get("control_reviewer_count") != 2:
                 errors.append(f"{path}: collision-control control_reviewer_count must be 2")
-    if data.get("artifact_scope", "run") == "run":
+    if run_scope_artifact:
         for prompt in prompts:
             if not isinstance(prompt, dict):
                 continue
@@ -236,10 +510,20 @@ def validate_review_prompt_contract_invariants(
 
 def validate_review_prompt_contract_run_references(root: Path, path: Path, data: dict) -> list[str]:
     errors: list[str] = []
-    if data.get("artifact_scope", "run") != "run":
+    run_path_artifact = _is_agentsflow_run_artifact_path(path)
+    if run_path_artifact and data.get("artifact_scope", "run") != "run":
+        errors.append(f"{path}: review prompt contract under Docs/agentsflow/runs must declare artifact_scope: run")
+    if data.get("artifact_scope", "run") != "run" and not run_path_artifact:
         return errors
 
-    def resolve_existing(ref: object, label: str, *, required: bool = True) -> Path | None:
+    def resolve_existing(
+        ref: object,
+        label: str,
+        *,
+        required: bool = True,
+        file_required: bool = False,
+        verification_gate_report: bool = False,
+    ) -> Path | None:
         if not ref:
             if required:
                 errors.append(f"{path}: {label} is required")
@@ -252,6 +536,14 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
         if not resolved.exists():
             errors.append(f"{path}: {label} does not exist: {ref}")
             return None
+        if file_required and not resolved.is_file():
+            errors.append(f"{path}: {label} must be a file artifact: {ref}")
+            return None
+        if verification_gate_report and not _is_verification_gate_report_artifact(resolved):
+            errors.append(f"{path}: {label} must reference a verification gate report artifact: {ref}")
+            return None
+        if verification_gate_report:
+            _validate_same_run_verification_gate_report_ref(path, resolved, ref, label, errors)
         return resolved
 
     inputs = data.get("inputs", {}) or {}
@@ -279,7 +571,12 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     for label, ref in review_subjects:
         resolve_existing(ref, label)
     if inputs.get("verification_gate_report"):
-        resolve_existing(inputs.get("verification_gate_report"), "inputs.verification_gate_report")
+        resolve_existing(
+            inputs.get("verification_gate_report"),
+            "inputs.verification_gate_report",
+            file_required=True,
+            verification_gate_report=True,
+        )
     if inputs.get("evidence_report"):
         resolve_existing(inputs.get("evidence_report"), "inputs.evidence_report")
 
@@ -295,6 +592,8 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     }
     packet_reviewers: set[str] = set()
     packet_hash_by_reviewer: dict[str, str] = {}
+    packet_path_by_reviewer: dict[str, Path] = {}
+    packet_paths: list[Path] = []
     seen_packet_paths: dict[Path, str] = {}
     for idx, packet in enumerate(inputs.get("review_packets", []) or []):
         if not isinstance(packet, dict):
@@ -314,6 +613,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             errors.append(f"{path}: inputs.review_packets[{idx}].schema must match inputs.review_packet_schema")
         if packet_path:
             resolved_packet_path = packet_path.resolve()
+            packet_paths.append(packet_path)
             if resolved_packet_path in seen_packet_paths:
                 errors.append(
                     f"{path}: inputs.review_packets duplicate path for reviewers {seen_packet_paths[resolved_packet_path]} and {reviewer}"
@@ -321,6 +621,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             seen_packet_paths[resolved_packet_path] = reviewer
             packet_hash = sha256_file(packet_path)
             packet_hash_by_reviewer[reviewer] = packet_hash
+            packet_path_by_reviewer[reviewer] = packet_path
             compare_hash(path, f"inputs.review_packets[{idx}].packet_hash", packet.get("packet_hash"), packet_hash, errors)
             packet_data = parse_json(packet_path)
             if isinstance(packet_data, dict):
@@ -335,6 +636,75 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             errors.append(f"{path}: inputs.review_packets missing reviewers: {', '.join(missing)}")
         if extra:
             errors.append(f"{path}: inputs.review_packets contains unknown reviewers: {', '.join(extra)}")
+
+    identity = data.get("identity", {}) or {}
+    if identity.get("review_profile") == "homogeneous-dual" and packet_paths:
+        for packet_path in packet_paths:
+            if not (packet_path.parent / "shared-content.json").exists():
+                errors.append(f"{path}: homogeneous-dual run review packet missing sibling shared-content.json: {packet_path}")
+        shared_content_paths = {
+            packet_path.parent / "shared-content.json"
+            for packet_path in packet_paths
+            if (packet_path.parent / "shared-content.json").exists()
+        }
+        if len(shared_content_paths) != 1:
+            errors.append(
+                f"{path}: homogeneous-dual run review packets must have exactly one sibling shared-content.json"
+            )
+        else:
+            shared_content_path = next(iter(shared_content_paths))
+            shared_content_hash = sha256_file(shared_content_path)
+            shared_content = parse_json(shared_content_path)
+            if not isinstance(shared_content, dict):
+                errors.append(f"{shared_content_path}: shared packet content must be a JSON object")
+                shared_content = {}
+            excluded_envelope_fields = set(str(item) for item in (shared_content.get("excluded_envelope_fields", []) or []))
+            allowed_excluded_envelope_fields = {"reviewer_instance_id"}
+            unexpected_excluded_fields = sorted(excluded_envelope_fields - allowed_excluded_envelope_fields)
+            if unexpected_excluded_fields:
+                errors.append(
+                    f"{shared_content_path}: excluded_envelope_fields may only contain envelope fields: "
+                    f"{', '.join(sorted(allowed_excluded_envelope_fields))}; unexpected: {', '.join(unexpected_excluded_fields)}"
+                )
+
+            def shared_packet_payload(packet_data: dict, *, sidecar: bool = False) -> dict:
+                return {
+                    key: value
+                    for key, value in packet_data.items()
+                    if key not in excluded_envelope_fields
+                    and not (sidecar and key == "excluded_envelope_fields")
+                }
+
+            expected_shared_packet = shared_packet_payload(shared_content, sidecar=True)
+            for idx, packet in enumerate(inputs.get("review_packets", []) or []):
+                if isinstance(packet, dict):
+                    compare_hash(
+                        path,
+                        f"inputs.review_packets[{idx}].shared_packet_content_hash",
+                        packet.get("shared_packet_content_hash"),
+                        shared_content_hash,
+                        errors,
+                    )
+                    packet_path = root / str(packet.get("path", ""))
+                    packet_data = parse_json(packet_path) if packet_path.exists() else None
+                    if isinstance(packet_data, dict):
+                        if "excluded_envelope_fields" in packet_data:
+                            errors.append(
+                                f"{path}: inputs.review_packets[{idx}] must not contain reserved shared-content metadata field excluded_envelope_fields"
+                            )
+                        if shared_packet_payload(packet_data) != expected_shared_packet:
+                            errors.append(
+                                f"{path}: inputs.review_packets[{idx}] content must match shared-content.json except excluded envelope fields"
+                            )
+            for idx, prompt in enumerate(data.get("rendered_prompts", []) or []):
+                if isinstance(prompt, dict):
+                    compare_hash(
+                        path,
+                        f"rendered_prompts[{idx}].shared_packet_content_hash",
+                        prompt.get("shared_packet_content_hash"),
+                        shared_content_hash,
+                        errors,
+                    )
 
     output_schema_hash = sha256_file(output_schema_path) if output_schema_path else ""
     rubric_hash = sha256_text(json.dumps(data.get("prompt_policy", {}) or {}, sort_keys=True))
@@ -358,6 +728,17 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
         role_path = resolve_existing(reviewer_def.get("role_contract"), f"reviewer_set.{reviewer}.role_contract")
         if role_path:
             compare_hash(path, f"rendered_prompts[{idx}].role_contract_hash", prompt.get("role_contract_hash"), sha256_file(role_path), errors)
+        packet_path = packet_path_by_reviewer.get(reviewer)
+        if prompt_path and role_path and packet_path:
+            packet_data = parse_json(packet_path)
+            role_data = parse_yaml(role_path)
+            if isinstance(packet_data, dict) and isinstance(role_data, dict):
+                expected_prompt = _render_expected_review_prompt(packet_data, role_data)
+                actual_prompt = prompt_path.read_text(encoding="utf-8")
+                if actual_prompt != expected_prompt:
+                    errors.append(
+                        f"{path}: rendered_prompts[{idx}].prompt_path content must match current packet and role contract"
+                    )
     return errors
 
 
@@ -382,8 +763,19 @@ def validate_review_packet_artifact(root: Path, path: Path, check_references: bo
         and not data.get("focus_zone")
     ):
         errors.append(f"{path}: homogeneous-plus-focused focused reviewer packet must include focus_zone")
+    _validate_failure_path_matrix_surface_coverage(path, data, errors)
     if not check_references:
         return errors
+
+    verification_gate_report = data.get("verification_gate_report")
+    verification_gate_ref = (
+        verification_gate_report.get("path")
+        if isinstance(verification_gate_report, dict)
+        else None
+    )
+    if not verification_gate_ref:
+        errors.append(f"{path}: verification_gate_report.path is required")
+    _validate_latest_green_gate_ref(root, path, data, errors, verification_gate_ref)
 
     role_ref = data.get("role_contract")
     if role_ref:
@@ -426,6 +818,17 @@ def validate_review_packet_artifact(root: Path, path: Path, check_references: bo
                 if isinstance(contract_schema, dict):
                     errors.extend(validate_against_schema(prompt_contract_path, contract, contract_schema))
                 errors.extend(validate_review_prompt_contract_invariants(root, prompt_contract_path, contract, True))
+                contract_verification_gate_ref = ((contract.get("inputs") or {}).get("verification_gate_report"))
+                if not contract_verification_gate_ref:
+                    errors.append(f"{path}: review_prompt_contract inputs.verification_gate_report is required")
+                _validate_latest_green_gate_ref(
+                    root,
+                    path,
+                    data,
+                    errors,
+                    contract_verification_gate_ref,
+                    "review_prompt_contract inputs.verification_gate_report",
+                )
                 identity = contract.get("identity", {}) or {}
                 for key in ["workflow", "run_id", "review_profile", "composition"]:
                     if str(identity.get(key)) != str(data.get(key)):
@@ -559,6 +962,20 @@ def validate_enabled_review_minimum(
             f"{path}: {context}.topology single-reviewer is not valid for primary review gates; "
             "enabled review gates require at least two reviewers"
         )
+    selected_surfaces = review.get("selected_risk_surfaces")
+    if selected_surfaces is not None:
+        if not isinstance(selected_surfaces, list):
+            errors.append(f"{path}: {context}.selected_risk_surfaces must be a list")
+        else:
+            blank_surfaces = [
+                str(index)
+                for index, surface in enumerate(selected_surfaces)
+                if isinstance(surface, str) and not surface.strip()
+            ]
+            if blank_surfaces:
+                errors.append(
+                    f"{path}: {context}.selected_risk_surfaces must not contain blank entries: {', '.join(blank_surfaces)}"
+                )
     reviewers = review.get("reviewers")
     if not isinstance(reviewers, list):
         errors.append(f"{path}: {context}.reviewers must list at least two reviewers when review is enabled")
@@ -816,9 +1233,55 @@ def validate_v02_review_control_materiality_policy(path: Path, data: dict) -> li
         )
     if not materiality.get("material_if_changes"):
         errors.append(f"{path}: materiality_classification.material_if_changes is required")
+    else:
+        material_if_changes = set(str(item) for item in materiality.get("material_if_changes", []) or [])
+        required_material_triggers = {
+            "selected_risk_surfaces_or_failure_path_matrix",
+            "review_packet_content",
+        }
+        missing_triggers = sorted(required_material_triggers - material_if_changes)
+        if missing_triggers:
+            errors.append(
+                f"{path}: materiality_classification.material_if_changes missing: {', '.join(missing_triggers)}"
+            )
     if not materiality.get("non_material_if_only"):
         errors.append(f"{path}: materiality_classification.non_material_if_only is required")
     controls = data.get("review_control_rules", {}) or {}
     if controls.get("post_fix_materiality_classification_required") is not True:
         errors.append(f"{path}: review_control_rules.post_fix_materiality_classification_required must be true")
+    return errors
+
+
+def validate_phase_skills_declared(
+    path: Path,
+    data: dict,
+    skill_manifests: dict[str, dict],
+) -> list[str]:
+    workflow_name = str(data.get("name") or "")
+    uses_skills = set(str(item) for item in ((data.get("uses") or {}).get("skills", []) or []))
+    missing: set[str] = set()
+    incompatible: set[str] = set()
+    unknown: set[str] = set()
+    for phase in data.get("phases", []) or []:
+        if not isinstance(phase, dict):
+            continue
+        for skill in phase.get("skills", []) or []:
+            skill_name = str(skill)
+            if skill_name not in skill_manifests:
+                unknown.add(skill_name)
+                continue
+            if skill_name not in uses_skills:
+                missing.add(skill_name)
+            compatible = skill_manifests.get(skill_name, {}).get("compatible_workflows") or []
+            if compatible and workflow_name not in compatible:
+                incompatible.add(skill_name)
+    errors: list[str] = []
+    if missing:
+        errors.append(f"{path}: phase skills missing from uses.skills: {', '.join(sorted(missing))}")
+    if unknown:
+        errors.append(f"{path}: phase skills missing skill manifest: {', '.join(sorted(unknown))}")
+    if incompatible:
+        errors.append(
+            f"{path}: phase skills compatible_workflows missing {workflow_name}: {', '.join(sorted(incompatible))}"
+        )
     return errors

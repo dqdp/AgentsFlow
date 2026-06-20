@@ -8,6 +8,10 @@ inputs:
   - diff_or_artifact
   - verification_gate_report
   - evidence_bundle
+  - risk_surface_profile
+  - failure_path_matrix
+  - evidence_freshness
+  - known_blockers
 outputs:
   - generalist_reviewer_report
 depends_on: []
@@ -22,9 +26,11 @@ quality_bar:
   - Findings are grounded in contract, diff/artifact, gate evidence or accepted decisions.
   - P0/P1 candidate blockers are reported even when they cross rubric sections.
   - Missing mandatory evidence is surfaced.
+  - Selected risk surfaces, FPM rows, known blockers, and freshness are checked when present.
 anti_patterns:
   - Treating reviewer findings as authoritative truth.
   - Narrowing attention to one specialist domain in the homogeneous baseline pass.
+  - Choosing or changing review topology instead of reporting packet inconsistencies.
 mode: read_only
 actor_class: review_agent
 runs_after:

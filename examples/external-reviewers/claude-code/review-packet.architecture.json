@@ -1,5 +1,6 @@
 {
   "agentsflow_version": "v0.2.0",
+  "artifact_scope": "example",
   "workflow": "big-feature-contract-first",
   "run_id": "YYYY-MM-DD-task-slug",
   "reviewer_role": "architecture",
@@ -38,20 +39,46 @@
     ]
   },
   "task_contract": {
-    "path": "Docs/agentsflow/runs/<run-id>/task.contract.md",
+    "path": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/task.contract.md",
     "summary": "..."
   },
+  "risk_surface_profile": {
+    "selected_risk_surfaces": [
+      "authority_boundary"
+    ],
+    "review_topology_source": "human_decision",
+    "escalation_reason": "Example heterogeneous review request."
+  },
+  "failure_path_matrix": {
+    "path": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/task.contract.md#failure-path-matrix",
+    "rows": [
+      {
+        "id": "FPM-EXAMPLE-001",
+        "risk_surface": "authority_boundary",
+        "path_class": "direct_bypass_attempt",
+        "evidence_binding": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/behavior.bindings.yaml#AF-BHV-001",
+        "status": "covered"
+      }
+    ]
+  },
   "plan": {
-    "path": "Docs/agentsflow/runs/<run-id>/plan.md",
+    "path": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/plan.md",
     "summary": "..."
   },
   "diff_summary": "...",
   "changed_files": [],
   "verification_gate_report": {
-    "path": "Docs/agentsflow/runs/<run-id>/verification-gate-report.md",
+    "path": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/verification-gate-report.md",
     "summary": "..."
   },
+  "evidence_freshness": {
+    "material_change_id": "<latest-material-change-id-or-none>",
+    "latest_green_gate": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/verification-gate-report.md",
+    "review_packet_generated_after_latest_green_gate": true,
+    "stale_evidence_marked_or_excluded": true
+  },
   "evidence_summary": "...",
+  "known_blockers": [],
   "accepted_adrs": [],
   "project_rules": [],
   "forbidden_actions": [

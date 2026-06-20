@@ -123,6 +123,28 @@ def test_behavior_binding_schema_allows_spec_only_bindings(tmp_path) -> None:
     assert "has no checks" in (result.stdout + result.stderr)
 
 
+def test_behavior_binding_schema_allows_risk_path_metadata(tmp_path) -> None:
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads(
+        (ROOT / "schemas/behavior-binding.schema.json").read_text(encoding="utf-8")
+    )
+    binding = yaml.safe_load((ROOT / "templates/behavior-bindings.yaml").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(binding)
+
+    invalid = yaml.safe_load((ROOT / "templates/behavior-bindings.yaml").read_text(encoding="utf-8"))
+    invalid["bindings"][0]["evidence_class"] = "spreadsheet"
+    assert list(jsonschema.Draft202012Validator(schema).iter_errors(invalid))
+
+    binding_path = tmp_path / "risk.bindings.yaml"
+    binding_path.write_text(yaml.safe_dump(binding), encoding="utf-8")
+    result = run("scripts/bdd_binding_check.py", "--bindings", str(binding_path))
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_project_binding_validation_passes() -> None:
     result = run("scripts/validate_project_binding.py", "--project", "examples/project-overlay", "--agentsflow-root", ".")
     assert result.returncode == 0, result.stdout + result.stderr
@@ -627,6 +649,16 @@ def test_project_operating_decisions_schema_passes() -> None:
     ]:
         data = yaml.safe_load((ROOT / rel).read_text(encoding="utf-8"))
         validator.validate(data)
+        material_triggers = set(
+            data["review_cycle_policy"]["materiality_classification"]["material_if_changes"]
+        )
+        assert {
+            "task_contract_or_scope",
+            "selected_risk_surfaces_or_failure_path_matrix",
+            "behavior_bindings",
+            "affected_implementation_behavior",
+            "review_packet_content",
+        }.issubset(material_triggers)
 
     invalid_cycles = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
     invalid_cycles["review_cycle_policy"]["max_review_cycles"] = 1
@@ -647,6 +679,32 @@ def test_project_operating_decisions_schema_passes() -> None:
     missing_materiality = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
     missing_materiality["review_cycle_policy"].pop("materiality_classification")
     assert list(validator.iter_errors(missing_materiality))
+
+    missing_material_trigger = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    missing_material_trigger["review_cycle_policy"]["materiality_classification"]["material_if_changes"].remove(
+        "selected_risk_surfaces_or_failure_path_matrix"
+    )
+    assert list(validator.iter_errors(missing_material_trigger))
+
+    missing_risk_surface_policy = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    missing_risk_surface_policy.pop("risk_surface_policy")
+    assert list(validator.iter_errors(missing_risk_surface_policy))
+
+    missing_evidence_freshness = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    missing_evidence_freshness["artifact_policy"].pop("evidence_freshness")
+    assert list(validator.iter_errors(missing_evidence_freshness))
+
+    read_write_review = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    read_write_review["review_policy"]["read_only_by_default"] = False
+    assert list(validator.iter_errors(read_write_review))
+
+    missing_main_validation = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    missing_main_validation["review_policy"].pop("candidate_findings_require_main_validation")
+    assert list(validator.iter_errors(missing_main_validation))
+
+    weak_main_validation = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    weak_main_validation["review_policy"]["candidate_findings_require_main_validation"] = False
+    assert list(validator.iter_errors(weak_main_validation))
 
 
 def test_project_documentation_disposition_schema_passes() -> None:
@@ -1452,7 +1510,35 @@ def test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone() 
     )
     packet["review_profile"] = "homogeneous-plus-focused"
     packet["composition"] = "homogeneous-plus-focused"
+    packet["risk_surface_profile"]["selected_risk_surfaces"] = ["authority_boundary"]
+    packet["risk_surface_profile"]["review_topology_source"] = "risk_surface_profile"
+    packet["risk_surface_profile"]["escalation_reason"] = "authority boundary selected"
+    packet["failure_path_matrix"]["rows"] = [
+        {
+            "id": "FPM-001",
+            "risk_surface": "authority_boundary",
+            "path_class": "direct_bypass_attempt",
+            "evidence_binding": "AF-BHV-001",
+            "status": "covered",
+        }
+    ]
     validator.validate(packet)
+
+    missing_escalation_surface = copy.deepcopy(packet)
+    missing_escalation_surface["risk_surface_profile"]["selected_risk_surfaces"] = []
+    assert list(validator.iter_errors(missing_escalation_surface))
+
+    blank_escalation_surface = copy.deepcopy(packet)
+    blank_escalation_surface["risk_surface_profile"]["selected_risk_surfaces"] = [""]
+    assert list(validator.iter_errors(blank_escalation_surface))
+
+    whitespace_escalation_surface = copy.deepcopy(packet)
+    whitespace_escalation_surface["risk_surface_profile"]["selected_risk_surfaces"] = ["   "]
+    assert list(validator.iter_errors(whitespace_escalation_surface))
+
+    empty_escalation_fpm = copy.deepcopy(packet)
+    empty_escalation_fpm["failure_path_matrix"]["rows"] = []
+    assert list(validator.iter_errors(empty_escalation_fpm))
 
     focused = copy.deepcopy(packet)
     focused["reviewer_instance_id"] = "adversarial"
@@ -1461,6 +1547,109 @@ def test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone() 
 
     focused["focus_zone"] = {"primary_focus": ["false completion", "bypasses"]}
     validator.validate(focused)
+
+
+def test_review_packet_schema_accepts_risk_surface_context() -> None:
+    import copy
+    import json
+
+    import jsonschema
+
+    schema = json.loads((ROOT / "schemas/review-packet.schema.json").read_text(encoding="utf-8"))
+    packet = json.loads((ROOT / "templates/review-packet.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    validator.validate(packet)
+
+    risk_packet = copy.deepcopy(packet)
+    risk_packet["review_profile"] = "homogeneous-plus-focused"
+    risk_packet["composition"] = "homogeneous-plus-focused"
+    risk_packet["risk_surface_profile"]["selected_risk_surfaces"] = ["authority_boundary"]
+    risk_packet["risk_surface_profile"]["review_topology_source"] = "risk_surface_profile"
+    risk_packet["risk_surface_profile"]["escalation_reason"] = "authority boundary selected"
+    risk_packet["failure_path_matrix"]["rows"] = [
+        {
+            "id": "FPM-001",
+            "risk_surface": "authority_boundary",
+            "path_class": "direct_bypass_attempt",
+            "evidence_binding": "AF-BHV-001",
+            "status": "covered",
+        }
+    ]
+    validator.validate(risk_packet)
+
+    invalid = copy.deepcopy(risk_packet)
+    invalid["failure_path_matrix"]["rows"][0].pop("evidence_binding")
+    assert list(validator.iter_errors(invalid))
+
+    empty_fpm_path = copy.deepcopy(risk_packet)
+    empty_fpm_path["failure_path_matrix"]["path"] = ""
+    assert list(validator.iter_errors(empty_fpm_path))
+
+    empty_evidence_binding = copy.deepcopy(risk_packet)
+    empty_evidence_binding["failure_path_matrix"]["rows"][0]["evidence_binding"] = ""
+    assert list(validator.iter_errors(empty_evidence_binding))
+
+    whitespace_evidence_binding = copy.deepcopy(risk_packet)
+    whitespace_evidence_binding["failure_path_matrix"]["rows"][0]["evidence_binding"] = "   "
+    assert list(validator.iter_errors(whitespace_evidence_binding))
+
+    whitespace_fpm_path = copy.deepcopy(risk_packet)
+    whitespace_fpm_path["failure_path_matrix"]["path"] = "   "
+    assert list(validator.iter_errors(whitespace_fpm_path))
+
+    whitespace_fpm_surface = copy.deepcopy(risk_packet)
+    whitespace_fpm_surface["failure_path_matrix"]["rows"][0]["risk_surface"] = "   "
+    assert list(validator.iter_errors(whitespace_fpm_surface))
+
+    empty_selected_surface = copy.deepcopy(risk_packet)
+    empty_selected_surface["risk_surface_profile"]["selected_risk_surfaces"] = [""]
+    assert list(validator.iter_errors(empty_selected_surface))
+
+    whitespace_selected_surface = copy.deepcopy(risk_packet)
+    whitespace_selected_surface["risk_surface_profile"]["selected_risk_surfaces"] = ["   "]
+    assert list(validator.iter_errors(whitespace_selected_surface))
+
+    selected_surface_without_fpm_rows = copy.deepcopy(risk_packet)
+    selected_surface_without_fpm_rows["failure_path_matrix"]["rows"] = []
+    assert list(validator.iter_errors(selected_surface_without_fpm_rows))
+
+    missing_verification_gate_report = copy.deepcopy(risk_packet)
+    missing_verification_gate_report.pop("verification_gate_report")
+    assert list(validator.iter_errors(missing_verification_gate_report))
+
+    empty_material_change = copy.deepcopy(risk_packet)
+    empty_material_change["evidence_freshness"]["material_change_id"] = ""
+    assert list(validator.iter_errors(empty_material_change))
+
+    empty_latest_green_gate = copy.deepcopy(risk_packet)
+    empty_latest_green_gate["evidence_freshness"]["latest_green_gate"] = ""
+    assert list(validator.iter_errors(empty_latest_green_gate))
+
+    whitespace_latest_green_gate = copy.deepcopy(risk_packet)
+    whitespace_latest_green_gate["evidence_freshness"]["latest_green_gate"] = "   "
+    assert list(validator.iter_errors(whitespace_latest_green_gate))
+
+    stale = copy.deepcopy(packet)
+    stale["evidence_freshness"]["review_packet_generated_after_latest_green_gate"] = False
+    assert list(validator.iter_errors(stale))
+
+    deferred = copy.deepcopy(risk_packet)
+    deferred["failure_path_matrix"]["rows"][0]["status"] = "deferred"
+    deferred["failure_path_matrix"]["rows"][0]["deferral"] = {
+        "residual_risk": "covered by follow-up gate",
+        "approved_by": "project_owner",
+        "approval_artifact": "human-decisions.yaml#HD-001",
+        "constraints": ["must not affect authority boundary behavior"],
+    }
+    validator.validate(deferred)
+
+    missing_deferral = copy.deepcopy(deferred)
+    missing_deferral["failure_path_matrix"]["rows"][0].pop("deferral")
+    assert list(validator.iter_errors(missing_deferral))
+
+    whitespace_deferral = copy.deepcopy(deferred)
+    whitespace_deferral["failure_path_matrix"]["rows"][0]["deferral"]["approval_artifact"] = "   "
+    assert list(validator.iter_errors(whitespace_deferral))
 
 
 def test_collision_control_review_packet_requires_non_null_batch() -> None:
@@ -1528,6 +1717,27 @@ def test_collision_control_prompt_contract_requires_non_null_batch() -> None:
     errors = list(jsonschema.Draft202012Validator(schema).iter_errors(broken))
     assert errors
     assert "not of type 'object'" in "\n".join(error.message for error in errors)
+
+
+def test_review_prompt_contract_schema_requires_verification_gate_report_input() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads((ROOT / "schemas/review-prompt-contract.schema.json").read_text(encoding="utf-8"))
+    contract = yaml.safe_load((ROOT / "templates/review-prompt-contract.yaml").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    validator.validate(contract)
+
+    missing_gate = copy.deepcopy(contract)
+    missing_gate["inputs"].pop("verification_gate_report")
+    assert list(validator.iter_errors(missing_gate))
+
+    whitespace_gate = copy.deepcopy(contract)
+    whitespace_gate["inputs"]["verification_gate_report"] = "   "
+    assert list(validator.iter_errors(whitespace_gate))
 
 
 def test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources() -> None:
@@ -1607,8 +1817,11 @@ def test_review_prompt_contract_rejects_missing_shared_hash() -> None:
         raise AssertionError("missing shared prompt hash was accepted")
 
 
-def test_review_prompt_contract_rejects_run_artifact_drift() -> None:
+def test_review_prompt_contract_rejects_run_artifact_drift(tmp_path) -> None:
     import copy
+    import hashlib
+    import json
+    import shutil
     import sys
 
     import yaml
@@ -1627,6 +1840,95 @@ def test_review_prompt_contract_rejects_run_artifact_drift() -> None:
     errors = validate_repo.validate_review_prompt_contract_invariants(ROOT, path, broken, True)
     assert errors
     assert "shared_packet_content_hash" in "\n".join(errors)
+
+    stale_shared_content = copy.deepcopy(contract)
+    stale_shared_content["inputs"]["review_packets"][0]["shared_packet_content_hash"] = "sha256:" + "0" * 64
+    stale_shared_content["inputs"]["review_packets"][1]["shared_packet_content_hash"] = "sha256:" + "0" * 64
+    stale_shared_content["rendered_prompts"][0]["shared_packet_content_hash"] = "sha256:" + "0" * 64
+    stale_shared_content["rendered_prompts"][1]["shared_packet_content_hash"] = "sha256:" + "0" * 64
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, stale_shared_content)
+    assert errors
+    assert "shared_packet_content_hash" in "\n".join(errors)
+
+    prompt_root = tmp_path / "agentsflow-rendered-prompt-drift"
+    shutil.copytree(ROOT, prompt_root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    prompt_contract_path = (
+        prompt_root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    prompt_path = (
+        prompt_root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-a.md"
+    )
+    prompt_text = prompt_path.read_text(encoding="utf-8")
+    prompt_path.write_text(prompt_text.replace("risk_surface_profile", "stale_risk_surface_profile"), encoding="utf-8")
+    prompt_contract = yaml.safe_load(prompt_contract_path.read_text(encoding="utf-8"))
+    prompt_contract["rendered_prompts"][0]["prompt_hash"] = (
+        "sha256:" + hashlib.sha256(prompt_path.read_bytes()).hexdigest()
+    )
+    prompt_contract_path.write_text(yaml.safe_dump(prompt_contract, sort_keys=False), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(
+        prompt_root,
+        prompt_contract_path,
+        prompt_contract,
+    )
+    assert "prompt_path content must match current packet and role contract" in "\n".join(errors)
+
+    root = tmp_path / "agentsflow-shared-packet-drift"
+    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    copied_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["known_blockers"] = [{"id": "unexpected"}]
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    copied_contract = yaml.safe_load(copied_path.read_text(encoding="utf-8"))
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, copied_path, copied_contract)
+    assert errors
+    assert "content must match shared-content.json" in "\n".join(errors)
+
+    shared_content_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/shared-content.json"
+    )
+    shared_content = json.loads(shared_content_path.read_text(encoding="utf-8"))
+    shared_content["excluded_envelope_fields"].append("known_blockers")
+    shared_content_path.write_text(json.dumps(shared_content, indent=2) + "\n", encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, copied_path, copied_contract)
+    assert errors
+    assert "excluded_envelope_fields may only contain envelope fields" in "\n".join(errors)
+
+    shared_content["excluded_envelope_fields"] = ["reviewer_instance_id"]
+    shared_content_path.write_text(json.dumps(shared_content, indent=2) + "\n", encoding="utf-8")
+    packet["excluded_envelope_fields"] = ["known_blockers"]
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, copied_path, copied_contract)
+    assert errors
+    assert "must not contain reserved shared-content metadata field excluded_envelope_fields" in "\n".join(errors)
+
+    packet.pop("excluded_envelope_fields")
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+    split_packet_dir = packet_path.parent / "split"
+    split_packet_dir.mkdir()
+    split_packet_path = split_packet_dir / "generalist-b.json"
+    original_b_path = packet_path.parent / "generalist-b.json"
+    split_packet_path.write_text(original_b_path.read_text(encoding="utf-8"), encoding="utf-8")
+    split_contract = copy.deepcopy(copied_contract)
+    split_contract["inputs"]["review_packets"][1]["path"] = str(split_packet_path.relative_to(root))
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, copied_path, split_contract)
+    assert errors
+    assert "missing sibling shared-content.json" in "\n".join(errors)
+
+    shared_content_path.unlink()
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, copied_path, copied_contract)
+    assert errors
+    assert "must have exactly one sibling shared-content.json" in "\n".join(errors)
 
 
 def test_review_prompt_contract_rejects_missing_run_references() -> None:
@@ -1649,6 +1951,27 @@ def test_review_prompt_contract_rejects_missing_run_references() -> None:
     errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, broken)
     assert errors
     assert "prompt_path does not exist" in "\n".join(errors)
+
+
+def test_review_prompt_contract_run_path_requires_run_scope() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    relabeled = copy.deepcopy(contract)
+    relabeled["artifact_scope"] = "template"
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, relabeled)
+    assert errors
+    assert "artifact_scope: run" in "\n".join(errors)
 
 
 def test_review_prompt_contract_rejects_rendered_packet_hash_drift() -> None:
@@ -1698,6 +2021,395 @@ def test_review_packet_must_match_contract_reviewer_and_path(tmp_path) -> None:
     errors = validate_repo.validate_review_packet_artifact(ROOT, wrong_reviewer, True)
     assert errors
     assert "matching reviewer and path" in "\n".join(errors)
+
+
+def test_review_packet_rejects_stale_latest_green_gate_reference(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-stale-green"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["evidence_freshness"]["latest_green_gate"] = "missing-green-report.md"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(root, packet_path, True)
+    joined = "\n".join(errors)
+    assert "evidence_freshness.latest_green_gate must match verification_gate_report.path" in joined
+    assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+
+
+def test_review_packet_rejects_directory_latest_green_gate_reference(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-directory-green-reference"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    for packet_name in ["generalist-a.json", "generalist-b.json", "shared-content.json"]:
+        packet_path = run_dir / "review-packets" / packet_name
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        packet["verification_gate_report"]["path"] = "review-packets"
+        packet["evidence_freshness"]["latest_green_gate"] = "review-packets"
+        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["inputs"]["verification_gate_report"] = (
+        "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets"
+    )
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        run_dir / "review-packets/generalist-a.json",
+        True,
+    )
+    joined = "\n".join(errors)
+    assert "verification_gate_report.path must reference a verification gate report artifact" in joined
+    assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+    contract_errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "inputs.verification_gate_report must be a file artifact" in "\n".join(contract_errors)
+
+
+def test_review_packet_rejects_non_gate_file_latest_green_gate_reference(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-non-gate-green-reference"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    for packet_name in ["generalist-a.json", "generalist-b.json", "shared-content.json"]:
+        packet_path = run_dir / "review-packets" / packet_name
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        packet["verification_gate_report"]["path"] = "task.contract.md"
+        packet["evidence_freshness"]["latest_green_gate"] = "task.contract.md"
+        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["inputs"]["verification_gate_report"] = (
+        "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/task.contract.md"
+    )
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        run_dir / "review-packets/generalist-a.json",
+        True,
+    )
+    joined = "\n".join(errors)
+    assert "verification_gate_report.path must reference a verification gate report artifact" in joined
+    assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+    contract_errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "inputs.verification_gate_report must reference a verification gate report artifact" in "\n".join(contract_errors)
+
+
+def test_review_packet_rejects_placeholder_verification_gate_reference(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-placeholder-green-reference"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    for packet_name in ["generalist-a.json", "generalist-b.json", "shared-content.json"]:
+        packet_path = run_dir / "review-packets" / packet_name
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        packet["verification_gate_report"]["path"] = "<verification-gate-report.md>"
+        packet["evidence_freshness"]["latest_green_gate"] = "<verification-gate-report.md>"
+        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["inputs"]["verification_gate_report"] = "<verification-gate-report.md>"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        run_dir / "review-packets/generalist-a.json",
+        True,
+    )
+    joined = "\n".join(errors)
+    assert "verification_gate_report.path must reference a verification gate report artifact" in joined
+    assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+    assert "review_prompt_contract inputs.verification_gate_report must reference a verification gate report artifact" in joined
+
+
+def test_review_packet_rejects_unstructured_json_verification_gate_report(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-unstructured-json-green-report"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    (run_dir / "verification-gate-report.json").write_text(
+        json.dumps({"kind": "unrelated_report"}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    for packet_name in ["generalist-a.json", "generalist-b.json", "shared-content.json"]:
+        packet_path = run_dir / "review-packets" / packet_name
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+        packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["inputs"]["verification_gate_report"] = (
+        "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/verification-gate-report.json"
+    )
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        run_dir / "review-packets/generalist-a.json",
+        True,
+    )
+    joined = "\n".join(errors)
+    assert "verification_gate_report.path must reference a verification gate report artifact" in joined
+    assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+    assert "review_prompt_contract inputs.verification_gate_report must reference a verification gate report artifact" in joined
+    contract_errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "inputs.verification_gate_report must reference a verification gate report artifact" in "\n".join(contract_errors)
+
+
+def test_repository_validation_scans_root_run_review_artifacts(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-root-run-review-artifacts"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    source_run_dir = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    )
+    root_run_dir = root / "Docs/agentsflow/runs/2026-06-17-add-calculator"
+    root_run_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_run_dir, root_run_dir)
+
+    packet_path = root_run_dir / "review-packets/generalist-a.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "<verification-gate-report.md>"
+    packet["evidence_freshness"]["latest_green_gate"] = "<verification-gate-report.md>"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    contract_path = root_run_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["inputs"]["verification_gate_report"] = "<verification-gate-report.md>"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_repository(root)
+    joined = "\n".join(errors)
+    assert f"{packet_path}: verification_gate_report.path must reference a verification gate report artifact" in joined
+    assert f"{packet_path}: evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+    assert f"{contract_path}: inputs.verification_gate_report does not exist: <verification-gate-report.md>" in joined
+
+
+def test_repository_validation_rejects_cross_run_verification_gate_report(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-cross-run-green-report"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    source_run_dir = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    )
+    root_run_dir = root / "Docs/agentsflow/runs/2026-06-17-add-calculator"
+    root_run_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_run_dir, root_run_dir)
+    cross_run_report_ref = (
+        "examples/e2e/minimal-python-project/Docs/agentsflow/runs/"
+        "2026-06-17-add-calculator/verification-gate-report.md"
+    )
+
+    packet_path = root_run_dir / "review-packets/generalist-a.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = cross_run_report_ref
+    packet["evidence_freshness"]["latest_green_gate"] = cross_run_report_ref
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    contract_path = root_run_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["inputs"]["verification_gate_report"] = cross_run_report_ref
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_repository(root)
+    joined = "\n".join(errors)
+    assert (
+        f"{packet_path}: verification_gate_report.path must reference a verification gate report artifact "
+        f"in the same run directory: {cross_run_report_ref}"
+    ) in joined
+    assert (
+        f"{packet_path}: evidence_freshness.latest_green_gate must reference a verification gate report artifact "
+        f"in the same run directory: {cross_run_report_ref}"
+    ) in joined
+    assert (
+        f"{contract_path}: inputs.verification_gate_report must reference a verification gate report artifact "
+        f"in the same run directory: {cross_run_report_ref}"
+    ) in joined
+
+
+def test_review_packet_requires_verification_gate_reference_for_real_run(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-missing-green-reference"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    packet_path = run_dir / "review-packets/generalist-a.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet.pop("verification_gate_report")
+    packet["evidence_freshness"]["latest_green_gate"] = "task.contract.md"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["inputs"].pop("verification_gate_report")
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(root, packet_path, True)
+    joined = "\n".join(errors)
+    assert "verification_gate_report.path is required" in joined
+    assert "review_prompt_contract inputs.verification_gate_report is required" in joined
+
+
+def test_review_packet_rejects_selected_surface_without_fpm_row(tmp_path) -> None:
+    import json
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    packet = json.loads((ROOT / "templates/review-packet.json").read_text(encoding="utf-8"))
+    packet["risk_surface_profile"]["selected_risk_surfaces"] = ["authority_boundary"]
+    packet["risk_surface_profile"]["review_topology_source"] = "risk_surface_profile"
+    packet["risk_surface_profile"]["escalation_reason"] = "authority boundary selected"
+    packet["failure_path_matrix"]["rows"] = [
+        {
+            "id": "FPM-001",
+            "risk_surface": "audit_persistence",
+            "path_class": "denied_attempt_persisted",
+            "evidence_binding": "AF-BHV-001",
+            "status": "covered",
+        }
+    ]
+    packet_path = tmp_path / "review-packet.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(ROOT, packet_path, False)
+    assert "failure_path_matrix.rows must cover selected risk surface(s): authority_boundary" in "\n".join(errors)
+
+
+def test_review_packet_rejects_whitespace_only_risk_surface_values(tmp_path) -> None:
+    import json
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    packet = json.loads((ROOT / "templates/review-packet.json").read_text(encoding="utf-8"))
+    packet["risk_surface_profile"]["selected_risk_surfaces"] = ["   "]
+    packet["risk_surface_profile"]["review_topology_source"] = "risk_surface_profile"
+    packet["risk_surface_profile"]["escalation_reason"] = "authority boundary selected"
+    packet["failure_path_matrix"]["rows"] = [
+        {
+            "id": "FPM-001",
+            "risk_surface": "   ",
+            "path_class": "denied_attempt_persisted",
+            "evidence_binding": "AF-BHV-001",
+            "status": "covered",
+        }
+    ]
+    packet_path = tmp_path / "review-packet.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(ROOT, packet_path, False)
+    joined = "\n".join(errors)
+    assert "risk_surface_profile.selected_risk_surfaces must not contain blank entries" in joined
+    assert "failure_path_matrix.rows risk_surface must not be blank" in joined
 
 
 def test_review_prompt_contract_allows_reviewed_artifact_subject() -> None:
@@ -1897,6 +2609,8 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
         "scope",
         "adr",
         "risk",
+        "risk-surface",
+        "failure-path-matrix",
         "contract",
         "gate",
         "review",
@@ -2244,6 +2958,8 @@ def test_target_workflow_readiness_gate_requires_documentation_disposition() -> 
         "scope",
         "adr",
         "risk",
+        "risk-surface",
+        "failure-path-matrix",
         "contract",
         "gate",
         "review",
@@ -2264,10 +2980,14 @@ def test_target_workflow_readiness_gate_requires_documentation_disposition() -> 
     assert any("extraction depth upgrade evidence" in item for item in gate["inputs"])
     assert any("existing project policy/workflow binding evidence" in item for item in gate["required_evidence"])
     assert any("human decision packet" in item for item in gate["required_evidence"])
+    assert any("risk-surface" in item for item in gate["required_evidence"])
+    assert any("Failure Path Matrix" in item for item in gate["required_evidence"])
     assert any("project-knowledge-extraction.md" in item for item in gate["required_evidence"])
     assert any("human risk acceptance evidence" in item for item in gate["required_evidence"])
     assert set(gate["decision_categories"]) == required_decision_categories
     assert "missing_light_extraction_risk_acceptance" in gate["pass_policy"]["needs_human_decision_on"]
+    assert "missing_risk_surface_policy" in gate["pass_policy"]["needs_human_decision_on"]
+    assert "missing_failure_path_matrix_policy" in gate["pass_policy"]["needs_human_decision_on"]
     assert "unresolved_material_design_decision" in gate["pass_policy"]["needs_human_decision_on"]
 
 
@@ -2291,6 +3011,11 @@ def test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisi
     broken_categories["decision_categories"].remove("evidence")
     errors = validate_repo.validate_gate_manifest(ROOT, path, broken_categories)
     assert "target_workflow_readiness_gate decision_categories missing: evidence" in "\n".join(errors)
+
+    broken_risk_surface = copy.deepcopy(gate)
+    broken_risk_surface["decision_categories"].remove("risk-surface")
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_risk_surface)
+    assert "target_workflow_readiness_gate decision_categories missing: risk-surface" in "\n".join(errors)
 
     broken_existing_context = copy.deepcopy(gate)
     broken_existing_context["inputs"] = [
@@ -2455,6 +3180,7 @@ def test_big_feature_requires_manifest_plan_gate() -> None:
 
 
 def test_workflow_binding_rejects_too_low_max_review_cycles(tmp_path) -> None:
+    import copy
     import shutil
     import yaml
 
@@ -2467,6 +3193,34 @@ def test_workflow_binding_rejects_too_low_max_review_cycles(tmp_path) -> None:
 
     result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
     assert result.returncode == 0, result.stdout + result.stderr
+
+    missing_risk_policy = copy.deepcopy(binding)
+    missing_risk_policy.pop("risk_surface_policy")
+    binding_path.write_text(yaml.safe_dump(missing_risk_policy, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "risk_surface_policy" in (result.stdout + result.stderr)
+
+    weak_evidence_policy = copy.deepcopy(binding)
+    weak_evidence_policy["evidence_policy"]["freshness"]["review_packet_after_latest_green_gate_required"] = False
+    binding_path.write_text(yaml.safe_dump(weak_evidence_policy, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "review_packet_after_latest_green_gate_required" in (result.stdout + result.stderr)
+
+    missing_escalation_metadata = copy.deepcopy(binding)
+    missing_escalation_metadata["review"].pop("selected_risk_surfaces")
+    binding_path.write_text(yaml.safe_dump(missing_escalation_metadata, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "selected_risk_surfaces" in (result.stdout + result.stderr)
+
+    blank_escalation_surface = copy.deepcopy(binding)
+    blank_escalation_surface["review"]["selected_risk_surfaces"] = ["   "]
+    binding_path.write_text(yaml.safe_dump(blank_escalation_surface, sort_keys=False), encoding="utf-8")
+    result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
+    assert result.returncode != 0
+    assert "selected_risk_surfaces" in (result.stdout + result.stderr)
 
     binding["review_cycle"] = {}
     binding_path.write_text(yaml.safe_dump(binding, sort_keys=False), encoding="utf-8")

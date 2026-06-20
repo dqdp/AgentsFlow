@@ -9,6 +9,7 @@ inputs:
 outputs:
   - structured_artifact
 compatible_workflows:
+  - project-initialization
   - new-project-spec-first
   - big-feature-contract-first
   - agentic-system-hardening

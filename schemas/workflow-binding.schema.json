@@ -7,7 +7,9 @@
     "extends",
     "agentsflow_version",
     "binding",
-    "gates"
+    "risk_surface_policy",
+    "gates",
+    "evidence_policy"
   ],
   "additionalProperties": true,
   "properties": {
@@ -64,6 +66,75 @@
     "behavior_bindings": {
       "type": "object"
     },
+    "risk_surface_policy": {
+      "type": "object",
+      "required": [
+        "catalog_source",
+        "project_default_surfaces",
+        "project_local_surfaces",
+        "failure_path_matrix_required_when"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "catalog_source": {
+          "type": "string"
+        },
+        "project_default_surfaces": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "project_local_surfaces": {
+          "type": "array"
+        },
+        "failure_path_matrix_required_when": {
+          "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+          "minItems": 1
+        }
+      }
+    },
+    "evidence_policy": {
+      "type": "object",
+      "required": ["structured_command_evidence_required", "freshness"],
+      "additionalProperties": true,
+      "properties": {
+        "structured_command_evidence_required": {
+          "const": true
+        },
+        "freshness": {
+          "type": "object",
+          "required": [
+            "material_change_id_required",
+            "green_gate_after_latest_material_change_required",
+            "review_packet_after_latest_green_gate_required",
+            "stale_evidence_must_be_marked_or_excluded"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "material_change_id_required": {
+              "const": true
+            },
+            "green_gate_after_latest_material_change_required": {
+              "const": true
+            },
+            "review_packet_after_latest_green_gate_required": {
+              "const": true
+            },
+            "stale_evidence_must_be_marked_or_excluded": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
     "review_cycle": {
       "type": "object",
       "additionalProperties": true,
@@ -87,11 +158,27 @@
             "heterogeneous-variable"
           ]
         },
-        "reviewers": {
+        "topology_source": {
+          "type": "string",
+          "enum": ["project_policy", "risk_surface_profile", "human_decision"]
+        },
+        "selected_risk_surfaces": {
           "type": "array",
           "items": {
             "type": "string"
-          },
+          }
+        },
+        "escalation_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewers": {
+          "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
           "maxItems": 8
         },
         "composition": {
@@ -212,11 +299,14 @@
             }
           },
           "then": {
-            "required": ["focus_zones"],
+            "required": ["focus_zones", "topology_source", "selected_risk_surfaces", "escalation_reason"],
             "properties": {
               "reviewers": {
                 "minItems": 3,
                 "maxItems": 8
+              },
+              "selected_risk_surfaces": {
+                "minItems": 1
               },
               "prompt_policy": {
                 "required": [
@@ -253,11 +343,14 @@
             }
           },
           "then": {
-            "required": ["focus_zones"],
+            "required": ["focus_zones", "topology_source", "selected_risk_surfaces", "escalation_reason"],
             "properties": {
               "reviewers": {
                 "minItems": 3,
                 "maxItems": 8
+              },
+              "selected_risk_surfaces": {
+                "minItems": 1
               },
               "prompt_policy": {
                 "required": [

@@ -8,6 +8,12 @@ binding:
   project: minimal-python-project
   docs_root: Docs/
   runs_root: Docs/agentsflow/runs/
+risk_surface_policy:
+  catalog_source: docs/risk-and-strictness.md
+  project_default_surfaces: []
+  project_local_surfaces: []
+  failure_path_matrix_required_when:
+    - selected_surface_has_denial_failure_timeout_rejection_persistence_or_authority_semantics
 gates:
   verification_gate:
     extends: gates/verification_gate.yaml
@@ -15,6 +21,13 @@ gates:
     runner: .agentsflow/scripts/run_verification_gate.sh
 behavior_bindings:
   default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
+evidence_policy:
+  structured_command_evidence_required: true
+  freshness:
+    material_change_id_required: true
+    green_gate_after_latest_material_change_required: true
+    review_packet_after_latest_green_gate_required: true
+    stale_evidence_must_be_marked_or_excluded: true
 review:
   topology: homogeneous-dual
   composition: homogeneous

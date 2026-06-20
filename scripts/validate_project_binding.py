@@ -108,6 +108,20 @@ def validate_review_policy(
         errors.append(f"{path}: review.topology unknown: {topology}")
     if topology == "single-reviewer" or topology == "collision-control":
         errors.append(f"{path}: review.topology {topology} is not valid for primary project bindings")
+    selected_surfaces = review.get("selected_risk_surfaces")
+    if selected_surfaces is not None:
+        if not isinstance(selected_surfaces, list):
+            errors.append(f"{path}: review.selected_risk_surfaces must be a list")
+        else:
+            blank_surfaces = [
+                str(index)
+                for index, surface in enumerate(selected_surfaces)
+                if isinstance(surface, str) and not surface.strip()
+            ]
+            if blank_surfaces:
+                errors.append(
+                    f"{path}: review.selected_risk_surfaces must not contain blank entries: {', '.join(blank_surfaces)}"
+                )
     reviewers = review.get("reviewers")
     if not isinstance(reviewers, list):
         errors.append(f"{path}: review.reviewers must be a list")

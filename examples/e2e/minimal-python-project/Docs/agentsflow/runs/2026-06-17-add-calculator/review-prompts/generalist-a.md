@@ -55,6 +55,15 @@ Review packet:
     "path": "task.contract.md",
     "summary": "Minimal calculator add behavior."
   },
+  "risk_surface_profile": {
+    "selected_risk_surfaces": [],
+    "review_topology_source": "workflow_default",
+    "escalation_reason": ""
+  },
+  "failure_path_matrix": {
+    "path": "task.contract.md#failure-path-matrix",
+    "rows": []
+  },
   "diff_summary": "Adds minimal calculator behavior and bound test evidence.",
   "changed_files": [
     "src/minicalc.py",
@@ -64,7 +73,14 @@ Review packet:
     "path": "verification-gate-report.md",
     "summary": "Green verification after implementation."
   },
+  "evidence_freshness": {
+    "material_change_id": "2026-06-17-add-calculator-green",
+    "latest_green_gate": "verification-gate-report.md",
+    "review_packet_generated_after_latest_green_gate": true,
+    "stale_evidence_marked_or_excluded": true
+  },
   "evidence_summary": "Red capture and green verification reports are present.",
+  "known_blockers": [],
   "accepted_adrs": [
     "ADR-0017"
   ],

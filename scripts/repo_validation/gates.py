@@ -30,6 +30,8 @@ TARGET_WORKFLOW_DECISION_CATEGORIES = {
     "scope",
     "adr",
     "risk",
+    "risk-surface",
+    "failure-path-matrix",
     "contract",
     "gate",
     "review",
@@ -126,6 +128,14 @@ def validate_gate_manifest(root: Path, path: Path, data: dict | None = None) -> 
                 errors.append(
                     f"{path}: target_workflow_readiness_gate required_evidence must include human decision packet"
                 )
+            if not any("risk-surface" in item for item in required_evidence):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate required_evidence must include risk-surface decision evidence"
+                )
+            if not any("Failure Path Matrix" in item for item in required_evidence):
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate required_evidence must include Failure Path Matrix decision evidence"
+                )
             if not any("project-knowledge-extraction.md" in item for item in required_evidence):
                 errors.append(
                     f"{path}: target_workflow_readiness_gate required_evidence must include conditional project-knowledge-extraction.md"
@@ -146,6 +156,14 @@ def validate_gate_manifest(root: Path, path: Path, data: dict | None = None) -> 
             if "missing_light_extraction_risk_acceptance" not in needs_human_decision_on:
                 errors.append(
                     f"{path}: target_workflow_readiness_gate must block missing light extraction risk acceptance"
+                )
+            if "missing_risk_surface_policy" not in needs_human_decision_on:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate must block missing risk-surface policy"
+                )
+            if "missing_failure_path_matrix_policy" not in needs_human_decision_on:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate must block missing Failure Path Matrix policy"
                 )
             if "unresolved_material_design_decision" not in needs_human_decision_on:
                 errors.append(

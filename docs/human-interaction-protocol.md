@@ -218,9 +218,10 @@ agent must also record the human-confirmed extraction depth as `light`,
 `standard` or `deep`.
 `target_workflow_context_decision_packet` is conditional for `prepare-workflow`:
 it captures missing target-workflow gate, review, evidence or authority context,
-plus material scope, ADR, risk, contract, gate, review, evidence, authority or
-workflow-design forks discovered during target-workflow preparation, as a
-run-level decision packet. It does not normalize those answers into
+plus material scope, ADR, risk-surface, Failure Path Matrix, contract, gate,
+review, evidence, authority or workflow-design forks discovered during
+target-workflow preparation, as a run-level decision packet. It does not
+normalize those answers into
 `project-operating-decisions.yaml` unless the human explicitly chooses onboarding
 or persistent policy activation.
 

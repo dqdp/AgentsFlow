@@ -14,6 +14,8 @@ same prompt, packet, rubric and output schema.
 - `verification_gate_report`
 - `evidence_bundle`
 - relevant ADRs and accepted decisions included in the packet
+- selected risk surfaces, Failure Path Matrix, known blockers and evidence
+  freshness when included in the packet
 
 ## Procedure
 
@@ -21,11 +23,13 @@ same prompt, packet, rubric and output schema.
 2. Check contract and accepted-decision consistency.
 3. Check verification evidence, including missing mandatory checks and red/green
    evidence when required.
-4. Check scope boundaries and non-goals.
-5. Look for obvious architecture, reliability, safety, workflow or evidence risks.
-6. Report any plausible P0/P1 candidate blocker, even if it spans multiple rubric
+4. Check selected risk surfaces, Failure Path Matrix rows, path-class bindings,
+   known blockers and evidence freshness when present in the packet.
+5. Check scope boundaries and non-goals.
+6. Look for obvious architecture, reliability, safety, workflow or evidence risks.
+7. Report any plausible P0/P1 candidate blocker, even if it spans multiple rubric
    sections.
-7. Return candidate findings only.
+8. Return candidate findings only.
 
 ## Homogeneous Execution Rule
 
@@ -42,6 +46,14 @@ execute scripts, modify files, generate patches, or update evidence.
 
 If additional verification is needed, report it as a candidate finding such as
 `needs-additional-verification`.
+
+## Risk-Aware Review Rule
+
+The reviewer must not choose or change review topology. It may report that the
+packet's selected risk surfaces, focus zones, Failure Path Matrix coverage or
+freshness evidence appear inconsistent, incomplete or stale. Missing selected
+risk-surface/FPM evidence is a candidate evidence gap, not proof that the
+implementation is wrong.
 
 ## Candidate Finding Rule
 

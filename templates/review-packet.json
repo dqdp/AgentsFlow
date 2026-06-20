@@ -32,6 +32,15 @@
     "path": "Docs/agentsflow/runs/<run-id>/task.contract.md",
     "summary": "..."
   },
+  "risk_surface_profile": {
+    "selected_risk_surfaces": [],
+    "review_topology_source": "workflow_default",
+    "escalation_reason": ""
+  },
+  "failure_path_matrix": {
+    "path": "Docs/agentsflow/runs/<run-id>/task.contract.md#failure-path-matrix",
+    "rows": []
+  },
   "plan": {
     "path": "Docs/agentsflow/runs/<run-id>/plan.md",
     "summary": "..."
@@ -43,6 +52,13 @@
     "summary": "..."
   },
   "evidence_summary": "...",
+  "evidence_freshness": {
+    "material_change_id": "<latest-material-change-id-or-none>",
+    "latest_green_gate": "Docs/agentsflow/runs/<run-id>/verification-gate-report.md",
+    "review_packet_generated_after_latest_green_gate": true,
+    "stale_evidence_marked_or_excluded": true
+  },
+  "known_blockers": [],
   "accepted_adrs": [],
   "project_rules": [],
   "forbidden_actions": [

@@ -67,6 +67,10 @@ bindings:
   - id: AF-BHV-001
     scenario: "Agent must not modify unrelated files"
     required: true
+    risk_surfaces:
+      - filesystem_access
+    path_class: forbidden_path
+    evidence_class: script
     source:
       type: contract
       path: task.contract.md
@@ -80,6 +84,34 @@ bindings:
     gates:
       - verification_gate
 ```
+
+## Risk and path classification
+
+Behavior bindings are the preferred place to attach risk-surface and path-class
+labels to executable evidence. These labels are optional for low-risk scenarios,
+but are expected when the task contract selects risk surfaces in its Failure Path
+Matrix.
+
+Recommended fields:
+
+```yaml
+risk_surfaces:
+  - audit_persistence
+path_class: denied_attempt_persisted
+evidence_class: test
+failure_path_matrix_refs:
+  - FPM-002
+```
+
+`risk_surfaces` names one or more surfaces from `docs/risk-and-strictness.md` or
+the project overlay. `path_class` names the required path being exercised.
+`evidence_class` should match the existing check/gate vocabulary (`test`,
+`script`, `manual_evidence`, `trace_assertion`, `log_assertion`,
+`static_analysis`, `dynamic_analysis`, `security_scan`, `external_tool`, etc.).
+
+This is deliberately classification over existing checks, not a separate test
+inventory. A gate runner may use these fields to report missing coverage for a
+selected Failure Path Matrix row.
 
 ## Check types
 
@@ -137,6 +169,11 @@ It does not prove that the referenced checks actually ran or that gate evidence
 contains the check result. That execution/evidence correlation belongs to a
 project-bound verification gate runner and remains outside the minimal v0.2
 checker.
+
+The v0.2 checker also treats `risk_surfaces`, `path_class`,
+`evidence_class` and `failure_path_matrix_refs` as structured metadata. It does
+not enforce semantic coverage of every path class. That responsibility belongs
+to the project-bound gate runner or a future specialized coverage checker.
 
 ## Red/green evidence (failing-run / passing-run pair)
 

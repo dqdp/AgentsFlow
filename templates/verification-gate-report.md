@@ -15,19 +15,34 @@ See also: `templates/gate-report.md`. This file is the default gate-report speci
 - Diff/artifact:
 - Impact map:
 - Domain pack:
+- Selected risk surfaces:
+- Failure Path Matrix:
+- Material change id:
 
 ## Checks executed by gate
 
-| Check | Command / mechanism | Required | Result | Notes |
-|---|---|---:|---|---|
-| Contract lint |  | yes/no | pass/fail/skip |  |
-| Gherkin lint |  | yes/no | pass/fail/skip |  |
-| Boundary check |  | yes/no | pass/fail/skip |  |
-| Impact map check |  | yes/no | pass/fail/skip |  |
-| Unit tests |  | yes/no | pass/fail/skip |  |
-| Integration tests |  | yes/no | pass/fail/skip |  |
-| Architecture checks |  | yes/no | pass/fail/skip |  |
-| Evidence validation |  | yes/no | pass/fail/skip |  |
+| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |
+|---|---|---|---|---:|---|---|
+| Contract lint |  |  |  | yes/no | pass/fail/skip |  |
+| Gherkin lint |  |  |  | yes/no | pass/fail/skip |  |
+| Boundary check |  | `filesystem_access` | `forbidden_path` | yes/no | pass/fail/skip |  |
+| Impact map check |  |  |  | yes/no | pass/fail/skip |  |
+| Unit tests |  |  |  | yes/no | pass/fail/skip |  |
+| Integration tests |  |  |  | yes/no | pass/fail/skip |  |
+| Architecture checks |  |  |  | yes/no | pass/fail/skip |  |
+| Evidence validation |  |  |  | yes/no | pass/fail/skip |  |
+
+## Failure Path Matrix Coverage
+
+| FPM ID | Risk surface | Path class | Covered by | Result | Notes |
+|---|---|---|---|---|---|
+|  |  |  | check/evidence/approved deferral | pass/fail/skip/deferred |  |
+
+## Structured command evidence
+
+| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |
+|---|---:|---|---|---|---|
+|  |  | pass/fail/skip/blocked |  |  | optional |
 
 ## Evidence bundle
 

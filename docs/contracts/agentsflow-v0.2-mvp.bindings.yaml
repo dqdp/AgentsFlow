@@ -419,3 +419,35 @@ bindings:
           - pytest-output
     gates:
       - verification_gate
+  - id: AF-V02-BHV-017
+    scenario: "Risk surface and Failure Path Matrix metadata are represented for contract-first implementation"
+    required: true
+    status: executable
+    risk_surfaces:
+      - authority_boundary
+      - audit_persistence
+    path_class: risk_fpm_metadata_representation
+    evidence_class: test
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-behavior-binding-risk-path-metadata
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_behavior_binding_schema_allows_risk_path_metadata"
+        evidence:
+          - pytest-output
+      - id: pytest-project-operating-risk-policy
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_operating_decisions_schema_passes"
+        evidence:
+          - pytest-output
+      - id: pytest-review-packet-risk-context
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_packet_schema_accepts_risk_surface_context"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate

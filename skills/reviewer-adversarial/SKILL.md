@@ -10,6 +10,9 @@ Look for scope creep, prompt/policy bypasses, hidden failure modes, and false co
 - `artifact`
 - `evidence_report`
 - `domain_pack`
+- `risk_surface_profile`
+- `failure_path_matrix`
+- `known_blockers`
 
 
 ## Outputs
@@ -22,20 +25,26 @@ Look for scope creep, prompt/policy bypasses, hidden failure modes, and false co
 
 1. Assume the implementation may be subtly wrong.
 2. Search for boundary violations.
-3. Search for ambiguous behavior.
-4. Search for false evidence.
-5. Propose regression scenarios.
+3. Search for bypasses, false completion or hidden failure modes in selected
+   risk surfaces and FPM rows.
+4. Search for ambiguous behavior.
+5. Search for false or stale evidence.
+6. Propose regression scenarios tied to concrete triggers and path classes.
 
 
 ## Quality bar
 
 - Findings are plausible and testable.
 - Speculative concerns are labeled as such.
+- Bypass/failure concerns name the affected surface, path class or contract
+  boundary when possible.
 
 
 ## Anti-patterns
 
 - Blocking on vague suspicion without a concrete failure mode.
+- Expanding review scope by inventing unselected risk surfaces without contract,
+  ADR or project-policy support.
 
 
 ## Handoff
@@ -73,3 +82,10 @@ blocking findings and no mandatory evidence gaps.
 ## Tool permission rule
 
 This reviewer is read-only by default. Tool use is exceptional and must be explicitly granted by the workflow, reviewer manifest, or prompt. Any tool observation remains a candidate finding and does not replace verification-gate evidence.
+
+## Risk-aware focus
+
+Treat selected risk surfaces, Failure Path Matrix rows, freshness metadata and
+known blockers as attack surfaces for review. Report plausible bypass,
+misclassification, missing denial path, hidden timeout/failure path, audit loss
+or false-completion risks as candidate findings with concrete triggers.

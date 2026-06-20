@@ -86,8 +86,10 @@ Before adding or changing a workflow:
 2. List invoked skills/scripts/templates/packs.
 3. Specify supported strictness profiles and review topology.
 4. Reference gate manifests rather than prose-only gate names.
-5. Keep project-specific commands out of upstream workflow definitions.
-6. If the workflow has an implementation phase, frame it with a preceding red-capture (failing-test) phase and a following green-verify phase (ADR-0017).
+5. Identify risk surfaces that can affect gates, evidence, review topology or
+   failure-path coverage, using `docs/risk-and-strictness.md`.
+6. Keep project-specific commands out of upstream workflow definitions.
+7. If the workflow has an implementation phase, frame it with a preceding red-capture (failing-test) phase and a following green-verify phase (ADR-0017).
 
 Before adding a skill:
 
@@ -124,7 +126,12 @@ When applying AgentsFlow to a concrete project:
 - Separate raw observed facts from model-produced inventory and expert assessments.
 - Mark inferred fields with provenance, confidence and human-confirmation needs.
 - Explicitly identify project domain(s), separate domain assumptions from observed evidence, and ask whether the user has domain expertise that should constrain initialization decisions.
-- Before drafting the project overlay, conduct an agent-led human operating-decisions interview for gate policy, review topology, reviewer/model strategy, maximum review cycles, authority boundaries and evidence storage. Do not ask the human to manually fill a YAML/JSON file; the agent records the normalized `project-operating-decisions.yaml` artifact after the dialogue.
+- Before drafting the project overlay, conduct an agent-led human operating-decisions interview for gate policy, review topology, reviewer/model strategy, maximum review cycles, risk-surface policy, authority boundaries and evidence storage. Do not ask the human to manually fill a YAML/JSON file; the agent records the normalized `project-operating-decisions.yaml` artifact after the dialogue.
+- For contract-first implementation readiness, select feature-specific risk
+  surfaces, record required path classes, and create a Failure Path Matrix when
+  selected surfaces have denial, failure, timeout, rejection, persistence or
+  authority semantics. Bind those rows to behavior bindings, gate evidence or an
+  explicit human-approved deferral before red capture or implementation.
 - Human interaction is main-agent mediated. Review agents must not ask the human questions directly; they produce candidate findings, recommendations and questions for the main agent to synthesize. A workflow may pause for humans only at declared human-interaction phases or true blocking clarifications.
 - For legacy agent-system adoption, recommend `knowledge-extraction` as the
   conservative default unless evidence supports another mode, but record the
@@ -139,6 +146,8 @@ When applying AgentsFlow to a concrete project:
 ## Review and fusion rules
 
 - Verification gates produce authoritative verification evidence.
+- Gate evidence must include structured command evidence and be fresh after the
+  latest material change when it supports acceptance.
 - Review agents are read-only and run after verification gates by default.
 - Default review is `homogeneous-dual`: two independent generalist reviewers
   receive the same prompt, same review packet, same rubric and same output schema.
@@ -156,6 +165,11 @@ When applying AgentsFlow to a concrete project:
 - Review-agent findings are candidate findings, not authoritative truth.
 - The main/orchestrating agent must validate finding relevance before findings affect workflow decisions.
 - Fusion is read-only synthesis, not majority voting.
+- Review packets should include selected risk surfaces, Failure Path Matrix rows,
+  known blockers and latest green evidence after the latest material change.
+- Supplemental human-requested review is allowed after green evidence, but it
+  reopens the fix loop only for main-agent-validated P0/P1 findings or mandatory
+  evidence gaps.
 
 ## External reviewer provider rules
 

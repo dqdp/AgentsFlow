@@ -17,6 +17,11 @@
     "role_contract",
     "review_prompt_contract",
     "context_policy",
+    "risk_surface_profile",
+    "failure_path_matrix",
+    "verification_gate_report",
+    "evidence_freshness",
+    "known_blockers",
     "forbidden_actions",
     "output_schema"
   ],
@@ -75,7 +80,8 @@
       "additionalProperties": true,
       "properties": {
         "path": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "schema": {
           "type": "string"
@@ -179,6 +185,173 @@
         "type": "string"
       }
     },
+    "risk_surface_profile": {
+      "type": "object",
+      "required": ["selected_risk_surfaces", "review_topology_source"],
+      "additionalProperties": true,
+      "properties": {
+        "selected_risk_surfaces": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "review_topology_source": {
+          "type": "string",
+          "enum": [
+            "workflow_default",
+            "project_policy",
+            "risk_surface_profile",
+            "human_decision"
+          ]
+        },
+        "escalation_reason": {
+          "type": "string"
+        }
+      }
+    },
+    "failure_path_matrix": {
+      "type": "object",
+      "required": ["path", "rows"],
+      "additionalProperties": true,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "risk_surface", "path_class", "evidence_binding"],
+            "additionalProperties": true,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "status": {"const": "deferred"}
+                  },
+                  "required": ["status"]
+                },
+                "then": {
+                  "required": ["deferral"]
+                }
+              }
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "risk_surface": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "path_class": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "evidence_binding": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["covered", "deferred", "not_applicable"]
+              },
+              "deferral": {
+                "type": "object",
+                "required": ["residual_risk", "approved_by", "approval_artifact"],
+                "additionalProperties": true,
+                "properties": {
+                  "residual_risk": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "approved_by": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "approval_artifact": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "constraints": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    },
+                    "minItems": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "verification_gate_report": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": true,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence_freshness": {
+      "type": "object",
+      "required": [
+        "material_change_id",
+        "latest_green_gate",
+        "review_packet_generated_after_latest_green_gate",
+        "stale_evidence_marked_or_excluded"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "material_change_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "latest_green_gate": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "review_packet_generated_after_latest_green_gate": {
+          "const": true
+        },
+        "stale_evidence_marked_or_excluded": {
+          "const": true
+        }
+      }
+    },
+    "known_blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
     "forbidden_actions": {
       "type": "array",
       "items": {
@@ -190,6 +363,64 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "risk_surface_profile": {
+            "properties": {
+              "selected_risk_surfaces": {
+                "minItems": 1
+              }
+            },
+            "required": ["selected_risk_surfaces"]
+          }
+        },
+        "required": ["risk_surface_profile"]
+      },
+      "then": {
+        "properties": {
+          "failure_path_matrix": {
+            "properties": {
+              "rows": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_profile": {
+            "enum": ["homogeneous-plus-focused", "heterogeneous-variable"]
+          }
+        },
+        "required": ["review_profile"]
+      },
+      "then": {
+        "properties": {
+          "risk_surface_profile": {
+            "required": [
+              "selected_risk_surfaces",
+              "review_topology_source",
+              "escalation_reason"
+            ],
+            "properties": {
+              "selected_risk_surfaces": {
+                "minItems": 1
+              },
+              "review_topology_source": {
+                "enum": ["project_policy", "risk_surface_profile", "human_decision"]
+              },
+              "escalation_reason": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {

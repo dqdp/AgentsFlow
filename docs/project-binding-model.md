@@ -146,6 +146,21 @@ gates:
 behavior_bindings:
   default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
 
+risk_surface_policy:
+  catalog_source: docs/risk-and-strictness.md
+  project_default_surfaces: []
+  project_local_surfaces: []
+  failure_path_matrix_required_when:
+    - selected_surface_has_denial_failure_timeout_rejection_persistence_or_authority_semantics
+
+evidence_policy:
+  structured_command_evidence_required: true
+  freshness:
+    material_change_id_required: true
+    green_gate_after_latest_material_change_required: true
+    review_packet_after_latest_green_gate_required: true
+    stale_evidence_must_be_marked_or_excluded: true
+
 review:
   topology: homogeneous-dual
   composition: homogeneous
@@ -166,6 +181,11 @@ review:
 ```
 
 This shape is validated by `scripts/validate_project_binding.py`.
+
+The binding-level `risk_surface_policy` is a project default and local extension
+hook. It does not claim feature coverage by itself. A workflow run still selects
+feature-specific risk surfaces in the task contract and binds required path
+classes through behavior bindings and gate evidence.
 
 Strictness is inherited from the upstream workflow by default. The workflow's
 `default_strictness` is the baseline source of truth; a project binding sets

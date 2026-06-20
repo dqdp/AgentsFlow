@@ -1,16 +1,22 @@
 name: evidence-reporting
 type: skill
 version: 0.1
-purpose: "Produce an acceptance proof for a task, implementation, review, or spec workflow."
+purpose: "Produce an acceptance proof for a task, implementation, review, or spec workflow, including scenario coverage, FPM coverage, structured command evidence, and evidence freshness."
 
 inputs:
   - contract
   - verification_results
   - changed_files
   - review_reports
+  - risk_surface_profile
+  - failure_path_matrix
+  - behavior_bindings
+  - material_change_log
 
 outputs:
   - evidence_report
+  - failure_path_matrix_coverage
+  - evidence_freshness_summary
   - known_limitations
   - follow_up_items
 
@@ -23,11 +29,14 @@ compatible_workflows:
   - prompt-behavior-eval
   - safe-refactor
   - bugfix-regression-capture
+  - review-only-fusion
 
 quality_bar:
   - Evidence is auditable.
   - Claims are tied to commands, files, or reviews.
+  - Evidence freshness after the latest material change is explicit.
+  - FPM coverage is visible when risk surfaces were selected.
 
 anti_patterns:
   - Saying “all tests pass” without commands/results.
-
+  - Using stale evidence as acceptance proof without marking it.

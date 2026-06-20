@@ -21,6 +21,7 @@ summarizes decisions back to the human, and then records the normalized result i
 - `project-assessment.json`
 - legacy adoption outputs when present
 - candidate gate and workflow recommendations
+- candidate risk-surface and evidence recommendations
 - current human answers from the dialogue
 
 ## Output
@@ -30,7 +31,7 @@ summarizes decisions back to the human, and then records the normalized result i
 The output is a human-owned decision artifact. It may be draft, confirmed, or
 blocked on unresolved questions. It is used to draft `.agentsflow/project.yaml`,
 workflow bindings, project-bound gate manifests, review policy and profile
-defaults.
+defaults, risk-surface policy and evidence freshness policy.
 
 ## Conversation Rules
 
@@ -42,8 +43,8 @@ defaults.
   make the default explicit.
 - Distinguish a confirmed human decision from an agent recommendation.
 - Record unanswered questions instead of inventing missing policy.
-- Re-ask only when the answer affects gates, review topology, authority, legacy
-  migration, sensitive data handling or project risk.
+- Re-ask only when the answer affects gates, review topology, risk-surface
+  policy, authority, legacy migration, sensitive data handling or project risk.
 - If the user is unsure, record the decision as `needs-human-decision` or
   `defaulted-with-review-needed`.
 - Do not change project files, `AGENTS.md`, gate runners or workflow bindings
@@ -78,31 +79,41 @@ Use this sequence unless the project context requires a narrower path.
 
    Confirm the review profile. The default is `homogeneous-dual`: two independent
    generalist reviewers with the same prompt, packet, rubric and output schema.
-   Ask whether any explicit risk requires `homogeneous-plus-focused` or
-   `heterogeneous-variable` review. For heterogeneous review, record the reviewer
-   role definitions and overlapping focus zones; do not leave role meanings for
-   the agent to infer from names such as `adversarial`. Record that reviewers
-   start from fresh zero context without forking the orchestrator conversation.
-   Record the single-reviewer exception only as `collision-control` for a rejected
-   blocker collision.
+   Ask whether selected risk surfaces should require
+   `homogeneous-plus-focused` or `heterogeneous-variable` review. For
+   heterogeneous review, record the reviewer role definitions and overlapping
+   focus zones; do not leave role meanings for the agent to infer from names
+   such as `adversarial`. Record that reviewers start from fresh zero context
+   without forking the orchestrator conversation. Record `collision-control` as
+   a two-reviewer control gate for a rejected blocker collision.
 
-5. Decide review-cycle limits.
+5. Decide risk-surface policy.
+
+   Start from `docs/risk-and-strictness.md`. Ask which project-default surfaces,
+   if any, should be considered during task contract drafting. Defaults are not
+   automatic coverage claims; each task still selects its feature-specific
+   surfaces. Record project-local surfaces only with a definition and required
+   path classes. Decide when a Failure Path Matrix is required and who can
+   approve residual-risk deferrals.
+
+6. Decide review-cycle limits.
 
    Ask the maximum number of review cycles, when review should be rerun, when a
    finding requires human decision, and what counts as progress stall.
 
-6. Decide authority boundaries.
+7. Decide authority boundaries.
 
    Ask who may approve scope changes, accept known risk, change gates, change
    review topology, approve legacy migration, or override a blocking gate.
 
-7. Decide artifact and evidence policy.
+8. Decide artifact and evidence policy.
 
    Ask where run artifacts live, whether reports are committed, whether raw logs
-   are stored, what must be redacted, and whether sensitive evidence can be sent
-   to external reviewers.
+   are stored, what must be redacted, whether structured command evidence is
+   required, how evidence is invalidated after material changes, and whether
+   sensitive evidence can be sent to external reviewers.
 
-8. Summarize and confirm.
+9. Summarize and confirm.
 
    Present the normalized decisions in plain language. Ask the human to confirm,
    correct, or mark unresolved items. Only then write the structured artifact.
@@ -122,10 +133,17 @@ Use these as defaults, adapting wording to the observed project.
 - Is the default `homogeneous-dual` review profile acceptable for normal work?
 - Which explicit risks require focused or heterogeneous reviewers?
 - For heterogeneous review, which reviewer roles and focus zones are required?
+- Which risk surfaces should be project-default candidates during task contract
+  drafting?
+- Are there project-local risk surfaces that need definitions and required path
+  classes?
+- When must a task include a Failure Path Matrix?
+- Who can approve deferring a required path class with residual risk?
 - Confirm that reviewers start from fresh zero context and do not receive forked
   orchestrator conversation context.
-- Should a single control reviewer be used when the main agent rejects a
-  blocker-level candidate finding and records a collision?
+- Confirm that collision-control uses two fresh-context control reviewers when
+  the main agent rejects or downgrades blocker-level candidate findings and
+  records a collision batch.
 - Should review use different models or harnesses when available?
 - Is an external Claude Code reviewer allowed for this project?
 - Are external reviewers allowed to see raw logs, full repo context or only review
@@ -137,6 +155,8 @@ Use these as defaults, adapting wording to the observed project.
 - Who can approve scope changes, gate policy changes or review topology changes?
 - Who can accept residual risk after a failed or inconclusive gate?
 - Where should AgentsFlow run artifacts and evidence be stored?
+- Should structured command evidence be required for gate decisions?
+- How should stale evidence be marked or excluded after material changes?
 - Should reports be committed to the repository?
 - Should raw logs be committed, gitignored, redacted or not stored?
 - Are there sensitive data, privacy, compliance or domain constraints that affect
@@ -152,9 +172,11 @@ Use these as defaults, adapting wording to the observed project.
 - Review policy decisions identify reviewer count, roles, model diversity,
   external reviewer allowance and read-only/default permissions.
 - Review-cycle policy identifies a maximum cycle count and escalation conditions.
+- Risk-surface policy identifies defaults, local extensions, FPM requirements and
+  escalation rules without treating defaults as coverage claims.
 - Authority decisions identify who can approve high-impact changes or risk
   acceptance.
-- Artifact policy identifies run/evidence storage and redaction rules.
+- Artifact policy identifies run/evidence storage, freshness and redaction rules.
 - Unresolved decisions are visible and must not silently become defaults.
 
 ## Anti-patterns
@@ -164,3 +186,4 @@ Use these as defaults, adapting wording to the observed project.
 - Drafting executable gates before the human decides which checks are mandatory.
 - Letting reviewer count, model diversity or cycle limits remain implicit.
 - Hiding unanswered questions by choosing optimistic defaults.
+- Treating project-default risk surfaces as selected feature coverage.

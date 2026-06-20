@@ -14,6 +14,7 @@ A workflow answers:
 - Which domain packs can parameterize it?
 - What default strictness and supported override values apply?
 - Which review topologies make sense?
+- Which risk surfaces can change gate, evidence or review depth?
 
 ## Workflow is the primary abstraction
 
@@ -116,6 +117,34 @@ report ledger fields require `allowed_outputs`. This prevents an agent from
 making a future-phase artifact look authoritative before the current phase
 exits. The guard is intentionally protocol-level in v0.2: it validates the run
 artifact ledger, not every file that may exist on disk.
+
+## Risk surfaces across workflow levels
+
+Risk surfaces are defined in `docs/risk-and-strictness.md` and flow through the
+same three-level model as other workflow policy:
+
+```text
+Workflow Definition
+  May name common surfaces that usually matter for this workflow class.
+
+Project Binding / Overlay
+  Selects project-default surfaces, project-local surfaces, required path
+  classes, review escalation rules and evidence storage/freshness policy.
+
+Workflow Run
+  Selects the concrete feature surfaces, records a Failure Path Matrix, binds
+  path classes to checks/evidence, and invalidates stale evidence after material
+  changes.
+```
+
+Upstream workflows must not hard-code project-specific commands or local risk
+surface names. They may require that a project or run declare the selected
+surfaces and bind them to project-level gates.
+
+Evidence freshness is run-scoped. A workflow run should record the latest
+`material_change_id`, the green verification evidence produced after that change,
+and the review packet prepared from that evidence. Review/fusion evidence before
+the latest material change is not authoritative for the changed scope.
 
 ## Current workflows
 

@@ -58,6 +58,9 @@ The MVP supported target workflow must have:
 - deterministic gate runner interface and project-binding requirements;
 - review-cycle policy where applicable;
 - behavior bindings for required acceptance scenarios where applicable;
+- selected risk surfaces, required path classes and Failure Path Matrix coverage
+  where the task contract selects control, persistence, failure or authority
+  risks;
 - at least one validated example or project-overlay example;
 - repo-validation coverage;
 - for workflows with an implementation phase, a red-capture (failing-test) phase before implementation and a green-verify phase after it (ADR-0017).
@@ -226,6 +229,31 @@ Open questions are classified in the task contract. Unresolved
 `blocking-material` questions pause the workflow; nonblocking questions are
 recorded as defaults, limitations or follow-up items. Post-review fixes are
 classified as material or non-material before deciding whether to rerun review.
+
+The contract phase selects the feature-specific risk surfaces from
+`docs/risk-and-strictness.md` or the project overlay. When selected surfaces have
+failure, denial, timeout, persistence or authority semantics, the contract must
+include a Failure Path Matrix before red capture starts. Behavior bindings and
+gate evidence classify checks with the corresponding risk surface and path
+class. A selected path class may be deferred only with explicit residual-risk
+language and human approval when required by project policy.
+
+Review topology is derived from the task's selected risk surfaces and recorded
+explicitly. The default remains `homogeneous-dual`; focused or heterogeneous
+review is used only when the risk profile justifies it and reviewer roles resolve
+to existing role contracts.
+
+Verification and review evidence must be fresh for the latest material change.
+Changes to the task contract, selected risk surfaces, Failure Path Matrix,
+behavior bindings, gate/review policy, mandatory evidence or affected
+implementation behavior invalidate prior evidence for the changed scope. The run
+records the material change and refreshes green verification and review according
+to the review-cycle policy.
+
+Supplemental human-requested review is allowed after green evidence, but its
+findings remain candidate findings. It reopens the fix loop only for
+main-agent-validated P0/P1 findings or mandatory evidence gaps; otherwise it is
+recorded without forcing another primary review cycle.
 
 ### bugfix-regression-capture
 

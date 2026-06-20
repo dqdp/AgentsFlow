@@ -104,6 +104,10 @@ These controls are important, but are not full deterministic guarantees in v0.2:
 - Semantic quality of a reviewer role definition beyond schema presence.
 - Human authority choices beyond the existence/status of the decision artifact.
 - Correctness of model-produced documentation disposition classifications.
+- Risk-surface selection and Failure Path Matrix semantic completeness. v0.2
+  schemas can require review packets, task contracts and bindings to carry the
+  selected risk/FPM/freshness envelope, but deciding that the selected surfaces
+  and rows are complete remains agent protocol plus project-bound gate evidence.
 - Red/green evidence-pair content validation inside gate reports.
 - `phase_guard` as a full runtime state machine. v0.2 validation is ledger-only:
   it checks declared artifact paths, not whether an agent performed every action

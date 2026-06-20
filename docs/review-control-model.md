@@ -205,6 +205,68 @@ definition explains the primary focus, required reports and forbidden actions.
 Focus zones may overlap, and every reviewer must still report any plausible P0/P1
 blocker noticed outside its primary focus.
 
+### Risk-driven topology selection
+
+The default primary review topology remains `homogeneous-dual`: two independent
+generalist reviewers using the same prompt, same packet, same rubric and same
+output schema. A workflow, project binding or task contract should select
+`homogeneous-plus-focused` or `heterogeneous-variable` only when the selected
+risk surfaces justify extra focused attention.
+
+Risk-driven escalation is recorded as metadata, not inferred silently:
+
+```yaml
+review:
+  topology: heterogeneous-variable
+  topology_source: risk_surface_profile
+  selected_risk_surfaces:
+    - authority_boundary
+    - audit_persistence
+  escalation_reason: "Authority and audit failure paths need architecture, verification and adversarial focus."
+```
+
+The review packet for each reviewer must include:
+
+- selected risk surfaces;
+- Failure Path Matrix or a pointer to it;
+- behavior bindings classified by risk surface/path class;
+- latest green gate evidence after the latest material change;
+- known validated blockers and their status.
+
+This keeps risk-driven review grounded in the contract and evidence instead of
+turning role selection into reviewer preference.
+
+### Supplemental human-requested review
+
+After a green gate and primary review/fusion, the human may request supplemental
+review. Supplemental review is allowed, but it must be recorded as a separate
+review request with:
+
+- requester and reason;
+- reviewed artifact or diff;
+- reviewer count, role set and context policy;
+- whether the review can affect acceptance;
+- the exact evidence packet supplied.
+
+Supplemental findings are still candidate findings. They reopen the fix loop
+only when the main/orchestrating agent validates a P0/P1 finding or mandatory
+evidence gap. If no P0/P1 finding is validated and no material artifact change
+occurs afterward, the workflow must not run another primary review gate merely
+because supplemental review happened.
+
+### Evidence freshness
+
+Reviewers should inspect evidence produced after the latest material change. A
+review packet should therefore identify the current `material_change_id`, the
+latest green verification gate for that change, and whether reviewer inputs were
+prepared after that gate.
+
+If a task contract, behavior binding, selected risk surface, Failure Path Matrix,
+gate policy, implementation behavior or mandatory evidence changes materially
+after review, the prior review is stale for the affected scope. The run records
+the invalidation reason and refreshes verification and review according to the
+workflow's review-cycle policy.
+
 ## Actor classes
 
 

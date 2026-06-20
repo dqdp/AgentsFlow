@@ -207,6 +207,7 @@ The fix is **material** when it changes any review input that can affect
 acceptance:
 
 - task contract, scope, non-goals, acceptance criteria or behavior bindings;
+- selected risk surfaces, Failure Path Matrix rows or review-packet content;
 - workflow, gate, review-cycle, reviewer, evidence-probe or collision-control
   policy;
 - schemas, validators, deterministic checks or test fixtures used as contract

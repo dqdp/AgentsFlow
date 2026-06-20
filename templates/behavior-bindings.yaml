@@ -5,6 +5,12 @@ bindings:
     scenario: "Required behavior scenario name"
     required: true
     status: executable
+    risk_surfaces:
+      - authority_boundary
+    path_class: valid_delegation
+    evidence_class: script
+    failure_path_matrix_refs:
+      - FPM-001
     source:
       type: contract
       path: task.contract.md

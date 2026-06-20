@@ -273,29 +273,36 @@ The dialogue decides:
 - whether different models or harnesses should be used for review;
 - whether external reviewers are allowed and what context they may receive;
 - maximum review cycles and escalation conditions;
+- project-default risk surfaces, local risk-surface extensions and required
+  path-class policy;
+- when a Failure Path Matrix is required;
 - who may approve scope changes, gate changes, topology changes, legacy migration or residual risk;
 - where run artifacts and evidence live;
-- whether reports/raw logs are committed, gitignored, redacted or omitted.
+- whether structured command evidence and raw logs are committed, gitignored,
+  redacted or omitted;
+- how evidence is invalidated after material changes.
 ```
 
 The agent must ask focused questions, offer conservative defaults when supported
 by evidence, and summarize decisions back to the human. For
 `adoption-onboarding` or explicit persistent policy activation, the normalized
 result is `project-operating-decisions.yaml`. For `prepare-workflow`, missing
-target-workflow operating context and material scope, ADR, risk, contract, gate,
-review, evidence, authority or workflow-design decisions are recorded in the run-level
-`target_workflow_context_decision_packet` unless the human explicitly switches to
-onboarding or persistent policy activation.
+target-workflow operating context and material scope, ADR, risk-surface, Failure
+Path Matrix, contract, gate, review, evidence, authority or workflow-design
+decisions are recorded in the run-level `target_workflow_context_decision_packet`
+unless the human explicitly switches to onboarding or persistent policy
+activation.
 
 For `prepare-workflow`, a material design decision is any human-owned choice that
 can change the target workflow binding, gate set, evidence policy, authority
-model, task contract or downstream implementation scope. It is a declared
-human-mediated checkpoint: the main/orchestrating agent groups options, pauses
-for the human answer, records the answer in the decision packet and preflight run
-artifacts, and resumes only when blocking-material decisions are confirmed or
-explicitly deferred with stated constraints and no unresolved decision blocks the
-next gate. Target workflow binding/readiness handoff artifacts are drafted only
-after `target_workflow_readiness_gate` accepts the operating context.
+model, selected risk surfaces, Failure Path Matrix, task contract or downstream
+implementation scope. It is a declared human-mediated checkpoint: the
+main/orchestrating agent groups options, pauses for the human answer, records the
+answer in the decision packet and preflight run artifacts, and resumes only when
+blocking-material decisions are confirmed or explicitly deferred with stated
+constraints and no unresolved decision blocks the next gate. Target workflow
+binding/readiness handoff artifacts are drafted only after
+`target_workflow_readiness_gate` accepts the operating context.
 
 Each material decision is marked as one of:
 
@@ -351,7 +358,7 @@ adoption-onboarding
 prepare-workflow
   Confirm `target_workflow`, record run-level `project-documentation-disposition.yaml`
   with a human-confirmed documentation legacy adoption mode,
-  check whether sufficient gate/review/evidence and authority context exists,
+  check whether sufficient gate/review/evidence/risk-surface, Failure Path Matrix and authority context exists,
   capture missing context or material design forks in a run-level target workflow
   human decision packet and ask grouped human questions for missing material
   context, block readiness on unresolved blocking-material forks, run

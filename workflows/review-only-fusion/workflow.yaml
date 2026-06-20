@@ -13,6 +13,7 @@ outputs:
 - blocking/non-blocking issues
 uses:
   skills:
+  - evidence-reporting
   - reviewer-generalist
   - reviewer-architecture
   - reviewer-verification
@@ -163,10 +164,13 @@ review_cycle:
     material_triggers_take_precedence_over_do_not_rerun: true
     material_if_changes:
     - reviewed_artifact_or_scope
+    - selected_risk_surfaces_or_failure_path_matrix
+    - affected_reviewed_behavior
     - workflow_or_gate_policy
     - review_cycle_policy
     - schema_or_validator
     - project_overlay_or_binding
+    - review_packet_content
     - mandatory_evidence
     - verification_gate_output
     - examples_used_as_evidence

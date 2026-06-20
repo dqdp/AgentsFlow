@@ -9,6 +9,8 @@ TARGET_WORKFLOW_DECISION_CATEGORIES = {
     "scope",
     "adr",
     "risk",
+    "risk-surface",
+    "failure-path-matrix",
     "contract",
     "gate",
     "review",

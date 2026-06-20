@@ -178,6 +178,15 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then workflow run validation must fail
     And the failure must identify the current phase and disallowed artifact
 
+  Scenario: Risk surface and Failure Path Matrix metadata are represented for contract-first implementation
+    Given a contract-first implementation workflow selects risk surfaces with denial, failure, timeout, persistence or authority semantics
+    When upstream schemas and templates represent the contract-first planning artifacts
+    Then task contracts must be able to record selected risk surfaces and a Failure Path Matrix
+    And behavior bindings must be able to classify checks by risk surface and path class
+    And review packets must include the selected risk surfaces, Failure Path Matrix, known blockers and evidence freshness when those artifacts are selected for a run
+    And normalized project operating decisions must record risk-surface and evidence freshness policy
+    And actual per-run proof that selected Failure Path Matrix rows were bound before red capture remains project-bound gate evidence unless a deterministic runner is configured
+
 ## Verification Binding
 
 | Scenario | Verification |
@@ -198,6 +207,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Review cycle caps are optional project policy or workflow binding | `pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles`; `pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles` |
 | Reviewer fresh-context is protocol-level in v0.2 | Manual evidence: `docs/review-agent-interaction-protocol.md`, `docs/review-prompt-contract.md`, `schemas/review-prompt-contract.schema.json` |
 | Workflow run phase guard rejects future-phase artifacts | `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_future_phase_artifact`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_unlisted_artifact_without_explicit_forbidden`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_phase_evidence_and_status_artifacts`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_list_shaped_phase_evidence`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_draft_artifact_as_evidence_or_output`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_allowed_and_draft_overlap`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_uses_top_level_draft_slot`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_review_and_evidence_phase_status_keys`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_malformed_artifacts_root_paths`; `pytest tests/test_scripts_smoke.py::test_repo_validation_checks_top_level_workflow_run_phase_guard`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_allows_current_phase_artifacts` |
+| Risk surface and Failure Path Matrix metadata are represented for contract-first implementation | `pytest tests/test_scripts_smoke.py::test_behavior_binding_schema_allows_risk_path_metadata`; `pytest tests/test_scripts_smoke.py::test_project_operating_decisions_schema_passes`; `pytest tests/test_scripts_smoke.py::test_review_packet_schema_accepts_risk_surface_context` |
 
 ## Evidence Required
 

@@ -25,17 +25,32 @@ acceptance unless those are declared inputs/evidence for the gate.
 - Diff/artifact:
 - Impact map:
 - Selected profile:
+- Selected risk surfaces:
+- Failure Path Matrix:
+- Material change id:
 
 ## Checks Executed
 
-| Check | Required | Result | Evidence |
-|---|---:|---|---|
-| contract_lint | yes |  |  |
-| gherkin_lint | yes |  |  |
-| boundary_check | yes |  |  |
-| impact_map_check | yes |  |  |
-| evidence_validate | yes |  |  |
-| workflow_required_tests | yes |  |  |
+| Check | Risk surface | Path class | Required | Result | Evidence |
+|---|---|---|---:|---|---|
+| contract_lint |  |  | yes |  |  |
+| gherkin_lint |  |  | yes |  |  |
+| boundary_check | `filesystem_access` | `forbidden_path` | yes |  |  |
+| impact_map_check |  |  | yes |  |  |
+| evidence_validate |  |  | yes |  |  |
+| workflow_required_tests |  |  | yes |  |  |
+
+## Structured Command Evidence
+
+| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |
+|---|---:|---|---|---|---|
+|  |  | pass/fail/skip/blocked |  |  | optional |
+
+## Failure Path Matrix Coverage
+
+| FPM ID | Risk surface | Path class | Covered by | Result | Notes |
+|---|---|---|---|---|---|
+|  |  |  | check/evidence/approved deferral | pass/fail/skip/deferred |  |
 
 ## Skipped Checks
 

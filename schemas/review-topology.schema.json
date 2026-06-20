@@ -9,6 +9,19 @@
     "name": {"type": "string"},
     "kind": {"const": "review_topology"},
     "description": {"type": "string"},
+    "topology_source": {
+      "type": "string",
+      "enum": ["workflow_default", "project_policy", "risk_surface_profile", "human_decision"]
+    },
+    "selected_risk_surfaces": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      }
+    },
+    "escalation_reason": {"type": "string"},
     "reviewers": {
       "type": "array",
       "items": {

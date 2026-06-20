@@ -7,6 +7,8 @@ entry_criteria:
 - Feature is large enough to risk scope creep or architectural drift.
 outputs:
 - task contract
+- risk surface profile in task contract
+- Failure Path Matrix in task contract when selected risk surfaces require it
 - BDD scenarios
 - impact map
 - implementation plan
@@ -50,26 +52,41 @@ uses:
   - coding-agent
   - backend-service
 review:
-  topology: homogeneous-plus-focused
-  composition: homogeneous-plus-focused
+  topology: homogeneous-dual
+  composition: homogeneous
+  topology_source: workflow_default
+  risk_surface_escalation_policy:
+    default_topology: homogeneous-dual
+    allowed_escalated_topologies:
+    - homogeneous-plus-focused
+    - heterogeneous-variable
+    escalate_when_selected_surfaces_include:
+    - authority_boundary
+    - policy_authorization
+    - audit_persistence
+    - secret_handling
+    - data_privacy
+    - external_io
+    - filesystem_access
+    - network_access
+    - runtime_budget
+    - timeout
+    - persistence_consistency
+    - human_approval
+    - irreversible_action
+    rule: Use the smallest focused or heterogeneous reviewer set that maps to
+      existing reviewer role contracts.
   reviewers:
   - generalist-a
   - generalist-b
-  - adversarial
   prompt_policy:
-    baseline_same_prompt: true
-    baseline_same_packet: true
-    baseline_same_rubric: true
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
     focused_reviewers_require_explicit_focus_zone: true
     focus_zones_may_overlap: true
     all_reviewers_must_report_p0_p1_outside_focus: true
-  focus_zones:
-  - reviewer: adversarial
-    role: adversarial
-    primary_focus:
-    - hidden failure modes
-    - scope creep
-    - false completion
   context_policy:
     start_mode: fresh_context
     fork_conversation_context: false
@@ -170,8 +187,9 @@ phases:
     - answered
     - unresolved
 - name: contract
-  purpose: Write/approve task contract, including operating context preflight and
-    classified open questions.
+  purpose: Write/approve task contract, including operating context preflight,
+    selected risk surfaces, Failure Path Matrix when required, and classified
+    open questions.
   skills:
   - contract-authoring
   - bdd-scenario-design
@@ -180,6 +198,8 @@ phases:
   - gherkin_lint
   outputs:
   - task.contract.md
+  - risk surface profile in task.contract.md
+  - Failure Path Matrix in task.contract.md when selected risk surfaces require it
   - grouped decision packet when needed
   id: contract
   kind: specification
@@ -258,7 +278,9 @@ phases:
   owns_evidence_production: true
 - name: red-capture
   purpose: Turn contract scenarios into executable tests and run them against the
-    not-yet-implemented state, capturing the expected failing result.
+    not-yet-implemented state, capturing the expected failing result. Required
+    failure-path rows selected in the contract must be bound or explicitly
+    deferred before this phase starts.
   runs_after:
   - plan_gate
   runs_after_policy: after_applicable_strictness_gate
@@ -285,7 +307,8 @@ phases:
   kind: implementation
 - name: verification_gate
   purpose: Run required tests, deterministic checks, boundary checks, impact checks,
-    and evidence validation.
+    and evidence validation, including selected risk-surface/path-class coverage
+    and evidence freshness after the latest material change.
   actor_class: verification_gate
   may_run_tests: true
   skills:
@@ -298,6 +321,7 @@ phases:
   - verification gate report
   - evidence bundle
   - evidence report
+  - Failure Path Matrix coverage summary when applicable
   id: verification_gate
   kind: verification
   test_framing: green_verify
@@ -315,7 +339,9 @@ phases:
     source: optional/profile
   gate: verification_gate
 - name: review
-  purpose: Run read-only independent review after the verification gate.
+  purpose: Run read-only independent review after the verification gate, using a
+    review packet that includes selected risk surfaces, Failure Path Matrix,
+    latest green evidence, known blockers and evidence freshness.
   actor_class: review_agent
   runs_after:
   - verification_gate
@@ -324,7 +350,6 @@ phases:
   may_modify_files: false
   skills:
   - reviewer-generalist
-  - reviewer-adversarial
   scripts: []
   outputs:
   - reviewer reports
@@ -395,8 +420,11 @@ exit_criteria:
 - Required artifacts are produced.
 - Operating context preflight completed, or unresolved blocking-material items
   are recorded as a workflow pause/blocker.
+- Selected risk surfaces are recorded, and required Failure Path Matrix rows are
+  bound to evidence or explicitly deferred with approved residual risk.
 - Required scripts pass or skipped items are explicitly justified.
 - Verification gate produced a gate report/evidence bundle.
+- Verification evidence is fresh after the latest material change.
 - Review agents ran after the verification gate and did not run tests/scripts themselves.
 - P0/P1 candidate findings were relevance-validated and no validated blockers or
   mandatory evidence gaps remain.
@@ -439,13 +467,17 @@ review_cycle:
   materiality_classification:
     required_after_review_fixes: true
     material_triggers_take_precedence_over_do_not_rerun: true
+    evidence_freshness_after_material_change_required: true
     material_if_changes:
     - task_contract_or_scope
+    - selected_risk_surfaces_or_failure_path_matrix
     - behavior_bindings
+    - affected_implementation_behavior
     - workflow_or_gate_policy
     - review_cycle_policy
     - schema_or_validator
     - project_overlay_or_binding
+    - review_packet_content
     - mandatory_evidence
     - verification_gate_output
     - examples_used_as_evidence
@@ -453,6 +485,11 @@ review_cycle:
     - report_editorial_changes_only
     - duplicate_consolidation
     - non_source_of_truth_notes
+  supplemental_review:
+    allowed_when_requested_by_human: true
+    requires_recorded_reason: true
+    findings_remain_candidate: true
+    reopens_fix_loop_only_on_validated_p0_p1_or_mandatory_evidence_gap: true
   blocking_default:
     severities:
     - P0

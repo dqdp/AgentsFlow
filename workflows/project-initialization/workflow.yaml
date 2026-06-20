@@ -442,7 +442,8 @@ phases:
   - adoption-onboarding
   purpose: Conduct an agent-led dialogue with the human project owner to decide
     gate policy, review topology, reviewer/model strategy, review-cycle limits,
-    authority boundaries and evidence storage before drafting the project overlay.
+    risk-surface policy, authority boundaries and evidence storage before
+    drafting the project overlay.
   mode: human_guided
   coordinator: main-agent
   human_interaction:
@@ -467,9 +468,9 @@ phases:
   applies_to_intent_modes:
   - prepare-workflow
   purpose: Capture missing gate, review, evidence or authority context, plus
-    material scope, ADR, risk, contract, gate, review, evidence, authority or
-    workflow-design decisions discovered while preparing the declared target
-    workflow, as a run-level decision packet.
+    material scope, ADR, risk-surface, Failure Path Matrix, contract, gate,
+    review, evidence, authority or workflow-design decisions discovered while
+    preparing the declared target workflow, as a run-level decision packet.
     This phase must not promote those answers into long-lived project operating
     policy unless the human explicitly switches to onboarding or policy
     activation.
@@ -477,6 +478,8 @@ phases:
   - scope
   - adr
   - risk
+  - risk-surface
+  - failure-path-matrix
   - contract
   - gate
   - review
@@ -545,7 +548,8 @@ phases:
   runs_after_policy: after_conditional_target_workflow_context_decision_packet_when_required
   purpose: Validate that prepare-workflow has a declared target workflow and enough
     project-bound operating context, or has captured the missing gate, review,
-    evidence, authority and material design decisions as a human decision packet.
+    evidence, risk-surface, Failure Path Matrix, authority and material design
+    decisions as a human decision packet.
   outputs:
   - target-workflow-readiness-gate-report.md
 - id: target_workflow_binding_draft
@@ -642,10 +646,10 @@ exit_criteria:
 - For adoption-onboarding, human operating decisions were collected through an
   agent-led dialogue or explicitly marked as unresolved before overlay drafting.
 - For prepare-workflow, sufficient target workflow operating context was found
-  or missing gate/review/evidence/authority context and material target-workflow
-  design decisions were confirmed or explicitly deferred with stated constraints
-  in a human decision packet. Unresolved blocking-material decisions block target
-  workflow readiness.
+  or missing gate/review/evidence/risk-surface/Failure Path Matrix/authority
+  context and material target-workflow design decisions were confirmed or
+  explicitly deferred with stated constraints in a human decision packet.
+  Unresolved blocking-material decisions block target workflow readiness.
 - For unknown-discovery and risk-domain-assessment, overlay drafting and human
   approval were not required unless explicitly requested.
 - Project overlay or target workflow binding was drafted or explicitly deferred
@@ -699,6 +703,12 @@ review_cycle:
     required_after_review_fixes: true
     material_triggers_take_precedence_over_do_not_rerun: true
     material_if_changes:
+    - task_contract_or_scope
+    - selected_risk_surfaces_or_failure_path_matrix
+    - behavior_bindings
+    - affected_implementation_behavior
+    - review_packet_content
+    - target_workflow_context_decision_packet
     - project_overlay_or_binding
     - workflow_or_gate_policy
     - review_cycle_policy

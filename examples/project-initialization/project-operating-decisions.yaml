@@ -44,6 +44,34 @@ workflow_defaults:
     value: homogeneous-dual
     status: confirmed
 
+risk_surface_policy:
+  catalog_source: docs/risk-and-strictness.md
+  project_default_surfaces: []
+  project_local_surfaces: []
+  selection_rule: "Each task contract selects the feature-specific subset; project defaults are recommendations, not automatic coverage claims."
+  failure_path_matrix_required_when:
+    - selected_surface_has_denial_failure_timeout_rejection_persistence_or_authority_semantics
+  required_path_class_policy:
+    source: docs/risk-and-strictness.md
+    local_extensions_require_definition: true
+  review_topology_policy:
+    default: homogeneous-dual
+    escalate_when_selected_surfaces_include:
+      - authority_boundary
+      - policy_authorization
+      - audit_persistence
+      - secret_handling
+      - data_privacy
+      - external_io
+      - filesystem_access
+      - network_access
+      - runtime_budget
+      - timeout
+      - persistence_consistency
+      - human_approval
+      - irreversible_action
+    escalation_rule: "Use the smallest focused or heterogeneous reviewer set that maps to existing reviewer role contracts."
+
 verification_gate_policy:
   mandatory_blockers:
     - tests
@@ -114,6 +142,11 @@ review_cycle_policy:
     required_after_review_fixes: true
     material_triggers_take_precedence_over_do_not_rerun: true
     material_if_changes:
+      - task_contract_or_scope
+      - selected_risk_surfaces_or_failure_path_matrix
+      - behavior_bindings
+      - affected_implementation_behavior
+      - review_packet_content
       - project_overlay_or_binding
       - workflow_or_gate_policy
       - review_cycle_policy
@@ -145,6 +178,12 @@ artifact_policy:
   store_raw_logs: optional
   redact_sensitive_evidence: true
   external_reviewer_sensitive_evidence: forbidden-unless-approved
+  structured_command_evidence_required: true
+  evidence_freshness:
+    material_change_id_required: true
+    green_gate_after_latest_material_change_required: true
+    review_packet_after_latest_green_gate_required: true
+    stale_evidence_must_be_marked_or_excluded: true
 
 decision_log:
   - id: verification.mandatory_blockers
@@ -186,6 +225,11 @@ decision_log:
   - id: review_cycle.max_review_cycles
     question: Should review cycles have a numeric cap before escalation?
     answer: "No default cap. If the project sets max_review_cycles, it must be at least 3; if omitted, review cycles are not limited by count."
+    status: confirmed
+    source: human-dialogue
+  - id: risk_surface_policy.project_defaults
+    question: Which risk surfaces should the project treat as default candidates during task contract drafting?
+    answer: []
     status: confirmed
     source: human-dialogue
 

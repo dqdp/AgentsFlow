@@ -8,6 +8,10 @@ inputs:
 - impact_map
 - test_results
 - evidence_report
+- risk_surface_profile
+- failure_path_matrix
+- behavior_bindings
+- evidence_freshness
 outputs:
 - verification_review_report
 depends_on: []
@@ -18,8 +22,10 @@ compatible_workflows:
 quality_bar:
 - Missing tests are concrete.
 - Evidence gaps are actionable.
+- FPM coverage and freshness gaps identify affected risk surfaces and path classes.
 anti_patterns:
 - Accepting vague evidence.
+- Treating stale evidence or unbound FPM rows as sufficient verification.
 mode: read_only
 actor_class: review_agent
 runs_after:

@@ -8,6 +8,7 @@
     "interview_state",
     "project_context",
     "workflow_defaults",
+    "risk_surface_policy",
     "verification_gate_policy",
     "review_policy",
     "review_cycle_policy",
@@ -67,6 +68,78 @@
       "type": "object",
       "additionalProperties": true
     },
+    "risk_surface_policy": {
+      "type": "object",
+      "required": [
+        "catalog_source",
+        "project_default_surfaces",
+        "project_local_surfaces",
+        "selection_rule",
+        "failure_path_matrix_required_when",
+        "required_path_class_policy",
+        "review_topology_policy"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "catalog_source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project_default_surfaces": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "project_local_surfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "definition", "required_path_classes"],
+            "additionalProperties": true,
+            "properties": {
+              "name": {"type": "string"},
+              "definition": {"type": "string"},
+              "required_path_classes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1
+              }
+            }
+          }
+        },
+        "selection_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "failure_path_matrix_required_when": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        },
+        "required_path_class_policy": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "review_topology_policy": {
+          "type": "object",
+          "required": ["default", "escalate_when_selected_surfaces_include", "escalation_rule"],
+          "additionalProperties": true,
+          "properties": {
+            "default": {
+              "type": "string",
+              "enum": ["homogeneous-dual", "homogeneous-plus-focused", "heterogeneous-variable"]
+            },
+            "escalate_when_selected_surfaces_include": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "escalation_rule": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
     "verification_gate_policy": {
       "type": "object",
       "required": ["mandatory_blockers", "evidence_required"],
@@ -103,7 +176,8 @@
         "context_policy",
         "read_only_by_default",
         "allow_external_reviewers",
-        "allow_different_models"
+        "allow_different_models",
+        "candidate_findings_require_main_validation"
       ],
       "additionalProperties": true,
       "properties": {
@@ -164,7 +238,7 @@
           }
         },
         "read_only_by_default": {
-          "type": "boolean"
+          "const": true
         },
         "allow_external_reviewers": {
           "type": "boolean"
@@ -173,7 +247,7 @@
           "type": "boolean"
         },
         "candidate_findings_require_main_validation": {
-          "type": "boolean"
+          "const": true
         }
       }
     },
@@ -245,7 +319,14 @@
             "material_if_changes": {
               "type": "array",
               "items": {"type": "string"},
-              "minItems": 1
+              "minItems": 1,
+              "allOf": [
+                {"contains": {"const": "task_contract_or_scope"}},
+                {"contains": {"const": "selected_risk_surfaces_or_failure_path_matrix"}},
+                {"contains": {"const": "behavior_bindings"}},
+                {"contains": {"const": "affected_implementation_behavior"}},
+                {"contains": {"const": "review_packet_content"}}
+              ]
             },
             "non_material_if_only": {
               "type": "array",
@@ -266,7 +347,29 @@
     },
     "artifact_policy": {
       "type": "object",
-      "additionalProperties": true
+      "required": ["structured_command_evidence_required", "evidence_freshness"],
+      "additionalProperties": true,
+      "properties": {
+        "structured_command_evidence_required": {
+          "const": true
+        },
+        "evidence_freshness": {
+          "type": "object",
+          "required": [
+            "material_change_id_required",
+            "green_gate_after_latest_material_change_required",
+            "review_packet_after_latest_green_gate_required",
+            "stale_evidence_must_be_marked_or_excluded"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "material_change_id_required": {"const": true},
+            "green_gate_after_latest_material_change_required": {"const": true},
+            "review_packet_after_latest_green_gate_required": {"const": true},
+            "stale_evidence_must_be_marked_or_excluded": {"const": true}
+          }
+        }
+      }
     },
     "decision_log": {
       "type": "array",

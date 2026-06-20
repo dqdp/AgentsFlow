@@ -77,7 +77,8 @@
       "required": [
         "review_packet_schema",
         "review_packets",
-        "output_schema"
+        "output_schema",
+        "verification_gate_report"
       ],
       "additionalProperties": true,
       "properties": {
@@ -121,6 +122,11 @@
         },
         "task_contract": {
           "type": "string"
+        },
+        "verification_gate_report": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "reviewed_artifact": {
           "type": "string"

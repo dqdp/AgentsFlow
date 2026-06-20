@@ -41,6 +41,7 @@ from .review import (
     validate_review_prompt_contract_invariants,
     validate_review_prompt_contract_run_references,
     validate_review_prompt_contract_template,
+    validate_phase_skills_declared,
     validate_reviewer_invocation_artifact,
     validate_reviewer_report_artifact,
     validate_supported_review_topologies,
@@ -80,6 +81,10 @@ def validate_repository(root: Path) -> list[str]:
             errors.append(str(exc))
 
     skills = collect_names(root, 'skills', 'skill.yaml')
+    skill_manifests = {
+        path.parent.name: parse_yaml(path) or {}
+        for path in (root / 'skills').glob('*/skill.yaml')
+    }
     packs = collect_names(root, 'packs', 'pack.yaml')
     scripts = collect_script_names(root)
     templates = {p.name for p in (root / 'templates').glob('*') if p.is_file()}
@@ -141,7 +146,15 @@ def validate_repository(root: Path) -> list[str]:
         for path in root.glob(pattern)
     }:
         errors.extend(validate_workflow_run_artifact(root, run_artifact))
-    for prompt_contract in root.glob('examples/**/Docs/agentsflow/runs/*/review-prompt-contract.yaml'):
+    review_prompt_contract_patterns = [
+        'Docs/agentsflow/runs/*/review-prompt-contract.yaml',
+        'examples/**/Docs/agentsflow/runs/*/review-prompt-contract.yaml',
+    ]
+    for prompt_contract in sorted({
+        path
+        for pattern in review_prompt_contract_patterns
+        for path in root.glob(pattern)
+    }):
         schema = parse_json(root / 'schemas' / 'review-prompt-contract.schema.json')
         data = parse_yaml(prompt_contract) or {}
         if not isinstance(data, dict):
@@ -150,7 +163,15 @@ def validate_repository(root: Path) -> list[str]:
             errors.extend(validate_against_schema(prompt_contract, data, schema))
             errors.extend(validate_review_prompt_contract_invariants(root, prompt_contract, data, True))
             errors.extend(validate_review_prompt_contract_run_references(root, prompt_contract, data))
-    for review_packet in root.glob('examples/**/Docs/agentsflow/runs/*/review-packets/*.json'):
+    review_packet_patterns = [
+        'Docs/agentsflow/runs/*/review-packets/*.json',
+        'examples/**/Docs/agentsflow/runs/*/review-packets/*.json',
+    ]
+    for review_packet in sorted({
+        path
+        for pattern in review_packet_patterns
+        for path in root.glob(pattern)
+    }):
         if review_packet.name == 'shared-content.json':
             continue
         errors.extend(validate_review_packet_artifact(root, review_packet, True))
@@ -201,11 +222,18 @@ def validate_repository(root: Path) -> list[str]:
         errors.extend(validate_required_review_gate_order(wf, data))
         errors.extend(validate_review_fusion_validation_order(wf, data))
         errors.extend(validate_v02_review_control_materiality_policy(wf, data))
+        errors.extend(validate_phase_skills_declared(wf, data, skill_manifests))
         errors.extend(validate_phase_scripts_declared(wf, data))
         uses = data.get('uses', {}) or {}
         for s in uses.get('skills', []) or []:
             if s not in skills:
                 errors.append(f'{wf}: missing skill reference: {s}')
+            else:
+                compatible = skill_manifests.get(s, {}).get('compatible_workflows') or []
+                if compatible and data.get('name') not in compatible:
+                    errors.append(
+                        f'{wf}: skill {s} compatible_workflows missing {data.get("name")}'
+                    )
         for s in uses.get('scripts', []) or []:
             if s not in scripts:
                 errors.append(f'{wf}: missing script reference: {s}')

@@ -3,12 +3,14 @@ name: Target Workflow Readiness Gate
 kind: gate
 purpose: Validate that prepare-workflow mode has a declared target workflow and
   enough project-bound operating context to prepare that workflow, or has captured
-  the missing context and material gate, review, evidence, authority or design
-  decisions as human-mediated evidence.
+  the missing context and material gate, review, evidence, risk-surface,
+  Failure Path Matrix, authority or design decisions as human-mediated evidence.
 decision_categories:
 - scope
 - adr
 - risk
+- risk-surface
+- failure-path-matrix
 - contract
 - gate
 - review
@@ -46,7 +48,7 @@ required_evidence:
 - project-documentation-disposition.yaml as run-level target workflow context
 - project-knowledge-extraction.md as run-level target workflow context when documentation_legacy_adoption.mode is knowledge-extraction
 - existing project policy/workflow binding evidence or target workflow preflight findings
-- gate, review, evidence, authority and material design decision evidence or human decision packet
+- gate, review, evidence, risk-surface, Failure Path Matrix, authority and material design decision evidence or human decision packet
 - human risk acceptance evidence when documentation_legacy_adoption.extraction_depth is light, or evidence that extraction_depth was upgraded to standard or deep
 outputs:
 - target-workflow-readiness-gate-report.md
@@ -73,6 +75,8 @@ pass_policy:
   - missing_gate_policy
   - missing_review_policy
   - missing_evidence_location
+  - missing_risk_surface_policy
+  - missing_failure_path_matrix_policy
   - missing_authority_boundary
   - missing_light_extraction_risk_acceptance
   - unresolved_material_design_decision

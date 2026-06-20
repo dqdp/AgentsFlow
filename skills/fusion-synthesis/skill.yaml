@@ -7,6 +7,9 @@ inputs:
 - contract
 - review_reports
 - evidence_report
+- risk_surface_profile
+- failure_path_matrix
+- evidence_freshness
 outputs:
 - fusion_report
 - final_verdict
@@ -19,8 +22,10 @@ compatible_workflows:
 quality_bar:
 - No plausible blocker is hidden by majority vote.
 - Disagreements are preserved.
+- FPM coverage and freshness gaps are preserved as candidate evidence issues.
 anti_patterns:
 - Averaging away blocking issues.
+- Reclassifying missing selected risk-path evidence as nonblocking without relevance validation.
 actor_class: fusion_agent
 mode: read_only
 runs_after:

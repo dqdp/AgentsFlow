@@ -23,6 +23,25 @@ Describe what this task is trying to achieve and why it matters.
 | Human authority / approval boundaries | yes | project operating decisions / accepted decision packet | present/missing | `needs-human-authority-decision` |
 | Human final acceptance policy | policy-defined | project operating decisions | required/not-required | `needs-human-authority-decision` when required but missing |
 
+## Risk Surface Profile
+
+Select only surfaces that materially affect this feature. Use the upstream
+catalog in `docs/risk-and-strictness.md` unless the project overlay defines a
+project-local surface.
+
+| Risk surface | Why selected | Required path classes | Coverage status | Review impact |
+|---|---|---|---|---|
+| `authority_boundary` | ... | `valid_delegation`, `malformed_request`, `direct_bypass_attempt` | bound/deferred/not-applicable | homogeneous-dual/focused/heterogeneous |
+
+## Failure Path Matrix
+
+Required when selected risk surfaces include denial, failure, timeout, rejection,
+persistence or authority semantics.
+
+| ID | Risk surface | Path class | Trigger | Expected authority | Expected context/state | Expected audit/persistence | Must not happen | Evidence binding |
+|---|---|---|---|---|---|---|---|---|
+| FPM-001 | `audit_persistence` | `denied_attempt_persisted` | ... | ... | ... | ... | silent deny without durable evidence | `AF-BHV-...` / gate check / approved deferral |
+
 ## Non-goals
 
 List what is explicitly out of scope.
@@ -69,9 +88,22 @@ Feature: <feature-name>
 
 Map scenarios to checks:
 
-| Scenario | Verification |
+| Scenario | Risk surface | Path class | Verification |
+|---|---|---|---|
+| Scenario name | `audit_persistence` | `denied_attempt_persisted` | `pytest tests/...`, trace assertion, boundary check, review checklist |
+
+## Audit and Persistence Contract
+
+Fill this when `audit_persistence` or `persistence_consistency` is selected.
+
+| Item | Decision |
 |---|---|
-| Scenario name | `pytest tests/...`, trace assertion, boundary check, review checklist |
+| Event or attempt recorded | ... |
+| Write timing relative to side effect | before/with/after/not-applicable |
+| Denied/rejected/timeout/downstream-failure paths recorded | yes/no/details |
+| Correlation id / run id | ... |
+| Redacted or omitted fields | ... |
+| Read-back / consistency evidence | ... |
 
 ## Evidence Required
 
@@ -79,6 +111,7 @@ The final evidence report must include:
 
 - changed files;
 - scenario coverage;
+- risk surface and Failure Path Matrix coverage when selected;
 - commands run and results;
 - boundary check result;
 - impact map result;

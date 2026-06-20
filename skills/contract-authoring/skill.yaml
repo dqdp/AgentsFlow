@@ -1,19 +1,25 @@
 name: contract-authoring
 type: skill
 version: 0.1
-purpose: "Create a task/feature contract with intent, fixed decisions, boundaries, scenarios, verification binding, and evidence requirements."
+purpose: "Create a task/feature contract with intent, fixed decisions, boundaries, risk surfaces, Failure Path Matrix coverage, scenarios, verification binding, review-topology rationale, and evidence requirements."
 
 inputs:
   - intent
   - specification_brief
   - domain_pack
   - strictness
+  - project_operating_decisions
+  - risk_surface_policy
+  - target_workflow
 
 outputs:
   - task_contract
   - boundaries
   - fixed_decisions
+  - risk_surface_profile
+  - failure_path_matrix
   - verification_binding
+  - review_topology_rationale
 
 depends_on:
   []
@@ -27,8 +33,9 @@ quality_bar:
   - Contract is actionable.
   - Boundaries are explicit.
   - Evidence requirements are checkable.
+  - Selected risk surfaces and FPM rows are bound to evidence or approved deferrals.
 
 anti_patterns:
   - Writing broad prose without enforceable constraints.
   - Changing accepted decisions silently.
-
+  - Listing risk surfaces without path classes or evidence bindings.

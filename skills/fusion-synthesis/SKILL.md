@@ -9,6 +9,9 @@ Synthesize independent reviewer reports into consensus, disagreements, candidate
 - `contract`
 - `review_reports`
 - `evidence_report`
+- `risk_surface_profile`
+- `failure_path_matrix`
+- `evidence_freshness`
 
 
 ## Outputs
@@ -24,9 +27,11 @@ Synthesize independent reviewer reports into consensus, disagreements, candidate
 2. Identify consensus.
 3. Identify disagreements.
 4. Surface any P0/P1 candidate blocker.
-5. Preserve relevance questions and disagreements.
-6. Assign recommended verdict and proposed required changes.
-7. Hand off candidate findings for main-agent relevance validation.
+5. Surface missing or stale risk-surface/FPM evidence as candidate mandatory
+   evidence gaps when reviewers report it.
+6. Preserve relevance questions and disagreements.
+7. Assign recommended verdict and proposed required changes.
+8. Hand off candidate findings for main-agent relevance validation.
 
 
 ## Quality bar
@@ -34,11 +39,15 @@ Synthesize independent reviewer reports into consensus, disagreements, candidate
 - No plausible candidate blocker is hidden by majority vote.
 - Disagreements are preserved.
 - Findings remain candidate findings until the main/orchestrating agent validates relevance.
+- FPM coverage and freshness gaps are preserved as evidence issues, not
+  averaged away.
 
 
 ## Anti-patterns
 
 - Averaging away blocking issues.
+- Reclassifying missing selected risk-path evidence as nonblocking without
+  main-agent relevance validation.
 
 
 ## Handoff

@@ -1,17 +1,21 @@
 name: bdd-scenario-design
 type: skill
 version: 0.1
-purpose: "Design concrete BDD/Gherkin scenarios for product, agent, process, policy, and regression behavior."
+purpose: "Design concrete BDD/Gherkin scenarios for product, agent, process, policy, failure-path, and regression behavior."
 
 inputs:
   - contract
   - domain_pack
   - strictness
   - known_failures
+  - risk_surface_profile
+  - failure_path_matrix
 
 outputs:
   - behavioral_scenarios
   - forbidden_behavior
+  - path_class_scenarios
+  - failure_path_coverage_notes
   - ambiguity_notes
 
 depends_on:
@@ -26,8 +30,9 @@ compatible_workflows:
 quality_bar:
   - Scenarios are concrete and checkable.
   - Vague terms are replaced with evidence fields.
+  - Required path classes are covered or explicitly deferred.
 
 anti_patterns:
   - Using Gherkin for every unit test.
   - Writing “Then it should work correctly”.
-
+  - Writing only happy-path scenarios when selected surfaces require failure paths.
