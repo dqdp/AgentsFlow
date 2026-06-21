@@ -1,19 +1,25 @@
-# Codex Handoff: v0.2 Pre-Handoff Fix List (Task 0)
+# Codex Handoff: v0.2 Pre-Handoff Fix List (Task 0, Historical)
 
-Status: **pre-handoff fix list, ready for implementation**
+Status: **historical/completed pre-handoff fix list**
 Produced by: independent read-only design review of v0.1.13
 Date: 2026-06-17
 
+Current status: this document is retained as historical design-review handoff
+evidence. The Task 0 implementation has been superseded by the accepted v0.2
+source-of-truth docs, checkpoints, validators, schemas and examples. Do not use
+this document as the active task list for new v0.2 work; use the README
+suggested review path and `docs/plans/v0.2-next-slices.md` for current planning.
+
 ## Purpose
 
-This document is the self-contained first task ("Task 0") for the coding agent
-(Codex) before v0.2 MVP implementation proper. It resolves every blocker and
+This document was the self-contained first task ("Task 0") for the coding agent
+(Codex) before v0.2 MVP implementation proper. It captured every blocker and
 consistency issue found in the v0.1.13 pre-handoff design review. All design
-decisions are already made and recorded below — **no verbal clarification is
-required**.
+decisions below were already made for that historical slice.
 
-After this task list is applied and the validation in the final section passes,
-the repository moves from `needs-fixes-before-codex` to `ready-for-codex`.
+After this task list was applied and the validation in the final section passed,
+the repository moved from `needs-fixes-before-codex` toward the v0.2 readiness
+track.
 
 ## Prime directive
 

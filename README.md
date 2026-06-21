@@ -1,6 +1,6 @@
 # AgentsFlow
 
-Version: v0.1.13 checkpoint
+Version: v0.2 MVP readiness snapshot
 
 > Workflow kit and reference methodology for controlled agent-assisted development.
 
@@ -132,8 +132,10 @@ v0.2 includes a minimal Claude Code external reviewer provider:
 - subscription-local only;
 - API-key/proxy usage forbidden;
 - wrapper must fail if the configured forbidden Claude API/proxy environment variables are present;
+- Codex-launched Claude reviewer runs require escalated sandbox access for local
+  subscription auth and disable Claude Code tools with `--tools ""`;
 - review packet in, normalized reviewer-report out;
-- raw output and invocation metadata stored as evidence;
+- raw output, normalized report and invocation metadata stored as evidence;
 - findings remain candidate/unvalidated.
 
 See:
@@ -176,19 +178,23 @@ python3 scripts/reviewers/run_external_reviewer.py \
 
 Start here:
 
-1. `docs/checkpoints/checkpoint-2026-06-17-v0.1.13.md`
-2. `docs/retrospectives/documentation-consistency-review-2026-06-17-v0.1.13.md`
-3. `docs/philosophy.md`
-4. `docs/workflow-model.md`
-5. `docs/mvp-ready-workflow-standard.md`
-6. `docs/project-application-model.md`
-7. `docs/project-initialization-model.md`
-8. `docs/enforcement-boundary.md`
-9. `docs/human-interaction-protocol.md`
-10. `docs/gate-executability-model.md`
-11. `docs/behavior-binding-model.md`
-12. `docs/review-control-model.md`
-13. `docs/external-reviewer-provider-model.md`
+1. `docs/checkpoints/checkpoint-2026-06-20-documentation-legacy-adoption-confirmation.md`
+2. `docs/checkpoints/checkpoint-2026-06-19-v0.2-supported-path.md`
+3. `docs/checkpoints/checkpoint-2026-06-19-v0.2-expert-assessment-output-contract.md`
+4. `docs/checkpoints/checkpoint-2026-06-18-v0.2.0-slice2.md`
+5. `docs/retrospectives/documentation-consistency-review-2026-06-17-v0.1.13.md`
+6. `docs/philosophy.md`
+7. `docs/workflow-model.md`
+8. `docs/mvp-ready-workflow-standard.md`
+9. `docs/project-application-model.md`
+10. `docs/project-initialization-model.md`
+11. `docs/enforcement-boundary.md`
+12. `docs/human-interaction-protocol.md`
+13. `docs/gate-executability-model.md`
+14. `docs/behavior-binding-model.md`
+15. `docs/review-control-model.md`
+16. `docs/review-prompt-contract.md`
+17. `docs/external-reviewer-provider-model.md`
 
 ## Development rule for coding agents
 

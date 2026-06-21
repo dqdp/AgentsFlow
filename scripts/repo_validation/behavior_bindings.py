@@ -68,4 +68,3 @@ def validate_behavior_binding_gate_refs(path: Path, known_gates: set[str]) -> li
             if gate_id and str(gate_id) not in known_gates:
                 errors.append(f"{path}: binding {bid} references unknown gate: {gate_id}")
     return errors
-

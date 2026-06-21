@@ -58,4 +58,3 @@ def collect_active_review_topologies(root: Path) -> set[str]:
         if isinstance(data, dict) and data.get("deprecated") is not True:
             names.add(str(data.get("name", path.stem)))
     return names
-

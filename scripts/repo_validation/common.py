@@ -115,4 +115,3 @@ def safe_resolve(base: Path, ref: object, label: str, errors: list[str]) -> Path
         errors.append(f"{label} escapes expected root: {ref}")
         return None
     return resolved
-

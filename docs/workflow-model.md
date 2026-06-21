@@ -159,6 +159,27 @@ the latest material change is not authoritative for the changed scope.
 | `safe-refactor` | reference/experimental | Perform scoped refactoring with boundary and regression protection. |
 | `research-to-ADR` | reference/experimental | Turn research into decision memos and ADRs. |
 
+## Candidate future workflows
+
+The following are known candidate workflows, but they are not promoted into the
+v0.2 supported path:
+
+| Candidate workflow | Candidate status | Purpose |
+|---|---|---|
+| `release-pr-readiness` | candidate/next | Decide whether a branch is ready to open, accept or merge as a pull request by composing validation, documentation consistency, review-gate evidence, finding relevance validation, human merge approval and post-merge verification planning. |
+| `knowledge-extraction` | candidate/next | Extract normalized project knowledge from a project documentation corpus or knowledge base with provenance, confidence, human-confirmation boundaries and persistence scope. |
+
+Current `project-initialization` may already produce
+`project-knowledge-extraction.md` when the human selects documentation
+`knowledge-extraction`. That run-level artifact is not the same thing as a
+standalone `knowledge-extraction` workflow. A future workflow should reuse the
+same documentation-disposition and human-decision rules rather than creating a
+parallel abstraction.
+
+See `docs/plans/v0.2-next-slices.md` for the current high-level sequencing note
+covering release/PR readiness, a fresh Bro Tools Gateway TG-A dogfood run, and a
+future standalone knowledge-extraction workflow.
+
 ## Workflow selection guidance
 
 For v0.2 `prepare-workflow`, only `big-feature-contract-first` is a supported

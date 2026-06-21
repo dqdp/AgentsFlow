@@ -117,8 +117,13 @@ Soft DoD terms are interpreted as operational checks:
 - `project-initialization path is coherent` means every
   `workflows/project-initialization/workflow.yaml` output has a corresponding
   template, concrete example, or explicit deferred/optional status.
-- `Claude Code external reviewer provider minimally works` means the mock smoke
-  test passes through the project-bound wrapper without a live Claude call.
+- `Claude Code external reviewer provider minimally works` means the automated
+  mock smoke test passes through the project-bound wrapper without a live Claude
+  call. This is the CI-safe MVP check.
+- Release or PR readiness may require additional operator evidence from a live
+  subscription-local Claude Code review gate. That evidence should be recorded as
+  a readiness artifact, not as a mandatory repository test, because it depends on
+  local Claude subscription auth and an escalated Codex sandbox.
 - `AGENTS.md is usable by coding agents` means it contains source-of-truth order,
   explicit v0.2 scope, scope-expansion prohibition, validation commands, and
   accepted-decision pointers.
@@ -144,7 +149,29 @@ The Claude provider is in v0.2 MVP scope, but narrowly:
 - project-bound wrapper only;
 - review packet in, normalized reviewer report out;
 - raw output and invocation metadata stored;
+- Codex-launched live runs use escalated sandbox access for subscription-local
+  auth and disable Claude Code tools with `--tools ""` for packet-bound review;
+- provider/model diversity is proved through assignment, invocation-set and
+  reviewer-report evidence, not by role names alone;
 - findings remain candidate/unvalidated.
+
+## Release / PR readiness note
+
+v0.2 MVP readiness and PR merge readiness are related but not identical. MVP
+readiness is the repository baseline above: schemas, examples, validators, tests
+and CI-safe smoke checks. PR readiness is a concrete branch decision and should
+add branch-scoped evidence such as:
+
+- clean worktree and intended commit range;
+- repository validation and tests;
+- source-of-truth documentation consistency check;
+- review gate evidence, including live external reviewer evidence when available;
+- relevance validation for P0/P1 candidate findings;
+- human merge decision and post-merge verification plan.
+
+This repository does not yet define a dedicated release/PR-readiness workflow.
+If added, it should stay small and compose existing validation, review and human
+decision artifacts instead of becoming a general release-management runtime.
 
 ## Workflow-specific notes
 
