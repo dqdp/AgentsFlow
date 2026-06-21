@@ -86,6 +86,10 @@ A `review_gate` is the workflow control point that consumes reviewer reports and
 main-agent relevance validation. The reviewers themselves do not make the final
 workflow decision.
 
+Review-agent gate evidence is a normalized reviewer-report JSON artifact. Raw
+Markdown or chat output may be preserved as a sidecar and normalized by the
+main/orchestrating agent before gate use.
+
 ### Fusion Agent
 
 Fusion Agent is a read-only synthesis role. It consumes reviewer reports,
@@ -140,7 +144,7 @@ agents.
 | Implementation agent | yes | yes | yes, future/explicit | future/explicit | no | no | no |
 | Verification gate | yes | gate report only | no | yes | no | no | gate result only |
 | Evidence probe agent | yes | evidence probe report only | no | project-bound only | no | no | no |
-| Review agent | yes | reviewer report only | no | no by default | yes | no | no |
+| Review agent | yes | review output only | no | no by default | yes | no | no |
 | Fusion agent | yes | fusion report only | no | no | no | yes | no |
 | Script/tool runner | limited | machine output | no | yes | no | no | no |
 | External planning provider | depends | external artifacts | no by default | no by default | maybe | maybe | no |

@@ -65,9 +65,16 @@ Each assignment records:
 - provider, for example `internal-agent` or `claude-code`;
 - model family or harness label, for example `codex` or `opus`;
 - review packet path;
-- normalized reviewer-report output path;
+- normalized reviewer-report JSON output path;
 - provider config, raw output and invocation metadata paths for external
   providers.
+
+Primary-gate and collision-control reviewer-report gate evidence is a
+schema-bound JSON artifact regardless of provider. A reviewer may produce raw
+Markdown or chat text, but the main/orchestrating agent must normalize that
+content into `schemas/reviewer-report.schema.json` before it can satisfy
+`reviewer_assignments[].report_path`. The raw Markdown/text may be retained as
+a sidecar or source transcript; it is not itself reviewer-report gate evidence.
 
 `provider_policy.require_model_diversity: true` means the assignments must
 prove at least `min_distinct_provider_model_families` distinct
@@ -182,6 +189,7 @@ Every rendered reviewer prompt must include the shared rules:
 - findings are candidate-unvalidated;
 - report missing mandatory evidence;
 - report plausible P0/P1 blockers even outside a focused role;
+- prioritize substantive review quality over native output serialization;
 - main/orchestrating agent validates relevance before findings affect workflow decisions.
 
 ## Validation Boundary

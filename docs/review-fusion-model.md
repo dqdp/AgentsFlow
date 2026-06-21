@@ -160,7 +160,7 @@ In early versions, fusion can be prompt/manual. Automation should come after rep
 In AgentsFlow, Fusion Agent is a read-only synthesis actor, not a default
 orchestrator. It consumes already-produced artifacts and reports:
 
-- reviewer reports;
+- schema-bound reviewer-report JSON artifacts;
 - verification gate reports;
 - evidence bundles;
 - workflow context and accepted decisions.
@@ -168,6 +168,11 @@ orchestrator. It consumes already-produced artifacts and reports:
 
 It produces decision support: consensus, disagreement, blocker summary,
 non-blocking concerns, and human-decision items.
+
+Markdown reviewer summaries or raw reviewer transcripts are optional sidecars.
+Fusion may reference them for orientation or traceability, but normalized JSON
+reviewer-report artifacts are the source reports consumed by gates and finding
+fusion.
 
 By default, Fusion Agent must not launch additional reviewers, run verification
 gates, run tests, call tools, or modify artifacts. It may recommend additional

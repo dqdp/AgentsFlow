@@ -11,3 +11,8 @@ validates relevance.
 
 Report missing mandatory evidence. Report plausible P0/P1 blockers even outside
 a focused role.
+
+Prioritize substantive review quality over output serialization. Return
+schema-valid reviewer-report JSON when you can do so without losing clarity;
+otherwise return clear structured findings that the main/orchestrating agent can
+normalize into `schemas/reviewer-report.schema.json` before gate use.

@@ -1897,6 +1897,68 @@ def test_review_prompt_contract_template_assignments_use_invocation_set_evidence
     assert contract["inputs"]["evidence_report"].endswith("evidence-report.md")
     assert contract["inputs"]["artifact_preparation_report"].endswith("prepared-review-artifacts.json")
     assert contract["inputs"]["review_invocation_set"].endswith("review-invocation-set.json")
+    assert all(
+        assignment["report_path"].endswith(".json")
+        for assignment in contract["reviewer_assignments"]
+    )
+
+
+def test_review_prompt_contract_schema_requires_json_reviewer_report_paths() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads((ROOT / "schemas/review-prompt-contract.schema.json").read_text(encoding="utf-8"))
+    contract = yaml.safe_load((ROOT / "templates/review-prompt-contract.yaml").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    validator.validate(contract)
+
+    broken = copy.deepcopy(contract)
+    broken["reviewer_assignments"][0]["report_path"] = (
+        "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/reviewer-report.generalist-a.md"
+    )
+
+    errors = list(validator.iter_errors(broken))
+    assert errors
+    assert any(list(error.absolute_path)[-1:] == ["report_path"] for error in errors)
+
+
+def test_primary_e2e_markdown_reviewer_summaries_are_sidecars_not_gate_reports() -> None:
+    import yaml
+
+    run_path = ROOT / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/run.yaml"
+    run_data = yaml.safe_load(run_path.read_text(encoding="utf-8"))
+    review_evidence = run_data["phase_evidence"]["review"]
+
+    assert all(path.endswith(".json") for path in review_evidence["reviewer_reports"])
+    assert all(path.endswith(".md") for path in review_evidence["reviewer_report_summaries"])
+
+
+def test_reviewer_prompts_prioritize_substance_over_json_only_output() -> None:
+    import json
+    import sys
+
+    import yaml
+
+    base_prompt = (ROOT / "templates/review-prompts/base.md").read_text(encoding="utf-8")
+    assert "Return JSON only" not in base_prompt
+    assert "Prioritize substantive review quality" in base_prompt
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    from prompt_rendering import render_review_prompt  # noqa: PLC0415
+
+    packet = json.loads(
+        (ROOT / "examples/external-reviewers/claude-code/review-packet.architecture.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    role_contract = yaml.safe_load((ROOT / "profiles/reviewer_roles/architecture.yaml").read_text(encoding="utf-8"))
+    rendered = render_review_prompt(packet, role_contract)
+
+    assert "Return JSON only" not in rendered
+    assert "Prioritize substantive findings over output serialization" in rendered
 
 
 def test_external_wrapper_rejects_assignments_without_review_invocation_set() -> None:
@@ -6544,6 +6606,47 @@ def test_review_prompt_contract_assignments_require_preparation_evidence() -> No
     joined = "\n".join(errors)
     assert "artifact_preparation_report" in joined
     assert "review_invocation_set" in joined
+
+
+def test_review_prompt_contract_rejects_markdown_reviewer_report_gate_path() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["provider_policy"] = {
+        "allow_external_reviewers": False,
+        "require_model_diversity": False,
+    }
+    broken["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][0]["path"],
+            "report_path": "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-a.md",
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][1]["path"],
+            "report_path": "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-b.json",
+        },
+    ]
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, broken)
+
+    assert "reviewer_assignments[0].report_path must be a JSON reviewer report" in "\n".join(errors)
 
 
 def test_review_prompt_contract_rejects_aliased_evidence_and_invocation_set(tmp_path) -> None:

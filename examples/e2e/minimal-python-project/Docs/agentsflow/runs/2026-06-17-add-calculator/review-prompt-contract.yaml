@@ -74,7 +74,7 @@ prompt_policy:
 rendered_prompts:
   - reviewer: generalist-a
     prompt_path: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-a.md
-    prompt_hash: sha256:134990a651a3e33dae620c2fd192391ac30e0c2c08178730c8c9f51d083fcf79
+    prompt_hash: sha256:b2d9037586c2e770baf7cf8a53739b075612e6f1e715fbe5d3246a4c3ac0dc64
     shared_prompt_content_hash: sha256:c9e8c240b2a4683ae79f248dfe6a12e7339564c31a8108f3c1a8e7d156950ba6
     packet_hash: sha256:81afd3f29a6371bb0fca0acdb05204754aba3eefcb4120b508fe9efffc06b80d
     shared_packet_content_hash: sha256:cb8cf203bce1c5fce6b5193cb57255124a42cb9ad5f9412bddbc07b8bc86f9db
@@ -83,7 +83,7 @@ rendered_prompts:
     role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
   - reviewer: generalist-b
     prompt_path: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-b.md
-    prompt_hash: sha256:be6e14b631128cee79edd821439cc8c989580fff442f1ce80ca98ff5288cbb72
+    prompt_hash: sha256:e03ac3bb52198e61a7313b9c2f0d8db68721cd7c4efa6251d76e7daed764a77e
     shared_prompt_content_hash: sha256:c9e8c240b2a4683ae79f248dfe6a12e7339564c31a8108f3c1a8e7d156950ba6
     packet_hash: sha256:1baded60140370cd404f326d46a0818961b205a9632d4ee272d6d363cc086a2d
     shared_packet_content_hash: sha256:cb8cf203bce1c5fce6b5193cb57255124a42cb9ad5f9412bddbc07b8bc86f9db

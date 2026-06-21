@@ -253,7 +253,8 @@
             "type": "string"
           },
           "report_path": {
-            "type": "string"
+            "type": "string",
+            "pattern": "\\.json$"
           },
           "raw_output_path": {
             "type": "string"

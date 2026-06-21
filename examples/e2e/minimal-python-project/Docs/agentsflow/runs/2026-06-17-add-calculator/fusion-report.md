@@ -9,7 +9,9 @@ Inputs:
 - `reviewer-report.generalist-a.json`
 - `reviewer-report.generalist-b.json`
 
-Human-readable summaries:
+The JSON files are the schema-bound source reports consumed by fusion.
+
+Human-readable sidecars, not gate evidence:
 
 - `reviewer-report.generalist-a.md`
 - `reviewer-report.generalist-b.md`

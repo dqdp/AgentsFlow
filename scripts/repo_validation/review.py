@@ -957,6 +957,9 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
         report_path = resolve_assignment_output(
             assignment.get("report_path"), f"reviewer_assignments[{idx}].report_path"
         )
+        if assignment.get("report_path") and Path(str(assignment.get("report_path"))).suffix != ".json":
+            errors.append(f"{path}: reviewer_assignments[{idx}].report_path must be a JSON reviewer report")
+            report_path = None
         if report_path:
             resolved_report_path = report_path.resolve()
             if resolved_report_path in assignment_report_paths:

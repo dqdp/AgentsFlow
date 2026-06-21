@@ -23,6 +23,12 @@ The wrapper:
 - normalizes raw provider output into `reviewer-report.json`;
 - stores raw output and invocation metadata, including requested model/effort and provider-reported model usage when available.
 
+Reviewer prompts prioritize substantive review quality over native JSON
+serialization. A successful gate still requires a normalized
+`reviewer-report.json`: if a provider returns clear Markdown/text that the
+wrapper cannot auto-normalize, the raw output is evidence for explicit
+orchestrator normalization or a rerun, not completed gate evidence.
+
 ## Review-set runner
 
 `run_review_set.py` reads a `review-prompt-contract.yaml` with

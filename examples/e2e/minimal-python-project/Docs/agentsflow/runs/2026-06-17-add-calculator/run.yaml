@@ -23,6 +23,7 @@ phase_evidence:
     reviewer_reports:
     - reviewer-report.generalist-a.json
     - reviewer-report.generalist-b.json
+    # Human-readable sidecars; not reviewer-report gate evidence.
     reviewer_report_summaries:
     - reviewer-report.generalist-a.md
     - reviewer-report.generalist-b.md
