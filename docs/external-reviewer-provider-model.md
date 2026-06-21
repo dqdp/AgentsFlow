@@ -41,7 +41,13 @@ The MVP implementation target is intentionally narrow:
 - provider: `claude-code` only;
 - billing/auth: subscription-local Claude Code CLI only;
 - API-key usage: forbidden;
+- launch mode: Codex invocations require escalated sandbox access so Claude Code
+  can see subscription-local auth/keychain state;
+- tool mode: Claude Code tools are disabled; the external reviewer is
+  packet-bound unless a future tool-enabled review mode is explicitly designed;
 - output: normalized reviewer report + raw output + invocation metadata;
+- normalization trace: source path/hash in the reviewer report, output hash in
+  invocation metadata;
 - no multi-provider runtime;
 - no write-enabled external reviewers;
 - no CI/enterprise API-key mode.
@@ -66,6 +72,8 @@ Minimum required guardrails for Claude Code CLI wrappers:
   `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`,
   `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`;
 - do not use API-key-only execution modes;
+- run through an escalated Codex sandbox when invoked from Codex;
+- disable Claude Code tools with `--tools ""` for packet-bound review;
 - record billing/auth mode in invocation metadata;
 - record stdout/stderr/exit code and normalized output;
 - validate output schema before passing it to finding validation or fusion.
@@ -122,6 +130,9 @@ For v0.2 this binding is intentionally small:
 - completed external evidence must be bound to the current packet, prompt,
   contract, role contract, rubric, output schema, raw provider output and
   normalized reviewer report hashes, with `exit_code: 0`.
+- normalized reviewer reports may include `normalization` source trace, but
+  the normalized report's own output hash is recorded outside the report to
+  avoid self-referential hashes.
 
 This keeps Claude Code as one provider behind the existing wrapper while
 allowing a single review gate to mix internal Codex reports and external Claude
@@ -199,9 +210,10 @@ The Claude adapter must:
 5. invoke Claude Code CLI in non-interactive print mode;
 6. capture raw output, requested model/effort, provider-reported model usage and process metadata;
 7. parse and normalize `reviewer-report.json`;
-8. validate schema;
-9. mark findings as candidate/unvalidated;
-10. store invocation metadata.
+8. record normalization source trace;
+9. validate schema;
+10. mark findings as candidate/unvalidated;
+11. store invocation metadata, including the normalized output hash.
 
 ## Wrapper output artifacts
 

@@ -22,8 +22,10 @@ billing:
 execution:
   command: claude
   mode: non_interactive_print
+  sandbox_mode: require_escalated
   output_format: json
   permission_mode: plan
+  tools: ""
   model: opus
   effort: max
   timeout_seconds: 900
@@ -56,3 +58,4 @@ normalization:
   force_finding_status: candidate-unvalidated
   require_schema_validation: true
   preserve_raw_output: true
+  record_trace: true

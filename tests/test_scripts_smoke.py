@@ -3752,6 +3752,57 @@ def test_primary_e2e_workflow_run_artifacts_schema_pass() -> None:
         )
 
 
+def test_reviewer_report_normalization_source_hash_is_validated(tmp_path) -> None:
+    import copy
+    import hashlib
+    import json
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    shutil.copytree(ROOT / "schemas", root / "schemas")
+    raw_path = root / "reviewer-report.generalist-a.raw.md"
+    raw_path.write_text("## Findings\n\nNo blockers.\n", encoding="utf-8")
+    source_hash = "sha256:" + hashlib.sha256(raw_path.read_bytes()).hexdigest()
+    report = {
+        "reviewer": {
+            "id": "internal-agent-generalist-a",
+            "provider": "internal-agent",
+            "role": "generalist",
+            "model": "codex",
+        },
+        "summary": "No blockers.",
+        "findings": [],
+        "normalization": {
+            "method": "orchestrator-extraction",
+            "source_path": "reviewer-report.generalist-a.raw.md",
+            "source_hash": source_hash,
+            "schema_validation": "passed",
+            "normalized_by": "main-orchestrating-agent",
+        },
+    }
+    report_path = root / "reviewer-report.generalist-a.json"
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    assert validate_repo.validate_reviewer_report_artifact(root, report_path) == []
+
+    stale_hash = copy.deepcopy(report)
+    stale_hash["normalization"]["source_hash"] = "sha256:" + "0" * 64
+    report_path.write_text(json.dumps(stale_hash, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_reviewer_report_artifact(root, report_path)
+    assert "normalization.source_hash hash mismatch" in "\n".join(errors)
+
+    self_hash = copy.deepcopy(report)
+    self_hash["normalization"]["output_hash"] = "sha256:" + "1" * 64
+    report_path.write_text(json.dumps(self_hash, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_reviewer_report_artifact(root, report_path)
+    assert "normalization.output_hash must be recorded outside reviewer-report JSON" in "\n".join(errors)
+
+
 def test_workflow_run_strictness_requires_source_and_override_reason(tmp_path) -> None:
     import sys
 
@@ -4484,6 +4535,8 @@ def test_external_reviewer_wrapper_mock_passes(tmp_path) -> None:
     invocation = json.loads(out.with_suffix(".invocation.json").read_text(encoding="utf-8"))
     assert invocation["requested_model"] == "opus"
     assert invocation["requested_effort"] == "max"
+    assert invocation["sandbox_mode"] == "require_escalated"
+    assert invocation["tools"] == ""
 
 
 def test_claude_code_provider_command_defaults_model_and_effort() -> None:
@@ -4509,6 +4562,8 @@ def test_claude_code_provider_command_defaults_model_and_effort() -> None:
     assert cmd[cmd.index("--model") + 1] == "opus"
     assert "--effort" in cmd
     assert cmd[cmd.index("--effort") + 1] == "max"
+    assert "--tools" in cmd
+    assert cmd[cmd.index("--tools") + 1] == ""
 
 
 def test_claude_code_provider_defaults_timeout_to_900_seconds(monkeypatch) -> None:
@@ -4593,9 +4648,18 @@ def test_external_reviewer_wrapper_normalizes_claude_code_envelope(tmp_path) -> 
     assert normalized["findings"][0]["id"] == "ARCH-ENV"
     assert normalized["findings"][0]["category"] == "external-reviewer-normalization"
     assert normalized["findings"][0]["why_it_matters"] == "The wrapper must normalize the nested Claude Code result."
+    assert normalized["normalization"]["method"] == "deterministic-extraction"
+    assert normalized["normalization"]["source_path"] == str(out.with_suffix(".raw.json"))
+    assert normalized["normalization"]["schema_validation"] == "passed"
+    assert normalized["normalization"]["normalized_by"] == "scripts/reviewers/run_external_reviewer.py"
+    assert "output_hash" not in normalized["normalization"]
     invocation = json.loads(out.with_suffix(".invocation.json").read_text(encoding="utf-8"))
     assert invocation["requested_model"] == "opus"
     assert invocation["requested_effort"] == "max"
+    assert invocation["sandbox_mode"] == "require_escalated"
+    assert invocation["tools"] == ""
+    assert invocation["normalization"]["source_hash"] == invocation["raw_output_hash"]
+    assert invocation["normalization"]["output_hash"] == invocation["normalized_output_hash"]
     assert invocation["provider_models_used"] == [
         "claude-haiku-4-5-20251001",
         "claude-opus-4-8[1m]",
@@ -4810,6 +4874,37 @@ def test_external_reviewer_wrapper_rejects_unsafe_permission_mode(tmp_path) -> N
     )
     assert result.returncode != 0
     assert "permission_mode: plan" in (result.stdout + result.stderr)
+
+
+def test_external_reviewer_wrapper_rejects_non_escalated_sandbox_or_enabled_tools(tmp_path) -> None:
+    import yaml
+
+    base_config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    for key, value, expected in [
+        ("sandbox_mode", "default", "sandbox_mode: require_escalated"),
+        ("tools", "Read", 'execution.tools: ""'),
+    ]:
+        config = yaml.safe_load(yaml.safe_dump(base_config))
+        config["execution"][key] = value
+        config_path = tmp_path / f"claude-code-{key}.yaml"
+        config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+        out = tmp_path / f"reviewer-report-{key}.json"
+
+        result = run(
+            "scripts/reviewers/run_external_reviewer.py",
+            "--provider", "claude-code",
+            "--config", str(config_path),
+            "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+            "--mock-response", "examples/external-reviewers/claude-code/mock-raw-output.json",
+            "--output", str(out),
+            env=clean_env(),
+        )
+        assert result.returncode != 0
+        assert expected in (result.stdout + result.stderr)
 
 
 def test_external_reviewer_wrapper_rejects_non_claude_command(tmp_path) -> None:
@@ -5568,8 +5663,10 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
             "fork_conversation_context": False,
             "session_persistence": False,
         },
-        "command": "claude -p <prompt>",
+        "command": "claude -p <prompt> --tools \"\"",
         "execution_mode": "real",
+        "sandbox_mode": "require_escalated",
+        "tools": "",
         "requested_model": "opus",
         "requested_effort": "max",
         "provider_models_used": ["claude-opus-4-8"],
@@ -5590,14 +5687,14 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     (root / claude_invocation).write_text(json.dumps(valid_invocation, indent=2), encoding="utf-8")
     (root / invocation_set).write_text(
         json.dumps(
-                    {
-                        "artifact_kind": "review_invocation_set",
-                        "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
-                        "artifact_preparation_report": str(preparation_path),
-                        "artifact_preparation_report_hash": preparation_hash,
-                        "status": "completed",
-                        "runner_scheduling": "external-first-async",
-                    "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                "artifact_preparation_report": str(preparation_path),
+                "artifact_preparation_report_hash": preparation_hash,
+                "status": "completed",
+                "runner_scheduling": "external-first-async",
+                "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
                 "reviewers": [
                     {
                         "reviewer": "generalist-a",

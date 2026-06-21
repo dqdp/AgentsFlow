@@ -41,10 +41,14 @@ def validate_external_review_provider(path: Path) -> list[str]:
     execution = data.get("execution", {}) or {}
     if execution.get("command") != "claude":
         errors.append(f"{path}: claude-code execution.command must be claude")
+    if execution.get("sandbox_mode") != "require_escalated":
+        errors.append(f"{path}: claude-code execution.sandbox_mode must be require_escalated")
     if execution.get("output_format") != "json":
         errors.append(f"{path}: claude-code execution.output_format must be json")
     if execution.get("permission_mode") != "plan":
         errors.append(f"{path}: claude-code execution.permission_mode must be plan")
+    if execution.get("tools") != "":
+        errors.append(f'{path}: claude-code execution.tools must be ""')
     if "model" not in execution:
         errors.append(f"{path}: claude-code execution.model must be declared as opus")
     elif execution.get("model") != "opus":

@@ -147,10 +147,14 @@ def validate_provider_config(config: dict[str, Any], requested_provider: str) ->
     execution = config.get("execution", {}) or {}
     if execution.get("command") != "claude":
         raise ValueError("external reviewers must set execution.command: claude")
+    if execution.get("sandbox_mode") != "require_escalated":
+        raise ValueError("Claude Code external reviewers must set execution.sandbox_mode: require_escalated")
     if execution.get("output_format") != "json":
         raise ValueError("external reviewers must set execution.output_format: json")
     if execution.get("permission_mode") != "plan":
         raise ValueError("external reviewers must set execution.permission_mode: plan")
+    if str(execution.get("tools", "")) != "":
+        raise ValueError('Claude Code external reviewers must set execution.tools: ""')
     if "model" not in execution:
         raise ValueError("external reviewers must declare execution.model: opus")
     if "effort" not in execution:
@@ -697,6 +701,12 @@ def extract_provider_reviewer_report(raw: dict[str, Any], provider: str) -> dict
     return parsed
 
 
+def normalization_method(raw: dict[str, Any], provider: str) -> str:
+    if provider == "claude-code" and raw.get("type") == "result":
+        return "deterministic-extraction"
+    return "native-json"
+
+
 def provider_failure_detail(raw_text: str, stderr: str) -> str:
     if stderr.strip():
         return stderr.strip()
@@ -837,6 +847,8 @@ def main() -> int:
             "command": command_display,
             "execution_mode": "mock" if args.mock_response else "real",
             "permission_mode": str((config.get("execution", {}) or {}).get("permission_mode", "plan")),
+            "sandbox_mode": str((config.get("execution", {}) or {}).get("sandbox_mode", "require_escalated")),
+            "tools": str((config.get("execution", {}) or {}).get("tools", "")),
             "output_format": str((config.get("execution", {}) or {}).get("output_format", "json")),
             "requested_model": str((config.get("execution", {}) or {}).get("model", DEFAULT_CLAUDE_MODEL)),
             "requested_effort": str((config.get("execution", {}) or {}).get("effort", DEFAULT_CLAUDE_EFFORT)),
@@ -879,6 +891,14 @@ def main() -> int:
             raise ValueError("raw provider output must be a JSON object")
         reviewer_report = extract_provider_reviewer_report(raw_json, args.provider)
         normalized = normalize_report(reviewer_report, packet, args.provider)
+        normalization_trace = {
+            "method": normalization_method(raw_json, args.provider),
+            "source_path": str(raw_path),
+            "source_hash": raw_output_hash,
+            "schema_validation": "passed",
+            "normalized_by": "scripts/reviewers/run_external_reviewer.py",
+        }
+        normalized["normalization"] = normalization_trace
         normalization = config.get("normalization", {}) or {}
         if normalization.get("require_schema_validation") is True:
             schema_ref = (config.get("outputs", {}) or {}).get("reviewer_report_schema")
@@ -905,6 +925,11 @@ def main() -> int:
         invocation["stderr_path"] = str(stderr_path) if stderr else ""
         invocation["raw_output_hash"] = raw_output_hash
         invocation["normalized_output_hash"] = normalized_output_hash
+        invocation["normalization"] = {
+            **normalization_trace,
+            "output_path": str(output_path),
+            "output_hash": normalized_output_hash,
+        }
         invocation.update(provider_invocation_metadata(raw_json))
         invocation_path.parent.mkdir(parents=True, exist_ok=True)
         invocation_path.write_text(json.dumps(invocation, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

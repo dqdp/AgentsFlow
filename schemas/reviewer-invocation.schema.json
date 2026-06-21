@@ -12,6 +12,8 @@
     "context_policy",
     "command",
     "execution_mode",
+    "sandbox_mode",
+    "tools",
     "started_at",
     "finished_at",
     "exit_code"
@@ -62,6 +64,12 @@
     },
     "permission_mode": {
       "type": "string"
+    },
+    "sandbox_mode": {
+      "const": "require_escalated"
+    },
+    "tools": {
+      "const": ""
     },
     "output_format": {
       "type": "string"
@@ -135,6 +143,38 @@
     },
     "normalized_output_hash": {
       "type": "string"
+    },
+    "normalization": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "method": {
+          "enum": [
+            "native-json",
+            "deterministic-extraction",
+            "orchestrator-extraction",
+            "model-structured-extraction"
+          ]
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "source_hash": {
+          "type": "string"
+        },
+        "output_path": {
+          "type": "string"
+        },
+        "output_hash": {
+          "type": "string"
+        },
+        "schema_validation": {
+          "const": "passed"
+        },
+        "normalized_by": {
+          "type": "string"
+        }
+      }
     }
   }
 }

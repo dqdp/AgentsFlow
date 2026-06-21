@@ -190,6 +190,41 @@ def _require_concrete_hash(path: Path, label: str, declared: object, actual: str
         errors.append(f"{path}: {label} hash mismatch: declared {declared}, computed {actual}")
 
 
+def _validate_reviewer_report_normalization(root: Path, path: Path, data: dict, errors: list[str]) -> None:
+    normalization = data.get("normalization")
+    if not isinstance(normalization, dict):
+        return
+    if "output_hash" in normalization:
+        errors.append(f"{path}: normalization.output_hash must be recorded outside reviewer-report JSON")
+    source_ref = normalization.get("source_path")
+    if not source_ref:
+        return
+    source_path = Path(str(source_ref))
+    if source_path.is_absolute():
+        resolved = source_path
+        if not _is_within_path(resolved, root):
+            errors.append(f"{path}: normalization.source_path must be inside repository root: {source_ref}")
+            return
+    elif ".." in source_path.parts:
+        errors.append(f"{path}: normalization.source_path must be relative and non-escaping: {source_ref}")
+        return
+    else:
+        resolved = root / source_path
+    if not resolved.exists():
+        errors.append(f"{path}: normalization.source_path does not exist: {source_ref}")
+        return
+    if not resolved.is_file():
+        errors.append(f"{path}: normalization.source_path must be a file artifact: {source_ref}")
+        return
+    _require_concrete_hash(
+        path,
+        "normalization.source_hash",
+        normalization.get("source_hash"),
+        sha256_file(resolved),
+        errors,
+    )
+
+
 def _render_expected_review_prompt(packet: dict, role_contract: dict) -> str:
     return render_review_prompt(packet, role_contract)
 
@@ -972,6 +1007,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             report_data = parse_json(report_path)
             errors.extend(validate_against_schema(report_path, report_data, reviewer_report_schema))
             if isinstance(report_data, dict):
+                _validate_reviewer_report_normalization(root, report_path, report_data, errors)
                 report_reviewer = report_data.get("reviewer", {}) or {}
                 if isinstance(report_reviewer, dict):
                     report_reviewer_id = str(report_reviewer.get("id") or "")
@@ -1447,11 +1483,14 @@ def validate_evidence_probe_report_artifact(root: Path, path: Path) -> list[str]
 
 
 def validate_reviewer_report_artifact(root: Path, path: Path) -> list[str]:
+    errors: list[str] = []
     schema = parse_json(root / "schemas" / "reviewer-report.schema.json")
     data = parse_json(path)
     if not isinstance(data, dict):
         return [f"{path}: reviewer report must be a JSON object"]
-    return validate_against_schema(path, data, schema)
+    errors.extend(validate_against_schema(path, data, schema))
+    _validate_reviewer_report_normalization(root, path, data, errors)
+    return errors
 
 
 def validate_enabled_review_minimum(

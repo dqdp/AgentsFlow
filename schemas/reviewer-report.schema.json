@@ -43,6 +43,25 @@
     "self_declared_limitations": {
       "type": "array",
       "items": {"type": "string"}
+    },
+    "normalization": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["method", "source_path", "source_hash", "schema_validation", "normalized_by"],
+      "properties": {
+        "method": {
+          "enum": [
+            "native-json",
+            "deterministic-extraction",
+            "orchestrator-extraction",
+            "model-structured-extraction"
+          ]
+        },
+        "source_path": {"type": "string"},
+        "source_hash": {"type": "string"},
+        "schema_validation": {"const": "passed"},
+        "normalized_by": {"type": "string"}
+      }
     }
   }
 }

@@ -78,17 +78,33 @@
     },
     "execution": {
       "type": "object",
-      "required": ["command", "output_format", "permission_mode", "model", "effort", "use_bare_mode", "no_session_persistence"],
+      "required": [
+        "command",
+        "sandbox_mode",
+        "output_format",
+        "permission_mode",
+        "tools",
+        "model",
+        "effort",
+        "use_bare_mode",
+        "no_session_persistence"
+      ],
       "additionalProperties": true,
       "properties": {
         "command": {
           "const": "claude"
+        },
+        "sandbox_mode": {
+          "const": "require_escalated"
         },
         "output_format": {
           "const": "json"
         },
         "permission_mode": {
           "const": "plan"
+        },
+        "tools": {
+          "const": ""
         },
         "model": {
           "const": "opus"
@@ -161,6 +177,9 @@
       "properties": {
         "require_schema_validation": {
           "const": true
+        },
+        "record_trace": {
+          "type": "boolean"
         }
       }
     }

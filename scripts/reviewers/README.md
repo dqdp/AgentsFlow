@@ -18,16 +18,23 @@ The wrapper:
 - validates subscription-local-only policy;
 - fails if configured forbidden Claude API/proxy environment variables are present in the process environment or Claude settings files;
 - invokes Claude Code with the v0.2 default `--model opus --effort max` unless the config already resolves to those defaults;
+- requires `execution.sandbox_mode: require_escalated` when launched from Codex
+  so Claude Code can access subscription-local auth/keychain state;
+- invokes Claude Code with `--tools ""` so the reviewer is packet-bound and
+  cannot read files outside the prepared review packet;
 - loads a review packet;
 - invokes the provider or a mock response for smoke testing;
 - normalizes raw provider output into `reviewer-report.json`;
-- stores raw output and invocation metadata, including requested model/effort and provider-reported model usage when available.
+- stores raw output and invocation metadata, including requested model/effort,
+  provider-reported model usage and normalization trace when available.
 
 Reviewer prompts prioritize substantive review quality over native JSON
 serialization. A successful gate still requires a normalized
 `reviewer-report.json`: if a provider returns clear Markdown/text that the
 wrapper cannot auto-normalize, the raw output is evidence for explicit
 orchestrator normalization or a rerun, not completed gate evidence.
+The reviewer report records the normalization source path/hash. The normalized
+report output hash is stored in invocation metadata, not inside the report.
 
 ## Review-set runner
 

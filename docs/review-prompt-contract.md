@@ -75,6 +75,11 @@ Markdown or chat text, but the main/orchestrating agent must normalize that
 content into `schemas/reviewer-report.schema.json` before it can satisfy
 `reviewer_assignments[].report_path`. The raw Markdown/text may be retained as
 a sidecar or source transcript; it is not itself reviewer-report gate evidence.
+When a normalized report is derived from a raw source, the report should record
+`normalization.method`, `source_path`, `source_hash`, `schema_validation` and
+`normalized_by`. The normalized report must not contain its own `output_hash`;
+that hash belongs in invocation metadata or another external evidence artifact
+to avoid self-referential hashes.
 
 `provider_policy.require_model_diversity: true` means the assignments must
 prove at least `min_distinct_provider_model_families` distinct

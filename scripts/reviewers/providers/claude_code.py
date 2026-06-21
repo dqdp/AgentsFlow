@@ -42,6 +42,8 @@ def build_command(config: dict, prompt: str) -> list[str]:
     if permission_mode:
         args.extend(["--permission-mode", str(permission_mode)])
 
+    args.extend(["--tools", str(execution.get("tools", ""))])
+
     model = execution.get("model", DEFAULT_MODEL)
     if model:
         args.extend(["--model", str(model)])
