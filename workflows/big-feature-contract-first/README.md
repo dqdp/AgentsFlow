@@ -54,6 +54,14 @@ the plan is grounded, scoped, testable and ready for implementation; it is not a
 prose-only step. Project bindings inherit the workflow default unless they
 explicitly record a strictness override reason.
 
+Passing the plan gate is necessary but not sufficient to enter red-capture. The
+workflow includes a human-mediated `contract_acceptance` after the plan gate
+and before red-capture. The main agent presents the contract, behavior bindings,
+risk surface profile, Failure Path Matrix, impact map and technical plan; the
+human accepts them for red-capture or requests changes. The agent records the
+normalized decision in `human-decisions.yaml` and updates run metadata before
+red-capture may begin.
+
 After review, fixes are classified as material or non-material before deciding
 whether another review cycle is required. A P2 finding can still produce a
 material fix if the fix changes schemas, validators, workflow policy, bindings,

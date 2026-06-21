@@ -70,6 +70,7 @@ def validate_big_feature_plan_gate_policy(path: Path, data: dict) -> list[str]:
     phase_by_id = {str(phase.get("id")): phase for phase in phases if phase.get("id")}
     technical_plan = phase_by_id.get("technical_plan")
     plan_gate = phase_by_id.get("plan_gate")
+    contract_acceptance = phase_by_id.get("contract_acceptance")
     red_capture = phase_by_id.get("red_capture")
     required_plan_artifacts = {
         "repository-grounding-report.md",
@@ -100,10 +101,29 @@ def validate_big_feature_plan_gate_policy(path: Path, data: dict) -> list[str]:
         runs_after = set(str(item) for item in plan_gate.get("runs_after", []) or [])
         if "technical_plan" not in runs_after:
             errors.append(f"{path}: plan_gate phase must run after technical_plan")
+    if not isinstance(contract_acceptance, dict):
+        errors.append(
+            f"{path}: big-feature-contract-first must include contract_acceptance phase"
+        )
+    else:
+        if contract_acceptance.get("kind") != "decision":
+            errors.append(f"{path}: contract_acceptance phase must be kind decision")
+        human_interaction = contract_acceptance.get("human_interaction", {}) or {}
+        if human_interaction.get("required") is not True:
+            errors.append(
+                f"{path}: contract_acceptance human_interaction.required must be true"
+            )
+        runs_after = set(str(item) for item in contract_acceptance.get("runs_after", []) or [])
+        if "plan_gate" not in runs_after:
+            errors.append(f"{path}: contract_acceptance phase must run after plan_gate")
     if isinstance(red_capture, dict):
         runs_after = set(str(item) for item in red_capture.get("runs_after", []) or [])
         if "plan_gate" not in runs_after:
             errors.append(f"{path}: red_capture phase must run after plan_gate")
+        if "contract_acceptance" not in runs_after:
+            errors.append(
+                f"{path}: red_capture phase must run after contract_acceptance"
+            )
         if red_capture.get("runs_after_policy") != "after_applicable_strictness_gate":
             errors.append(f"{path}: red_capture phase must use after_applicable_strictness_gate runs_after_policy")
     review_gates = set(str(item) for item in ((data.get("review", {}) or {}).get("gates", []) or []))

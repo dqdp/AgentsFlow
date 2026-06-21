@@ -503,6 +503,34 @@ def test_project_binding_rejects_wrong_upstream_gate_id(tmp_path) -> None:
     assert "extends upstream gate id contract_gate" in (result.stdout + result.stderr)
 
 
+def test_big_feature_requires_contract_acceptance() -> None:
+    import copy
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from repo_validation.workflows import validate_big_feature_plan_gate_policy
+
+    workflow_path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    assert validate_big_feature_plan_gate_policy(workflow_path, workflow) == []
+
+    without_acceptance = copy.deepcopy(workflow)
+    without_acceptance["phases"] = [
+        phase
+        for phase in without_acceptance["phases"]
+        if phase.get("id") != "contract_acceptance"
+    ]
+    errors = validate_big_feature_plan_gate_policy(workflow_path, without_acceptance)
+    assert any("contract_acceptance" in error for error in errors)
+
+    without_red_dependency = copy.deepcopy(workflow)
+    for phase in without_red_dependency["phases"]:
+        if phase.get("id") == "red_capture":
+            phase["runs_after"] = ["plan_gate"]
+    errors = validate_big_feature_plan_gate_policy(workflow_path, without_red_dependency)
+    assert any("red_capture phase must run after contract_acceptance" in error for error in errors)
+
+
 def test_project_binding_rejects_path_escape(tmp_path) -> None:
     import shutil
     import yaml

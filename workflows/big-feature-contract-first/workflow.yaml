@@ -187,7 +187,7 @@ phases:
     - answered
     - unresolved
 - name: contract
-  purpose: Write/approve task contract, including operating context preflight,
+  purpose: Write the task contract draft, including operating context preflight,
     selected risk surfaces, Failure Path Matrix when required, and classified
     open questions.
   skills:
@@ -201,6 +201,7 @@ phases:
   - risk surface profile in task.contract.md
   - Failure Path Matrix in task.contract.md when selected risk surfaces require it
   - grouped decision packet when needed
+  - draft contract awaiting human acceptance before red capture
   id: contract
   kind: specification
   mode: human_guided
@@ -276,6 +277,30 @@ phases:
   - L3
   - L4
   owns_evidence_production: true
+- name: contract-acceptance
+  id: contract_acceptance
+  kind: decision
+  mode: human_guided
+  coordinator: main-agent
+  purpose: Human-mediated acceptance of the task contract, behavior bindings,
+    risk surface profile, Failure Path Matrix, impact map and technical plan
+    before red-capture or implementation begins.
+  runs_after:
+  - plan_gate
+  outputs:
+  - human contract acceptance decision in human-decisions.yaml
+  - accepted-for-red-capture status in run metadata
+  human_interaction:
+    can_pause: true
+    required: true
+    prompt_source: task.contract.md and plan artifacts
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: run.yaml
+    allowed_resume_states:
+    - accepted_for_red_capture
+    - changes_requested
+    - rejected
 - name: red-capture
   purpose: Turn contract scenarios into executable tests and run them against the
     not-yet-implemented state, capturing the expected failing result. Required
@@ -283,6 +308,7 @@ phases:
     deferred before this phase starts.
   runs_after:
   - plan_gate
+  - contract_acceptance
   runs_after_policy: after_applicable_strictness_gate
   skills:
   - evidence-reporting
