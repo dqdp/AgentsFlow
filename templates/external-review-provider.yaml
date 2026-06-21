@@ -24,7 +24,9 @@ execution:
   mode: non_interactive_print
   output_format: json
   permission_mode: plan
-  timeout_seconds: 600
+  model: opus
+  effort: max
+  timeout_seconds: 900
   max_turns: 3
   use_bare_mode: false
   no_session_persistence: true

@@ -540,6 +540,7 @@ def test_project_assessment_synthesis_validates_referenced_role_reports(tmp_path
 
     sys.path.insert(0, str(ROOT / "scripts"))
     import validate_repo  # noqa: PLC0415
+    from repo_validation.review import _render_expected_review_prompt  # noqa: PLC0415
 
     run_dir = tmp_path / "project-initialization"
     shutil.copytree(ROOT / "examples" / "project-initialization", run_dir)
@@ -1740,6 +1741,35 @@ def test_review_prompt_contract_schema_requires_verification_gate_report_input()
     assert list(validator.iter_errors(whitespace_gate))
 
 
+def test_review_prompt_contract_template_assignments_use_invocation_set_evidence() -> None:
+    import yaml
+
+    contract = yaml.safe_load((ROOT / "templates/review-prompt-contract.yaml").read_text(encoding="utf-8"))
+    assert contract.get("reviewer_assignments")
+    assert contract["inputs"]["evidence_report"].endswith("review-invocation-set.json")
+
+
+def test_external_wrapper_rejects_assignments_without_evidence_report() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+
+    contract = yaml.safe_load((ROOT / "templates/review-prompt-contract.yaml").read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["inputs"].pop("evidence_report", None)
+
+    try:
+        run_external_reviewer.validate_prompt_contract_invariants(broken)
+    except ValueError as exc:
+        assert "inputs.evidence_report" in str(exc)
+    else:
+        raise AssertionError("assignment-enabled contract without evidence_report was accepted")
+
+
 def test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources() -> None:
     import copy
     import json
@@ -1929,6 +1959,63 @@ def test_review_prompt_contract_rejects_run_artifact_drift(tmp_path) -> None:
     errors = validate_repo.validate_review_prompt_contract_run_references(root, copied_path, copied_contract)
     assert errors
     assert "must have exactly one sibling shared-content.json" in "\n".join(errors)
+
+
+def test_review_prompt_contract_allows_provider_as_shared_packet_envelope_field(tmp_path) -> None:
+    import hashlib
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+    from repo_validation.review import _render_expected_review_prompt  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-mixed-provider-shared-packet"
+    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    packet_dir = run_dir / "review-packets"
+    shared_content_path = packet_dir / "shared-content.json"
+    shared_content = json.loads(shared_content_path.read_text(encoding="utf-8"))
+    shared_content["excluded_envelope_fields"] = ["reviewer_instance_id", "provider"]
+    shared_content_path.write_text(json.dumps(shared_content, indent=2) + "\n", encoding="utf-8")
+    shared_content_hash = "sha256:" + hashlib.sha256(shared_content_path.read_bytes()).hexdigest()
+
+    role_path = root / "profiles/reviewer_roles/generalist.yaml"
+    role_data = yaml.safe_load(role_path.read_text(encoding="utf-8"))
+    packet_providers = {
+        "generalist-a": "internal-agent",
+        "generalist-b": "claude-code",
+    }
+    packet_hashes: dict[str, str] = {}
+    for reviewer, provider in packet_providers.items():
+        packet_path = packet_dir / f"{reviewer}.json"
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        packet["provider"] = provider
+        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+        packet_hashes[reviewer] = "sha256:" + hashlib.sha256(packet_path.read_bytes()).hexdigest()
+
+        prompt_path = run_dir / "review-prompts" / f"{reviewer}.md"
+        prompt_path.write_text(_render_expected_review_prompt(packet, role_data), encoding="utf-8")
+        prompt_hash = "sha256:" + hashlib.sha256(prompt_path.read_bytes()).hexdigest()
+        for rendered in contract["rendered_prompts"]:
+            if rendered["reviewer"] == reviewer:
+                rendered["prompt_hash"] = prompt_hash
+                rendered["packet_hash"] = packet_hashes[reviewer]
+                rendered["shared_packet_content_hash"] = shared_content_hash
+
+    for packet_ref in contract["inputs"]["review_packets"]:
+        reviewer = packet_ref["reviewer"]
+        packet_ref["packet_hash"] = packet_hashes[reviewer]
+        packet_ref["shared_packet_content_hash"] = shared_content_hash
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
 
 
 def test_review_prompt_contract_rejects_missing_run_references() -> None:
@@ -4146,6 +4233,8 @@ def test_project_raw_scan_runs(tmp_path) -> None:
 
 
 def test_external_reviewer_wrapper_mock_passes(tmp_path) -> None:
+    import json
+
     out = tmp_path / "reviewer-report.claude-architecture.json"
     result = run(
         "scripts/reviewers/run_external_reviewer.py",
@@ -4158,6 +4247,221 @@ def test_external_reviewer_wrapper_mock_passes(tmp_path) -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert out.exists()
+    invocation = json.loads(out.with_suffix(".invocation.json").read_text(encoding="utf-8"))
+    assert invocation["requested_model"] == "opus"
+    assert invocation["requested_effort"] == "max"
+
+
+def test_claude_code_provider_command_defaults_model_and_effort() -> None:
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    from providers import claude_code  # noqa: PLC0415
+
+    cmd = claude_code.build_command(
+        {
+            "execution": {
+                "command": "claude",
+                "output_format": "json",
+                "permission_mode": "plan",
+                "max_turns": 3,
+                "no_session_persistence": True,
+                "use_bare_mode": False,
+            }
+        },
+        "prompt",
+    )
+    assert "--model" in cmd
+    assert cmd[cmd.index("--model") + 1] == "opus"
+    assert "--effort" in cmd
+    assert cmd[cmd.index("--effort") + 1] == "max"
+
+
+def test_claude_code_provider_defaults_timeout_to_900_seconds(monkeypatch) -> None:
+    import sys
+    from types import SimpleNamespace
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    from providers import claude_code  # noqa: PLC0415
+
+    captured: dict[str, object] = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["timeout"] = kwargs.get("timeout")
+        return SimpleNamespace(stdout="{}", stderr="", returncode=0)
+
+    monkeypatch.setattr(claude_code.subprocess, "run", fake_run)
+    result = claude_code.invoke({"execution": {"command": "claude"}}, "prompt", cwd=ROOT)
+    assert result.exit_code == 0
+    assert captured["timeout"] == 900
+
+
+def test_external_reviewer_wrapper_normalizes_claude_code_envelope(tmp_path) -> None:
+    import json
+
+    reviewer_report = {
+        "reviewer": {
+            "id": "claude-code-architecture",
+            "provider": "claude-code",
+            "role": "architecture",
+        },
+        "summary": "Envelope summary",
+        "findings": [
+            {
+                "id": "ARCH-ENV",
+                "severity": "P2",
+                "focus_area": "external-reviewer-normalization",
+                "title": "Envelope finding",
+                "evidence": ["raw.result", "parser literal fence ``` inside JSON string"],
+                "rationale": "The wrapper must normalize the nested Claude Code result.",
+                "recommendation": "Parse result JSON before reviewer-report normalization.",
+            }
+        ],
+    }
+    raw = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": "Returning the reviewer report as required.\n\n```json\n" + json.dumps(reviewer_report) + "\n```",
+        "total_cost_usd": 1.23,
+        "usage": {
+            "service_tier": "standard",
+            "speed": "standard",
+        },
+        "modelUsage": {
+            "claude-haiku-4-5-20251001": {
+                "inputTokens": 10,
+                "outputTokens": 1,
+            },
+            "claude-opus-4-8[1m]": {
+                "inputTokens": 100,
+                "outputTokens": 10,
+            },
+        },
+    }
+    raw_path = tmp_path / "claude-envelope.json"
+    raw_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+    out = tmp_path / "reviewer-report.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", str(raw_path),
+        "--output", str(out),
+        env=clean_env(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    normalized = json.loads(out.read_text(encoding="utf-8"))
+    assert normalized["summary"] == "Envelope summary"
+    assert normalized["findings"][0]["id"] == "ARCH-ENV"
+    assert normalized["findings"][0]["category"] == "external-reviewer-normalization"
+    assert normalized["findings"][0]["why_it_matters"] == "The wrapper must normalize the nested Claude Code result."
+    invocation = json.loads(out.with_suffix(".invocation.json").read_text(encoding="utf-8"))
+    assert invocation["requested_model"] == "opus"
+    assert invocation["requested_effort"] == "max"
+    assert invocation["provider_models_used"] == [
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-8[1m]",
+    ]
+    assert invocation["provider_total_cost_usd"] == 1.23
+    assert invocation["provider_service_tier"] == "standard"
+    assert invocation["provider_speed"] == "standard"
+
+
+def test_external_reviewer_wrapper_rejects_non_json_claude_code_envelope(tmp_path) -> None:
+    import json
+
+    raw_path = tmp_path / "claude-envelope.json"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "result": "No findings.",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "reviewer-report.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", str(raw_path),
+        "--output", str(out),
+        env=clean_env(),
+    )
+    assert result.returncode != 0
+    assert "result must contain reviewer-report JSON" in (result.stdout + result.stderr)
+
+
+def test_external_reviewer_wrapper_rejects_empty_or_unrelated_json_envelope(tmp_path) -> None:
+    import json
+
+    for result_text in ["{}", 'prologue {"note": "not a reviewer report"}']:
+        raw_path = tmp_path / "claude-envelope.json"
+        raw_path.write_text(
+            json.dumps(
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "is_error": False,
+                    "result": result_text,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        out = tmp_path / "reviewer-report.json"
+
+        result = run(
+            "scripts/reviewers/run_external_reviewer.py",
+            "--provider", "claude-code",
+            "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+            "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+            "--mock-response", str(raw_path),
+            "--output", str(out),
+            env=clean_env(),
+        )
+        assert result.returncode != 0
+        assert "result must contain reviewer-report JSON" in (result.stdout + result.stderr)
+
+
+def test_external_reviewer_wrapper_rejects_bare_unrelated_json(tmp_path) -> None:
+    import json
+
+    raw_path = tmp_path / "claude-bare-unrelated.json"
+    raw_path.write_text(
+        json.dumps(
+            {
+                "kind": "unrelated-report",
+                "note": "This is valid JSON but not a reviewer report.",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "reviewer-report.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", str(raw_path),
+        "--output", str(out),
+        env=clean_env(),
+    )
+    assert result.returncode != 0
+    assert "result must contain reviewer-report JSON" in (result.stdout + result.stderr)
+    assert not out.exists()
 
 
 def test_external_reviewer_wrapper_rejects_invalid_packet_schema(tmp_path) -> None:
@@ -4300,6 +4604,38 @@ def test_external_reviewer_wrapper_rejects_non_claude_command(tmp_path) -> None:
     assert "execution.command: claude" in (result.stdout + result.stderr)
 
 
+def test_external_reviewer_wrapper_rejects_non_default_model_or_effort(tmp_path) -> None:
+    import yaml
+
+    base_config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    for key, value, expected in [
+        ("model", "sonnet", "execution.model"),
+        ("effort", "high", "execution.effort"),
+    ]:
+        config = dict(base_config)
+        config["execution"] = dict(base_config["execution"])
+        config["execution"][key] = value
+        config_path = tmp_path / f"claude-code-{key}.yaml"
+        config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+        out = tmp_path / f"reviewer-report-{key}.json"
+
+        result = run(
+            "scripts/reviewers/run_external_reviewer.py",
+            "--provider", "claude-code",
+            "--config", str(config_path),
+            "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+            "--mock-response", "examples/external-reviewers/claude-code/mock-raw-output.json",
+            "--output", str(out),
+            env=clean_env(),
+        )
+        assert result.returncode != 0
+        assert expected in (result.stdout + result.stderr)
+
+
 def test_external_reviewer_wrapper_rejects_invalid_finding_severity(tmp_path) -> None:
     import json
 
@@ -4367,3 +4703,930 @@ def test_external_reviewer_wrapper_rejects_forbidden_env(tmp_path) -> None:
         )
         assert result.returncode != 0
         assert env_name in (result.stdout + result.stderr)
+
+
+def test_external_reviewer_wrapper_rejects_forbidden_claude_settings_env(tmp_path) -> None:
+    import json
+
+    config_dir = tmp_path / "claude-config"
+    config_dir.mkdir()
+    settings = config_dir / "__settings.json"
+    settings.write_text(
+        json.dumps(
+            {
+                "env": {
+                    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+                }
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    env = clean_env()
+    env["CLAUDE_CONFIG_DIR"] = str(config_dir)
+    out = tmp_path / "reviewer-report.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", "examples/external-reviewers/claude-code/mock-raw-output.json",
+        "--output", str(out),
+        env=env,
+    )
+    joined = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert "Forbidden Claude API/proxy setting" in joined
+    assert "ANTHROPIC_BASE_URL" in joined
+    assert "api.z.ai" not in joined
+
+
+def test_review_prompt_contract_rejects_model_diversity_without_distinct_assignments() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["provider_policy"] = {
+        "require_model_diversity": True,
+        "min_distinct_provider_model_families": 2,
+    }
+    broken["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][0]["path"],
+            "report_path": "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-a.json",
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][1]["path"],
+            "report_path": "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-b.json",
+        },
+    ]
+
+    errors = validate_repo.validate_review_prompt_contract_invariants(ROOT, path, broken, True)
+    assert errors
+    assert "model diversity" in "\n".join(errors)
+
+
+def test_review_prompt_contract_assignments_require_review_set_evidence() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": True,
+        "min_distinct_provider_model_families": 2,
+    }
+    broken["inputs"].pop("evidence_report", None)
+    broken["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][0]["path"],
+            "report_path": "missing/internal-report.json",
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "claude-code",
+            "model_family": "opus",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "packet_path": broken["inputs"]["review_packets"][1]["path"],
+            "report_path": "missing/claude-report.json",
+            "raw_output_path": "missing/claude-raw.json",
+            "invocation_metadata_path": "missing/claude-invocation.json",
+        },
+    ]
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, broken)
+    joined = "\n".join(errors)
+    assert "review_invocation_set" in joined
+    assert "report_path" in joined
+
+
+def test_review_prompt_contract_model_diversity_requires_model_evidence(tmp_path) -> None:
+    import copy
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    for rel in ["schemas", "profiles", "templates/review-prompts"]:
+        shutil.copytree(ROOT / rel, root / rel)
+    run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
+    shutil.copytree(ROOT / run_rel, root / run_rel)
+    contract_path = root / run_rel / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+
+    reports_dir = run_rel / "review-reports"
+    (root / reports_dir).mkdir(exist_ok=True)
+    internal_report = reports_dir / "reviewer-report.codex-generalist-a.json"
+    (root / internal_report).write_text(
+        json.dumps(
+            {
+                "reviewer": {
+                    "id": "codex-generalist-a",
+                    "provider": "internal-agent",
+                    "role": "generalist",
+                    "model": "codex",
+                },
+                "summary": "Internal report.",
+                "findings": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    claude_report = reports_dir / "reviewer-report.claude-generalist-b.json"
+    (root / claude_report).write_text(
+        json.dumps(
+            {
+                "reviewer": {
+                    "id": "claude-generalist-b",
+                    "provider": "claude-code",
+                    "role": "generalist",
+                    "model": "opus",
+                },
+                "summary": "Claude report.",
+                "findings": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    claude_raw = reports_dir / "reviewer-report.claude-generalist-b.raw.json"
+    (root / claude_raw).write_text(json.dumps({"type": "result", "result": "{}"}, indent=2), encoding="utf-8")
+    claude_invocation = reports_dir / "reviewer-invocation.claude-generalist-b.json"
+    (root / claude_invocation).write_text(
+        json.dumps(
+            {
+                "provider": "claude-code",
+                "reviewer_role": "generalist",
+                "billing_mode": "subscription-local",
+                "api_key_usage_forbidden": True,
+                "context_policy": {
+                    "start_mode": "fresh_context",
+                    "fork_conversation_context": False,
+                    "session_persistence": False,
+                },
+                "command": "claude -p <prompt>",
+                "requested_model": "opus",
+                "requested_effort": "max",
+                "provider_models_used": ["claude-sonnet-4"],
+                "started_at": "2026-06-21T00:00:00+00:00",
+                "finished_at": "2026-06-21T00:00:01+00:00",
+                "exit_code": 0,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    invocation_set = run_rel / "review-invocation-set.json"
+    (root / invocation_set).write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                "status": "completed",
+                "provider_model_families": [
+                    "internal-agent/codex",
+                    "claude-code/opus",
+                ],
+                "reviewers": [
+                    {
+                        "reviewer": "generalist-a",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "packet_path": broken["inputs"]["review_packets"][0]["path"],
+                        "report_path": str(internal_report),
+                        "status": "report-present",
+                    },
+                    {
+                        "reviewer": "generalist-b",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "packet_path": broken["inputs"]["review_packets"][1]["path"],
+                        "report_path": str(claude_report),
+                        "raw_output_path": str(claude_raw),
+                        "invocation_metadata_path": str(claude_invocation),
+                        "status": "invoked",
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    broken["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": True,
+        "min_distinct_provider_model_families": 2,
+    }
+    broken["inputs"]["evidence_report"] = str(invocation_set)
+    broken["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][0]["path"],
+            "report_path": str(internal_report),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "claude-code",
+            "model_family": "opus",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "packet_path": broken["inputs"]["review_packets"][1]["path"],
+            "report_path": str(claude_report),
+            "raw_output_path": str(claude_raw),
+            "invocation_metadata_path": str(claude_invocation),
+        },
+    ]
+    (root / "examples/external-reviewers/claude-code").mkdir(parents=True, exist_ok=True)
+    shutil.copy(
+        ROOT / "examples/external-reviewers/claude-code/claude-code.yaml",
+        root / "examples/external-reviewers/claude-code/claude-code.yaml",
+    )
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, broken)
+    joined = "\n".join(errors)
+    assert "provider_models_used" in joined
+    assert "review_invocation_set does not prove" in joined
+
+
+def test_review_prompt_contract_rejects_mock_external_review_evidence(tmp_path) -> None:
+    import copy
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    for rel in ["schemas", "profiles", "templates/review-prompts"]:
+        shutil.copytree(ROOT / rel, root / rel)
+    run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
+    shutil.copytree(ROOT / run_rel, root / run_rel)
+    contract_path = root / run_rel / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    reports_dir = run_rel / "review-reports"
+    (root / reports_dir).mkdir(exist_ok=True)
+
+    internal_report = reports_dir / "reviewer-report.codex-generalist-a.json"
+    claude_report = reports_dir / "reviewer-report.claude-generalist-b.json"
+    claude_raw = reports_dir / "reviewer-report.claude-generalist-b.raw.json"
+    claude_invocation = reports_dir / "reviewer-invocation.claude-generalist-b.json"
+    for report, provider, model in [
+        (internal_report, "internal-agent", "codex"),
+        (claude_report, "claude-code", "opus"),
+    ]:
+        reviewer_id = "codex-generalist-a" if provider == "internal-agent" else "claude-generalist-b"
+        (root / report).write_text(
+            json.dumps(
+                {
+                    "reviewer": {
+                        "id": reviewer_id,
+                        "provider": provider,
+                        "role": "generalist",
+                        "model": model,
+                    },
+                    "summary": "Report.",
+                    "findings": [],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    (root / claude_raw).write_text(json.dumps({"type": "result", "result": "{}"}, indent=2), encoding="utf-8")
+    (root / claude_invocation).write_text(
+        json.dumps(
+            {
+                "provider": "claude-code",
+                "reviewer_role": "generalist",
+                "billing_mode": "subscription-local",
+                "api_key_usage_forbidden": True,
+                "context_policy": {
+                    "start_mode": "fresh_context",
+                    "fork_conversation_context": False,
+                    "session_persistence": False,
+                },
+                "command": "mock-response",
+                "execution_mode": "mock",
+                "requested_model": "opus",
+                "requested_effort": "max",
+                "provider_models_used": ["claude-opus-4-8"],
+                "started_at": "2026-06-21T00:00:00+00:00",
+                "finished_at": "2026-06-21T00:00:01+00:00",
+                "exit_code": 0,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    invocation_set = run_rel / "review-invocation-set.json"
+    (root / invocation_set).write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                "status": "completed",
+                "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
+                "reviewers": [
+                    {
+                        "reviewer": "generalist-a",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "evidence_model_family": "codex",
+                        "packet_path": broken["inputs"]["review_packets"][0]["path"],
+                        "report_path": str(internal_report),
+                        "status": "report-present",
+                    },
+                    {
+                        "reviewer": "generalist-b",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "evidence_model_family": "opus",
+                        "packet_path": broken["inputs"]["review_packets"][1]["path"],
+                        "report_path": str(claude_report),
+                        "raw_output_path": str(claude_raw),
+                        "invocation_metadata_path": str(claude_invocation),
+                        "execution_mode": "mock",
+                        "status": "invoked",
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    broken["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": True,
+        "min_distinct_provider_model_families": 2,
+    }
+    broken["inputs"]["evidence_report"] = str(invocation_set)
+    broken["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][0]["path"],
+            "report_path": str(internal_report),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "claude-code",
+            "model_family": "opus",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "packet_path": broken["inputs"]["review_packets"][1]["path"],
+            "report_path": str(claude_report),
+            "raw_output_path": str(claude_raw),
+            "invocation_metadata_path": str(claude_invocation),
+        },
+    ]
+    (root / "examples/external-reviewers/claude-code").mkdir(parents=True, exist_ok=True)
+    shutil.copy(
+        ROOT / "examples/external-reviewers/claude-code/claude-code.yaml",
+        root / "examples/external-reviewers/claude-code/claude-code.yaml",
+    )
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, broken)
+    joined = "\n".join(errors)
+    assert "execution_mode must be real" in joined
+
+
+def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(tmp_path) -> None:
+    import copy
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    for rel in ["schemas", "profiles", "templates/review-prompts"]:
+        shutil.copytree(ROOT / rel, root / rel)
+    run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
+    shutil.copytree(ROOT / run_rel, root / run_rel)
+    (root / "examples/external-reviewers/claude-code").mkdir(parents=True, exist_ok=True)
+    shutil.copy(
+        ROOT / "examples/external-reviewers/claude-code/claude-code.yaml",
+        root / "examples/external-reviewers/claude-code/claude-code.yaml",
+    )
+    contract_path = root / run_rel / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    reports_dir = run_rel / "review-reports"
+    (root / reports_dir).mkdir(exist_ok=True)
+
+    internal_report = reports_dir / "reviewer-report.codex-generalist-a.json"
+    claude_report = reports_dir / "reviewer-report.claude-generalist-b.json"
+    claude_raw = reports_dir / "reviewer-report.claude-generalist-b.raw.json"
+    claude_invocation = reports_dir / "reviewer-invocation.claude-generalist-b.json"
+    invocation_set = run_rel / "review-invocation-set.json"
+
+    for report, provider, model in [
+        (internal_report, "internal-agent", "codex"),
+        (claude_report, "claude-code", "opus"),
+    ]:
+        reviewer_id = "codex-generalist-a" if provider == "internal-agent" else "claude-generalist-b"
+        (root / report).write_text(
+            json.dumps(
+                {
+                    "reviewer": {
+                        "id": reviewer_id,
+                        "provider": provider,
+                        "role": "generalist",
+                        "model": model,
+                    },
+                    "summary": "Report.",
+                    "findings": [],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    (root / claude_raw).write_text(json.dumps({"type": "result", "result": "{}"}, indent=2), encoding="utf-8")
+
+    contract["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": True,
+        "min_distinct_provider_model_families": 2,
+    }
+    contract["inputs"]["evidence_report"] = str(invocation_set)
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(internal_report),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "claude-code",
+            "model_family": "opus",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "packet_path": contract["inputs"]["review_packets"][1]["path"],
+            "report_path": str(claude_report),
+            "raw_output_path": str(claude_raw),
+            "invocation_metadata_path": str(claude_invocation),
+        },
+    ]
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    prompt_hash = next(
+        item["prompt_hash"] for item in contract["rendered_prompts"] if item["reviewer"] == "generalist-b"
+    )
+    packet_hash = "sha256:" + __import__("hashlib").sha256(
+        (root / contract["inputs"]["review_packets"][1]["path"]).read_bytes()
+    ).hexdigest()
+    role_hash = "sha256:" + __import__("hashlib").sha256(
+        (root / "profiles/reviewer_roles/generalist.yaml").read_bytes()
+    ).hexdigest()
+    schema_hash = "sha256:" + __import__("hashlib").sha256(
+        (root / "schemas/reviewer-report.schema.json").read_bytes()
+    ).hexdigest()
+    raw_hash = "sha256:" + __import__("hashlib").sha256((root / claude_raw).read_bytes()).hexdigest()
+    normalized_hash = "sha256:" + __import__("hashlib").sha256((root / claude_report).read_bytes()).hexdigest()
+    contract_hash = "sha256:" + __import__("hashlib").sha256(contract_path.read_bytes()).hexdigest()
+    rubric_hash = validate_repo.sha256_text(json.dumps(contract["prompt_policy"], sort_keys=True))
+
+    valid_invocation = {
+        "provider": "claude-code",
+        "reviewer_role": "generalist",
+        "billing_mode": "subscription-local",
+        "api_key_usage_forbidden": True,
+        "context_policy": {
+            "start_mode": "fresh_context",
+            "fork_conversation_context": False,
+            "session_persistence": False,
+        },
+        "command": "claude -p <prompt>",
+        "execution_mode": "real",
+        "requested_model": "opus",
+        "requested_effort": "max",
+        "provider_models_used": ["claude-opus-4-8"],
+        "input_hash": packet_hash,
+        "prompt_hash": prompt_hash,
+        "review_prompt_contract_hash": contract_hash,
+        "role_contract_hash": role_hash,
+        "rubric_hash": rubric_hash,
+        "schema_hash": schema_hash,
+        "raw_output_path": str(claude_raw),
+        "raw_output_hash": raw_hash,
+        "normalized_output_path": str(claude_report),
+        "normalized_output_hash": normalized_hash,
+        "started_at": "2026-06-21T00:00:00+00:00",
+        "finished_at": "2026-06-21T00:00:01+00:00",
+        "exit_code": 0,
+    }
+    (root / claude_invocation).write_text(json.dumps(valid_invocation, indent=2), encoding="utf-8")
+    (root / invocation_set).write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                "status": "completed",
+                "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
+                "reviewers": [
+                    {
+                        "reviewer": "generalist-a",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "evidence_model_family": "codex",
+                        "packet_path": contract["inputs"]["review_packets"][0]["path"],
+                        "report_path": str(internal_report),
+                        "status": "report-present",
+                    },
+                    {
+                        "reviewer": "generalist-b",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "evidence_model_family": "opus",
+                        "packet_path": contract["inputs"]["review_packets"][1]["path"],
+                        "report_path": str(claude_report),
+                        "raw_output_path": str(claude_raw),
+                        "invocation_metadata_path": str(claude_invocation),
+                        "execution_mode": "real",
+                        "status": "invoked",
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+
+    stale_hash = copy.deepcopy(valid_invocation)
+    stale_hash["input_hash"] = "sha256:" + "0" * 64
+    (root / claude_invocation).write_text(json.dumps(stale_hash, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "input_hash must match current review artifact" in "\n".join(errors)
+
+    failed_invocation = copy.deepcopy(valid_invocation)
+    failed_invocation["exit_code"] = 1
+    (root / claude_invocation).write_text(json.dumps(failed_invocation, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "exit_code must be 0" in "\n".join(errors)
+
+    stale_output_hash = copy.deepcopy(valid_invocation)
+    stale_output_hash["normalized_output_hash"] = "sha256:" + "0" * 64
+    (root / claude_invocation).write_text(json.dumps(stale_output_hash, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "normalized_output_hash must match current review artifact" in "\n".join(errors)
+
+    (root / claude_invocation).write_text(json.dumps(valid_invocation, indent=2), encoding="utf-8")
+    stale_report_identity = {
+        "reviewer": {
+            "id": "claude-generalist-stale",
+            "provider": "claude-code",
+            "role": "generalist",
+            "model": "opus",
+        },
+        "summary": "Claude report.",
+        "findings": [],
+    }
+    (root / claude_report).write_text(json.dumps(stale_report_identity, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer.id must include assigned reviewer generalist-b" in "\n".join(errors)
+
+
+def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
+    import json
+
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    internal_report_a = tmp_path / "reviewer-report.internal-generalist-a.json"
+    internal_report_b = tmp_path / "reviewer-report.internal-generalist-b.json"
+    for report, reviewer_id in [
+        (internal_report_a, "codex-generalist-a"),
+        (internal_report_b, "codex-generalist-b"),
+    ]:
+        report.write_text(
+            json.dumps(
+                {
+                    "reviewer": {
+                        "id": reviewer_id,
+                        "provider": "internal-agent",
+                        "role": "generalist",
+                        "model": "codex",
+                    },
+                    "summary": "Internal reviewer artifact exists.",
+                    "findings": [],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    external_raw = tmp_path / "mock-claude-generalist-b.raw.json"
+    external_raw.write_text(
+        json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "result": json.dumps(
+                    {
+                        "reviewer": {
+                            "id": "claude-generalist-b",
+                            "provider": "claude-code",
+                            "role": "generalist",
+                            "model": "opus",
+                        },
+                        "summary": "Claude reviewer mock artifact exists.",
+                        "findings": [],
+                    }
+                ),
+                "modelUsage": {
+                    "claude-opus-latest": {
+                        "inputTokens": 1,
+                        "outputTokens": 1,
+                    }
+                },
+                "total_cost_usd": 0.0,
+                "usage": {
+                    "service_tier": "standard",
+                    "speed": "standard",
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    external_report = tmp_path / "reviewer-report.claude-generalist-b.json"
+    external_raw_output = tmp_path / "reviewer-report.claude-generalist-b.raw.json"
+    external_invocation = tmp_path / "reviewer-invocation.claude-generalist-b.json"
+    output = tmp_path / "review-invocation-set.json"
+    contract["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": True,
+        "min_distinct_provider_model_families": 2,
+    }
+    contract["inputs"]["evidence_report"] = str(output)
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(internal_report_a),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "claude-code",
+            "model_family": "opus",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "packet_path": contract["inputs"]["review_packets"][1]["path"],
+            "report_path": str(external_report),
+            "raw_output_path": str(external_raw_output),
+            "invocation_metadata_path": str(external_invocation),
+        },
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract", str(contract_path),
+        "--output", str(output),
+        "--mock-response", f"generalist-b={external_raw}",
+        env=clean_env(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(output.read_text(encoding="utf-8"))
+    assert data["status"] == "completed"
+    assert data["provider_model_families"] == ["claude-code/opus", "internal-agent/codex"]
+    external_entry = next(item for item in data["reviewers"] if item["provider"] == "claude-code")
+    assert external_entry["execution_mode"] == "mock"
+    assert external_report.exists()
+    assert external_invocation.exists()
+
+
+def test_run_review_set_failure_writes_schema_valid_evidence(tmp_path) -> None:
+    import json
+
+    import jsonschema
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    output = tmp_path / "review-invocation-set.failed.json"
+    contract["inputs"]["evidence_report"] = str(output)
+    missing_internal_report = tmp_path / "missing-internal-report.json"
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(missing_internal_report),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][1]["path"],
+            "report_path": str(tmp_path / "also-missing.json"),
+        },
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(output),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    data = json.loads(output.read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "schemas/review-invocation-set.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(data)
+    assert data["status"] == "failed"
+    assert data["error"]
+    assert data["reviewers"][0]["reviewer"] == "generalist-a"
+    assert data["reviewers"][0]["status"] == "failed"
+    assert data["reviewers"][0]["error"]
+
+
+def test_run_review_set_requires_output_to_match_evidence_report(tmp_path) -> None:
+    import json
+
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    internal_report_a = tmp_path / "reviewer-report.internal-generalist-a.json"
+    internal_report_b = tmp_path / "reviewer-report.internal-generalist-b.json"
+    for report, reviewer_id in [
+        (internal_report_a, "codex-generalist-a"),
+        (internal_report_b, "codex-generalist-b"),
+    ]:
+        report.write_text(
+            json.dumps(
+                {
+                    "reviewer": {
+                        "id": reviewer_id,
+                        "provider": "internal-agent",
+                        "role": "generalist",
+                        "model": "codex",
+                    },
+                    "summary": "Internal reviewer artifact exists.",
+                    "findings": [],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    contract["inputs"]["evidence_report"] = str(tmp_path / "expected-review-invocation-set.json")
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(internal_report_a),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][1]["path"],
+            "report_path": str(internal_report_b),
+        },
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    wrong_output = tmp_path / "wrong-review-invocation-set.json"
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(wrong_output),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "--output must match inputs.evidence_report" in (result.stdout + result.stderr)
+
+
+def test_run_review_set_rejects_duplicate_report_paths(tmp_path) -> None:
+    import json
+
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    output = tmp_path / "review-invocation-set.json"
+    shared_report = tmp_path / "reviewer-report.shared.json"
+    shared_report.write_text(
+        json.dumps(
+            {
+                "reviewer": {
+                    "id": "codex-generalist-a",
+                    "provider": "internal-agent",
+                    "role": "generalist",
+                    "model": "codex",
+                },
+                "summary": "Shared reviewer artifact.",
+                "findings": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    contract["inputs"]["evidence_report"] = str(output)
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(shared_report),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][1]["path"],
+            "report_path": str(shared_report),
+        },
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(output),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "report_path values must be unique" in (result.stdout + result.stderr)

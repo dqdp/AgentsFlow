@@ -8,6 +8,7 @@ import yaml
 from .collect import collect_yaml_manifest_names
 from .common import (
     compare_hash,
+    is_concrete_sha256,
     parse_json,
     parse_yaml,
     sha256_file,
@@ -17,6 +18,7 @@ from .common import (
 
 
 ROLE_CONTRACT_PREFIXES = ('profiles/reviewer_roles/', '.agentsflow/profiles/reviewer_roles/')
+SUPPORTED_REVIEW_PROVIDERS = {"internal-agent", "claude-code"}
 V0_2_SUPPORTED_TARGET_WORKFLOWS = {
     'big-feature-contract-first',
 }
@@ -169,6 +171,13 @@ def _verification_gate_refs_match(
     left_resolved = _resolve_verification_gate_report_ref(root, packet_path, left_text)
     right_resolved = _resolve_verification_gate_report_ref(root, packet_path, right_text)
     return bool(left_resolved and right_resolved and left_resolved == right_resolved)
+
+
+def _provider_models_include_family(provider_models: object, model_family: str) -> bool:
+    family = str(model_family).lower()
+    if not family or not isinstance(provider_models, list):
+        return False
+    return any(family in str(model).lower() for model in provider_models)
 
 
 def _render_expected_review_prompt(packet: dict, role_contract: dict) -> str:
@@ -368,6 +377,8 @@ def validate_review_prompt_contract_invariants(
     reviewers = data.get("reviewer_set", []) or []
     prompts = data.get("rendered_prompts", []) or []
     prompt_policy = data.get("prompt_policy", {}) or {}
+    provider_policy = data.get("provider_policy", {}) or {}
+    assignments = data.get("reviewer_assignments", []) or []
     run_scope_artifact = _is_run_scope_artifact(path, data)
     reviewer_ids = [str(item.get("instance_id")) for item in reviewers if isinstance(item, dict)]
     prompt_ids = [str(item.get("reviewer")) for item in prompts if isinstance(item, dict)]
@@ -405,6 +416,51 @@ def validate_review_prompt_contract_invariants(
                     errors.append(f"{path}: role_contract must point to a reviewer_role manifest")
                 elif role_data.get("name") != reviewer.get("role_id"):
                     errors.append(f"{path}: role_id must match role_contract.name for {reviewer.get('instance_id')}")
+
+    if assignments:
+        if not isinstance(assignments, list):
+            errors.append(f"{path}: reviewer_assignments must be a list")
+            assignments = []
+        assignment_reviewers: list[str] = []
+        provider_model_families: set[str] = set()
+        for idx, assignment in enumerate(assignments):
+            if not isinstance(assignment, dict):
+                errors.append(f"{path}: reviewer_assignments[{idx}] must be an object")
+                continue
+            reviewer = str(assignment.get("reviewer", ""))
+            provider = str(assignment.get("provider", ""))
+            model_family = str(assignment.get("model_family", ""))
+            assignment_reviewers.append(reviewer)
+            if provider not in SUPPORTED_REVIEW_PROVIDERS:
+                errors.append(f"{path}: reviewer_assignments[{idx}].provider is unsupported: {provider}")
+            if not model_family:
+                errors.append(f"{path}: reviewer_assignments[{idx}].model_family is required")
+            provider_model_families.add(f"{provider}/{model_family}")
+            for key in ["packet_path", "report_path"]:
+                if not assignment.get(key):
+                    errors.append(f"{path}: reviewer_assignments[{idx}].{key} is required")
+            if provider == "claude-code":
+                for key in ["provider_config", "raw_output_path", "invocation_metadata_path"]:
+                    if not assignment.get(key):
+                        errors.append(f"{path}: claude-code reviewer assignment {reviewer} missing {key}")
+        if len(assignment_reviewers) != len(set(assignment_reviewers)):
+            errors.append(f"{path}: reviewer_assignments reviewers must be unique")
+        if sorted(assignment_reviewers) != sorted(reviewer_ids):
+            errors.append(f"{path}: reviewer_assignments must cover reviewer_set exactly")
+        if provider_policy.get("allow_external_reviewers") is False:
+            external = [
+                assignment.get("reviewer")
+                for assignment in assignments
+                if isinstance(assignment, dict) and assignment.get("provider") != "internal-agent"
+            ]
+            if external:
+                errors.append(f"{path}: provider_policy disallows external reviewers but has external assignments")
+        if provider_policy.get("require_model_diversity") is True:
+            minimum = int(provider_policy.get("min_distinct_provider_model_families", 2))
+            if len(provider_model_families) < minimum:
+                errors.append(f"{path}: model diversity requirement is not satisfied by reviewer_assignments")
+    elif provider_policy.get("require_model_diversity") is True:
+        errors.append(f"{path}: model diversity requires reviewer_assignments")
 
     if profile == "homogeneous-dual":
         if primary_gate is not True or len(reviewers) != 2:
@@ -547,6 +603,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
         return resolved
 
     inputs = data.get("inputs", {}) or {}
+    provider_policy = data.get("provider_policy", {}) or {}
     packet_schema_path = resolve_existing(inputs.get("review_packet_schema"), "inputs.review_packet_schema")
     output_schema_path = resolve_existing(inputs.get("output_schema"), "inputs.output_schema")
     review_subjects: list[tuple[str, object]] = []
@@ -577,8 +634,9 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             file_required=True,
             verification_gate_report=True,
         )
+    evidence_report_path: Path | None = None
     if inputs.get("evidence_report"):
-        resolve_existing(inputs.get("evidence_report"), "inputs.evidence_report")
+        evidence_report_path = resolve_existing(inputs.get("evidence_report"), "inputs.evidence_report", file_required=True)
 
     reviewers = {
         str(item.get("instance_id")): item
@@ -636,6 +694,295 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             errors.append(f"{path}: inputs.review_packets missing reviewers: {', '.join(missing)}")
         if extra:
             errors.append(f"{path}: inputs.review_packets contains unknown reviewers: {', '.join(extra)}")
+    assignments = data.get("reviewer_assignments", []) or []
+    invocation_set: dict | None = None
+    invocation_reviewers: dict[str, dict] = {}
+    if assignments:
+        if not evidence_report_path:
+            errors.append(f"{path}: reviewer_assignments require inputs.evidence_report review_invocation_set evidence")
+        else:
+            invocation_set_schema = parse_json(root / "schemas" / "review-invocation-set.schema.json")
+            invocation_set_data = parse_json(evidence_report_path)
+            if not isinstance(invocation_set_data, dict):
+                errors.append(f"{evidence_report_path}: review_invocation_set evidence must be a JSON object")
+            else:
+                invocation_set = invocation_set_data
+                errors.extend(validate_against_schema(evidence_report_path, invocation_set, invocation_set_schema))
+                if invocation_set.get("status") != "completed":
+                    errors.append(f"{evidence_report_path}: review_invocation_set status must be completed")
+                invocation_reviewers = {
+                    str(item.get("reviewer")): item
+                    for item in invocation_set.get("reviewers", []) or []
+                    if isinstance(item, dict) and item.get("reviewer")
+                }
+                if sorted(invocation_reviewers) != sorted(reviewers):
+                    errors.append(
+                        f"{evidence_report_path}: review_invocation_set reviewers must cover reviewer_set exactly"
+                    )
+
+    reviewer_report_schema = parse_json(root / "schemas" / "reviewer-report.schema.json")
+    reviewer_invocation_schema = parse_json(root / "schemas" / "reviewer-invocation.schema.json")
+    output_schema_hash = sha256_file(output_schema_path) if output_schema_path else ""
+    review_prompt_contract_hash = sha256_file(path)
+    rubric_hash = sha256_text(json.dumps(data.get("prompt_policy", {}) or {}, sort_keys=True))
+
+    def resolve_assignment_output(ref: object, label: str) -> Path | None:
+        return resolve_existing(ref, label, file_required=True)
+
+    def resolve_invocation_set_ref(ref: object, label: str) -> Path | None:
+        if not ref:
+            errors.append(f"{path}: {label} is required")
+            return None
+        ref_path = Path(str(ref))
+        if ref_path.is_absolute():
+            resolved = ref_path
+            if not _is_within_path(resolved, root):
+                errors.append(f"{path}: {label} must be inside repository root: {ref}")
+                return None
+        elif ".." in ref_path.parts:
+            errors.append(f"{path}: {label} must be relative and non-escaping: {ref}")
+            return None
+        else:
+            resolved = root / ref_path
+        if not resolved.exists():
+            errors.append(f"{path}: {label} does not exist: {ref}")
+            return None
+        if not resolved.is_file():
+            errors.append(f"{path}: {label} must be a file artifact: {ref}")
+            return None
+        return resolved
+
+    def require_invocation_hash(
+        invocation_path: Path,
+        invocation_data: dict,
+        key: str,
+        expected: str,
+        reviewer: str,
+    ) -> None:
+        declared = invocation_data.get(key)
+        if not is_concrete_sha256(declared):
+            errors.append(f"{invocation_path}: {key} is required to bind completed external evidence for {reviewer}")
+            return
+        if declared != expected:
+            errors.append(
+                f"{invocation_path}: {key} must match current review artifact for {reviewer}: "
+                f"declared {declared}, computed {expected}"
+            )
+
+    completed_provider_model_families: set[str] = set()
+    assignment_report_paths: dict[Path, str] = {}
+    invocation_report_paths: dict[Path, str] = {}
+    for idx, assignment in enumerate(assignments):
+        if not isinstance(assignment, dict):
+            continue
+        reviewer = str(assignment.get("reviewer", ""))
+        provider = str(assignment.get("provider", ""))
+        model_family = str(assignment.get("model_family", ""))
+        evidence_model_family: str | None = None
+        assignment_packet = assignment.get("packet_path")
+        packet_path = packet_path_by_reviewer.get(reviewer)
+        if assignment_packet and packet_path:
+            ref = Path(str(assignment_packet))
+            if ref.is_absolute() or ".." in ref.parts:
+                errors.append(f"{path}: reviewer_assignments[{idx}].packet_path must be relative and non-escaping")
+            elif (root / ref).resolve() != packet_path.resolve():
+                errors.append(
+                    f"{path}: reviewer_assignments[{idx}].packet_path must match inputs.review_packets for {reviewer}"
+                )
+        if assignment.get("provider_config"):
+            provider_config = Path(str(assignment.get("provider_config")))
+            if provider_config.is_absolute() or ".." in provider_config.parts:
+                errors.append(f"{path}: reviewer_assignments[{idx}].provider_config must be relative and non-escaping")
+            elif not (root / provider_config).exists():
+                errors.append(f"{path}: reviewer_assignments[{idx}].provider_config does not exist: {provider_config}")
+        report_path = resolve_assignment_output(
+            assignment.get("report_path"), f"reviewer_assignments[{idx}].report_path"
+        )
+        if report_path:
+            resolved_report_path = report_path.resolve()
+            if resolved_report_path in assignment_report_paths:
+                errors.append(
+                    f"{path}: reviewer_assignments report_path must be unique; "
+                    f"{reviewer} reuses report for {assignment_report_paths[resolved_report_path]}"
+                )
+            else:
+                assignment_report_paths[resolved_report_path] = reviewer
+            report_data = parse_json(report_path)
+            errors.extend(validate_against_schema(report_path, report_data, reviewer_report_schema))
+            if isinstance(report_data, dict):
+                report_reviewer = report_data.get("reviewer", {}) or {}
+                if isinstance(report_reviewer, dict):
+                    report_reviewer_id = str(report_reviewer.get("id") or "")
+                    if reviewer not in report_reviewer_id:
+                        errors.append(f"{report_path}: reviewer.id must include assigned reviewer {reviewer}")
+                    report_model = str(report_reviewer.get("model") or "")
+                    if provider and str(report_reviewer.get("provider")) != provider:
+                        errors.append(f"{report_path}: reviewer.provider must match assignment provider for {reviewer}")
+                    if str(report_reviewer.get("role")) != str((reviewers.get(reviewer) or {}).get("role_id")):
+                        errors.append(f"{report_path}: reviewer.role must match reviewer_set role for {reviewer}")
+                    if provider == "internal-agent" and provider_policy.get("require_model_diversity") is True:
+                        if not report_model:
+                            errors.append(
+                                f"{report_path}: reviewer.model is required to prove model diversity for {reviewer}"
+                            )
+                        elif report_model != model_family:
+                            errors.append(
+                                f"{report_path}: reviewer.model must match assignment model_family for {reviewer}"
+                            )
+                        else:
+                            evidence_model_family = report_model
+        if provider == "claude-code":
+            raw_output_path = resolve_assignment_output(
+                assignment.get("raw_output_path"), f"reviewer_assignments[{idx}].raw_output_path"
+            )
+            if raw_output_path:
+                parse_json(raw_output_path)
+            invocation_metadata_path = resolve_assignment_output(
+                assignment.get("invocation_metadata_path"),
+                f"reviewer_assignments[{idx}].invocation_metadata_path",
+            )
+            if invocation_metadata_path:
+                invocation_data = parse_json(invocation_metadata_path)
+                errors.extend(validate_against_schema(invocation_metadata_path, invocation_data, reviewer_invocation_schema))
+                if isinstance(invocation_data, dict):
+                    if str(invocation_data.get("execution_mode") or "") != "real":
+                        errors.append(
+                            f"{invocation_metadata_path}: execution_mode must be real for completed external evidence"
+                        )
+                    if invocation_data.get("exit_code") != 0:
+                        errors.append(f"{invocation_metadata_path}: exit_code must be 0 for completed external evidence")
+                    if packet_path:
+                        require_invocation_hash(
+                            invocation_metadata_path,
+                            invocation_data,
+                            "input_hash",
+                            packet_hash_by_reviewer.get(reviewer, ""),
+                            reviewer,
+                        )
+                    rendered_prompt = rendered_by_reviewer.get(reviewer) or {}
+                    prompt_hash = str(rendered_prompt.get("prompt_hash") or "")
+                    if prompt_hash:
+                        require_invocation_hash(
+                            invocation_metadata_path,
+                            invocation_data,
+                            "prompt_hash",
+                            prompt_hash,
+                            reviewer,
+                        )
+                    require_invocation_hash(
+                        invocation_metadata_path,
+                        invocation_data,
+                        "review_prompt_contract_hash",
+                        review_prompt_contract_hash,
+                        reviewer,
+                    )
+                    role_ref = (reviewers.get(reviewer) or {}).get("role_contract")
+                    role_path = resolve_existing(role_ref, f"reviewer_set.{reviewer}.role_contract")
+                    if role_path:
+                        require_invocation_hash(
+                            invocation_metadata_path,
+                            invocation_data,
+                            "role_contract_hash",
+                            sha256_file(role_path),
+                            reviewer,
+                        )
+                    if output_schema_hash:
+                        require_invocation_hash(
+                            invocation_metadata_path,
+                            invocation_data,
+                            "schema_hash",
+                            output_schema_hash,
+                            reviewer,
+                        )
+                    require_invocation_hash(
+                        invocation_metadata_path,
+                        invocation_data,
+                        "rubric_hash",
+                        rubric_hash,
+                        reviewer,
+                    )
+                    raw_output_path_ref = resolve_invocation_set_ref(
+                        invocation_data.get("raw_output_path"), f"{invocation_metadata_path}.raw_output_path"
+                    )
+                    if raw_output_path and raw_output_path_ref and raw_output_path_ref.resolve() != raw_output_path.resolve():
+                        errors.append(f"{invocation_metadata_path}: raw_output_path must match assignment for {reviewer}")
+                    if raw_output_path:
+                        require_invocation_hash(
+                            invocation_metadata_path,
+                            invocation_data,
+                            "raw_output_hash",
+                            sha256_file(raw_output_path),
+                            reviewer,
+                        )
+                    normalized_output_path_ref = resolve_invocation_set_ref(
+                        invocation_data.get("normalized_output_path"), f"{invocation_metadata_path}.normalized_output_path"
+                    )
+                    if report_path and normalized_output_path_ref and normalized_output_path_ref.resolve() != report_path.resolve():
+                        errors.append(f"{invocation_metadata_path}: normalized_output_path must match assignment for {reviewer}")
+                    if report_path:
+                        require_invocation_hash(
+                            invocation_metadata_path,
+                            invocation_data,
+                            "normalized_output_hash",
+                            sha256_file(report_path),
+                            reviewer,
+                        )
+                    if provider_policy.get("require_model_diversity") is True:
+                        requested_model = str(invocation_data.get("requested_model") or "")
+                        if not requested_model:
+                            errors.append(
+                                f"{invocation_metadata_path}: requested_model is required to prove model diversity for {reviewer}"
+                            )
+                        elif requested_model != model_family:
+                            errors.append(
+                                f"{invocation_metadata_path}: requested_model must match assignment model_family for {reviewer}"
+                            )
+                        elif not _provider_models_include_family(invocation_data.get("provider_models_used"), model_family):
+                            errors.append(
+                                f"{invocation_metadata_path}: provider_models_used must include assignment model_family for {reviewer}"
+                            )
+                        else:
+                            evidence_model_family = requested_model
+        invocation_entry = invocation_reviewers.get(reviewer)
+        if invocation_entry:
+            for key, expected in [("provider", provider), ("model_family", model_family)]:
+                if str(invocation_entry.get(key)) != expected:
+                    errors.append(f"{path}: review_invocation_set reviewer {reviewer} {key} must match assignment")
+            evidence_report_path_ref = resolve_invocation_set_ref(
+                invocation_entry.get("report_path"), f"review_invocation_set.reviewers[{reviewer}].report_path"
+            )
+            if evidence_report_path_ref:
+                resolved_invocation_report = evidence_report_path_ref.resolve()
+                if resolved_invocation_report in invocation_report_paths:
+                    errors.append(
+                        f"{path}: review_invocation_set report_path must be unique; "
+                        f"{reviewer} reuses report for {invocation_report_paths[resolved_invocation_report]}"
+                    )
+                else:
+                    invocation_report_paths[resolved_invocation_report] = reviewer
+            if report_path and evidence_report_path_ref and evidence_report_path_ref.resolve() != report_path.resolve():
+                errors.append(f"{path}: review_invocation_set reviewer {reviewer} report_path must match assignment")
+            if provider == "claude-code":
+                for key in ["raw_output_path", "invocation_metadata_path"]:
+                    resolve_invocation_set_ref(
+                        invocation_entry.get(key), f"review_invocation_set.reviewers[{reviewer}].{key}"
+                    )
+                if str(invocation_entry.get("execution_mode") or "") != "real":
+                    errors.append(
+                        f"{path}: review_invocation_set reviewer {reviewer} execution_mode must be real for completed external evidence"
+                    )
+            if provider_policy.get("require_model_diversity") is True and evidence_model_family:
+                completed_provider_model_families.add(f"{provider}/{evidence_model_family}")
+            elif provider_policy.get("require_model_diversity") is not True:
+                completed_provider_model_families.add(f"{provider}/{model_family}")
+
+    if invocation_set and provider_policy.get("require_model_diversity") is True:
+        minimum = int(provider_policy.get("min_distinct_provider_model_families", 2))
+        invocation_families = set(str(item) for item in invocation_set.get("provider_model_families", []) or [])
+        if len(completed_provider_model_families) < minimum or not completed_provider_model_families.issubset(invocation_families):
+            errors.append(
+                f"{path}: review_invocation_set does not prove the required provider/model diversity"
+            )
 
     identity = data.get("identity", {}) or {}
     if identity.get("review_profile") == "homogeneous-dual" and packet_paths:
@@ -659,7 +1006,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 errors.append(f"{shared_content_path}: shared packet content must be a JSON object")
                 shared_content = {}
             excluded_envelope_fields = set(str(item) for item in (shared_content.get("excluded_envelope_fields", []) or []))
-            allowed_excluded_envelope_fields = {"reviewer_instance_id"}
+            allowed_excluded_envelope_fields = {"reviewer_instance_id", "provider"}
             unexpected_excluded_fields = sorted(excluded_envelope_fields - allowed_excluded_envelope_fields)
             if unexpected_excluded_fields:
                 errors.append(
@@ -706,8 +1053,6 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         errors,
                     )
 
-    output_schema_hash = sha256_file(output_schema_path) if output_schema_path else ""
-    rubric_hash = sha256_text(json.dumps(data.get("prompt_policy", {}) or {}, sort_keys=True))
     for idx, prompt in enumerate(data.get("rendered_prompts", []) or []):
         if not isinstance(prompt, dict):
             continue

@@ -90,6 +90,64 @@ Example command shape:
   --output Docs/agentsflow/runs/<run-id>/reviewer-report.claude-architecture.json
 ```
 
+## Review-set assignment layer
+
+Provider config is not the review topology. A review gate first declares its
+reviewer instances and roles in the review prompt contract, then optionally
+binds those instances to providers through `reviewer_assignments`.
+
+For v0.2 this binding is intentionally small:
+
+- `reviewer_set` declares reviewer ids and role contracts;
+- `provider_policy` declares whether external reviewers and model diversity are
+  allowed or required;
+- `reviewer_assignments` maps each reviewer id to a provider, model family and
+  output paths;
+- `run_review_set.py` dispatches external assignments through
+  `run_external_reviewer.py` and verifies that internal reports already exist.
+- completed runs store `review_invocation_set` evidence linking assignments to
+  normalized reports, raw external output and invocation metadata.
+- mock responses are smoke-test evidence only; completed review gates require
+  external invocation metadata with `execution_mode: real`.
+- completed external evidence must be bound to the current packet, prompt,
+  contract, role contract, rubric, output schema, raw provider output and
+  normalized reviewer report hashes, with `exit_code: 0`.
+
+This keeps Claude Code as one provider behind the existing wrapper while
+allowing a single review gate to mix internal Codex reports and external Claude
+reports. Adding another provider should add a provider adapter and config
+schema support, not a parallel review workflow.
+
+In practice, artifact assembly should be mostly deterministic: a script can
+collect paths, hashes, diff summaries, green-gate evidence and prompt-contract
+boilerplate. Model reviewers should return structured findings and summaries;
+they should not be responsible for inventing file paths or evidence hashes.
+
+Example assignment shape:
+
+```yaml
+provider_policy:
+  allow_external_reviewers: true
+  require_model_diversity: true
+  min_distinct_provider_model_families: 2
+  unsupported_provider_behavior: config_blocker
+
+reviewer_assignments:
+  - reviewer: generalist-a
+    provider: internal-agent
+    model_family: codex
+    packet_path: Docs/agentsflow/runs/<run-id>/review-packet.generalist-a.json
+    report_path: Docs/agentsflow/runs/<run-id>/reviewer-report.codex-generalist-a.json
+  - reviewer: generalist-b
+    provider: claude-code
+    model_family: opus
+    provider_config: .agentsflow/external-reviewers/claude-code.yaml
+    packet_path: Docs/agentsflow/runs/<run-id>/review-packet.generalist-b.json
+    report_path: Docs/agentsflow/runs/<run-id>/reviewer-report.claude-generalist-b.json
+    raw_output_path: Docs/agentsflow/runs/<run-id>/reviewer-report.claude-generalist-b.raw.json
+    invocation_metadata_path: Docs/agentsflow/runs/<run-id>/reviewer-invocation.claude-generalist-b.json
+```
+
 ## Review packet
 
 The main/orchestrating agent prepares a bounded review packet. The external reviewer should review the packet, not freely re-orchestrate the project.
@@ -108,8 +166,17 @@ A review packet should contain:
 - verification gate report, if applicable;
 - evidence summary;
 - accepted ADRs and project rules;
+- project agent instructions such as `AGENTS.md`, when present;
 - forbidden actions;
 - output schema reference.
+
+AgentsFlow v0.2 does not require a provider-specific instruction file such as
+`CLAUDE.md`. External providers should receive the same bounded project rules as
+other reviewers through explicit review-packet artifacts. If a project already
+has `AGENTS.md`, the orchestrating agent may include it directly in the packet
+or reference it with a recorded hash. A provider-specific instruction file, when
+present, is just another declared packet artifact and must not silently override
+the run's review prompt contract.
 
 ## Claude adapter responsibilities
 
@@ -120,7 +187,7 @@ The Claude adapter must:
 3. verify subscription-local mode and reject API-key usage;
 4. render the provider prompt;
 5. invoke Claude Code CLI in non-interactive print mode;
-6. capture raw output and process metadata;
+6. capture raw output, requested model/effort, provider-reported model usage and process metadata;
 7. parse and normalize `reviewer-report.json`;
 8. validate schema;
 9. mark findings as candidate/unvalidated;

@@ -192,6 +192,93 @@
         }
       }
     },
+    "provider_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "allow_external_reviewers": {
+          "type": "boolean"
+        },
+        "require_model_diversity": {
+          "type": "boolean"
+        },
+        "min_distinct_provider_model_families": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "unsupported_provider_behavior": {
+          "const": "config_blocker"
+        }
+      }
+    },
+    "reviewer_assignments": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "reviewer",
+          "provider",
+          "model_family",
+          "packet_path",
+          "report_path"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "reviewer": {
+            "type": "string"
+          },
+          "provider": {
+            "enum": ["internal-agent", "claude-code"]
+          },
+          "model_family": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider_config": {
+            "type": "string"
+          },
+          "packet_path": {
+            "type": "string"
+          },
+          "report_path": {
+            "type": "string"
+          },
+          "raw_output_path": {
+            "type": "string"
+          },
+          "invocation_metadata_path": {
+            "type": "string"
+          },
+          "requested_model": {
+            "type": "string"
+          },
+          "requested_effort": {
+            "type": "string"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "provider": {
+                  "const": "claude-code"
+                }
+              },
+              "required": ["provider"]
+            },
+            "then": {
+              "required": [
+                "provider_config",
+                "raw_output_path",
+                "invocation_metadata_path"
+              ]
+            }
+          }
+        ]
+      }
+    },
     "context_policy": {
       "type": "object",
       "required": ["start_mode", "fork_conversation_context", "allowed_context_sources"],

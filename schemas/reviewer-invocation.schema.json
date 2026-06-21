@@ -11,6 +11,7 @@
     "api_key_usage_forbidden",
     "context_policy",
     "command",
+    "execution_mode",
     "started_at",
     "finished_at",
     "exit_code"
@@ -56,10 +57,38 @@
     "command": {
       "type": "string"
     },
+    "execution_mode": {
+      "enum": ["real", "mock"]
+    },
     "permission_mode": {
       "type": "string"
     },
     "output_format": {
+      "type": "string"
+    },
+    "requested_model": {
+      "type": "string"
+    },
+    "requested_effort": {
+      "type": "string"
+    },
+    "provider_models_used": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provider_model_usage": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "provider_total_cost_usd": {
+      "type": "number"
+    },
+    "provider_service_tier": {
+      "type": "string"
+    },
+    "provider_speed": {
       "type": "string"
     },
     "max_turns": {
@@ -98,7 +127,13 @@
     "raw_output_path": {
       "type": "string"
     },
+    "raw_output_hash": {
+      "type": "string"
+    },
     "normalized_output_path": {
+      "type": "string"
+    },
+    "normalized_output_hash": {
       "type": "string"
     }
   }

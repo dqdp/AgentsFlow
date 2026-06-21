@@ -124,7 +124,7 @@ questions:
         impact: Lower setup complexity.
       - id: diverse-models
         label: Prefer different model/harness
-        impact: More independence; requires provider setup.
+        impact: More independence; requires provider setup and review-prompt-contract reviewer assignments.
       - id: unresolved
         label: Leave unresolved
         impact: Overlay remains draft-only.
@@ -159,6 +159,12 @@ decisions:
     affected_artifacts:
       - project-operating-decisions.yaml
 ```
+
+When `review_policy.model_diversity` is confirmed as `diverse-models`,
+`project-operating-decisions.yaml` records the provider strategy policy and each
+review gate must encode concrete provider/model-family assignments in
+`review-prompt-contract.yaml`. The human decision selects the policy; the agent
+records the normalized run artifacts.
 
 Allowed decision statuses:
 

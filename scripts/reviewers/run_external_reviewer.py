@@ -32,6 +32,10 @@ from providers import claude_code  # noqa: E402
 
 SEVERITIES = {"P0", "P1", "P2", "P3", "NOTE"}
 ROLE_CONTRACT_PREFIXES = ("profiles/reviewer_roles/", ".agentsflow/profiles/reviewer_roles/")
+DEFAULT_CLAUDE_MODEL = claude_code.DEFAULT_MODEL
+DEFAULT_CLAUDE_EFFORT = claude_code.DEFAULT_EFFORT
+ALLOWED_CLAUDE_EFFORTS = {"low", "medium", "high", "xhigh", "max"}
+SUPPORTED_REVIEW_PROVIDERS = {"internal-agent", "claude-code"}
 
 
 def sha256_text(value: str) -> str:
@@ -54,6 +58,52 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def strip_json_markdown_fence(value: str) -> str:
+    text = value.strip()
+    decoder = json.JSONDecoder()
+
+    def decode_report_object(candidate: str) -> str | None:
+        for idx, char in enumerate(candidate):
+            if char != "{":
+                continue
+            try:
+                parsed, end = decoder.raw_decode(candidate[idx:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict) and {"reviewer", "summary", "findings"}.issubset(parsed):
+                return candidate[idx : idx + end].strip()
+        return None
+
+    def decode_first_object(candidate: str) -> str | None:
+        for idx, char in enumerate(candidate):
+            if char != "{":
+                continue
+            try:
+                _, end = decoder.raw_decode(candidate[idx:])
+            except json.JSONDecodeError:
+                continue
+            return candidate[idx : idx + end].strip()
+        return None
+
+    if not text.startswith("```"):
+        for marker in ("```json", "```"):
+            if marker in text:
+                extracted = decode_report_object(text.split(marker, 1)[1])
+                if extracted:
+                    return extracted
+        extracted = decode_first_object(text) if text.startswith("{") else None
+        if extracted:
+            return extracted
+        return text
+    lines = text.splitlines()
+    if not lines or not lines[0].strip().startswith("```"):
+        return text
+    extracted = decode_report_object("\n".join(lines[1:]))
+    if extracted:
+        return extracted
+    return text
 
 
 def validate_provider_config(config: dict[str, Any], requested_provider: str) -> None:
@@ -97,6 +147,16 @@ def validate_provider_config(config: dict[str, Any], requested_provider: str) ->
         raise ValueError("external reviewers must set execution.output_format: json")
     if execution.get("permission_mode") != "plan":
         raise ValueError("external reviewers must set execution.permission_mode: plan")
+    if "model" not in execution:
+        raise ValueError("external reviewers must declare execution.model: opus")
+    if "effort" not in execution:
+        raise ValueError("external reviewers must declare execution.effort: max")
+    if str(execution.get("model")) != DEFAULT_CLAUDE_MODEL:
+        raise ValueError("external reviewers must default execution.model to opus")
+    if str(execution.get("effort")) != DEFAULT_CLAUDE_EFFORT:
+        raise ValueError("external reviewers must default execution.effort to max")
+    if str(execution.get("effort")) not in ALLOWED_CLAUDE_EFFORTS:
+        raise ValueError("external reviewers execution.effort must be one of low, medium, high, xhigh, max")
     if execution.get("use_bare_mode") is not False:
         raise ValueError("external reviewers must set execution.use_bare_mode: false")
     if execution.get("no_session_persistence") is not True:
@@ -112,12 +172,71 @@ def validate_provider_config(config: dict[str, Any], requested_provider: str) ->
 
 def enforce_billing_policy(config: dict[str, Any]) -> None:
     billing = config.get("billing", {}) or {}
-    for env_name in billing.get("fail_if_env_present", []) or []:
+    forbidden_env = [str(item) for item in billing.get("fail_if_env_present", []) or []]
+    for env_name in forbidden_env:
         if str(env_name) in os.environ:
             raise RuntimeError(
                 f"Forbidden API-key environment variable detected: {env_name}. "
                 "AgentsFlow v0.2 allows subscription-local Claude Code CLI only."
             )
+    for settings_path, env_name in find_forbidden_claude_settings_env(forbidden_env, Path.cwd()):
+        raise RuntimeError(
+            f"Forbidden Claude API/proxy setting detected in {settings_path}: env.{env_name}. "
+            "AgentsFlow v0.2 allows subscription-local Claude Code CLI only."
+        )
+
+
+def claude_settings_paths(root: Path) -> list[Path]:
+    candidates: list[Path] = []
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    if config_dir:
+        config_root = Path(config_dir).expanduser()
+        candidates.extend([config_root / "settings.json", config_root / "__settings.json"])
+
+    user_root = Path.home() / ".claude"
+    candidates.extend([user_root / "settings.json", user_root / "__settings.json"])
+    candidates.extend([root / ".claude" / "settings.json", root / ".claude" / "settings.local.json"])
+
+    if sys.platform == "darwin":
+        managed_root = Path("/Library/Application Support/ClaudeCode")
+    elif os.name == "nt":
+        managed_root = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "ClaudeCode"
+    else:
+        managed_root = Path("/etc/claude-code")
+    candidates.append(managed_root / "managed-settings.json")
+    dropin_root = managed_root / "managed-settings.d"
+    if dropin_root.exists():
+        candidates.extend(sorted(dropin_root.glob("*.json")))
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in candidates:
+        key = str(path)
+        if key not in seen:
+            unique.append(path)
+            seen.add(key)
+    return unique
+
+
+def find_forbidden_claude_settings_env(
+    forbidden_env: list[str],
+    root: Path,
+) -> list[tuple[Path, str]]:
+    forbidden = set(forbidden_env)
+    hits: list[tuple[Path, str]] = []
+    for path in claude_settings_paths(root):
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            data = load_json(path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        env = data.get("env")
+        if not isinstance(env, dict):
+            continue
+        for env_name in sorted(forbidden.intersection(str(key) for key in env.keys())):
+            hits.append((path, env_name))
+    return hits
 
 
 def validate_json_schema(data: dict[str, Any], schema_path: Path, label: str) -> None:
@@ -178,6 +297,8 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
     reviewers = contract.get("reviewer_set", []) or []
     prompts = contract.get("rendered_prompts", []) or []
     prompt_policy = contract.get("prompt_policy", {}) or {}
+    provider_policy = contract.get("provider_policy", {}) or {}
+    assignments = contract.get("reviewer_assignments", []) or []
     reviewer_ids = [str(item.get("instance_id")) for item in reviewers if isinstance(item, dict)]
     prompt_ids = [str(item.get("reviewer")) for item in prompts if isinstance(item, dict)]
 
@@ -195,6 +316,50 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
         raise ValueError("review prompt contract reviewer_set instance ids must be unique")
     if any(item.get("independent") is not True for item in reviewers if isinstance(item, dict)):
         raise ValueError("review prompt contract reviewers must be independent")
+    if assignments:
+        if not isinstance(assignments, list):
+            raise ValueError("review prompt contract reviewer_assignments must be a list")
+        if not (contract.get("inputs", {}) or {}).get("evidence_report"):
+            raise ValueError("review prompt contract reviewer_assignments require inputs.evidence_report")
+        assignment_reviewers: list[str] = []
+        provider_model_families: set[str] = set()
+        for idx, assignment in enumerate(assignments):
+            if not isinstance(assignment, dict):
+                raise ValueError("review prompt contract reviewer_assignments entries must be objects")
+            reviewer = str(assignment.get("reviewer", ""))
+            provider = str(assignment.get("provider", ""))
+            model_family = str(assignment.get("model_family", ""))
+            assignment_reviewers.append(reviewer)
+            if provider not in SUPPORTED_REVIEW_PROVIDERS:
+                raise ValueError(f"reviewer_assignments[{idx}].provider is unsupported: {provider}")
+            if not model_family:
+                raise ValueError(f"reviewer_assignments[{idx}].model_family is required")
+            provider_model_families.add(f"{provider}/{model_family}")
+            for key in ["packet_path", "report_path"]:
+                if not assignment.get(key):
+                    raise ValueError(f"reviewer_assignments[{idx}].{key} is required")
+            if provider == "claude-code":
+                for key in ["provider_config", "raw_output_path", "invocation_metadata_path"]:
+                    if not assignment.get(key):
+                        raise ValueError(f"claude-code reviewer assignment {reviewer} missing {key}")
+        if len(assignment_reviewers) != len(set(assignment_reviewers)):
+            raise ValueError("review prompt contract reviewer_assignments reviewers must be unique")
+        if sorted(assignment_reviewers) != sorted(reviewer_ids):
+            raise ValueError("review prompt contract reviewer_assignments must cover reviewer_set exactly")
+        if provider_policy.get("allow_external_reviewers") is False:
+            external = [
+                assignment.get("reviewer")
+                for assignment in assignments
+                if isinstance(assignment, dict) and assignment.get("provider") != "internal-agent"
+            ]
+            if external:
+                raise ValueError("review prompt contract disallows external reviewers but has external assignments")
+        if provider_policy.get("require_model_diversity") is True:
+            minimum = int(provider_policy.get("min_distinct_provider_model_families", 2))
+            if len(provider_model_families) < minimum:
+                raise ValueError("review prompt contract model diversity requirement is not satisfied")
+    elif provider_policy.get("require_model_diversity") is True:
+        raise ValueError("review prompt contract model diversity requires reviewer_assignments")
 
     if profile == "homogeneous-dual":
         if primary_gate is not True or len(reviewers) != 2:
@@ -462,6 +627,7 @@ def render_prompt(packet: dict[str, Any], role_contract: dict[str, Any]) -> str:
 
 def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str) -> dict[str, Any]:
     reviewer = raw.get("reviewer") if isinstance(raw.get("reviewer"), dict) else {}
+    reviewer_instance = str(packet.get("reviewer_instance_id") or packet.get("reviewer_role") or "reviewer")
     raw_provider = reviewer.get("provider")
     if raw_provider and str(raw_provider) != provider:
         raise ValueError("raw reviewer provider must match requested provider")
@@ -470,7 +636,7 @@ def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str)
         raise ValueError("raw reviewer role must match review packet reviewer_role")
     report = {
         "reviewer": {
-            "id": str(reviewer.get("id") or f"{provider}-{packet.get('reviewer_role', 'reviewer')}"),
+            "id": str(reviewer.get("id") or f"{provider}-{reviewer_instance}"),
             "provider": str(reviewer.get("provider") or provider),
             "role": str(reviewer.get("role") or packet.get("reviewer_role", "reviewer")),
             **({"model": reviewer.get("model")} if reviewer.get("model") else {}),
@@ -498,15 +664,78 @@ def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str)
             {
                 "id": str(finding.get("id") or f"F-{idx:03d}"),
                 "severity": severity,
-                "category": str(finding.get("category", "external-review")),
+                "category": str(finding.get("category") or finding.get("focus_area") or "external-review"),
                 "title": str(finding.get("title") or finding.get("claim") or "Untitled finding"),
                 "evidence": [str(item) for item in evidence],
-                "why_it_matters": str(finding.get("why_it_matters", "")),
+                "why_it_matters": str(finding.get("why_it_matters") or finding.get("rationale") or ""),
                 "recommendation": str(finding.get("recommendation", "")),
                 "status": "candidate-unvalidated",
             }
         )
     return report
+
+
+def require_reviewer_report_shape(raw: dict[str, Any], provider_name: str) -> None:
+    if not {"reviewer", "summary", "findings"}.issubset(raw):
+        raise ValueError(f"{provider_name} provider result must contain reviewer-report JSON")
+
+
+def extract_provider_reviewer_report(raw: dict[str, Any], provider: str) -> dict[str, Any]:
+    if provider != "claude-code":
+        return raw
+    if raw.get("type") != "result" or "result" not in raw:
+        require_reviewer_report_shape(raw, "Claude Code")
+        return raw
+    result = raw.get("result")
+    if raw.get("is_error") is True:
+        raise ValueError(f"Claude Code provider returned an error result: {str(result).strip()}")
+    if not isinstance(result, str) or not result.strip():
+        raise ValueError("Claude Code provider result must contain reviewer-report JSON")
+    result_text = strip_json_markdown_fence(result)
+    try:
+        parsed = json.loads(result_text)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Claude Code provider result must contain reviewer-report JSON") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("Claude Code provider result must contain a JSON object")
+    require_reviewer_report_shape(parsed, "Claude Code")
+    return parsed
+
+
+def provider_failure_detail(raw_text: str, stderr: str) -> str:
+    if stderr.strip():
+        return stderr.strip()
+    try:
+        raw = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return raw_text.strip()
+    if isinstance(raw, dict):
+        result = raw.get("result")
+        if result:
+            return str(result).strip()
+    return raw_text.strip()
+
+
+def provider_invocation_metadata(raw: dict[str, Any]) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    model_usage = raw.get("modelUsage")
+    if isinstance(model_usage, dict):
+        metadata["provider_model_usage"] = model_usage
+        metadata["provider_models_used"] = sorted(str(key) for key in model_usage.keys())
+    if "total_cost_usd" in raw:
+        metadata["provider_total_cost_usd"] = raw.get("total_cost_usd")
+
+    usage = raw.get("usage")
+    if isinstance(usage, dict):
+        if "service_tier" in usage:
+            metadata["provider_service_tier"] = usage.get("service_tier")
+        if "speed" in usage:
+            metadata["provider_speed"] = usage.get("speed")
+    if "service_tier" in raw and "provider_service_tier" not in metadata:
+        metadata["provider_service_tier"] = raw.get("service_tier")
+    if "speed" in raw and "provider_speed" not in metadata:
+        metadata["provider_speed"] = raw.get("speed")
+    return metadata
 
 
 def validate_normalized_report(report: dict[str, Any]) -> None:
@@ -594,6 +823,7 @@ def main() -> int:
 
         raw_path.parent.mkdir(parents=True, exist_ok=True)
         raw_path.write_text(raw_text, encoding="utf-8")
+        raw_output_hash = sha256_file(raw_path)
         failure_invocation = {
             "provider": args.provider,
             "reviewer_role": str(packet.get("reviewer_role", "reviewer")),
@@ -610,10 +840,13 @@ def main() -> int:
                 for item in (config.get("billing", {}) or {}).get("fail_if_env_present", []) or []
             ],
             "command": command_display,
+            "execution_mode": "mock" if args.mock_response else "real",
             "permission_mode": str((config.get("execution", {}) or {}).get("permission_mode", "plan")),
             "output_format": str((config.get("execution", {}) or {}).get("output_format", "json")),
+            "requested_model": str((config.get("execution", {}) or {}).get("model", DEFAULT_CLAUDE_MODEL)),
+            "requested_effort": str((config.get("execution", {}) or {}).get("effort", DEFAULT_CLAUDE_EFFORT)),
             "max_turns": int((config.get("execution", {}) or {}).get("max_turns", 3)),
-            "timeout_seconds": int((config.get("execution", {}) or {}).get("timeout_seconds", 600)),
+            "timeout_seconds": int((config.get("execution", {}) or {}).get("timeout_seconds", 900)),
             "input_hash": packet_hashes["input_hash"],
             "prompt_hash": prompt_hash,
             "review_prompt_contract_hash": packet_hashes["review_prompt_contract_hash"],
@@ -623,6 +856,7 @@ def main() -> int:
             "started_at": started.isoformat(),
             "exit_code": exit_code,
             "raw_output_path": str(raw_path),
+            "raw_output_hash": raw_output_hash,
             "stderr_path": str(stderr_path) if stderr else "",
             "normalized_output_path": str(output_path),
         }
@@ -635,13 +869,21 @@ def main() -> int:
             invocation = dict(failure_invocation)
             invocation["finished_at"] = finished.isoformat()
             invocation["stderr_path"] = str(stderr_path)
+            try:
+                failure_raw_json = json.loads(raw_text)
+            except json.JSONDecodeError:
+                failure_raw_json = {}
+            if isinstance(failure_raw_json, dict):
+                invocation.update(provider_invocation_metadata(failure_raw_json))
             invocation_path.write_text(json.dumps(invocation, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            raise RuntimeError(f"external reviewer provider failed with exit code {exit_code}: {stderr}")
+            detail = provider_failure_detail(raw_text, stderr)
+            raise RuntimeError(f"external reviewer provider failed with exit code {exit_code}: {detail}")
 
         raw_json = json.loads(raw_text)
         if not isinstance(raw_json, dict):
             raise ValueError("raw provider output must be a JSON object")
-        normalized = normalize_report(raw_json, packet, args.provider)
+        reviewer_report = extract_provider_reviewer_report(raw_json, args.provider)
+        normalized = normalize_report(reviewer_report, packet, args.provider)
         normalization = config.get("normalization", {}) or {}
         if normalization.get("require_schema_validation") is True:
             schema_ref = (config.get("outputs", {}) or {}).get("reviewer_report_schema")
@@ -657,6 +899,7 @@ def main() -> int:
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(json.dumps(normalized, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        normalized_output_hash = sha256_file(output_path)
         if stderr:
             stderr_path.parent.mkdir(parents=True, exist_ok=True)
             stderr_path.write_text(stderr, encoding="utf-8")
@@ -665,6 +908,9 @@ def main() -> int:
         invocation = dict(failure_invocation)
         invocation["finished_at"] = finished.isoformat()
         invocation["stderr_path"] = str(stderr_path) if stderr else ""
+        invocation["raw_output_hash"] = raw_output_hash
+        invocation["normalized_output_hash"] = normalized_output_hash
+        invocation.update(provider_invocation_metadata(raw_json))
         invocation_path.parent.mkdir(parents=True, exist_ok=True)
         invocation_path.write_text(json.dumps(invocation, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"External reviewer report written to {output_path}")

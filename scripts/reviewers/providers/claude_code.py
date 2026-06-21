@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+DEFAULT_MODEL = "opus"
+DEFAULT_EFFORT = "max"
+
+
 @dataclass
 class ProviderResult:
     stdout: str
@@ -38,6 +42,14 @@ def build_command(config: dict, prompt: str) -> list[str]:
     if permission_mode:
         args.extend(["--permission-mode", str(permission_mode)])
 
+    model = execution.get("model", DEFAULT_MODEL)
+    if model:
+        args.extend(["--model", str(model)])
+
+    effort = execution.get("effort", DEFAULT_EFFORT)
+    if effort:
+        args.extend(["--effort", str(effort)])
+
     max_turns = execution.get("max_turns")
     if max_turns is not None:
         args.extend(["--max-turns", str(max_turns)])
@@ -56,7 +68,7 @@ def build_command(config: dict, prompt: str) -> list[str]:
 
 def invoke(config: dict, prompt: str, cwd: Path | None = None) -> ProviderResult:
     execution = config.get("execution", {}) or {}
-    timeout_seconds = int(execution.get("timeout_seconds", 600))
+    timeout_seconds = int(execution.get("timeout_seconds", 900))
     cmd = build_command(config, prompt)
     proc = subprocess.run(
         cmd,

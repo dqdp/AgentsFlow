@@ -16,11 +16,21 @@
     "CLAUDE_CODE_USE_BEDROCK",
     "CLAUDE_CODE_USE_VERTEX"
   ],
-  "command": "claude -p <prompt>",
+  "command": "claude -p <prompt> --output-format json --permission-mode plan --model opus --effort max --max-turns 3 --no-session-persistence",
+  "execution_mode": "real",
   "permission_mode": "plan",
   "output_format": "json",
+  "requested_model": "opus",
+  "requested_effort": "max",
+  "provider_models_used": [
+    "claude-opus-latest"
+  ],
+  "provider_model_usage": {},
+  "provider_total_cost_usd": 0.0,
+  "provider_service_tier": "<provider-reported-service-tier>",
+  "provider_speed": "<provider-reported-speed>",
   "max_turns": 3,
-  "timeout_seconds": 600,
+  "timeout_seconds": 900,
   "input_hash": "sha256:<review-packet>",
   "prompt_hash": "sha256:<rendered-prompt>",
   "review_prompt_contract_hash": "sha256:<review-prompt-contract>",
@@ -31,5 +41,7 @@
   "finished_at": "<iso8601>",
   "exit_code": 0,
   "raw_output_path": "reviewer-report.claude-architecture.raw.json",
-  "normalized_output_path": "reviewer-report.claude-architecture.json"
+  "raw_output_hash": "sha256:<raw-provider-output>",
+  "normalized_output_path": "reviewer-report.claude-architecture.json",
+  "normalized_output_hash": "sha256:<normalized-reviewer-report>"
 }

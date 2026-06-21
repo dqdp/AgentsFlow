@@ -8,7 +8,8 @@ Important policy:
 - API-key based Claude usage is forbidden for the v0.2 MVP.
 - The adapter is intended for local subscription-based Claude Code CLI usage only.
 - The wrapper must fail if configured forbidden Claude API/proxy environment
-  variables are present.
+  variables are present in the process environment or Claude settings files.
+- The v0.2 default reviewer invocation uses Claude Code `--model opus --effort max`.
 - Claude output remains candidate findings and must be validated by the main/orchestrating agent.
 - The reviewer receives a bounded review packet and must not modify files or run tests.
 

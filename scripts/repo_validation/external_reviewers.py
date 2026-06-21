@@ -45,6 +45,14 @@ def validate_external_review_provider(path: Path) -> list[str]:
         errors.append(f"{path}: claude-code execution.output_format must be json")
     if execution.get("permission_mode") != "plan":
         errors.append(f"{path}: claude-code execution.permission_mode must be plan")
+    if "model" not in execution:
+        errors.append(f"{path}: claude-code execution.model must be declared as opus")
+    elif execution.get("model") != "opus":
+        errors.append(f"{path}: claude-code execution.model must default to opus")
+    if "effort" not in execution:
+        errors.append(f"{path}: claude-code execution.effort must be declared as max")
+    elif execution.get("effort") != "max":
+        errors.append(f"{path}: claude-code execution.effort must default to max")
     if execution.get("use_bare_mode") is not False:
         errors.append(f"{path}: claude-code execution.use_bare_mode must be false")
     if execution.get("no_session_persistence") is not True:
@@ -60,4 +68,3 @@ def validate_external_review_provider(path: Path) -> list[str]:
     if outputs.get("reviewer_report_schema") != "schemas/reviewer-report.schema.json":
         errors.append(f"{path}: external provider must output schemas/reviewer-report.schema.json")
     return errors
-

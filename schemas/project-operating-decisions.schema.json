@@ -246,6 +246,41 @@
         "allow_different_models": {
           "type": "boolean"
         },
+        "provider_strategy": {
+          "type": "object",
+          "required": [
+            "assignment_source",
+            "default_internal_provider",
+            "supported_external_providers",
+            "unsupported_provider_behavior"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "assignment_source": {
+              "const": "review_prompt_contract.reviewer_assignments"
+            },
+            "default_internal_provider": {
+              "const": "internal-agent"
+            },
+            "supported_external_providers": {
+              "type": "array",
+              "items": {
+                "enum": ["claude-code"]
+              },
+              "uniqueItems": true
+            },
+            "different_models_requires_assignments": {
+              "type": "boolean"
+            },
+            "min_distinct_provider_model_families": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "unsupported_provider_behavior": {
+              "const": "config_blocker"
+            }
+          }
+        },
         "candidate_findings_require_main_validation": {
           "const": true
         }

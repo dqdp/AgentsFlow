@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/review-invocation-set.schema.json",
+  "title": "Review Invocation Set",
+  "type": "object",
+  "required": [
+    "artifact_kind",
+    "review_prompt_contract",
+    "status",
+    "provider_model_families",
+    "reviewers"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "artifact_kind": {
+      "const": "review_invocation_set"
+    },
+    "review_prompt_contract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": ["completed", "failed"]
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "provider_model_families": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "reviewers": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "reviewer",
+          "provider",
+          "model_family",
+          "packet_path",
+          "report_path",
+          "status"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "reviewer": {
+            "type": "string"
+          },
+          "provider": {
+            "enum": ["internal-agent", "claude-code"]
+          },
+          "model_family": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_model_family": {
+            "type": "string",
+            "minLength": 1
+          },
+          "packet_path": {
+            "type": "string"
+          },
+          "report_path": {
+            "type": "string"
+          },
+          "raw_output_path": {
+            "type": "string"
+          },
+          "raw_output_hash": {
+            "type": "string"
+          },
+          "invocation_metadata_path": {
+            "type": "string"
+          },
+          "normalized_output_hash": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1
+          },
+          "execution_mode": {
+            "enum": ["real", "mock"]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "reviewers": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

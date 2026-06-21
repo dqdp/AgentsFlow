@@ -29,7 +29,7 @@ inputs:
   output_schema: schemas/reviewer-report.schema.json
   task_contract: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/task.contract.md
   verification_gate_report: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/verification-gate-report.md
-  evidence_report: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/evidence-report.md
+  evidence_report: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-invocation-set.json
 
 reviewer_set:
   - instance_id: generalist-a
@@ -40,6 +40,24 @@ reviewer_set:
     role_id: generalist
     role_contract: profiles/reviewer_roles/generalist.yaml
     independent: true
+
+provider_policy:
+  allow_external_reviewers: false
+  require_model_diversity: false
+  min_distinct_provider_model_families: 2
+  unsupported_provider_behavior: config_blocker
+
+reviewer_assignments:
+  - reviewer: generalist-a
+    provider: internal-agent
+    model_family: codex
+    packet_path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-packets/generalist-a.json
+    report_path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/reviewer-report.generalist-a.json
+  - reviewer: generalist-b
+    provider: internal-agent
+    model_family: codex
+    packet_path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-packets/generalist-b.json
+    report_path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/reviewer-report.generalist-b.json
 
 context_policy:
   start_mode: fresh_context

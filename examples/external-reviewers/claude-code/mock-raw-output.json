@@ -3,7 +3,7 @@
     "id": "claude-architecture-reviewer",
     "provider": "claude-code",
     "role": "architecture",
-    "model": "subscription-local-claude-code"
+    "model": "opus"
   },
   "summary": "No blocking architecture findings in the sample packet.",
   "findings": [
