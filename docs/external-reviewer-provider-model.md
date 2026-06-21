@@ -29,6 +29,7 @@ For v0.2, AgentsFlow implements a minimal Claude Code external reviewer provider
 
 ```text
 review packet
+→ preparation evidence
 → project-bound Claude wrapper
 → raw Claude output
 → normalized reviewer-report.json
@@ -104,9 +105,18 @@ For v0.2 this binding is intentionally small:
 - `reviewer_assignments` maps each reviewer id to a provider, model family and
   output paths;
 - `run_review_set.py` dispatches external assignments through
-  `run_external_reviewer.py` and verifies that internal reports already exist.
+  `run_external_reviewer.py`. External subprocesses are started asynchronously
+  inside one review set before the runner waits for results; internal reviewers
+  remain report-present artifacts that the runner verifies.
+- external reviewer collection is bounded by a per-reviewer timeout
+  (`--external-reviewer-timeout-seconds`, default 900). A timed-out reviewer is
+  killed and recorded in the invocation set, while already completed external
+  reviewer evidence is preserved.
 - completed runs store `review_invocation_set` evidence linking assignments to
   normalized reports, raw external output and invocation metadata.
+- run-scope provider-assigned gates store `review_artifact_preparation`
+  evidence before invocation, so packets and prompts are tied to explicit input
+  artifacts and worktree status.
 - mock responses are smoke-test evidence only; completed review gates require
   external invocation metadata with `execution_mode: real`.
 - completed external evidence must be bound to the current packet, prompt,
@@ -118,10 +128,10 @@ allowing a single review gate to mix internal Codex reports and external Claude
 reports. Adding another provider should add a provider adapter and config
 schema support, not a parallel review workflow.
 
-In practice, artifact assembly should be mostly deterministic: a script can
-collect paths, hashes, diff summaries, green-gate evidence and prompt-contract
-boilerplate. Model reviewers should return structured findings and summaries;
-they should not be responsible for inventing file paths or evidence hashes.
+In practice, artifact assembly is deterministic for the v0.2 provider path:
+`prepare_review_set_artifacts.py` materializes declared packets, prompts and
+preparation evidence. Model reviewers return structured findings and summaries;
+they are not responsible for inventing file paths or evidence hashes.
 
 Example assignment shape:
 

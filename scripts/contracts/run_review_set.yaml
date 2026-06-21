@@ -13,4 +13,6 @@ ci_compatible: false
 notes: >
   This script is a small review-set dispatcher. It verifies internal reviewer
   report artifacts and invokes supported external reviewers through their
-  project-bound wrappers. It is not a generic multi-provider runtime.
+  project-bound wrappers. External reviewers are collected with a bounded
+  per-reviewer timeout and completed peer evidence is preserved when one
+  reviewer times out. It is not a generic multi-provider runtime.

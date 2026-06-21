@@ -187,6 +187,36 @@ Feature: AgentsFlow v0.2 MVP contract layer
     And normalized project operating decisions must record risk-surface and evidence freshness policy
     And actual per-run proof that selected Failure Path Matrix rows were bound before red capture remains project-bound gate evidence unless a deterministic runner is configured
 
+  Scenario: Provider-assigned review gates require structured artifact preparation
+    Given a run-scope review prompt contract declares reviewer_assignments
+    When review packets and rendered prompts are prepared for internal or external reviewers
+    Then the contract must reference artifact_preparation_report
+    And the contract must reference review_invocation_set separately from evidence_report
+    And the preparation evidence must bind the current contract, generated packets, rendered prompts, included artifacts and worktree status
+    And validation must fail when current packets or prompts no longer match preparation evidence
+
+  Scenario: Review artifact preparation fails closed on uncovered dirty paths
+    Given the worktree has modified or untracked paths
+    When prepare_review_set_artifacts runs
+    Then every dirty path must be explicitly included as an input artifact or excluded with a reason
+    And uncovered dirty paths must stop preparation before reviewer packets are written
+
+  Scenario: Review set dispatch starts external reviewers asynchronously
+    Given a provider-assigned review prompt contract includes multiple external reviewers
+    And the same review set also includes internal report-present reviewers
+    When run_review_set dispatches the review set
+    Then external reviewer subprocesses must be started before the runner waits for their results
+    And the invocation set must record external-first async scheduling evidence
+    And internal report-present validation must not serialize the external provider calls
+
+  Scenario: Review set collection preserves completed external reviewer evidence on timeout
+    Given a provider-assigned review prompt contract includes multiple external reviewers
+    And one external reviewer process completes while another external reviewer process hangs
+    When run_review_set reaches the configured external reviewer timeout
+    Then the completed external reviewer report and invocation metadata must remain recorded
+    And the hung external reviewer must be killed and recorded as timed out
+    And the invocation set must fail closed instead of hanging indefinitely
+
 ## Verification Binding
 
 | Scenario | Verification |
@@ -208,6 +238,10 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Reviewer fresh-context is protocol-level in v0.2 | Manual evidence: `docs/review-agent-interaction-protocol.md`, `docs/review-prompt-contract.md`, `schemas/review-prompt-contract.schema.json` |
 | Workflow run phase guard rejects future-phase artifacts | `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_future_phase_artifact`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_unlisted_artifact_without_explicit_forbidden`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_phase_evidence_and_status_artifacts`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_list_shaped_phase_evidence`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_draft_artifact_as_evidence_or_output`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_allowed_and_draft_overlap`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_uses_top_level_draft_slot`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_review_and_evidence_phase_status_keys`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_malformed_artifacts_root_paths`; `pytest tests/test_scripts_smoke.py::test_repo_validation_checks_top_level_workflow_run_phase_guard`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_allows_current_phase_artifacts` |
 | Risk surface and Failure Path Matrix metadata are represented for contract-first implementation | `pytest tests/test_scripts_smoke.py::test_behavior_binding_schema_allows_risk_path_metadata`; `pytest tests/test_scripts_smoke.py::test_project_operating_decisions_schema_passes`; `pytest tests/test_scripts_smoke.py::test_review_packet_schema_accepts_risk_surface_context` |
+| Provider-assigned review gates require structured artifact preparation | `pytest tests/test_scripts_smoke.py::test_review_artifact_preparation_schema_passes`; `pytest tests/test_scripts_smoke.py::test_review_prompt_contract_assignments_require_preparation_evidence`; `pytest tests/test_scripts_smoke.py::test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts` |
+| Review artifact preparation fails closed on uncovered dirty paths | `pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths`; `pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence` |
+| Review set dispatch starts external reviewers asynchronously | `pytest tests/test_scripts_smoke.py::test_run_review_set_starts_external_reviewers_asynchronously` |
+| Review set collection preserves completed external reviewer evidence on timeout | `pytest tests/test_scripts_smoke.py::test_run_review_set_times_out_hung_external_without_losing_completed_peer` |
 
 ## Evidence Required
 

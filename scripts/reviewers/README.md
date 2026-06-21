@@ -32,6 +32,12 @@ It is a thin gate dispatcher, not a general multi-provider runtime:
 
 - internal assignments must already have a normalized reviewer report artifact;
 - `claude-code` assignments are invoked through `run_external_reviewer.py`;
+- external assignments are started asynchronously before the runner waits for
+  their results, so two Claude reviewers in one set are dispatched without
+  serial blocking;
+- `--internal-report-wait-seconds` may be used when internal read-only
+  reviewers are launched alongside external providers and their report-present
+  artifacts may appear shortly after dispatch;
 - assignment coverage and provider/model diversity policy are checked before
   dispatch;
 - the runner writes a review invocation set evidence JSON summarizing provider,
@@ -40,8 +46,18 @@ It is a thin gate dispatcher, not a general multi-provider runtime:
 The review prompt contract is the dispatch plan. The invocation set is the
 completed-run evidence that repo validation can use to prove assigned reviewers
 actually produced normalized reports.
-For assignment-enabled gates, `inputs.evidence_report` must be declared in the
-contract before dispatch and `run_review_set.py --output` must match that path.
+The runner records `runner_scheduling: external-first-async` in invocation-set
+evidence for this scheduling mode.
+For assignment-enabled gates, `inputs.review_invocation_set` must be declared
+in the contract before dispatch and `run_review_set.py --output` must match
+that path. Run-scope provider-assigned gates also declare
+`inputs.artifact_preparation_report`, written by
+`prepare_review_set_artifacts.py`, before reviewers are invoked.
+The runner fails before dispatch if this run-scope preparation artifact is
+missing, does not exist, is not a completed `review_artifact_preparation`
+artifact, or no longer matches the current review prompt contract. Completed
+invocation-set evidence records both the preparation path and
+`artifact_preparation_report_hash`.
 Mock responses are for smoke tests only. External reviewer evidence used to
 close a run must carry `execution_mode: real`.
 Completed external evidence must also have `exit_code: 0` and invocation hashes

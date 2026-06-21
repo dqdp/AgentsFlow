@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,153 @@ def run(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedPr
         text=True,
         capture_output=True,
         env=env,
+    )
+
+
+def write_minimal_review_preparation(path: Path, contract_path: Path, root: Path | None = None) -> None:
+    import hashlib
+    import yaml
+
+    base = root.resolve() if root is not None else ROOT
+
+    def resolve_ref(ref: object) -> Path:
+        ref_path = Path(str(ref))
+        if ref_path.is_absolute():
+            return ref_path
+        return base / ref_path
+
+    def rel_or_abs(ref_path: Path) -> str:
+        if root is None:
+            return str(ref_path.resolve())
+        try:
+            return ref_path.resolve().relative_to(base).as_posix()
+        except ValueError:
+            return str(ref_path.resolve())
+
+    def sha(ref_path: Path) -> str:
+        return "sha256:" + hashlib.sha256(ref_path.read_bytes()).hexdigest()
+
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    assignments = contract.get("reviewer_assignments", []) or []
+    assignment_reviewers = [str(item.get("reviewer")) for item in assignments if isinstance(item, dict)]
+    inputs = contract.setdefault("inputs", {})
+    packet_entries = {
+        str(item.get("reviewer")): item
+        for item in inputs.get("review_packets", []) or []
+        if isinstance(item, dict) and item.get("reviewer")
+    }
+    rendered_prompts = {
+        str(item.get("reviewer")): item
+        for item in contract.get("rendered_prompts", []) or []
+        if isinstance(item, dict) and item.get("reviewer")
+    }
+    prompt_dir = contract_path.parent / "review-prompts"
+    prompt_dir.mkdir(parents=True, exist_ok=True)
+    for reviewer in assignment_reviewers:
+        if reviewer not in rendered_prompts:
+            prompt_path = prompt_dir / f"{reviewer}.md"
+            prompt_path.write_text(f"Review prompt for {reviewer}.\n", encoding="utf-8")
+            prompt_ref = rel_or_abs(prompt_path)
+            rendered_prompts[reviewer] = {
+                "reviewer": reviewer,
+                "prompt_path": prompt_ref,
+            }
+    contract["rendered_prompts"] = [rendered_prompts[reviewer] for reviewer in assignment_reviewers if reviewer in rendered_prompts]
+    for prompt in contract["rendered_prompts"]:
+        prompt_path = resolve_ref(prompt["prompt_path"])
+        prompt["prompt_hash"] = sha(prompt_path)
+        prompt.setdefault("packet_hash", "sha256:" + "0" * 64)
+        prompt.setdefault("schema_hash", "sha256:" + "0" * 64)
+        prompt.setdefault("rubric_hash", "sha256:" + "0" * 64)
+        prompt.setdefault("role_contract_hash", "sha256:" + "0" * 64)
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    ref = str(contract_path.resolve())
+    if root is not None:
+        try:
+            ref = contract_path.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            pass
+    path.parent.mkdir(parents=True, exist_ok=True)
+    contract_hash = sha(contract_path)
+    review_packets = []
+    for reviewer in assignment_reviewers:
+        packet_entry = packet_entries.get(reviewer)
+        packet_ref = packet_entry.get("path") if packet_entry else next(
+            item.get("packet_path") for item in assignments if item.get("reviewer") == reviewer
+        )
+        packet_path = resolve_ref(packet_ref)
+        review_packets.append(
+            {
+                "reviewer": reviewer,
+                "path": str(packet_ref),
+                "hash": sha(packet_path),
+                **(
+                    {"shared_packet_content_hash": packet_entry["shared_packet_content_hash"]}
+                    if packet_entry and packet_entry.get("shared_packet_content_hash")
+                    else {}
+                ),
+            }
+        )
+    rendered_prompt_entries = []
+    for reviewer in assignment_reviewers:
+        prompt = rendered_prompts[reviewer]
+        prompt_path = resolve_ref(prompt["prompt_path"])
+        rendered_prompt_entries.append(
+            {
+                "reviewer": reviewer,
+                "path": str(prompt["prompt_path"]),
+                "hash": sha(prompt_path),
+                "packet_hash": prompt.get("packet_hash", "sha256:" + "0" * 64),
+                "schema_hash": prompt.get("schema_hash", "sha256:" + "0" * 64),
+                "rubric_hash": prompt.get("rubric_hash", "sha256:" + "0" * 64),
+                "role_contract_hash": prompt.get("role_contract_hash", "sha256:" + "0" * 64),
+            }
+        )
+    invocation_set_path = str(inputs.get("review_invocation_set", "review-invocation-set.json"))
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "artifact_kind": "review_artifact_preparation",
+                "artifact_scope": "run",
+                "status": "completed",
+                "review_prompt_contract": {
+                    "path": ref,
+                    "hash": contract_hash,
+                },
+                "source_context": {
+                    "dirty_policy": "fail-closed",
+                    "worktree": {
+                        "status_command": "git status --porcelain=v1 --untracked-files=all",
+                        "status_entries": [],
+                        "included_dirty_paths": [],
+                        "excluded_dirty_paths": [],
+                    },
+                },
+                "input_artifacts": [
+                    {
+                        "path": ref,
+                        "kind": "review_prompt_contract",
+                        "hash": contract_hash,
+                    }
+                ],
+                "generated_artifacts": {
+                    "review_packets": review_packets,
+                    "rendered_prompts": rendered_prompt_entries,
+                    "review_invocation_set": {"path": invocation_set_path, "status": "predeclared"},
+                },
+                "reviewer_assignments": assignments,
+                "validation": {
+                    "schema": "schemas/review-artifact-preparation.schema.json",
+                    "deterministic_script": "scripts/reviewers/prepare_review_set_artifacts.py",
+                    "script_contract": "scripts/contracts/prepare_review_set_artifacts.yaml",
+                },
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
 
@@ -1746,10 +1894,12 @@ def test_review_prompt_contract_template_assignments_use_invocation_set_evidence
 
     contract = yaml.safe_load((ROOT / "templates/review-prompt-contract.yaml").read_text(encoding="utf-8"))
     assert contract.get("reviewer_assignments")
-    assert contract["inputs"]["evidence_report"].endswith("review-invocation-set.json")
+    assert contract["inputs"]["evidence_report"].endswith("evidence-report.md")
+    assert contract["inputs"]["artifact_preparation_report"].endswith("prepared-review-artifacts.json")
+    assert contract["inputs"]["review_invocation_set"].endswith("review-invocation-set.json")
 
 
-def test_external_wrapper_rejects_assignments_without_evidence_report() -> None:
+def test_external_wrapper_rejects_assignments_without_review_invocation_set() -> None:
     import copy
     import sys
 
@@ -1760,14 +1910,36 @@ def test_external_wrapper_rejects_assignments_without_evidence_report() -> None:
 
     contract = yaml.safe_load((ROOT / "templates/review-prompt-contract.yaml").read_text(encoding="utf-8"))
     broken = copy.deepcopy(contract)
-    broken["inputs"].pop("evidence_report", None)
+    broken["inputs"]["evidence_report"] = broken["inputs"].get("review_invocation_set")
+    broken["inputs"].pop("review_invocation_set", None)
+
+    try:
+        run_external_reviewer.validate_prompt_contract_invariants(broken)
+    except ValueError as exc:
+        assert "inputs.review_invocation_set" in str(exc)
+    else:
+        raise AssertionError("assignment-enabled contract without review_invocation_set was accepted")
+
+
+def test_external_wrapper_rejects_aliased_evidence_and_review_invocation_set() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+
+    contract = yaml.safe_load((ROOT / "templates/review-prompt-contract.yaml").read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["inputs"]["evidence_report"] = broken["inputs"]["review_invocation_set"]
 
     try:
         run_external_reviewer.validate_prompt_contract_invariants(broken)
     except ValueError as exc:
         assert "inputs.evidence_report" in str(exc)
     else:
-        raise AssertionError("assignment-enabled contract without evidence_report was accepted")
+        raise AssertionError("assignment-enabled contract with aliased evidence_report was accepted")
 
 
 def test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources() -> None:
@@ -4803,7 +4975,8 @@ def test_review_prompt_contract_assignments_require_review_set_evidence() -> Non
         "require_model_diversity": True,
         "min_distinct_provider_model_families": 2,
     }
-    broken["inputs"].pop("evidence_report", None)
+    broken["inputs"]["evidence_report"] = "Docs/agentsflow/runs/2026-06-17-add-calculator/review-invocation-set.json"
+    broken["inputs"].pop("review_invocation_set", None)
     broken["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -4827,6 +5000,7 @@ def test_review_prompt_contract_assignments_require_review_set_evidence() -> Non
     errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, broken)
     joined = "\n".join(errors)
     assert "review_invocation_set" in joined
+    assert "artifact_preparation_report" in joined
     assert "report_path" in joined
 
 
@@ -4955,7 +5129,7 @@ def test_review_prompt_contract_model_diversity_requires_model_evidence(tmp_path
         "require_model_diversity": True,
         "min_distinct_provider_model_families": 2,
     }
-    broken["inputs"]["evidence_report"] = str(invocation_set)
+    broken["inputs"]["review_invocation_set"] = str(invocation_set)
     broken["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -5102,7 +5276,7 @@ def test_review_prompt_contract_rejects_mock_external_review_evidence(tmp_path) 
         "require_model_diversity": True,
         "min_distinct_provider_model_families": 2,
     }
-    broken["inputs"]["evidence_report"] = str(invocation_set)
+    broken["inputs"]["review_invocation_set"] = str(invocation_set)
     broken["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -5165,6 +5339,7 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     claude_raw = reports_dir / "reviewer-report.claude-generalist-b.raw.json"
     claude_invocation = reports_dir / "reviewer-invocation.claude-generalist-b.json"
     invocation_set = run_rel / "review-invocation-set.json"
+    preparation_path = run_rel / "prepared-review-artifacts.json"
 
     for report, provider, model in [
         (internal_report, "internal-agent", "codex"),
@@ -5194,7 +5369,8 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
         "require_model_diversity": True,
         "min_distinct_provider_model_families": 2,
     }
-    contract["inputs"]["evidence_report"] = str(invocation_set)
+    contract["inputs"]["artifact_preparation_report"] = str(preparation_path)
+    contract["inputs"]["review_invocation_set"] = str(invocation_set)
     contract["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -5214,6 +5390,23 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
             "invocation_metadata_path": str(claude_invocation),
         },
     ]
+    for reviewer in ["generalist-a", "generalist-b"]:
+        (root / run_rel / f"reviewer-report.{reviewer}.json").write_text(
+            json.dumps(
+                {
+                    "reviewer": {
+                        "id": reviewer,
+                        "provider": "internal-agent",
+                        "role": "generalist",
+                        "model": "codex",
+                    },
+                    "summary": "Internal reviewer artifact.",
+                    "findings": [],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
 
     prompt_hash = next(
@@ -5232,6 +5425,76 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     normalized_hash = "sha256:" + __import__("hashlib").sha256((root / claude_report).read_bytes()).hexdigest()
     contract_hash = "sha256:" + __import__("hashlib").sha256(contract_path.read_bytes()).hexdigest()
     rubric_hash = validate_repo.sha256_text(json.dumps(contract["prompt_policy"], sort_keys=True))
+    (root / preparation_path).write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "artifact_kind": "review_artifact_preparation",
+                "artifact_scope": "run",
+                "status": "completed",
+                "review_prompt_contract": {
+                    "path": str(run_rel / "review-prompt-contract.yaml"),
+                    "hash": contract_hash,
+                },
+                "source_context": {
+                    "dirty_policy": "fail-closed",
+                    "worktree": {
+                        "status_command": "git status --porcelain=v1 --untracked-files=all",
+                        "status_entries": [],
+                        "included_dirty_paths": [],
+                        "excluded_dirty_paths": [],
+                    },
+                },
+                "input_artifacts": [
+                    {
+                        "path": contract["inputs"]["task_contract"],
+                        "kind": "task_contract",
+                        "hash": validate_repo.sha256_file(root / contract["inputs"]["task_contract"]),
+                    }
+                ],
+                "generated_artifacts": {
+                    "shared_packet_content": {
+                        "path": str(run_rel / "review-packets/shared-content.json"),
+                        "hash": validate_repo.sha256_file(root / run_rel / "review-packets/shared-content.json"),
+                    },
+                    "review_packets": [
+                        {
+                            "reviewer": item["reviewer"],
+                            "path": item["path"],
+                            "hash": validate_repo.sha256_file(root / item["path"]),
+                            "shared_packet_content_hash": item.get("shared_packet_content_hash"),
+                        }
+                        for item in contract["inputs"]["review_packets"]
+                    ],
+                    "rendered_prompts": [
+                        {
+                            "reviewer": item["reviewer"],
+                            "path": item["prompt_path"],
+                            "hash": validate_repo.sha256_file(root / item["prompt_path"]),
+                            "packet_hash": item["packet_hash"],
+                            "schema_hash": item["schema_hash"],
+                            "rubric_hash": item["rubric_hash"],
+                            "role_contract_hash": item["role_contract_hash"],
+                        }
+                        for item in contract["rendered_prompts"]
+                    ],
+                    "review_invocation_set": {
+                        "path": str(invocation_set),
+                        "status": "completed",
+                    },
+                },
+                "reviewer_assignments": contract["reviewer_assignments"],
+                "validation": {
+                    "schema": "schemas/review-artifact-preparation.schema.json",
+                    "deterministic_script": "scripts/reviewers/prepare_review_set_artifacts.py",
+                    "script_contract": "scripts/contracts/prepare_review_set_artifacts.yaml",
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    preparation_hash = validate_repo.sha256_file(root / preparation_path)
 
     valid_invocation = {
         "provider": "claude-code",
@@ -5265,11 +5528,14 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     (root / claude_invocation).write_text(json.dumps(valid_invocation, indent=2), encoding="utf-8")
     (root / invocation_set).write_text(
         json.dumps(
-            {
-                "artifact_kind": "review_invocation_set",
-                "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
-                "status": "completed",
-                "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
+                    {
+                        "artifact_kind": "review_invocation_set",
+                        "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                        "artifact_preparation_report": str(preparation_path),
+                        "artifact_preparation_report_hash": preparation_hash,
+                        "status": "completed",
+                        "runner_scheduling": "external-first-async",
+                    "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
                 "reviewers": [
                     {
                         "reviewer": "generalist-a",
@@ -5407,12 +5673,14 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     external_raw_output = tmp_path / "reviewer-report.claude-generalist-b.raw.json"
     external_invocation = tmp_path / "reviewer-invocation.claude-generalist-b.json"
     output = tmp_path / "review-invocation-set.json"
+    preparation = tmp_path / "prepared-review-artifacts.json"
     contract["provider_policy"] = {
         "allow_external_reviewers": True,
         "require_model_diversity": True,
         "min_distinct_provider_model_families": 2,
     }
-    contract["inputs"]["evidence_report"] = str(output)
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(output)
     contract["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -5434,6 +5702,7 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     ]
     contract_path = tmp_path / "review-prompt-contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(preparation, contract_path)
 
     result = run(
         "scripts/reviewers/run_review_set.py",
@@ -5445,11 +5714,357 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(output.read_text(encoding="utf-8"))
     assert data["status"] == "completed"
+    assert data["artifact_preparation_report_hash"].startswith("sha256:")
     assert data["provider_model_families"] == ["claude-code/opus", "internal-agent/codex"]
     external_entry = next(item for item in data["reviewers"] if item["provider"] == "claude-code")
     assert external_entry["execution_mode"] == "mock"
     assert external_report.exists()
     assert external_invocation.exists()
+
+
+def test_run_review_set_starts_external_reviewers_asynchronously(tmp_path) -> None:
+    import json
+    import subprocess
+    import time
+
+    import yaml
+
+    root = tmp_path / "review-root"
+    run_dir = root / "Docs" / "agentsflow" / "runs" / "async-review-set"
+    scripts_dir = root / "scripts" / "reviewers"
+    (scripts_dir).mkdir(parents=True)
+    (root / "schemas").mkdir()
+    (root / "examples" / "external-reviewers" / "claude-code").mkdir(parents=True)
+    for schema_name in [
+        "reviewer-report.schema.json",
+        "review-invocation-set.schema.json",
+        "review-artifact-preparation.schema.json",
+    ]:
+        (root / "schemas" / schema_name).write_text(
+            (ROOT / "schemas" / schema_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+    fake_wrapper = scripts_dir / "run_external_reviewer.py"
+    fake_wrapper.write_text(
+        """
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import os
+import time
+from pathlib import Path
+
+
+def sha(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--provider")
+parser.add_argument("--config")
+parser.add_argument("--input")
+parser.add_argument("--output")
+parser.add_argument("--raw-output")
+parser.add_argument("--invocation-output")
+args = parser.parse_args()
+reviewer = Path(args.output).name.removeprefix("reviewer-report.").removesuffix(".json")
+log_path = Path(os.environ["AF_ASYNC_REVIEW_LOG"])
+with log_path.open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps({"event": "start", "reviewer": reviewer, "time": time.monotonic()}) + "\\n")
+time.sleep(0.6)
+report_path = Path(args.output)
+raw_path = Path(args.raw_output)
+invocation_path = Path(args.invocation_output)
+report_path.parent.mkdir(parents=True, exist_ok=True)
+report_path.write_text(json.dumps({
+    "reviewer": {"id": "claude-" + reviewer, "provider": "claude-code", "role": "generalist", "model": "opus"},
+    "summary": "Fake async external reviewer.",
+    "findings": []
+}, indent=2) + "\\n", encoding="utf-8")
+raw_path.write_text(json.dumps({"result": "ok"}) + "\\n", encoding="utf-8")
+now = dt.datetime.now(dt.timezone.utc).isoformat()
+invocation_path.write_text(json.dumps({
+    "provider": "claude-code",
+    "reviewer_role": "generalist",
+    "billing_mode": "subscription-local",
+    "api_key_usage_forbidden": True,
+    "context_policy": {"start_mode": "fresh_context", "fork_conversation_context": False, "session_persistence": False},
+    "command": "fake",
+    "execution_mode": "mock",
+    "requested_model": "opus",
+    "requested_effort": "max",
+    "provider_models_used": ["claude-opus-latest"],
+    "started_at": now,
+    "finished_at": now,
+    "exit_code": 0,
+    "raw_output_hash": sha(raw_path),
+    "normalized_output_hash": sha(report_path)
+}, indent=2) + "\\n", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
+    (root / "examples/external-reviewers/claude-code/claude-code.yaml").write_text("provider: claude-code\n", encoding="utf-8")
+    for reviewer in ["claude-a", "claude-b"]:
+        (run_dir / "review-packets").mkdir(parents=True, exist_ok=True)
+        (run_dir / "review-packets" / f"{reviewer}.json").write_text("{}", encoding="utf-8")
+    internal_report = run_dir / "reports" / "reviewer-report.codex-verification.json"
+    internal_report.parent.mkdir(parents=True, exist_ok=True)
+    internal_report_payload = {
+        "reviewer": {
+            "id": "codex-codex-verification",
+            "provider": "internal-agent",
+            "role": "verification",
+            "model": "codex",
+        },
+        "summary": "Internal report.",
+        "findings": [],
+    }
+    output = run_dir / "review-invocation-set.json"
+    contract = {
+        "reviewer_set": [
+            {"instance_id": "claude-a"},
+            {"instance_id": "codex-verification"},
+            {"instance_id": "claude-b"},
+        ],
+        "provider_policy": {
+            "allow_external_reviewers": True,
+            "require_model_diversity": True,
+            "min_distinct_provider_model_families": 2,
+        },
+        "inputs": {
+            "artifact_preparation_report": "Docs/agentsflow/runs/async-review-set/prepared-review-artifacts.json",
+            "review_invocation_set": str(output.relative_to(root)),
+        },
+        "reviewer_assignments": [
+            {
+                "reviewer": "claude-a",
+                "provider": "claude-code",
+                "model_family": "opus",
+                "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+                "packet_path": "Docs/agentsflow/runs/async-review-set/review-packets/claude-a.json",
+                "report_path": "Docs/agentsflow/runs/async-review-set/reports/reviewer-report.claude-a.json",
+                "raw_output_path": "Docs/agentsflow/runs/async-review-set/reports/reviewer-report.claude-a.raw.json",
+                "invocation_metadata_path": "Docs/agentsflow/runs/async-review-set/reports/reviewer-invocation.claude-a.json",
+            },
+            {
+                "reviewer": "codex-verification",
+                "provider": "internal-agent",
+                "model_family": "codex",
+                "packet_path": "Docs/agentsflow/runs/async-review-set/review-packets/claude-a.json",
+                "report_path": str(internal_report.relative_to(root)),
+            },
+            {
+                "reviewer": "claude-b",
+                "provider": "claude-code",
+                "model_family": "opus",
+                "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+                "packet_path": "Docs/agentsflow/runs/async-review-set/review-packets/claude-b.json",
+                "report_path": "Docs/agentsflow/runs/async-review-set/reports/reviewer-report.claude-b.json",
+                "raw_output_path": "Docs/agentsflow/runs/async-review-set/reports/reviewer-report.claude-b.raw.json",
+                "invocation_metadata_path": "Docs/agentsflow/runs/async-review-set/reports/reviewer-invocation.claude-b.json",
+            },
+        ],
+    }
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(run_dir / "prepared-review-artifacts.json", contract_path, root)
+    log_path = tmp_path / "async-starts.jsonl"
+    env = clean_env()
+    env["AF_ASYNC_REVIEW_LOG"] = str(log_path)
+    started = time.monotonic()
+    delayed_internal = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import json, pathlib, time; "
+                "time.sleep(0.2); "
+                f"pathlib.Path({str(internal_report)!r}).write_text("
+                f"json.dumps({internal_report_payload!r}, indent=2) + '\\n', encoding='utf-8')"
+            ),
+        ]
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "reviewers" / "run_review_set.py"),
+            "--contract",
+            str(contract_path.relative_to(root)),
+            "--output",
+            str(output.relative_to(root)),
+            "--internal-report-wait-seconds",
+            "5",
+        ],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+    delayed_internal.wait(timeout=5)
+    elapsed = time.monotonic() - started
+    assert result.returncode == 0, result.stdout + result.stderr
+    starts = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    assert sorted(event["reviewer"] for event in starts) == ["claude-a", "claude-b"]
+    assert abs(starts[1]["time"] - starts[0]["time"]) < 0.5
+    assert elapsed < 1.4
+    data = json.loads(output.read_text(encoding="utf-8"))
+    assert data["runner_scheduling"] == "external-first-async"
+    assert data["artifact_preparation_report_hash"].startswith("sha256:")
+    assert data["status"] == "completed"
+
+
+def test_run_review_set_times_out_hung_external_without_losing_completed_peer(tmp_path) -> None:
+    import json
+    import subprocess
+    import time
+
+    import yaml
+
+    root = tmp_path / "review-root"
+    run_dir = root / "Docs" / "agentsflow" / "runs" / "timeout-review-set"
+    scripts_dir = root / "scripts" / "reviewers"
+    scripts_dir.mkdir(parents=True)
+    (root / "schemas").mkdir()
+    (root / "examples" / "external-reviewers" / "claude-code").mkdir(parents=True)
+    for schema_name in [
+        "reviewer-report.schema.json",
+        "review-invocation-set.schema.json",
+        "review-artifact-preparation.schema.json",
+    ]:
+        (root / "schemas" / schema_name).write_text(
+            (ROOT / "schemas" / schema_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+    fake_wrapper = scripts_dir / "run_external_reviewer.py"
+    fake_wrapper.write_text(
+        """
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import time
+from pathlib import Path
+
+
+def sha(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--provider")
+parser.add_argument("--config")
+parser.add_argument("--input")
+parser.add_argument("--output")
+parser.add_argument("--raw-output")
+parser.add_argument("--invocation-output")
+args = parser.parse_args()
+reviewer = Path(args.output).name.removeprefix("reviewer-report.").removesuffix(".json")
+if reviewer == "claude-hung":
+    time.sleep(5)
+report_path = Path(args.output)
+raw_path = Path(args.raw_output)
+invocation_path = Path(args.invocation_output)
+report_path.parent.mkdir(parents=True, exist_ok=True)
+report_path.write_text(json.dumps({
+    "reviewer": {"id": "claude-" + reviewer, "provider": "claude-code", "role": "generalist", "model": "opus"},
+    "summary": "Fake external reviewer.",
+    "findings": []
+}, indent=2) + "\\n", encoding="utf-8")
+raw_path.write_text(json.dumps({"result": "ok"}) + "\\n", encoding="utf-8")
+now = dt.datetime.now(dt.timezone.utc).isoformat()
+invocation_path.write_text(json.dumps({
+    "provider": "claude-code",
+    "reviewer_role": "generalist",
+    "billing_mode": "subscription-local",
+    "api_key_usage_forbidden": True,
+    "context_policy": {"start_mode": "fresh_context", "fork_conversation_context": False, "session_persistence": False},
+    "command": "fake",
+    "execution_mode": "mock",
+    "requested_model": "opus",
+    "requested_effort": "max",
+    "provider_models_used": ["claude-opus-latest"],
+    "started_at": now,
+    "finished_at": now,
+    "exit_code": 0,
+    "raw_output_hash": sha(raw_path),
+    "normalized_output_hash": sha(report_path)
+}, indent=2) + "\\n", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
+    (root / "examples/external-reviewers/claude-code/claude-code.yaml").write_text("provider: claude-code\n", encoding="utf-8")
+    for reviewer in ["claude-ok", "claude-hung"]:
+        (run_dir / "review-packets").mkdir(parents=True, exist_ok=True)
+        (run_dir / "review-packets" / f"{reviewer}.json").write_text("{}", encoding="utf-8")
+    output = run_dir / "review-invocation-set.json"
+    contract = {
+        "reviewer_set": [{"instance_id": "claude-ok"}, {"instance_id": "claude-hung"}],
+        "provider_policy": {"allow_external_reviewers": True, "require_model_diversity": False},
+        "inputs": {
+            "artifact_preparation_report": "Docs/agentsflow/runs/timeout-review-set/prepared-review-artifacts.json",
+            "review_invocation_set": str(output.relative_to(root)),
+        },
+        "reviewer_assignments": [
+            {
+                "reviewer": "claude-ok",
+                "provider": "claude-code",
+                "model_family": "opus",
+                "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+                "packet_path": "Docs/agentsflow/runs/timeout-review-set/review-packets/claude-ok.json",
+                "report_path": "Docs/agentsflow/runs/timeout-review-set/reports/reviewer-report.claude-ok.json",
+                "raw_output_path": "Docs/agentsflow/runs/timeout-review-set/reports/reviewer-report.claude-ok.raw.json",
+                "invocation_metadata_path": "Docs/agentsflow/runs/timeout-review-set/reports/reviewer-invocation.claude-ok.json",
+            },
+            {
+                "reviewer": "claude-hung",
+                "provider": "claude-code",
+                "model_family": "opus",
+                "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+                "packet_path": "Docs/agentsflow/runs/timeout-review-set/review-packets/claude-hung.json",
+                "report_path": "Docs/agentsflow/runs/timeout-review-set/reports/reviewer-report.claude-hung.json",
+                "raw_output_path": "Docs/agentsflow/runs/timeout-review-set/reports/reviewer-report.claude-hung.raw.json",
+                "invocation_metadata_path": "Docs/agentsflow/runs/timeout-review-set/reports/reviewer-invocation.claude-hung.json",
+            },
+        ],
+    }
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(run_dir / "prepared-review-artifacts.json", contract_path, root)
+
+    started = time.monotonic()
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "reviewers" / "run_review_set.py"),
+            "--contract",
+            str(contract_path.relative_to(root)),
+            "--output",
+            str(output.relative_to(root)),
+            "--external-reviewer-timeout-seconds",
+            "0.5",
+        ],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        env=clean_env(),
+    )
+    elapsed = time.monotonic() - started
+
+    assert result.returncode == 2
+    assert elapsed < 3
+    data = json.loads(output.read_text(encoding="utf-8"))
+    assert data["status"] == "failed"
+    ok_entry = next(item for item in data["reviewers"] if item["reviewer"] == "claude-ok")
+    hung_entry = next(item for item in data["reviewers"] if item["reviewer"] == "claude-hung")
+    assert ok_entry["status"] == "invoked"
+    assert hung_entry["status"] == "timed-out"
+    assert "timed out" in hung_entry["error"]
+    assert (run_dir / "reports" / "reviewer-report.claude-ok.json").exists()
 
 
 def test_run_review_set_failure_writes_schema_valid_evidence(tmp_path) -> None:
@@ -5464,7 +6079,9 @@ def test_run_review_set_failure_writes_schema_valid_evidence(tmp_path) -> None:
     )
     contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
     output = tmp_path / "review-invocation-set.failed.json"
-    contract["inputs"]["evidence_report"] = str(output)
+    preparation = tmp_path / "prepared-review-artifacts.json"
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(output)
     missing_internal_report = tmp_path / "missing-internal-report.json"
     contract["reviewer_assignments"] = [
         {
@@ -5484,6 +6101,7 @@ def test_run_review_set_failure_writes_schema_valid_evidence(tmp_path) -> None:
     ]
     contract_path = tmp_path / "review-prompt-contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(preparation, contract_path)
 
     result = run(
         "scripts/reviewers/run_review_set.py",
@@ -5505,7 +6123,240 @@ def test_run_review_set_failure_writes_schema_valid_evidence(tmp_path) -> None:
     assert data["reviewers"][0]["error"]
 
 
-def test_run_review_set_requires_output_to_match_evidence_report(tmp_path) -> None:
+def test_run_review_set_requires_artifact_preparation_report(tmp_path) -> None:
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    output = tmp_path / "review-invocation-set.json"
+    contract["inputs"].pop("artifact_preparation_report", None)
+    contract["inputs"]["review_invocation_set"] = str(output)
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(tmp_path / "reviewer-report.internal-generalist-a.json"),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][1]["path"],
+            "report_path": str(tmp_path / "reviewer-report.internal-generalist-b.json"),
+        },
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(output),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "inputs.artifact_preparation_report" in (result.stdout + result.stderr)
+    assert output.exists()
+
+
+def test_run_review_set_rejects_unvalidated_artifact_preparation_report(tmp_path) -> None:
+    import json
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    output = tmp_path / "review-invocation-set.json"
+    preparation = tmp_path / "prepared-review-artifacts.json"
+    preparation.write_text("{}", encoding="utf-8")
+    internal_report = tmp_path / "reviewer-report.internal-generalist-a.json"
+    internal_report.write_text(
+        json.dumps(
+            {
+                "reviewer": {
+                    "id": "codex-generalist-a",
+                    "provider": "internal-agent",
+                    "role": "generalist",
+                    "model": "codex",
+                },
+                "summary": "Internal reviewer artifact exists.",
+                "findings": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(output)
+    contract["reviewer_set"] = [contract["reviewer_set"][0]]
+    contract["inputs"]["review_packets"] = [contract["inputs"]["review_packets"][0]]
+    contract["rendered_prompts"] = [contract["rendered_prompts"][0]]
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(internal_report),
+        }
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(output),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "preparation artifact schema validation failed" in (result.stdout + result.stderr)
+
+
+def test_run_review_set_rejects_stale_preparation_packet_hash_before_dispatch(tmp_path) -> None:
+    import json
+
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    output = tmp_path / "review-invocation-set.json"
+    preparation = tmp_path / "prepared-review-artifacts.json"
+    external_report = tmp_path / "reviewer-report.claude-generalist-b.json"
+    external_raw_output = tmp_path / "reviewer-report.claude-generalist-b.raw.json"
+    external_invocation = tmp_path / "reviewer-invocation.claude-generalist-b.json"
+    external_raw = tmp_path / "mock-claude-generalist-b.raw.json"
+    external_raw.write_text(
+        json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "result": json.dumps(
+                    {
+                        "reviewer": {
+                            "id": "claude-generalist-b",
+                            "provider": "claude-code",
+                            "role": "generalist",
+                            "model": "opus",
+                        },
+                        "summary": "Should not be invoked.",
+                        "findings": [],
+                    }
+                ),
+                "modelUsage": {"claude-opus-latest": {"inputTokens": 1, "outputTokens": 1}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    contract["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": False,
+    }
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(output)
+    contract["reviewer_set"] = [contract["reviewer_set"][1]]
+    contract["inputs"]["review_packets"] = [contract["inputs"]["review_packets"][1]]
+    contract["rendered_prompts"] = [contract["rendered_prompts"][1]]
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-b",
+            "provider": "claude-code",
+            "model_family": "opus",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(external_report),
+            "raw_output_path": str(external_raw_output),
+            "invocation_metadata_path": str(external_invocation),
+        }
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(preparation, contract_path)
+    preparation_data = json.loads(preparation.read_text(encoding="utf-8"))
+    preparation_data["generated_artifacts"]["review_packets"][0]["hash"] = "sha256:" + "0" * 64
+    preparation.write_text(json.dumps(preparation_data, indent=2), encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(output),
+        "--mock-response",
+        f"generalist-b={external_raw}",
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "review packet for generalist-b hash must match current artifact" in (result.stdout + result.stderr)
+    assert not external_report.exists()
+    assert output.exists()
+
+
+def test_run_review_set_rejects_aliased_evidence_and_invocation_set(tmp_path) -> None:
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    output = tmp_path / "review-invocation-set.json"
+    preparation = tmp_path / "prepared-review-artifacts.json"
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(output)
+    contract["inputs"]["evidence_report"] = str(output)
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(tmp_path / "reviewer-report.internal-generalist-a.json"),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][1]["path"],
+            "report_path": str(tmp_path / "reviewer-report.internal-generalist-b.json"),
+        },
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(preparation, contract_path)
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(output),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "inputs.evidence_report must not match inputs.review_invocation_set" in (result.stdout + result.stderr)
+
+
+def test_run_review_set_requires_output_to_match_review_invocation_set(tmp_path) -> None:
     import json
 
     import yaml
@@ -5537,7 +6388,9 @@ def test_run_review_set_requires_output_to_match_evidence_report(tmp_path) -> No
             ),
             encoding="utf-8",
         )
-    contract["inputs"]["evidence_report"] = str(tmp_path / "expected-review-invocation-set.json")
+    preparation = tmp_path / "prepared-review-artifacts.json"
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(tmp_path / "expected-review-invocation-set.json")
     contract["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -5556,6 +6409,7 @@ def test_run_review_set_requires_output_to_match_evidence_report(tmp_path) -> No
     ]
     contract_path = tmp_path / "review-prompt-contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(preparation, contract_path)
     wrong_output = tmp_path / "wrong-review-invocation-set.json"
 
     result = run(
@@ -5568,7 +6422,7 @@ def test_run_review_set_requires_output_to_match_evidence_report(tmp_path) -> No
     )
 
     assert result.returncode == 2
-    assert "--output must match inputs.evidence_report" in (result.stdout + result.stderr)
+    assert "--output must match inputs.review_invocation_set" in (result.stdout + result.stderr)
 
 
 def test_run_review_set_rejects_duplicate_report_paths(tmp_path) -> None:
@@ -5582,6 +6436,7 @@ def test_run_review_set_rejects_duplicate_report_paths(tmp_path) -> None:
     )
     contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
     output = tmp_path / "review-invocation-set.json"
+    preparation = tmp_path / "prepared-review-artifacts.json"
     shared_report = tmp_path / "reviewer-report.shared.json"
     shared_report.write_text(
         json.dumps(
@@ -5599,7 +6454,8 @@ def test_run_review_set_rejects_duplicate_report_paths(tmp_path) -> None:
         ),
         encoding="utf-8",
     )
-    contract["inputs"]["evidence_report"] = str(output)
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(output)
     contract["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -5618,6 +6474,7 @@ def test_run_review_set_rejects_duplicate_report_paths(tmp_path) -> None:
     ]
     contract_path = tmp_path / "review-prompt-contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(preparation, contract_path)
 
     result = run(
         "scripts/reviewers/run_review_set.py",
@@ -5630,3 +6487,570 @@ def test_run_review_set_rejects_duplicate_report_paths(tmp_path) -> None:
 
     assert result.returncode == 2
     assert "report_path values must be unique" in (result.stdout + result.stderr)
+
+
+def test_review_artifact_preparation_schema_passes() -> None:
+    import json
+
+    import jsonschema
+
+    schema = json.loads((ROOT / "schemas/review-artifact-preparation.schema.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "templates/review-artifact-preparation.json").read_text(encoding="utf-8"))
+
+    jsonschema.Draft202012Validator(schema).validate(template)
+
+
+def test_review_prompt_contract_assignments_require_preparation_evidence() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    broken["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": False,
+    }
+    broken["inputs"].pop("artifact_preparation_report", None)
+    broken["inputs"]["review_invocation_set"] = (
+        "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-invocation-set.json"
+    )
+    broken["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][0]["path"],
+            "report_path": "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-a.json",
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": broken["inputs"]["review_packets"][1]["path"],
+            "report_path": "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-b.json",
+        },
+    ]
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(ROOT, path, broken)
+    joined = "\n".join(errors)
+    assert "artifact_preparation_report" in joined
+    assert "review_invocation_set" in joined
+
+
+def test_review_prompt_contract_rejects_aliased_evidence_and_invocation_set(tmp_path) -> None:
+    import copy
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    for rel in ["schemas", "profiles", "templates/review-prompts"]:
+        shutil.copytree(ROOT / rel, root / rel)
+    run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
+    shutil.copytree(ROOT / run_rel, root / run_rel)
+    contract_path = root / run_rel / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(contract)
+    invocation_set_path = run_rel / "review-invocation-set.json"
+    (root / invocation_set_path).write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                "status": "failed",
+                "provider_model_families": [],
+                "reviewers": [],
+                "error": "test fixture",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    broken["inputs"]["evidence_report"] = str(invocation_set_path)
+    broken["inputs"]["review_invocation_set"] = str(invocation_set_path)
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, broken)
+
+    assert "inputs.evidence_report must not match inputs.review_invocation_set" in "\n".join(errors)
+
+
+def test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts(tmp_path) -> None:
+    import copy
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    for rel in ["schemas", "profiles", "templates/review-prompts"]:
+        shutil.copytree(ROOT / rel, root / rel)
+    run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
+    shutil.copytree(ROOT / run_rel, root / run_rel)
+    contract_path = root / run_rel / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    preparation_path = run_rel / "prepared-review-artifacts.json"
+    invocation_set_path = run_rel / "review-invocation-set.json"
+
+    contract["provider_policy"] = {
+        "allow_external_reviewers": False,
+        "require_model_diversity": False,
+    }
+    contract["inputs"]["artifact_preparation_report"] = str(preparation_path)
+    contract["inputs"]["review_invocation_set"] = str(invocation_set_path)
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-a",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(run_rel / "reviewer-report.generalist-a.json"),
+        },
+        {
+            "reviewer": "generalist-b",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": contract["inputs"]["review_packets"][1]["path"],
+            "report_path": str(run_rel / "reviewer-report.generalist-b.json"),
+        },
+    ]
+    for reviewer in ["generalist-a", "generalist-b"]:
+        (root / run_rel / f"reviewer-report.{reviewer}.json").write_text(
+            json.dumps(
+                {
+                    "reviewer": {
+                        "id": reviewer,
+                        "provider": "internal-agent",
+                        "role": "generalist",
+                        "model": "codex",
+                    },
+                    "summary": "Internal reviewer artifact.",
+                    "findings": [],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    contract_hash = validate_repo.sha256_file(contract_path)
+
+    packets = []
+    for packet in contract["inputs"]["review_packets"]:
+        packet_path = root / packet["path"]
+        packets.append(
+            {
+                "reviewer": packet["reviewer"],
+                "path": packet["path"],
+                "hash": validate_repo.sha256_file(packet_path),
+                "shared_packet_content_hash": packet["shared_packet_content_hash"],
+            }
+        )
+    prompts = []
+    for prompt in contract["rendered_prompts"]:
+        prompts.append(
+            {
+                "reviewer": prompt["reviewer"],
+                "path": prompt["prompt_path"],
+                "hash": validate_repo.sha256_file(root / prompt["prompt_path"]),
+                "packet_hash": prompt["packet_hash"],
+                "schema_hash": prompt["schema_hash"],
+                "rubric_hash": prompt["rubric_hash"],
+                "role_contract_hash": prompt["role_contract_hash"],
+            }
+        )
+    preparation = {
+        "version": 1,
+        "artifact_kind": "review_artifact_preparation",
+        "artifact_scope": "run",
+        "status": "completed",
+        "review_prompt_contract": {
+            "path": str(run_rel / "review-prompt-contract.yaml"),
+            "hash": contract_hash,
+        },
+        "source_context": {
+            "dirty_policy": "fail-closed",
+            "worktree": {
+                "status_command": "git status --porcelain=v1 --untracked-files=all",
+                "status_entries": [],
+                "included_dirty_paths": [],
+                "excluded_dirty_paths": [],
+            },
+        },
+        "input_artifacts": [
+            {
+                "path": contract["inputs"]["task_contract"],
+                "kind": "task_contract",
+                "hash": validate_repo.sha256_file(root / contract["inputs"]["task_contract"]),
+            }
+        ],
+        "generated_artifacts": {
+            "shared_packet_content": {
+                "path": str(run_rel / "review-packets/shared-content.json"),
+                "hash": validate_repo.sha256_file(root / run_rel / "review-packets/shared-content.json"),
+            },
+            "review_packets": packets,
+            "rendered_prompts": prompts,
+            "review_invocation_set": {
+                "path": str(invocation_set_path),
+                "status": "completed",
+            },
+        },
+        "reviewer_assignments": contract["reviewer_assignments"],
+        "validation": {
+            "schema": "schemas/review-artifact-preparation.schema.json",
+            "deterministic_script": "scripts/reviewers/prepare_review_set_artifacts.py",
+            "script_contract": "scripts/contracts/prepare_review_set_artifacts.yaml",
+        },
+    }
+    (root / preparation_path).write_text(json.dumps(preparation, indent=2), encoding="utf-8")
+    preparation_hash = validate_repo.sha256_file(root / preparation_path)
+    (root / invocation_set_path).write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                "artifact_preparation_report": str(preparation_path),
+                "artifact_preparation_report_hash": preparation_hash,
+                "status": "completed",
+                "provider_model_families": ["internal-agent/codex"],
+                "reviewers": [
+                    {
+                        "reviewer": "generalist-a",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "packet_path": contract["inputs"]["review_packets"][0]["path"],
+                        "report_path": str(run_rel / "reviewer-report.generalist-a.json"),
+                        "status": "report-present",
+                    },
+                    {
+                        "reviewer": "generalist-b",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "packet_path": contract["inputs"]["review_packets"][1]["path"],
+                        "report_path": str(run_rel / "reviewer-report.generalist-b.json"),
+                        "status": "report-present",
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+
+    stale = copy.deepcopy(preparation)
+    stale["generated_artifacts"]["review_packets"][0]["hash"] = "sha256:" + "0" * 64
+    (root / preparation_path).write_text(json.dumps(stale, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_artifact_preparation review packet hash" in "\n".join(errors)
+
+
+def _write_minimal_preparation_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
+    import json
+    import shutil
+
+    import yaml
+
+    for rel in ["schemas", "profiles", "templates/review-prompts"]:
+        shutil.copytree(ROOT / rel, root / rel)
+    run_dir = root / "Docs/agentsflow/runs/2026-06-21-prep"
+    (run_dir / "review-packets").mkdir(parents=True)
+    (run_dir / "review-prompts").mkdir()
+    (run_dir / "reports").mkdir()
+    (root / "src").mkdir()
+    (root / "AGENTS.md").write_text("# Test Instructions\n", encoding="utf-8")
+    (run_dir / "task.contract.md").write_text("# Task Contract\n", encoding="utf-8")
+    (run_dir / "verification-gate-report.json").write_text(
+        json.dumps(
+            {
+                "kind": "verification_gate_report",
+                "result_state": "pass",
+                "checks": [{"id": "pytest", "status": "pass"}],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    shared_packet = {
+        "agentsflow_version": "0.2",
+        "workflow": "big-feature-contract-first",
+        "run_id": "2026-06-21-prep",
+        "reviewer_role": "generalist",
+        "reviewer_instance_id": "generalist-a",
+        "review_goal": "Review the prepared artifact slice.",
+        "review_profile": "homogeneous-dual",
+        "composition": "homogeneous",
+        "prompt_policy": {
+            "same_prompt": True,
+            "same_packet": True,
+            "same_rubric": True,
+            "same_output_schema": True,
+        },
+        "role_contract": "profiles/reviewer_roles/generalist.yaml",
+        "review_prompt_contract": {
+            "path": "Docs/agentsflow/runs/2026-06-21-prep/review-prompt-contract.yaml",
+            "schema": "schemas/review-prompt-contract.schema.json",
+        },
+        "context_policy": {
+            "start_mode": "fresh_context",
+            "fork_conversation_context": False,
+            "allowed_context_sources": ["review_packet", "referenced_artifacts"],
+        },
+        "risk_surface_profile": {
+            "selected_risk_surfaces": [],
+            "review_topology_source": "workflow_default",
+        },
+        "failure_path_matrix": {
+            "path": "Docs/agentsflow/runs/2026-06-21-prep/failure-path-matrix.yaml",
+            "rows": [],
+        },
+        "verification_gate_report": {
+            "path": "Docs/agentsflow/runs/2026-06-21-prep/verification-gate-report.json",
+        },
+        "evidence_freshness": {
+            "latest_green_gate": "Docs/agentsflow/runs/2026-06-21-prep/verification-gate-report.json",
+        },
+        "known_blockers": [],
+        "forbidden_actions": ["run_tests", "run_scripts", "modify_files", "create_patch", "update_evidence"],
+        "output_schema": "schemas/reviewer-report.schema.json",
+        "changed_files": ["src/new.py"],
+    }
+    shared_packet_path = run_dir / "review-packets/shared-source.json"
+    shared_packet_path.write_text(json.dumps(shared_packet, indent=2), encoding="utf-8")
+    contract = {
+        "version": 1,
+        "artifact_kind": "review_prompt_contract",
+        "artifact_scope": "run",
+        "identity": {
+            "run_id": "2026-06-21-prep",
+            "workflow": "big-feature-contract-first",
+            "phase_id": "review",
+            "review_profile": "homogeneous-dual",
+            "topology": "homogeneous-dual",
+            "composition": "homogeneous",
+            "primary_gate": True,
+        },
+        "inputs": {
+            "review_packet_schema": "schemas/review-packet.schema.json",
+            "review_packets": [
+                {
+                    "reviewer": "generalist-a",
+                    "path": "Docs/agentsflow/runs/2026-06-21-prep/review-packets/generalist-a.json",
+                    "schema": "schemas/review-packet.schema.json",
+                    "packet_hash": "sha256:<pending>",
+                    "shared_packet_content_hash": "sha256:<pending>",
+                },
+                {
+                    "reviewer": "generalist-b",
+                    "path": "Docs/agentsflow/runs/2026-06-21-prep/review-packets/generalist-b.json",
+                    "schema": "schemas/review-packet.schema.json",
+                    "packet_hash": "sha256:<pending>",
+                    "shared_packet_content_hash": "sha256:<pending>",
+                },
+            ],
+            "output_schema": "schemas/reviewer-report.schema.json",
+            "task_contract": "Docs/agentsflow/runs/2026-06-21-prep/task.contract.md",
+            "verification_gate_report": "Docs/agentsflow/runs/2026-06-21-prep/verification-gate-report.json",
+            "evidence_report": "Docs/agentsflow/runs/2026-06-21-prep/evidence-report.md",
+            "artifact_preparation_report": "Docs/agentsflow/runs/2026-06-21-prep/prepared-review-artifacts.json",
+            "review_invocation_set": "Docs/agentsflow/runs/2026-06-21-prep/review-invocation-set.json",
+        },
+        "reviewer_set": [
+            {
+                "instance_id": "generalist-a",
+                "role_id": "generalist",
+                "role_contract": "profiles/reviewer_roles/generalist.yaml",
+                "independent": True,
+            },
+            {
+                "instance_id": "generalist-b",
+                "role_id": "generalist",
+                "role_contract": "profiles/reviewer_roles/generalist.yaml",
+                "independent": True,
+            },
+        ],
+        "provider_policy": {
+            "allow_external_reviewers": True,
+            "require_model_diversity": True,
+            "min_distinct_provider_model_families": 2,
+        },
+        "reviewer_assignments": [
+            {
+                "reviewer": "generalist-a",
+                "provider": "internal-agent",
+                "model_family": "codex",
+                "packet_path": "Docs/agentsflow/runs/2026-06-21-prep/review-packets/generalist-a.json",
+                "report_path": "Docs/agentsflow/runs/2026-06-21-prep/reports/reviewer-report.generalist-a.json",
+            },
+            {
+                "reviewer": "generalist-b",
+                "provider": "claude-code",
+                "model_family": "opus",
+                "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+                "packet_path": "Docs/agentsflow/runs/2026-06-21-prep/review-packets/generalist-b.json",
+                "report_path": "Docs/agentsflow/runs/2026-06-21-prep/reports/reviewer-report.generalist-b.json",
+                "raw_output_path": "Docs/agentsflow/runs/2026-06-21-prep/reports/reviewer-report.generalist-b.raw.json",
+                "invocation_metadata_path": "Docs/agentsflow/runs/2026-06-21-prep/reports/reviewer-invocation.generalist-b.json",
+            },
+        ],
+        "context_policy": {
+            "start_mode": "fresh_context",
+            "fork_conversation_context": False,
+            "allowed_context_sources": ["review_packet", "referenced_artifacts"],
+        },
+        "permission_policy": {
+            "read_only": True,
+            "forbidden_actions": ["run_tests", "run_scripts", "modify_files", "create_patch", "update_evidence"],
+        },
+        "prompt_components": {
+            "shared_base_instructions": "templates/review-prompts/base.md",
+            "finding_lifecycle": "candidate-unvalidated",
+            "output_instructions": "schemas/reviewer-report.schema.json",
+        },
+        "prompt_policy": {
+            "same_prompt": True,
+            "same_packet": True,
+            "same_rubric": True,
+            "same_output_schema": True,
+        },
+        "rendered_prompts": [
+            {
+                "reviewer": "generalist-a",
+                "prompt_path": "Docs/agentsflow/runs/2026-06-21-prep/review-prompts/generalist-a.md",
+                "prompt_hash": "sha256:<pending>",
+                "shared_prompt_content_hash": "sha256:<pending>",
+                "packet_hash": "sha256:<pending>",
+                "shared_packet_content_hash": "sha256:<pending>",
+                "schema_hash": "sha256:<pending>",
+                "rubric_hash": "sha256:<pending>",
+                "role_contract_hash": "sha256:<pending>",
+            },
+            {
+                "reviewer": "generalist-b",
+                "prompt_path": "Docs/agentsflow/runs/2026-06-21-prep/review-prompts/generalist-b.md",
+                "prompt_hash": "sha256:<pending>",
+                "shared_prompt_content_hash": "sha256:<pending>",
+                "packet_hash": "sha256:<pending>",
+                "shared_packet_content_hash": "sha256:<pending>",
+                "schema_hash": "sha256:<pending>",
+                "rubric_hash": "sha256:<pending>",
+                "role_contract_hash": "sha256:<pending>",
+            },
+        ],
+        "collision_control": None,
+        "validation": {
+            "schema": "schemas/review-prompt-contract.schema.json",
+            "assembly_invariants": ["homogeneous-dual uses exactly two reviewers."],
+        },
+    }
+    contract_path = run_dir / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    preparation_path = run_dir / "prepared-review-artifacts.json"
+    return contract_path, shared_packet_path, preparation_path, run_dir
+
+
+def _git_commit_all(root: Path) -> None:
+    subprocess.run(["git", "init"], cwd=root, text=True, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "AgentsFlow Test"], cwd=root, check=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=root, text=True, capture_output=True, check=True)
+
+
+def test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths(tmp_path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    contract_path, shared_packet_path, preparation_path, run_dir = _write_minimal_preparation_fixture(root)
+    _git_commit_all(root)
+    (root / "src/new.py").write_text("print('new')\n", encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/prepare_review_set_artifacts.py",
+        "--root",
+        str(root),
+        "--contract",
+        str(contract_path.relative_to(root)),
+        "--shared-packet",
+        str(shared_packet_path.relative_to(root)),
+        "--preparation-output",
+        str(preparation_path.relative_to(root)),
+        env=clean_env(),
+    )
+
+    assert result.returncode != 0
+    assert "uncovered dirty worktree path" in (result.stdout + result.stderr)
+    assert not (run_dir / "review-packets/generalist-a.json").exists()
+
+
+def test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence(tmp_path) -> None:
+    import json
+
+    import jsonschema
+    import yaml
+
+    root = tmp_path / "root"
+    root.mkdir()
+    contract_path, shared_packet_path, preparation_path, run_dir = _write_minimal_preparation_fixture(root)
+    _git_commit_all(root)
+    (root / "src/new.py").write_text("print('new')\n", encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/prepare_review_set_artifacts.py",
+        "--root",
+        str(root),
+        "--contract",
+        str(contract_path.relative_to(root)),
+        "--shared-packet",
+        str(shared_packet_path.relative_to(root)),
+        "--preparation-output",
+        str(preparation_path.relative_to(root)),
+        "--include",
+        "src/new.py",
+        "--include",
+        "AGENTS.md",
+        env=clean_env(),
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (run_dir / "review-packets/generalist-a.json").exists()
+    assert (run_dir / "review-packets/generalist-b.json").exists()
+    assert (run_dir / "review-prompts/generalist-a.md").exists()
+    assert (run_dir / "review-prompts/generalist-b.md").exists()
+    assert preparation_path.exists()
+
+    preparation = json.loads(preparation_path.read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "schemas/review-artifact-preparation.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(preparation)
+    assert preparation["artifact_kind"] == "review_artifact_preparation"
+    assert preparation["generated_artifacts"]["review_invocation_set"]["path"].endswith("review-invocation-set.json")
+    assert {item["path"] for item in preparation["input_artifacts"]} >= {"src/new.py", "AGENTS.md"}
+
+    updated_contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    assert updated_contract["inputs"]["artifact_preparation_report"].endswith("prepared-review-artifacts.json")
+    assert updated_contract["inputs"]["review_invocation_set"].endswith("review-invocation-set.json")
+    assert updated_contract["inputs"]["evidence_report"].endswith("evidence-report.md")
+    for packet in updated_contract["inputs"]["review_packets"]:
+        assert packet["packet_hash"].startswith("sha256:")
+    for prompt in updated_contract["rendered_prompts"]:
+        assert prompt["prompt_hash"].startswith("sha256:")

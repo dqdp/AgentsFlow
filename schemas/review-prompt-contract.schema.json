@@ -128,6 +128,16 @@
           "minLength": 1,
           "pattern": "\\S"
         },
+        "artifact_preparation_report": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "review_invocation_set": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
         "reviewed_artifact": {
           "type": "string"
         },

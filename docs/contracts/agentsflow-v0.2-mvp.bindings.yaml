@@ -451,3 +451,86 @@ bindings:
           - pytest-output
     gates:
       - verification_gate
+  - id: AF-V02-BHV-018
+    scenario: "Provider-assigned review gates require structured artifact preparation"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-review-artifact-preparation-schema
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_artifact_preparation_schema_passes"
+        evidence:
+          - pytest-output
+      - id: pytest-review-contract-requires-preparation
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_assignments_require_preparation_evidence"
+        evidence:
+          - pytest-output
+      - id: pytest-review-contract-binds-preparation
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-019
+    scenario: "Review artifact preparation fails closed on uncovered dirty paths"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-prepare-review-artifacts-dirty-paths
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths"
+        evidence:
+          - pytest-output
+      - id: pytest-prepare-review-artifacts-generates-evidence
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-020
+    scenario: "Review set dispatch starts external reviewers asynchronously"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-review-set-external-async
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_run_review_set_starts_external_reviewers_asynchronously"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-021
+    scenario: "Review set collection preserves completed external reviewer evidence on timeout"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-review-set-external-timeout-preserves-completed
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_run_review_set_times_out_hung_external_without_losing_completed_peer"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate

@@ -1,0 +1,23 @@
+name: prepare_review_set_artifacts
+kind: script_contract
+script: scripts/reviewers/prepare_review_set_artifacts.py
+deterministic: true
+purpose: >
+  Materialize provider-assigned review packets, rendered prompts and structured
+  preparation evidence from a declared review prompt contract.
+inputs:
+  review_prompt_contract: YAML artifact conforming to schemas/review-prompt-contract.schema.json
+  shared_review_packet: JSON packet payload used as the substantive packet source
+  explicit_includes: Paths that must be hashed and recorded as input artifacts
+  explicit_exclusions: Dirty worktree paths excluded with reasons
+outputs:
+  review_prompt_contract: Updated contract with packet, prompt, preparation and invocation-set paths/hashes
+  review_packets: Per-reviewer packet JSON artifacts
+  rendered_prompts: Per-reviewer prompt text artifacts
+  review_artifact_preparation: JSON artifact conforming to schemas/review-artifact-preparation.schema.json
+guarantees:
+  - Does not choose reviewer topology or provider assignments.
+  - Does not decide which project files are semantically important.
+  - Fails closed when dirty worktree paths are neither included nor explicitly excluded.
+  - Uses the same reviewer prompt rendering function as external reviewer invocation.
+  - Records hashes for generated packets, prompts, input artifacts and the updated review prompt contract.

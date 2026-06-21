@@ -42,6 +42,7 @@ from .review import (
     validate_review_prompt_contract_run_references,
     validate_review_prompt_contract_template,
     validate_phase_skills_declared,
+    validate_review_artifact_preparation_artifact,
     validate_reviewer_invocation_artifact,
     validate_reviewer_report_artifact,
     validate_supported_review_topologies,
@@ -114,6 +115,7 @@ def validate_repository(root: Path) -> list[str]:
         )
     )
     errors.extend(validate_reviewer_invocation_artifact(root, root / 'templates' / 'reviewer-invocation.json'))
+    errors.extend(validate_review_artifact_preparation_artifact(root, root / 'templates' / 'review-artifact-preparation.json'))
     errors.extend(
         validate_reviewer_invocation_artifact(
             root,

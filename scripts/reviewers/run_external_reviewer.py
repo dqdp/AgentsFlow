@@ -24,10 +24,14 @@ import yaml
 
 # Allow running as a script from repository root without installing a package.
 SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPTS_DIR = SCRIPT_DIR.parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 from providers import claude_code  # noqa: E402
+from reviewers.prompt_rendering import render_review_prompt  # noqa: E402
 
 
 SEVERITIES = {"P0", "P1", "P2", "P3", "NOTE"}
@@ -319,8 +323,13 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
     if assignments:
         if not isinstance(assignments, list):
             raise ValueError("review prompt contract reviewer_assignments must be a list")
-        if not (contract.get("inputs", {}) or {}).get("evidence_report"):
-            raise ValueError("review prompt contract reviewer_assignments require inputs.evidence_report")
+        inputs = contract.get("inputs", {}) or {}
+        if not inputs.get("review_invocation_set"):
+            raise ValueError("review prompt contract reviewer_assignments require inputs.review_invocation_set")
+        if inputs.get("evidence_report") and str(inputs.get("evidence_report")) == str(inputs.get("review_invocation_set")):
+            raise ValueError("review prompt contract inputs.evidence_report must not match inputs.review_invocation_set")
+        if contract.get("artifact_scope", "run") == "run" and not inputs.get("artifact_preparation_report"):
+            raise ValueError("review prompt contract reviewer_assignments require inputs.artifact_preparation_report")
         assignment_reviewers: list[str] = []
         provider_model_families: set[str] = set()
         for idx, assignment in enumerate(assignments):
@@ -608,21 +617,7 @@ def validate_review_packet(
 
 
 def render_prompt(packet: dict[str, Any], role_contract: dict[str, Any]) -> str:
-    return (
-        "You are an AgentsFlow external read-only reviewer.\n"
-        "Start from zero prior conversation context. Do not use or assume any forked orchestrator context. "
-        "Review only the provided packet. Do not request repository access. Do not modify files. "
-        "Do not run tests. Do not execute scripts. Do not produce patches. Do not update evidence. "
-        "Return JSON only, conforming to the requested reviewer-report schema.\n\n"
-        "All findings must be candidate-unvalidated. Report missing mandatory evidence. "
-        "Report plausible P0/P1 blockers even outside a focused role. "
-        "The main/orchestrating agent validates relevance before findings affect workflow decisions.\n\n"
-        "Resolved reviewer role contract:\n"
-        + yaml.safe_dump(role_contract, sort_keys=False)
-        + "\n"
-        "Review packet:\n"
-        + json.dumps(packet, ensure_ascii=False, indent=2)
-    )
+    return render_review_prompt(packet, role_contract)
 
 
 def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str) -> dict[str, Any]:

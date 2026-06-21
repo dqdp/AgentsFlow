@@ -38,6 +38,8 @@ A contract records:
 - at least one review subject: `task_contract`, `reviewed_artifact`, or
   `reviewed_artifacts`;
 - verification gate report and evidence report when applicable;
+- structured review artifact preparation evidence when provider assignments are
+  used for a run-scope gate;
 - project agent instructions such as `AGENTS.md`, when they are part of the
   reviewer context;
 - reviewer-report output schema;
@@ -83,12 +85,20 @@ provider-independent model proof.
 The v0.2 supported external provider is `claude-code`. Unsupported providers
 are configuration blockers.
 
-`reviewer_assignments` are a dispatch plan before the review gate runs. An
-assignment-enabled contract must predeclare `inputs.evidence_report` as the
-intended `review_invocation_set` artifact path before external reviewers are
-invoked. The completed invocation set proves which assignments actually
-completed and links the normalized reviewer reports, raw external outputs and
-invocation metadata.
+`reviewer_assignments` are a dispatch plan before the review gate runs. A
+run-scope assignment-enabled contract must predeclare two separate artifacts:
+
+- `inputs.artifact_preparation_report`, the deterministic preparation evidence
+  linking the contract, packets, rendered prompts, included context and hashes;
+- `inputs.review_invocation_set`, the invocation evidence that proves which
+  assignments actually completed.
+
+`inputs.evidence_report` remains ordinary verification or project evidence. It
+is not the review invocation set.
+
+The completed invocation set proves which assignments actually completed and
+links the normalized reviewer reports, raw external outputs and invocation
+metadata.
 External provider evidence for a completed run must have
 `execution_mode: real`; mock responses are allowed for smoke tests but are not
 accepted as completed review-gate evidence.
@@ -101,6 +111,20 @@ mixed-provider gate.
 Each reviewer assignment must write to a distinct reviewer-report artifact, and
 the report's `reviewer.id` must identify the assigned reviewer instance. A
 single report artifact cannot satisfy multiple primary-gate reviewer slots.
+
+## Artifact Preparation
+
+The deterministic preparation script materializes reviewer packets and rendered
+prompts from an assignment-enabled contract and a declared shared packet source.
+It writes `review_artifact_preparation` evidence before reviewers are invoked.
+That evidence records worktree status, explicit includes/exclusions, input
+artifact hashes, generated packet hashes, rendered prompt hashes and the
+predeclared invocation-set path.
+
+Preparation is fail-closed for dirty worktrees: modified or untracked paths must
+be included as input artifacts or excluded with explicit reasons. This prevents
+Claude or any other reviewer provider from receiving a packet that silently
+omits files present at review preparation time.
 
 ## Assembly Rules
 

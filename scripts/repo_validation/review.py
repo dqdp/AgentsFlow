@@ -5,6 +5,8 @@ from pathlib import Path
 
 import yaml
 
+from reviewers.prompt_rendering import render_review_prompt
+
 from .collect import collect_yaml_manifest_names
 from .common import (
     compare_hash,
@@ -180,22 +182,16 @@ def _provider_models_include_family(provider_models: object, model_family: str) 
     return any(family in str(model).lower() for model in provider_models)
 
 
+def _require_concrete_hash(path: Path, label: str, declared: object, actual: str, errors: list[str]) -> None:
+    if not is_concrete_sha256(declared):
+        errors.append(f"{path}: {label} must be a concrete sha256")
+        return
+    if declared != actual:
+        errors.append(f"{path}: {label} hash mismatch: declared {declared}, computed {actual}")
+
+
 def _render_expected_review_prompt(packet: dict, role_contract: dict) -> str:
-    return (
-        "You are an AgentsFlow external read-only reviewer.\n"
-        "Start from zero prior conversation context. Do not use or assume any forked orchestrator context. "
-        "Review only the provided packet. Do not request repository access. Do not modify files. "
-        "Do not run tests. Do not execute scripts. Do not produce patches. Do not update evidence. "
-        "Return JSON only, conforming to the requested reviewer-report schema.\n\n"
-        "All findings must be candidate-unvalidated. Report missing mandatory evidence. "
-        "Report plausible P0/P1 blockers even outside a focused role. "
-        "The main/orchestrating agent validates relevance before findings affect workflow decisions.\n\n"
-        "Resolved reviewer role contract:\n"
-        + yaml.safe_dump(role_contract, sort_keys=False)
-        + "\n"
-        "Review packet:\n"
-        + json.dumps(packet, ensure_ascii=False, indent=2)
-    )
+    return render_review_prompt(packet, role_contract)
 
 
 def _validate_latest_green_gate_ref(
@@ -637,6 +633,27 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     evidence_report_path: Path | None = None
     if inputs.get("evidence_report"):
         evidence_report_path = resolve_existing(inputs.get("evidence_report"), "inputs.evidence_report", file_required=True)
+    artifact_preparation_report_path: Path | None = None
+    if inputs.get("artifact_preparation_report"):
+        artifact_preparation_report_path = resolve_existing(
+            inputs.get("artifact_preparation_report"),
+            "inputs.artifact_preparation_report",
+            file_required=True,
+        )
+    review_invocation_set_path: Path | None = None
+    has_review_invocation_set_ref = bool(inputs.get("review_invocation_set"))
+    if has_review_invocation_set_ref:
+        review_invocation_set_path = resolve_existing(
+            inputs.get("review_invocation_set"),
+            "inputs.review_invocation_set",
+            file_required=True,
+        )
+    if (
+        evidence_report_path
+        and review_invocation_set_path
+        and evidence_report_path.resolve() == review_invocation_set_path.resolve()
+    ):
+        errors.append(f"{path}: inputs.evidence_report must not match inputs.review_invocation_set")
 
     reviewers = {
         str(item.get("instance_id")): item
@@ -695,21 +712,33 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
         if extra:
             errors.append(f"{path}: inputs.review_packets contains unknown reviewers: {', '.join(extra)}")
     assignments = data.get("reviewer_assignments", []) or []
+    external_assignment_present = any(
+        isinstance(item, dict) and item.get("provider") == "claude-code"
+        for item in assignments
+    )
     invocation_set: dict | None = None
     invocation_reviewers: dict[str, dict] = {}
     if assignments:
-        if not evidence_report_path:
-            errors.append(f"{path}: reviewer_assignments require inputs.evidence_report review_invocation_set evidence")
+        if _is_run_scope_artifact(path, data) and not artifact_preparation_report_path:
+            errors.append(f"{path}: reviewer_assignments require inputs.artifact_preparation_report")
+        invocation_evidence_path = review_invocation_set_path
+        if not invocation_evidence_path:
+            errors.append(f"{path}: reviewer_assignments require inputs.review_invocation_set evidence")
         else:
             invocation_set_schema = parse_json(root / "schemas" / "review-invocation-set.schema.json")
-            invocation_set_data = parse_json(evidence_report_path)
+            invocation_set_data = parse_json(invocation_evidence_path)
             if not isinstance(invocation_set_data, dict):
-                errors.append(f"{evidence_report_path}: review_invocation_set evidence must be a JSON object")
+                errors.append(f"{invocation_evidence_path}: review_invocation_set evidence must be a JSON object")
             else:
                 invocation_set = invocation_set_data
-                errors.extend(validate_against_schema(evidence_report_path, invocation_set, invocation_set_schema))
+                errors.extend(validate_against_schema(invocation_evidence_path, invocation_set, invocation_set_schema))
                 if invocation_set.get("status") != "completed":
-                    errors.append(f"{evidence_report_path}: review_invocation_set status must be completed")
+                    errors.append(f"{invocation_evidence_path}: review_invocation_set status must be completed")
+                if external_assignment_present and invocation_set.get("runner_scheduling") != "external-first-async":
+                    errors.append(
+                        f"{invocation_evidence_path}: external reviewer assignments require "
+                        "review_invocation_set.runner_scheduling external-first-async"
+                    )
                 invocation_reviewers = {
                     str(item.get("reviewer")): item
                     for item in invocation_set.get("reviewers", []) or []
@@ -717,9 +746,8 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 }
                 if sorted(invocation_reviewers) != sorted(reviewers):
                     errors.append(
-                        f"{evidence_report_path}: review_invocation_set reviewers must cover reviewer_set exactly"
+                        f"{invocation_evidence_path}: review_invocation_set reviewers must cover reviewer_set exactly"
                     )
-
     reviewer_report_schema = parse_json(root / "schemas" / "reviewer-report.schema.json")
     reviewer_invocation_schema = parse_json(root / "schemas" / "reviewer-invocation.schema.json")
     output_schema_hash = sha256_file(output_schema_path) if output_schema_path else ""
@@ -768,6 +796,137 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 f"{invocation_path}: {key} must match current review artifact for {reviewer}: "
                 f"declared {declared}, computed {expected}"
             )
+
+    if assignments and artifact_preparation_report_path:
+        if invocation_set:
+            if not invocation_set.get("artifact_preparation_report"):
+                errors.append(
+                    f"{artifact_preparation_report_path}: review_invocation_set must declare artifact_preparation_report"
+                )
+            else:
+                invocation_preparation_ref = resolve_invocation_set_ref(
+                    invocation_set.get("artifact_preparation_report"),
+                    "review_invocation_set.artifact_preparation_report",
+                )
+                if invocation_preparation_ref and invocation_preparation_ref.resolve() != artifact_preparation_report_path.resolve():
+                    errors.append(
+                        f"{artifact_preparation_report_path}: review_invocation_set artifact_preparation_report must match inputs.artifact_preparation_report"
+                    )
+            _require_concrete_hash(
+                artifact_preparation_report_path,
+                "review_invocation_set.artifact_preparation_report_hash",
+                invocation_set.get("artifact_preparation_report_hash"),
+                sha256_file(artifact_preparation_report_path),
+                errors,
+            )
+        preparation_schema = parse_json(root / "schemas" / "review-artifact-preparation.schema.json")
+        preparation_data = parse_json(artifact_preparation_report_path)
+        if not isinstance(preparation_data, dict):
+            errors.append(f"{artifact_preparation_report_path}: review_artifact_preparation evidence must be a JSON object")
+        else:
+            errors.extend(validate_against_schema(artifact_preparation_report_path, preparation_data, preparation_schema))
+            if preparation_data.get("status") != "completed":
+                errors.append(f"{artifact_preparation_report_path}: review_artifact_preparation status must be completed")
+            prep_contract = preparation_data.get("review_prompt_contract", {}) or {}
+            prep_contract_path_ref = resolve_invocation_set_ref(
+                prep_contract.get("path"),
+                f"{artifact_preparation_report_path}.review_prompt_contract.path",
+            )
+            if prep_contract_path_ref and prep_contract_path_ref.resolve() != path.resolve():
+                errors.append(f"{artifact_preparation_report_path}: review_prompt_contract.path must match current contract")
+            _require_concrete_hash(
+                artifact_preparation_report_path,
+                "review_prompt_contract.hash",
+                prep_contract.get("hash"),
+                review_prompt_contract_hash,
+                errors,
+            )
+            prep_assignments = {
+                str(item.get("reviewer")): item
+                for item in preparation_data.get("reviewer_assignments", []) or []
+                if isinstance(item, dict) and item.get("reviewer")
+            }
+            if sorted(prep_assignments) != sorted(reviewers):
+                errors.append(
+                    f"{artifact_preparation_report_path}: reviewer_assignments must cover reviewer_set exactly"
+                )
+            generated = preparation_data.get("generated_artifacts", {}) or {}
+            prep_invocation = generated.get("review_invocation_set", {}) or {}
+            if review_invocation_set_path:
+                prep_invocation_path = resolve_invocation_set_ref(
+                    prep_invocation.get("path"),
+                    f"{artifact_preparation_report_path}.generated_artifacts.review_invocation_set.path",
+                )
+                if prep_invocation_path and prep_invocation_path.resolve() != review_invocation_set_path.resolve():
+                    errors.append(
+                        f"{artifact_preparation_report_path}: generated_artifacts.review_invocation_set.path must match inputs.review_invocation_set"
+                    )
+            prep_packets = {
+                str(item.get("reviewer")): item
+                for item in generated.get("review_packets", []) or []
+                if isinstance(item, dict) and item.get("reviewer")
+            }
+            if sorted(prep_packets) != sorted(reviewers):
+                errors.append(f"{artifact_preparation_report_path}: generated review_packets must cover reviewer_set exactly")
+            for reviewer, packet_entry in prep_packets.items():
+                packet_ref = resolve_invocation_set_ref(
+                    packet_entry.get("path"),
+                    f"{artifact_preparation_report_path}.generated_artifacts.review_packets[{reviewer}].path",
+                )
+                current_packet = packet_path_by_reviewer.get(reviewer)
+                if packet_ref and current_packet and packet_ref.resolve() != current_packet.resolve():
+                    errors.append(
+                        f"{artifact_preparation_report_path}: review_artifact_preparation review packet path must match contract for {reviewer}"
+                    )
+                if current_packet:
+                    _require_concrete_hash(
+                        artifact_preparation_report_path,
+                        f"review_artifact_preparation review packet hash for {reviewer}",
+                        packet_entry.get("hash"),
+                        sha256_file(current_packet),
+                        errors,
+                    )
+            prep_prompts = {
+                str(item.get("reviewer")): item
+                for item in generated.get("rendered_prompts", []) or []
+                if isinstance(item, dict) and item.get("reviewer")
+            }
+            if sorted(prep_prompts) != sorted(reviewers):
+                errors.append(f"{artifact_preparation_report_path}: generated rendered_prompts must cover reviewer_set exactly")
+            for reviewer, prompt_entry in prep_prompts.items():
+                current_prompt = rendered_by_reviewer.get(reviewer) or {}
+                prompt_ref = resolve_invocation_set_ref(
+                    prompt_entry.get("path"),
+                    f"{artifact_preparation_report_path}.generated_artifacts.rendered_prompts[{reviewer}].path",
+                )
+                current_prompt_path = root / str(current_prompt.get("prompt_path", ""))
+                if prompt_ref and current_prompt.get("prompt_path") and prompt_ref.resolve() != current_prompt_path.resolve():
+                    errors.append(
+                        f"{artifact_preparation_report_path}: review_artifact_preparation rendered prompt path must match contract for {reviewer}"
+                    )
+                if current_prompt.get("prompt_path") and current_prompt_path.exists():
+                    _require_concrete_hash(
+                        artifact_preparation_report_path,
+                        f"review_artifact_preparation rendered prompt hash for {reviewer}",
+                        prompt_entry.get("hash"),
+                        sha256_file(current_prompt_path),
+                        errors,
+                    )
+            for idx, artifact in enumerate(preparation_data.get("input_artifacts", []) or []):
+                if not isinstance(artifact, dict):
+                    continue
+                artifact_path = resolve_invocation_set_ref(
+                    artifact.get("path"),
+                    f"{artifact_preparation_report_path}.input_artifacts[{idx}].path",
+                )
+                if artifact_path:
+                    _require_concrete_hash(
+                        artifact_preparation_report_path,
+                        f"input_artifacts[{idx}].hash",
+                        artifact.get("hash"),
+                        sha256_file(artifact_path),
+                        errors,
+                    )
 
     completed_provider_model_families: set[str] = set()
     assignment_report_paths: dict[Path, str] = {}
@@ -948,11 +1107,11 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             for key, expected in [("provider", provider), ("model_family", model_family)]:
                 if str(invocation_entry.get(key)) != expected:
                     errors.append(f"{path}: review_invocation_set reviewer {reviewer} {key} must match assignment")
-            evidence_report_path_ref = resolve_invocation_set_ref(
+            invocation_report_path_ref = resolve_invocation_set_ref(
                 invocation_entry.get("report_path"), f"review_invocation_set.reviewers[{reviewer}].report_path"
             )
-            if evidence_report_path_ref:
-                resolved_invocation_report = evidence_report_path_ref.resolve()
+            if invocation_report_path_ref:
+                resolved_invocation_report = invocation_report_path_ref.resolve()
                 if resolved_invocation_report in invocation_report_paths:
                     errors.append(
                         f"{path}: review_invocation_set report_path must be unique; "
@@ -960,7 +1119,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     )
                 else:
                     invocation_report_paths[resolved_invocation_report] = reviewer
-            if report_path and evidence_report_path_ref and evidence_report_path_ref.resolve() != report_path.resolve():
+            if report_path and invocation_report_path_ref and invocation_report_path_ref.resolve() != report_path.resolve():
                 errors.append(f"{path}: review_invocation_set reviewer {reviewer} report_path must match assignment")
             if provider == "claude-code":
                 for key in ["raw_output_path", "invocation_metadata_path"]:
@@ -1248,6 +1407,14 @@ def validate_reviewer_invocation_artifact(root: Path, path: Path) -> list[str]:
     data = parse_json(path)
     if not isinstance(data, dict):
         return [f"{path}: reviewer invocation must be a JSON object"]
+    return validate_against_schema(path, data, schema)
+
+
+def validate_review_artifact_preparation_artifact(root: Path, path: Path) -> list[str]:
+    schema = parse_json(root / "schemas" / "review-artifact-preparation.schema.json")
+    data = parse_json(path)
+    if not isinstance(data, dict):
+        return [f"{path}: review artifact preparation must be a JSON object"]
     return validate_against_schema(path, data, schema)
 
 
