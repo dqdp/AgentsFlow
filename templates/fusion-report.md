@@ -58,9 +58,13 @@ Points all reviewers agree on.
 
 Fusion must surface any plausible P0/P1 candidate issue, even if only one reviewer found it. Fusion must not treat the candidate issue as proven truth; it must preserve it for relevance validation.
 
-| Finding ID | Source reviewer(s) | Severity | Candidate issue | Why it may block | Required validation |
-|---|---|---:|---|---|---|
-| F-001 | reviewer-adversarial | P1 | ... | ... | ... |
+Reviewer severity is candidate severity. Risk-surface or Failure Path Matrix
+membership alone is not enough to make a finding blocking; the handoff should
+include the asserted blocker path or explicitly state that it is missing.
+
+| Finding ID | Source reviewer(s) | Candidate severity | Candidate issue | Proposed blocker path | Risk/FPM refs | Required validation |
+|---|---|---:|---|---|---|---|
+| F-001 | reviewer-adversarial | P1 | ... | contract/gate/evidence -> acceptance consequence | ... | ... |
 
 ## Candidate Non-blocking Issues
 
@@ -88,9 +92,9 @@ These are proposed changes until the main/orchestrating agent validates the unde
 
 For each candidate finding that could affect acceptance, the main/orchestrating agent should record:
 
-| Finding | Source reviewer(s) | Fusion classification | Relevance status | Reason | Decision impact |
-|---|---|---|---|---|---|
-| ... | ... | candidate blocker / concern | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | ... | ... |
+| Finding | Source reviewer(s) | Fusion classification | Proposed blocker path | Relevance status | Validated severity | Reason | Decision impact |
+|---|---|---|---|---|---:|---|---|
+| ... | ... | candidate blocker / concern | ... | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | P1/P2/P3/NOTE | ... | ... |
 
 ## Review Cycle Exit Check
 

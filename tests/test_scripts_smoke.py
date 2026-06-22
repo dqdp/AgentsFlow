@@ -583,6 +583,93 @@ def test_review_fusion_reusable_pipeline_is_documented() -> None:
         assert term in combined
 
 
+def test_finding_validation_calibrates_blocker_severity() -> None:
+    import yaml
+
+    documents = [
+        ROOT / "AGENTS.md",
+        ROOT / "docs/review-control-model.md",
+        ROOT / "docs/review-agent-interaction-protocol.md",
+        ROOT / "docs/review-fusion-model.md",
+        ROOT / "docs/review-profile-model.md",
+        ROOT / "docs/review-prompt-contract.md",
+        ROOT / "docs/pr-merge-readiness.md",
+        ROOT / "profiles/review_profiles/collision-control.yaml",
+        ROOT / "profiles/review_topologies/single-reviewer.yaml",
+        ROOT / "workflows/pr-merge-readiness/workflow.yaml",
+        ROOT / "templates/project-operating-decisions.yaml",
+        ROOT / "skills/fusion-synthesis/SKILL.md",
+        ROOT / "skills/project-operating-decisions-interview/SKILL.md",
+        ROOT / "templates/finding-validation-report.md",
+        ROOT / "templates/fusion-report.md",
+        ROOT / "templates/review-cycle-report.md",
+        ROOT / "templates/review-prompts/base.md",
+    ]
+    combined = "\n".join(path.read_text(encoding="utf-8") for path in documents).lower()
+
+    required_terms = [
+        "blocker path",
+        "candidate severity",
+        "validated severity",
+        "acceptance consequence",
+        "risk-surface or failure path matrix membership alone",
+    ]
+    for term in required_terms:
+        assert term in combined
+
+    control_model = (ROOT / "docs/review-control-model.md").read_text(encoding="utf-8").lower()
+    interaction_protocol = (ROOT / "docs/review-agent-interaction-protocol.md").read_text(
+        encoding="utf-8"
+    ).lower()
+    fusion_model = (ROOT / "docs/review-fusion-model.md").read_text(encoding="utf-8").lower()
+    validation_template = (ROOT / "templates/finding-validation-report.md").read_text(encoding="utf-8").lower()
+    review_cycle_template = (ROOT / "templates/review-cycle-report.md").read_text(
+        encoding="utf-8"
+    ).lower()
+    collision_profile = (ROOT / "profiles/review_profiles/collision-control.yaml").read_text(
+        encoding="utf-8"
+    ).lower()
+    pr_readiness_workflow = (ROOT / "workflows/pr-merge-readiness/workflow.yaml").read_text(
+        encoding="utf-8"
+    ).lower()
+    pr_readiness_docs = (ROOT / "docs/pr-merge-readiness.md").read_text(encoding="utf-8").lower()
+
+    assert "its validated severity is p0/p1 with a grounded blocker path" in control_model
+    assert "plausible blocker-path candidate findings" in interaction_protocol
+    assert "plausible blocker-path candidate findings" in fusion_model
+    assert "plausible blocker-path candidate findings" in collision_profile
+    assert "plausible blocker-path candidate findings have" in pr_readiness_workflow
+    assert "plausible blocker-path candidate findings" in pr_readiness_docs
+    assert "yes if mandatory evidence or grounded p0/p1 blocker path" in validation_template
+    assert "rejected or downgraded plausible blocker-path findings" in review_cycle_template
+
+    legacy_blocker_phrases = [
+        "its severity is p0/p1, or when mandatory verification evidence is missing",
+        "blocker-level candidate findings were rejected or downgraded",
+        "rejects or downgrades p0/p1 candidate findings",
+        "rejected or downgraded p0/p1 candidate findings",
+        "rejected or downgraded p0/p1 findings",
+        "yes if mandatory evidence or p0/p1",
+    ]
+    for phrase in legacy_blocker_phrases:
+        assert phrase not in combined
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    from prompt_rendering import render_review_prompt  # noqa: PLC0415
+
+    packet = json.loads(
+        (ROOT / "examples/external-reviewers/claude-code/review-packet.architecture.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    role_contract = yaml.safe_load((ROOT / "profiles/reviewer_roles/architecture.yaml").read_text(encoding="utf-8"))
+    rendered = render_review_prompt(packet, role_contract).lower()
+
+    assert "blocker path" in rendered
+    assert "acceptance consequence" in rendered
+    assert "membership alone is not severity" in rendered
+
+
 def test_project_binding_rejects_path_escape(tmp_path) -> None:
     import shutil
     import yaml
@@ -4727,6 +4814,9 @@ def test_external_reviewer_wrapper_normalizes_claude_code_envelope(tmp_path) -> 
                 "evidence": ["raw.result", "parser literal fence ``` inside JSON string"],
                 "rationale": "The wrapper must normalize the nested Claude Code result.",
                 "recommendation": "Parse result JSON before reviewer-report normalization.",
+                "blocker_path": "external finding -> required readiness evidence -> unsafe acceptance",
+                "acceptance_impact": "Dropping this field would hide the readiness blocker.",
+                "mandatory_evidence_gap": True,
             }
         ],
         "requests_for_additional_verification": [
@@ -4773,6 +4863,13 @@ def test_external_reviewer_wrapper_normalizes_claude_code_envelope(tmp_path) -> 
     assert normalized["findings"][0]["id"] == "ARCH-ENV"
     assert normalized["findings"][0]["category"] == "external-reviewer-normalization"
     assert normalized["findings"][0]["why_it_matters"] == "The wrapper must normalize the nested Claude Code result."
+    assert normalized["findings"][0]["blocker_path"] == (
+        "external finding -> required readiness evidence -> unsafe acceptance"
+    )
+    assert normalized["findings"][0]["acceptance_impact"] == (
+        "Dropping this field would hide the readiness blocker."
+    )
+    assert normalized["findings"][0]["mandatory_evidence_gap"] is True
     assert normalized["normalization"]["method"] == "deterministic-extraction"
     assert normalized["normalization"]["source_path"] == str(out.with_suffix(".raw.json"))
     assert normalized["normalization"]["schema_validation"] == "passed"

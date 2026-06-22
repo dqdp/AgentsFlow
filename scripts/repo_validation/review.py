@@ -604,7 +604,10 @@ def validate_review_prompt_contract_invariants(
             errors.append(f"{path}: collision-control must be non-primary and use exactly two reviewers")
         collision = data.get("collision_control")
         if not isinstance(collision, dict) or collision.get("trigger") != "rejected_or_downgraded_blocker_collision":
-            errors.append(f"{path}: collision-control requires rejected/downgraded blocker collision context")
+            errors.append(
+                f"{path}: collision-control requires rejected/downgraded "
+                "plausible blocker-path collision context"
+            )
         else:
             for key in [
                 "collision_batch_id",

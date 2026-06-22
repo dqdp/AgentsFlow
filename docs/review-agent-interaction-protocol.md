@@ -42,8 +42,8 @@ review packet with referenced artifacts; that packet is the reviewer input.
 
 Primary review gates run at least two reviewers. Collision-control also uses two
 fresh-context control reviewers. When the orchestrator rejects or downgrades one
-or more blocker-level candidate findings in a review cycle, it records one
-collision batch and sends that focused packet to those two control reviewers.
+or more plausible blocker-path candidate findings in a review cycle, it records
+one collision batch and sends that focused packet to those two control reviewers.
 
 ## Review loop overview
 
@@ -117,9 +117,35 @@ By default, a finding is a validated blocker when:
 ```text
 validation_status in {accepted-relevant, needs-more-evidence, human-decision-required}
 AND severity in {P0, P1}
+AND a grounded blocker path is recorded
 ```
 
 Workflow profiles may tighten or relax this default, but must do so explicitly.
+
+### Blocker-path severity calibration
+
+Reviewer severity is a candidate label. The main/orchestrating agent validates
+severity separately from relevance before a finding can block acceptance.
+
+To validate a finding as P0/P1, the validation report must record a grounded
+blocker path:
+
+- the contract clause, accepted decision, gate policy, safety rule, authority
+  boundary or mandatory evidence requirement at risk;
+- the current evidence showing the violation, contradiction or evidence gap;
+- the concrete acceptance consequence if the artifact is accepted unchanged;
+- why P2/P3/NOTE would understate the acceptance risk.
+
+Risk-surface or Failure Path Matrix membership alone is not enough to validate
+P0/P1 severity. It can justify focused review, additional verification or a
+higher-priority validation check, but it does not make a finding a blocker
+without a concrete acceptance consequence.
+
+A P0/P1 candidate without a grounded blocker path is still preserved and
+validated, but the default outcome is `needs-more-evidence`,
+`rejected-irrelevant` or a recorded severity downgrade. Collision-control applies
+when the main/orchestrating agent rejects or downgrades a plausible blocker-path
+candidate, not when the only blocker signal is an ungrounded severity label.
 
 ### Default severity meaning
 
@@ -235,11 +261,12 @@ report. This prevents both failure modes: rerunning reviewers after every
 nonblocking cleanup, and silently accepting a nonblocking cleanup that changed a
 contract-bearing artifact.
 
-Exception: if one or more blocker-level candidate findings are rejected or
-downgraded by the main/orchestrating agent and the workflow records a collision,
-it launches two fresh-context control reviewers focused on the collision batch
-and the orchestrator collision reason. This is not a replacement for the primary
-review gate, and it is batched per review cycle rather than per finding.
+Exception: if one or more plausible blocker-path candidate findings are rejected
+or downgraded by the main/orchestrating agent and the workflow records a
+collision, it launches two fresh-context control reviewers focused on the
+collision batch and the orchestrator collision reason. This is not a replacement
+for the primary review gate, and it is batched per review cycle rather than per
+finding.
 
 `max_review_cycles` is an optional project policy or workflow-binding cap.
 Upstream workflow definitions must not hardcode a numeric default or require a
@@ -290,11 +317,16 @@ For each finding, the main agent must inspect the available relevant inputs:
    - Would accepting the artifact violate the contract, mandatory gate, ADR, safety rule,
      scope boundary, or required evidence policy?
 
-6. **Classify validation status.**
+6. **Calibrate blocker severity.**
+   - If the finding is P0/P1, record the blocker path or the reason no grounded
+     blocker path exists.
+   - Do not treat selected risk surfaces or FPM rows as severity by themselves.
+
+7. **Classify validation status.**
    - Choose exactly one validation status.
    - Record the reason and evidence checked.
 
-7. **Determine loop action.**
+8. **Determine loop action.**
    - `fix-or-revise`
    - `rerun-verification-gate`
    - `rerun-review-agents`
@@ -306,9 +338,10 @@ For each finding, the main agent must inspect the available relevant inputs:
 
 | Condition | Validation status | Blocking? | Default action |
 |---|---|---:|---|
-| Finding is supported by contract/evidence and severity is P0/P1 | accepted-relevant | Yes | Fix/revise, then rerun verification gate and relevant review cycle. |
+| Finding is supported by contract/evidence and has a grounded P0/P1 blocker path | accepted-relevant | Yes | Fix/revise, then rerun verification gate and relevant review cycle. |
 | Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | No | Record follow-up or fix if cheap; no review rerun by default. |
-| Finding may be valid but required evidence is missing | needs-more-evidence | Yes if mandatory evidence or P0/P1; otherwise workflow-defined | Run verification gate/checks; rerun review only if evidence materially changes. |
+| Finding is tagged P0/P1 but lacks a grounded blocker path | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | No by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
+| Finding may be valid but required evidence is missing | needs-more-evidence | Yes if mandatory evidence or grounded P0/P1 blocker path; otherwise workflow-defined | Run verification gate/checks; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | No | Record reason; no rerun. |
 | Finding is factually contradicted by contract/diff/evidence | rejected-irrelevant | No | Record contradiction; no rerun. |
 | Finding duplicates an already validated issue | duplicate | Inherits original | Link to original; no rerun. |

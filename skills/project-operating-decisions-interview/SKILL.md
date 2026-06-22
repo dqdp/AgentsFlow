@@ -85,7 +85,7 @@ Use this sequence unless the project context requires a narrower path.
    focus zones; do not leave role meanings for the agent to infer from names
    such as `adversarial`. Record that reviewers start from fresh zero context
    without forking the orchestrator conversation. Record `collision-control` as
-   a two-reviewer control gate for a rejected blocker collision.
+   a two-reviewer control gate for a rejected plausible blocker-path collision.
 
 5. Decide risk-surface policy.
 
@@ -142,7 +142,7 @@ Use these as defaults, adapting wording to the observed project.
 - Confirm that reviewers start from fresh zero context and do not receive forked
   orchestrator conversation context.
 - Confirm that collision-control uses two fresh-context control reviewers when
-  the main agent rejects or downgrades blocker-level candidate findings and
+  the main agent rejects or downgrades plausible blocker-path candidate findings and
   records a collision batch.
 - Should review use different models or harnesses when available?
 - Is an external Claude Code reviewer allowed for this project?

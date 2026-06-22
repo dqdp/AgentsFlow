@@ -334,6 +334,58 @@ bindings:
           - pytest-output
     gates:
       - verification_gate
+  - id: AF-V02-BHV-022
+    scenario: "Finding validation calibrates blocker severity"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-finding-validation-severity-calibration
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_finding_validation_calibrates_blocker_severity"
+        evidence:
+          - pytest-output
+      - id: pytest-external-reviewer-preserves-blocker-metadata
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_normalizes_claude_code_envelope"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-accepted-p1-requires-blocker-path
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_accepted_p1_without_blocker_path_is_invalid_calibration"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-needs-evidence-p1-requires-blocker-path
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_needs_more_evidence_p1_without_blocker_path_is_invalid_calibration"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-rejected-p1-without-path-no-collision
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_rejected_p1_without_blocker_path_does_not_require_collision_control"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-validated-severity-authoritative
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_validated_blocker_severity_overrides_lower_candidate_severity"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-mandatory-gap-blocks-by-candidate
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_mandatory_evidence_gap_blocks_regardless_of_candidate_severity"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-mandatory-gap-blocks-by-source
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_readiness"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
   - id: AF-V02-BHV-013
     scenario: "Reviewer fresh-context is protocol-level in v0.2"
     required: true

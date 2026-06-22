@@ -80,3 +80,8 @@ Repository validation can prove that current packets, prompts and invocation-set
 paths match the preparation evidence. It cannot prove that every semantically
 important file was selected unless that selection is encoded in project-bound
 policy, explicit includes or workflow evidence.
+
+Embedded file snapshots are checked by the preparation script when a current
+review packet is materialized. Historical committed run artifacts are evidence
+for their recorded material change, not a claim that embedded snapshots match
+future repository HEAD.

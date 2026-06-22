@@ -165,6 +165,13 @@ Feature: AgentsFlow v0.2 MVP contract layer
     And project workflow bindings may omit max_review_cycles to leave review cycles unlimited by count
     And a provided max_review_cycles value must be at least 3
 
+  Scenario: Finding validation calibrates blocker severity
+    Given a review gate receives P0/P1 candidate findings
+    When the main/orchestrating agent validates findings
+    Then P0/P1 severity must require a grounded blocker path
+    And risk-surface or Failure Path Matrix membership alone must not validate blocker severity
+    And reviewer severity must remain candidate severity until relevance validation records acceptance impact
+
   Scenario: Reviewer fresh-context is protocol-level in v0.2
     Given a primary review gate
     When the workflow declares fresh-context and no-fork reviewer policy
@@ -235,6 +242,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Evidence probe reports are evidence-only | `pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources` |
 | Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch`; `pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch` |
 | Review cycle caps are optional project policy or workflow binding | `pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles`; `pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles` |
+| Finding validation calibrates blocker severity | `pytest tests/test_scripts_smoke.py::test_finding_validation_calibrates_blocker_severity`; `pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_normalizes_claude_code_envelope`; `pytest tests/test_pr_merge_readiness.py::test_accepted_p1_without_blocker_path_is_invalid_calibration`; `pytest tests/test_pr_merge_readiness.py::test_needs_more_evidence_p1_without_blocker_path_is_invalid_calibration`; `pytest tests/test_pr_merge_readiness.py::test_rejected_p1_without_blocker_path_does_not_require_collision_control`; `pytest tests/test_pr_merge_readiness.py::test_validated_blocker_severity_overrides_lower_candidate_severity`; `pytest tests/test_pr_merge_readiness.py::test_mandatory_evidence_gap_blocks_regardless_of_candidate_severity`; `pytest tests/test_pr_merge_readiness.py::test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_readiness` |
 | Reviewer fresh-context is protocol-level in v0.2 | Manual evidence: `docs/review-agent-interaction-protocol.md`, `docs/review-prompt-contract.md`, `schemas/review-prompt-contract.schema.json` |
 | Workflow run phase guard rejects future-phase artifacts | `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_future_phase_artifact`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_unlisted_artifact_without_explicit_forbidden`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_phase_evidence_and_status_artifacts`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_list_shaped_phase_evidence`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_draft_artifact_as_evidence_or_output`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_allowed_and_draft_overlap`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_uses_top_level_draft_slot`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_review_and_evidence_phase_status_keys`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_malformed_artifacts_root_paths`; `pytest tests/test_scripts_smoke.py::test_repo_validation_checks_top_level_workflow_run_phase_guard`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_allows_current_phase_artifacts` |
 | Risk surface and Failure Path Matrix metadata are represented for contract-first implementation | `pytest tests/test_scripts_smoke.py::test_behavior_binding_schema_allows_risk_path_metadata`; `pytest tests/test_scripts_smoke.py::test_project_operating_decisions_schema_passes`; `pytest tests/test_scripts_smoke.py::test_review_packet_schema_accepts_risk_surface_context` |

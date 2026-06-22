@@ -5,6 +5,6 @@ replacement: homogeneous-dual
 notes:
   - Kept only as a historical/reference profile name.
   - v0.2 primary review gates require two or more reviewers.
-  - Collision-control is the supported replacement for rejected or downgraded blocker collisions; it uses two fresh-context control reviewers on one per-cycle batch.
+  - Collision-control is the supported replacement for rejected or downgraded plausible blocker-path collisions; it uses two fresh-context control reviewers on one per-cycle batch.
 requirements:
   - deprecated; do not use for v0.2 review gates

@@ -53,8 +53,8 @@ acceptance decisions.
 ## Collision-Control Batches
 
 Collision-control is batched per review cycle. One batch may contain multiple
-rejected or downgraded P0/P1 findings, and exactly two fresh-context control
-reviewers inspect the batch.
+rejected or downgraded plausible blocker-path findings, and exactly two
+fresh-context control reviewers inspect the batch.
 
 | Collision Batch ID | Finding IDs | Control reviewers | Control reports | Outcome |
 |---|---|---|---|---|

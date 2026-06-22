@@ -41,7 +41,7 @@ philosophy.
 
 If review is enabled as a primary review gate, the minimum reviewer count is two.
 Collision-control review is also batched through two reviewers: when one or more
-blocker-level candidate findings are rejected or downgraded by the
+plausible blocker-path candidate findings are rejected or downgraded by the
 main/orchestrating agent in the same review cycle, the workflow creates one
 collision batch and sends that focused packet to two fresh-context control
 reviewers.
@@ -56,7 +56,8 @@ Examples:
 - `homogeneous-dual`
 - `homogeneous-plus-focused`
 - `heterogeneous-variable`
-- `collision-control` for rejected or downgraded blocker collision batches only, not as a primary gate
+- `collision-control` for rejected or downgraded plausible blocker-path collision
+  batches only, not as a primary gate
 
 Reviewers start from fresh zero conversation context. They must not receive a
 forked main-agent/orchestrator conversation. Their input is the review packet and
@@ -145,12 +146,27 @@ After reviewer reports arrive, the shared pipeline is:
    mandatory evidence gaps and validation priorities.
 6. Main-agent relevance validation: accept, reject, downgrade, mark duplicate,
    request more evidence or escalate findings against contract, diff/artifact,
-   evidence, accepted decisions, scope and non-goals.
-7. Collision-control: if the orchestrator rejects or downgrades P0/P1 candidate
-   findings, batch those collisions and send them to two fresh-context control
-   reviewers before final triage.
+   evidence, accepted decisions, scope and non-goals. P0/P1 validation must
+   record a grounded blocker path; reviewer severity is not accepted severity.
+7. Collision-control: if the orchestrator rejects or downgrades plausible
+   blocker-path candidate findings, batch those collisions and send them to two
+   fresh-context control reviewers before final triage.
 8. Review-cycle decision: exit only when there are no validated blockers, no
    unresolved P0/P1 candidates and no mandatory evidence gaps.
+
+## Severity calibration
+
+Fusion preserves reviewer-suggested severity, but it does not convert that
+severity into a validated blocker. For every candidate blocker, fusion should
+hand off the asserted blocker path when the reviewer provided one: the violated
+contract, accepted decision, gate policy, authority boundary or mandatory
+evidence requirement; the evidence reference; and the concrete consequence for
+acceptance.
+
+If a reviewer marks a finding P0/P1 based only on risk-surface or Failure Path
+Matrix membership, fusion must preserve the candidate finding but flag that the
+blocker path is missing. Risk/FPM membership guides review attention and
+verification depth; it is not severity by itself.
 
 ## Authority boundary
 

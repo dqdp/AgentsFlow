@@ -66,15 +66,15 @@ Exception profile, not a primary gate.
 
 Two fresh-context control reviewers run on a focused collision batch only after:
 
-1. a reviewer or fusion report produced a blocker-level candidate finding;
+1. a reviewer or fusion report produced a plausible blocker-path candidate finding;
 2. the main/orchestrating agent rejected or downgraded it;
 3. the rejection reason and supporting evidence were recorded.
 
-The collision batch is per review cycle, not per finding. If three blocker-level
-candidate findings are rejected or downgraded in the same cycle, they are sent to
-the same two control reviewers in one focused packet. The packet contains the
-disputed findings, the orchestrator collision reason covering the rejection or
-downgrade, and referenced artifacts.
+The collision batch is per review cycle, not per finding. If three plausible
+blocker-path candidate findings are rejected or downgraded in the same cycle,
+they are sent to the same two control reviewers in one focused packet. The
+packet contains the disputed findings, the orchestrator collision reason
+covering the rejection or downgrade, and referenced artifacts.
 
 ## Reviewer Role Definitions
 

@@ -15,8 +15,8 @@ prompt_policy:
   include_disputed_findings: true
   include_orchestrator_collision_reason: true
   include_referenced_artifacts: true
-purpose: Exception profile for a per-cycle rejected or downgraded blocker collision batch. This is not a primary review gate.
+purpose: Exception profile for a per-cycle rejected or downgraded plausible blocker-path collision batch. This is not a primary review gate.
 trigger: rejected_or_downgraded_blocker_collision
 use_when:
-  - one or more blocker-level candidate findings were rejected or downgraded by the main/orchestrating agent in the same review cycle
+  - one or more plausible blocker-path candidate findings were rejected or downgraded by the main/orchestrating agent in the same review cycle
   - the workflow needs two fresh-context control reviewers focused on the collision batch

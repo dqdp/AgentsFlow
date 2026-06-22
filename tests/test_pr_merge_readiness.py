@@ -83,6 +83,14 @@ def text_sha(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def grounded_blocker_fields() -> dict[str, object]:
+    return {
+        "validated_severity": "P1",
+        "blocker_path": "review finding -> required PR readiness evidence -> unsafe merge acceptance",
+        "acceptance_impact": "Accepting the branch unchanged would approve a PR without required readiness evidence.",
+    }
+
+
 def redacted_raw_summary(reviewer: str) -> str:
     return f"Redacted raw provider output summary for {reviewer}.\n"
 
@@ -1049,6 +1057,7 @@ def test_reviewer_report_p1_omitted_from_candidate_findings_blocks_readiness(tmp
                         "title": "Source blocker",
                         "evidence": ["example evidence"],
                         "status": "candidate-unvalidated",
+                        **grounded_blocker_fields(),
                     }
                 ],
             },
@@ -1064,6 +1073,47 @@ def test_reviewer_report_p1_omitted_from_candidate_findings_blocks_readiness(tmp
     assert result["state"] == "rejected"
     assert result["accepted"] is False
     assert "unhandled_source_blocking_finding:verification-codex:P1-SOURCE" in result["blockers"]
+
+
+def test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["status"] = "rejected"
+    prepare_complete_evidence(tmp_path)
+    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+        json.dumps(
+            {
+                "reviewer": {
+                    "id": "verification-codex",
+                    "provider": "internal-agent",
+                    "role": "verification",
+                },
+                "summary": "Found missing mandatory evidence.",
+                "review_context": review_context("verification-codex"),
+                "findings": [
+                    {
+                        "id": "MANDATORY-GAP",
+                        "severity": "NOTE",
+                        "title": "Missing mandatory evidence",
+                        "evidence": ["required gate evidence is absent"],
+                        "status": "candidate-unvalidated",
+                        "mandatory_evidence_gap": True,
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "rejected"
+    assert result["accepted"] is False
+    assert "unhandled_source_blocking_finding:verification-codex:MANDATORY-GAP" in result["blockers"]
 
 
 def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) -> None:
@@ -1097,6 +1147,7 @@ def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) ->
                         "title": "Source blocker",
                         "evidence": ["example evidence"],
                         "status": "candidate-unvalidated",
+                        **grounded_blocker_fields(),
                     }
                 ],
             },
@@ -1123,6 +1174,7 @@ def test_reviewer_report_p1_cannot_disappear_as_duplicate_without_resolution(tmp
             "severity": "P1",
             "status": "duplicate",
             "source_findings": [{"reviewer": "verification-codex", "id": "P1-SOURCE"}],
+            **grounded_blocker_fields(),
         }
     ]
     prepare_complete_evidence(tmp_path)
@@ -1144,6 +1196,7 @@ def test_reviewer_report_p1_cannot_disappear_as_duplicate_without_resolution(tmp
                         "title": "Source blocker",
                         "evidence": ["example evidence"],
                         "status": "candidate-unvalidated",
+                        **grounded_blocker_fields(),
                     }
                 ],
             },
@@ -1170,6 +1223,7 @@ def test_duplicate_local_source_finding_ids_require_reviewer_identity(tmp_path: 
             "severity": "P1",
             "status": "accepted",
             "source_findings": [{"reviewer": "verification-codex", "id": "F-001"}],
+            **grounded_blocker_fields(),
         }
     ]
     prepare_complete_evidence(tmp_path)
@@ -1195,6 +1249,7 @@ def test_duplicate_local_source_finding_ids_require_reviewer_identity(tmp_path: 
                             "title": f"Source blocker from {reviewer}",
                             "evidence": ["example evidence"],
                             "status": "candidate-unvalidated",
+                            **grounded_blocker_fields(),
                         }
                     ],
                 },
@@ -1447,6 +1502,7 @@ def test_accepted_blocker_finding_blocks_readiness(tmp_path: Path) -> None:
             "id": "F-001",
             "severity": "P1",
             "status": "accepted",
+            **grounded_blocker_fields(),
         }
     ]
 
@@ -1457,7 +1513,85 @@ def test_accepted_blocker_finding_blocks_readiness(tmp_path: Path) -> None:
     assert "unresolved_blocking_finding:F-001" in result["blockers"]
 
 
+def test_validated_blocker_severity_overrides_lower_candidate_severity(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "rejected"
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "P3",
+            "validated_severity": "P1",
+            "status": "accepted",
+            "blocker_path": "validated readiness finding -> required merge gate -> unsafe acceptance",
+            "acceptance_impact": "Accepting the branch unchanged would approve a validated blocker.",
+        }
+    ]
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "rejected"
+    assert result["accepted"] is False
+    assert "unresolved_blocking_finding:F-001" in result["blockers"]
+
+
+def test_accepted_p1_without_blocker_path_is_invalid_calibration(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "rejected"
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "P1",
+            "status": "accepted",
+        }
+    ]
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "rejected"
+    assert result["accepted"] is False
+    assert "finding_blocker_path_missing:F-001" in result["blockers"]
+    assert "unresolved_blocking_finding:F-001" not in result["blockers"]
+
+
 def test_needs_more_evidence_blocker_finding_blocks_readiness(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "rejected"
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "P1",
+            "status": "needs-more-evidence",
+            **grounded_blocker_fields(),
+        }
+    ]
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "rejected"
+    assert result["accepted"] is False
+    assert "unresolved_blocking_finding:F-001" in result["blockers"]
+
+
+def test_mandatory_evidence_gap_blocks_regardless_of_candidate_severity(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "rejected"
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "NOTE",
+            "status": "needs-more-evidence",
+            "mandatory_evidence_gap": True,
+        }
+    ]
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "rejected"
+    assert result["accepted"] is False
+    assert "unresolved_blocking_finding:F-001" in result["blockers"]
+
+
+def test_needs_more_evidence_p1_without_blocker_path_is_invalid_calibration(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "rejected"
     report["candidate_findings"] = [
@@ -1472,7 +1606,26 @@ def test_needs_more_evidence_blocker_finding_blocks_readiness(tmp_path: Path) ->
 
     assert result["state"] == "rejected"
     assert result["accepted"] is False
-    assert "unresolved_blocking_finding:F-001" in result["blockers"]
+    assert "finding_blocker_path_missing:F-001" in result["blockers"]
+    assert "unresolved_blocking_finding:F-001" not in result["blockers"]
+
+
+def test_rejected_p1_without_blocker_path_does_not_require_collision_control(tmp_path: Path) -> None:
+    report = complete_report()
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "P1",
+            "status": "rejected",
+            "validation_rationale": "No grounded blocker path; reviewer severity was candidate-only.",
+        }
+    ]
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "accepted_merge_ready"
+    assert result["accepted"] is True
+    assert "collision_control_missing:F-001" not in result["blockers"]
 
 
 def test_rejected_blocker_findings_require_collision_control(tmp_path: Path) -> None:
@@ -1484,6 +1637,7 @@ def test_rejected_blocker_findings_require_collision_control(tmp_path: Path) -> 
             "severity": "P1",
             "status": "rejected",
             "validation_rationale": "Main agent judged this irrelevant.",
+            **grounded_blocker_fields(),
         }
     ]
 
@@ -1502,6 +1656,7 @@ def test_placeholder_collision_control_does_not_clear_rejected_blocker(tmp_path:
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {"status": "completed"},
         }
     ]
@@ -1521,6 +1676,7 @@ def test_arbitrary_files_do_not_satisfy_collision_control(tmp_path: Path) -> Non
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {
                 "status": "completed",
                 "evidence_path": "evidence/repo-validation.log",
@@ -1549,6 +1705,7 @@ def test_unrelated_valid_reports_do_not_satisfy_collision_control(tmp_path: Path
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
@@ -1578,6 +1735,7 @@ def test_self_declared_collision_control_reports_require_prompt_contract(tmp_pat
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
@@ -1611,6 +1769,7 @@ def test_minimal_collision_control_prompt_contract_does_not_clear_rejected_block
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
@@ -1674,6 +1833,7 @@ def test_stale_collision_control_does_not_clear_rejected_blocker(tmp_path: Path)
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
@@ -1711,6 +1871,7 @@ def test_unsupported_collision_control_conclusion_does_not_clear_rejected_blocke
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
@@ -1747,6 +1908,7 @@ def test_collision_control_report_before_prompt_preparation_does_not_clear_rejec
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
@@ -1783,6 +1945,7 @@ def test_collision_control_prompt_contract_can_clear_rejected_blocker(tmp_path: 
             "id": "F-001",
             "severity": "P1",
             "status": "rejected",
+            **grounded_blocker_fields(),
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",

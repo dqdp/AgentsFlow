@@ -245,7 +245,8 @@ exit_criteria:
   current material change and exact readiness report hash.
 - Missing evidence, stale review evidence and live-vs-mock external review gaps
   are recorded as blockers or non-accepted states.
-- Rejected or downgraded P0/P1 candidate findings have collision-control evidence.
+- Rejected or downgraded plausible blocker-path candidate findings have
+  collision-control evidence.
 review_control_rules:
   review_agents_read_only: true
   review_agents_run_after: evidence_gate

@@ -178,14 +178,66 @@ def _more_blocking(left: str, right: str) -> str:
 
 def _effective_candidate_severity(
     candidate: dict[str, Any],
-    source_blocking_findings: list[dict[str, str]],
+    source_blocking_findings: list[dict[str, Any]],
 ) -> str:
-    severity = str(candidate.get("severity", ""))
-    effective = severity
+    validated_severity = str(candidate.get("validated_severity", ""))
+    candidate_severity = str(candidate.get("severity", ""))
+    effective = validated_severity or candidate_severity
     for source in source_blocking_findings:
         if _candidate_handles_source_finding(candidate, source["review_id"], source["finding_id"]):
             effective = _more_blocking(effective, source["severity"])
     return effective
+
+
+def _nonempty_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _has_grounded_blocker_path(finding: dict[str, Any]) -> bool:
+    return _nonempty_text(finding.get("blocker_path")) and _nonempty_text(
+        finding.get("acceptance_impact")
+    )
+
+
+def _has_calibration_reason(finding: dict[str, Any]) -> bool:
+    return any(
+        _nonempty_text(finding.get(key))
+        for key in [
+            "validation_rationale",
+            "calibration_reason",
+            "no_blocker_path_reason",
+        ]
+    )
+
+
+def _is_mandatory_evidence_gap(finding: dict[str, Any]) -> bool:
+    return finding.get("mandatory_evidence_gap") is True
+
+
+def _effective_grounded_blocker_path(
+    candidate: dict[str, Any],
+    source_blocking_findings: list[dict[str, Any]],
+) -> bool:
+    if _has_grounded_blocker_path(candidate):
+        return True
+    return any(
+        _candidate_handles_source_finding(candidate, source["review_id"], source["finding_id"])
+        and _has_grounded_blocker_path(source)
+        for source in source_blocking_findings
+    )
+
+
+def _effective_mandatory_evidence_gap(
+    candidate: dict[str, Any],
+    source_blocking_findings: list[dict[str, Any]],
+) -> bool:
+    if _is_mandatory_evidence_gap(candidate):
+        return True
+    return any(
+        _candidate_handles_source_finding(candidate, source["review_id"], source["finding_id"])
+        and _is_mandatory_evidence_gap(source)
+        for source in source_blocking_findings
+    )
 
 
 def _validate_control_report(
@@ -829,12 +881,18 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                             continue
                         severity = str(finding.get("severity", ""))
                         finding_id = str(finding.get("id", "<unknown>"))
-                        if severity in BLOCKING_FINDING_SEVERITIES:
+                        if (
+                            severity in BLOCKING_FINDING_SEVERITIES
+                            or _is_mandatory_evidence_gap(finding)
+                        ):
                             source_blocking_findings.append(
                                 {
                                     "review_id": review_id,
                                     "finding_id": finding_id,
                                     "severity": severity,
+                                    "blocker_path": finding.get("blocker_path"),
+                                    "acceptance_impact": finding.get("acceptance_impact"),
+                                    "mandatory_evidence_gap": finding.get("mandatory_evidence_gap"),
                                 }
                             )
         prepared_at = _parse_timestamp(review.get("packet_prepared_at"))
@@ -1085,7 +1143,15 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
         severity = _effective_candidate_severity(finding, source_blocking_findings)
         status = str(finding.get("status", ""))
         finding_id = str(finding.get("id", "<unknown>"))
-        if severity not in BLOCKING_FINDING_SEVERITIES:
+        has_blocker_path = _effective_grounded_blocker_path(finding, source_blocking_findings)
+        has_mandatory_gap = _effective_mandatory_evidence_gap(finding, source_blocking_findings)
+        if severity not in BLOCKING_FINDING_SEVERITIES and not has_mandatory_gap:
+            continue
+        if not has_blocker_path and not has_mandatory_gap:
+            if status in {"accepted", "needs-more-evidence"}:
+                blockers.append(f"finding_blocker_path_missing:{finding_id}")
+            elif status in {"rejected", "downgraded", "duplicate"} and not _has_calibration_reason(finding):
+                blockers.append(f"finding_calibration_reason_missing:{finding_id}")
             continue
         if status in {"accepted", "needs-more-evidence"}:
             blockers.append(f"unresolved_blocking_finding:{finding_id}")

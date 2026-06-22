@@ -35,7 +35,8 @@ Synthesize independent reviewer reports into consensus, disagreements, candidate
    mirrors providers or roles over the same topic.
 5. Identify consensus.
 6. Identify disagreements.
-7. Surface any P0/P1 candidate blocker.
+7. Surface any P0/P1 candidate blocker and preserve the asserted blocker path
+   when present.
 8. Surface missing or stale risk-surface/FPM evidence as candidate mandatory
    evidence gaps when reviewers report it.
 9. Preserve relevance questions and disagreements.
@@ -48,6 +49,8 @@ Synthesize independent reviewer reports into consensus, disagreements, candidate
 - No plausible candidate blocker is hidden by majority vote.
 - Disagreements are preserved.
 - Findings remain candidate findings until the main/orchestrating agent validates relevance.
+- Reviewer severity remains candidate severity until blocker-path calibration.
+- Risk-surface or Failure Path Matrix membership alone is not severity.
 - FPM coverage and freshness gaps are preserved as evidence issues, not
   averaged away.
 
@@ -74,8 +77,9 @@ validation.
 ## Review cycle handoff
 
 Fusion must explicitly hand off candidate blockers to the main/orchestrating agent
-for relevance validation. Fusion may recommend a review-cycle decision, but the
-default exit condition is satisfied only after validation shows no validated
+for relevance validation. The handoff should include the proposed blocker path
+or state that it is missing. Fusion may recommend a review-cycle decision, but
+the default exit condition is satisfied only after validation shows no validated
 blocking findings and no mandatory evidence gaps.
 
 Fusion must not trigger repeated review cycles for non-blocking findings alone.

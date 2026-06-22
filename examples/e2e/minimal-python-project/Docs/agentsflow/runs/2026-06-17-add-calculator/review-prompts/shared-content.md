@@ -9,9 +9,13 @@ produce patches. Do not update evidence. Return JSON only, conforming to the
 requested reviewer-report schema.
 
 All findings must be candidate-unvalidated. Report missing mandatory evidence.
-Report plausible P0/P1 blockers even outside a focused role. The
-main/orchestrating agent validates relevance before findings affect workflow
-decisions.
+Report plausible P0/P1 blockers even outside a focused role. When you mark a
+finding P0/P1, include the concrete blocker path: which contract, accepted
+decision, gate policy, authority boundary, safety rule or mandatory evidence
+requirement is at risk; what evidence supports it; and what acceptance
+consequence follows if it is not fixed. Risk-surface or Failure Path Matrix
+membership alone is not severity. The main/orchestrating agent validates
+relevance before findings affect workflow decisions.
 
 Resolved reviewer role contract:
 

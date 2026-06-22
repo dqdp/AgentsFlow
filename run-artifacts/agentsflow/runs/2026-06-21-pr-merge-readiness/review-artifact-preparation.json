@@ -6,7 +6,7 @@
   "prepared_at": "2026-06-22T20:16:23.694623+00:00",
   "review_prompt_contract": {
     "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompt-contract.yaml",
-    "hash": "sha256:d73fc81e05022dcfece128cf9bf198fc96bd8384d144ae30d034398614c59436"
+    "hash": "sha256:f73f85330660a5ed6901dfe99df7d7266d11d8c5827c377ad2d1f76b30f800c2"
   },
   "source_context": {
     "dirty_policy": "fail-closed",
@@ -1379,7 +1379,7 @@
     {
       "path": "schemas/reviewer-report.schema.json",
       "kind": "schema",
-      "hash": "sha256:bfc1f5200138866c882b46a4bdabfeaf284dc2a7c9563fa3b4a1cd0cb7d9d2e5",
+      "hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
       "required_by": [
         "reviewer_output"
       ]
@@ -2214,32 +2214,32 @@
       {
         "reviewer": "hygiene-codex-generalist-a",
         "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-packets/hygiene-codex-generalist-a.json",
-        "hash": "sha256:ab303e0e2cb5fb130fd47cdd1ae2e4026be62d8c402eb63eaac188361c20cdaf",
-        "shared_packet_content_hash": "sha256:788d3c58e8116b7c5809adbab49182adb109ba5b8051436b231185712bd6c457"
+        "hash": "sha256:1037d97d0dcdcd15f0d75d268d37601a0f178e39a79bf34f59ab2f6fb940d7b6",
+        "shared_packet_content_hash": "sha256:c0dba222818d9646886be50bc212ec4ddef764ac2ad06ca6d388f044cad71d0e"
       },
       {
         "reviewer": "hygiene-codex-generalist-b",
         "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-packets/hygiene-codex-generalist-b.json",
-        "hash": "sha256:e093dc1370a9258ca0c9f4dcb4f96442c188654f695bfd82c5b6460d446baf98",
-        "shared_packet_content_hash": "sha256:788d3c58e8116b7c5809adbab49182adb109ba5b8051436b231185712bd6c457"
+        "hash": "sha256:bb00c0408406e473dd52ae1ff5b3cda2f4fca39c65e54617a6faee8824a73ed6",
+        "shared_packet_content_hash": "sha256:c0dba222818d9646886be50bc212ec4ddef764ac2ad06ca6d388f044cad71d0e"
       }
     ],
     "rendered_prompts": [
       {
         "reviewer": "hygiene-codex-generalist-a",
         "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompts/hygiene-codex-generalist-a.md",
-        "hash": "sha256:9211d758f51d78fecd06020f7cad52c242c77605958da6ce89e2e16f25ca0237",
-        "packet_hash": "sha256:ab303e0e2cb5fb130fd47cdd1ae2e4026be62d8c402eb63eaac188361c20cdaf",
-        "schema_hash": "sha256:bfc1f5200138866c882b46a4bdabfeaf284dc2a7c9563fa3b4a1cd0cb7d9d2e5",
+        "hash": "sha256:8ef6dd56377ca0ada37c51983b56fde319ef945b16500ef0cb1b01ab2621bfce",
+        "packet_hash": "sha256:1037d97d0dcdcd15f0d75d268d37601a0f178e39a79bf34f59ab2f6fb940d7b6",
+        "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
         "rubric_hash": "sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843",
         "role_contract_hash": "sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0"
       },
       {
         "reviewer": "hygiene-codex-generalist-b",
         "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompts/hygiene-codex-generalist-b.md",
-        "hash": "sha256:a0a8eab057c3cba47d43228523505226b98553c226208ac2b4e03874256710cc",
-        "packet_hash": "sha256:e093dc1370a9258ca0c9f4dcb4f96442c188654f695bfd82c5b6460d446baf98",
-        "schema_hash": "sha256:bfc1f5200138866c882b46a4bdabfeaf284dc2a7c9563fa3b4a1cd0cb7d9d2e5",
+        "hash": "sha256:035527b4f8b4ee2a1898afc656ffc74131685a100e0cd6ee67237d5971e039ee",
+        "packet_hash": "sha256:bb00c0408406e473dd52ae1ff5b3cda2f4fca39c65e54617a6faee8824a73ed6",
+        "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
         "rubric_hash": "sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843",
         "role_contract_hash": "sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0"
       }
@@ -2250,7 +2250,7 @@
     },
     "shared_packet_content": {
       "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-packets/shared-content.json",
-      "hash": "sha256:788d3c58e8116b7c5809adbab49182adb109ba5b8051436b231185712bd6c457"
+      "hash": "sha256:c0dba222818d9646886be50bc212ec4ddef764ac2ad06ca6d388f044cad71d0e"
     }
   },
   "reviewer_assignments": [

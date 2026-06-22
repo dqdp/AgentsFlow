@@ -172,7 +172,7 @@ omits files present at review preparation time.
 
 - Not valid as a primary gate.
 - Exactly two control reviewers for each collision batch.
-- Requires a recorded rejected/downgraded blocker collision batch:
+- Requires a recorded rejected/downgraded plausible blocker-path collision batch:
   - collision batch id;
   - one or more disputed findings;
   - original severity `P0` or `P1` for each finding;
@@ -194,6 +194,10 @@ Every rendered reviewer prompt must include the shared rules:
 - findings are candidate-unvalidated;
 - report missing mandatory evidence;
 - report plausible P0/P1 blockers even outside a focused role;
+- when marking a finding P0/P1, include the concrete blocker path and acceptance
+  consequence;
+- do not treat risk-surface or Failure Path Matrix membership as severity by
+  itself;
 - prioritize substantive review quality over native output serialization;
 - main/orchestrating agent validates relevance before findings affect workflow decisions.
 

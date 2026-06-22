@@ -189,7 +189,14 @@
         "properties": {
           "id": {"type": "string", "minLength": 1},
           "severity": {"enum": ["P0", "P1", "P2", "P3", "NOTE"]},
+          "validated_severity": {"enum": ["P0", "P1", "P2", "P3", "NOTE"]},
           "status": {"enum": ["accepted", "rejected", "downgraded", "duplicate", "needs-more-evidence"]},
+          "blocker_path": {"type": "string", "minLength": 1},
+          "acceptance_impact": {"type": "string", "minLength": 1},
+          "mandatory_evidence_gap": {"type": "boolean"},
+          "validation_rationale": {"type": "string", "minLength": 1},
+          "calibration_reason": {"type": "string", "minLength": 1},
+          "no_blocker_path_reason": {"type": "string", "minLength": 1},
           "collision_control": {"type": "object"}
         }
       }

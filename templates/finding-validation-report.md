@@ -10,6 +10,18 @@ Validator: `<main/orchestrating agent or human>`
 
 Reviewer findings are candidate findings. They become accepted issues only after relevance validation.
 
+## Severity Calibration Rule
+
+Reviewer severity is a candidate label. A P0/P1 candidate validates as a blocker
+only when this report records a grounded blocker path: the contract, accepted
+decision, gate policy, safety rule, authority boundary or mandatory evidence
+requirement at risk; the evidence checked; and the concrete consequence for
+accepting the artifact unchanged.
+
+Risk-surface or Failure Path Matrix membership alone is not enough to validate
+P0/P1 severity. It may justify focused review or additional evidence, but the
+validated severity must come from acceptance impact.
+
 ## Authority Boundary
 
 This report is the main/orchestrating agent's relevance validation record. It is
@@ -27,12 +39,13 @@ artifact when the workflow requires them.
 - [ ] relevant ADRs / accepted decisions
 - [ ] workflow profile / effective strictness / topology
 - [ ] scope and non-goals
+- [ ] selected risk surfaces / Failure Path Matrix
 
 ## Validation Table
 
-| Finding ID | Source | Severity | Candidate blocker? | Candidate finding | Relevance status | Reason | Evidence checked | Decision impact |
-|---|---|---:|---:|---|---|---|---|---|
-| F-001 | reviewer-architecture | P1 | yes | ... | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | ... | contract, diff, gate report, ADR | ... |
+| Finding ID | Source | Candidate severity | Candidate blocker? | Candidate finding | Proposed blocker path | Risk/FPM refs | Relevance status | Validated severity | Blocking? | Reason | Evidence checked | Decision impact | Rerun required? |
+|---|---|---:|---:|---|---|---|---|---:|---:|---|---|---|---:|
+| F-001 | reviewer-architecture | P1 | yes | ... | contract/gate/evidence -> acceptance consequence | ... | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | P1/P2/P3/NOTE | yes/no | ... | contract, diff, gate report, ADR | ... | yes/no |
 
 ## Canonical Finding Groups Checked
 
@@ -46,9 +59,10 @@ Use this section when fusion grouped findings before validation.
 
 | Condition | Validation status | Blocking? | Default action |
 |---|---|---:|---|
-| Finding is supported by contract/evidence and severity is P0/P1 | accepted-relevant | yes | Fix/revise, then rerun verification gate and relevant review cycle. |
+| Finding is supported by contract/evidence and has a grounded P0/P1 blocker path | accepted-relevant | yes | Fix/revise, then rerun verification gate and relevant review cycle. |
+| Finding is tagged P0/P1 but lacks a grounded blocker path | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | no by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
 | Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | no | Record follow-up; no review rerun by default. |
-| Finding may be valid but required evidence is missing | needs-more-evidence | yes if mandatory evidence or P0/P1 | Produce evidence through the verification gate or a narrow evidence-probe objective; rerun review only if evidence materially changes. |
+| Finding may be valid but required evidence is missing | needs-more-evidence | yes if mandatory evidence or grounded P0/P1 blocker path | Produce evidence through the verification gate or a narrow evidence-probe objective; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | no | Record reason; no rerun. |
 | Finding is factually contradicted by contract/diff/evidence | rejected-irrelevant | no | Record contradiction; no rerun. |
 | Finding duplicates an already validated issue | duplicate | inherits original | Link to original; no rerun. |
@@ -69,8 +83,10 @@ findings.
 ## Collision-Control Batches
 
 Use this section when the main/orchestrating agent rejects or downgrades one or
-more P0/P1 candidate findings. Collision-control is batched per review cycle, not
-per finding.
+more plausible P0/P1 blocker-path candidate findings. Collision-control is
+batched per review cycle, not per finding. If the only blocker signal is an
+ungrounded severity label, record the no-collision reason in the final triage
+instead of launching control reviewers.
 
 | Collision Batch ID | Finding IDs | Orchestrator collision reason | Control reviewer count | Control reports | Final triage |
 |---|---|---|---:|---|---|
@@ -85,6 +101,8 @@ For every P0/P1 candidate finding, record one of:
 - downgraded with reason;
 - needs more evidence;
 - escalated to human decision.
+
+Also record the blocker path or the reason no grounded blocker path exists.
 
 ## Post-Fix Materiality
 

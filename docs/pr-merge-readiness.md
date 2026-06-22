@@ -17,7 +17,7 @@ The workflow records:
 - review packet and reviewer report references;
 - external reviewer evidence, including live-vs-mock Claude distinction;
 - finding validation and collision-control evidence for rejected or downgraded
-  P0/P1 candidate findings;
+  plausible blocker-path candidate findings;
 - stale review detection when material changes postdate review packets;
 - human merge decision status.
 
@@ -42,12 +42,13 @@ The readiness evaluator treats these surfaces as blocking:
   is required;
 - live Claude invocation hashes that do not match the current packet, prompt,
   role contract, prompt contract, rubric, output schema or normalized report;
-- accepted or `needs-more-evidence` P0/P1 candidate findings;
+- accepted or `needs-more-evidence` validated P0/P1 findings with a grounded
+  blocker path, or mandatory evidence gaps;
 - P0/P1 source findings represented as lower-severity or duplicate candidate
-  findings without blocker-grade handling;
-- rejected or downgraded P0/P1 candidate findings without completed
-  collision-control evidence from two control reviewers that explicitly address
-  the same collision batch and disputed finding, support the orchestrator
+  findings without blocker-path calibration;
+- rejected or downgraded plausible blocker-path candidate findings without
+  completed collision-control evidence from two control reviewers that explicitly
+  address the same collision batch and disputed finding, support the orchestrator
   disposition, and complete after the collision-control prompt is prepared;
 - sensitive raw external output without redaction or non-sensitive declaration;
 - required live external evidence whose raw output is declared `not_persisted`

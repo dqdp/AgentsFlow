@@ -153,9 +153,9 @@ When applying AgentsFlow to a concrete project:
 - Default review is `homogeneous-dual`: two independent generalist reviewers
   receive the same prompt, same review packet, same rubric and same output schema.
 - Primary review gates require at least two reviewers. Collision-control also uses
-  two fresh-context control reviewers: rejected or downgraded blocker-level
-  candidate findings from the same review cycle are recorded as one collision
-  batch and sent to those two control reviewers.
+  two fresh-context control reviewers: rejected or downgraded plausible
+  blocker-path candidate findings from the same review cycle are recorded as one
+  collision batch and sent to those two control reviewers.
 - Heterogeneous review is explicit, not inferred. Reviewer role ids such as
   `adversarial`, `architecture` or `verification` must resolve to role definitions
   in `profiles/reviewer_roles/`; focus zones may overlap and do not prevent any
@@ -165,6 +165,10 @@ When applying AgentsFlow to a concrete project:
   packet and referenced artifacts declared by the workflow or project binding.
 - Review-agent findings are candidate findings, not authoritative truth.
 - The main/orchestrating agent must validate finding relevance before findings affect workflow decisions.
+- Reviewer severity is candidate severity. A P0/P1 finding blocks only after the
+  main/orchestrating agent records a grounded blocker path and validates the
+  acceptance impact; risk-surface or Failure Path Matrix membership alone is not
+  severity.
 - Fusion is read-only synthesis, not majority voting.
 - Review packets should include selected risk surfaces, Failure Path Matrix rows,
   known blockers and latest green evidence after the latest material change.

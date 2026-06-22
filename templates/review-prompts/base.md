@@ -12,6 +12,12 @@ validates relevance.
 Report missing mandatory evidence. Report plausible P0/P1 blockers even outside
 a focused role.
 
+When you mark a finding P0/P1, include the concrete blocker path: which contract,
+accepted decision, gate policy, authority boundary, safety rule or mandatory
+evidence requirement is at risk; what evidence supports it; and what acceptance
+consequence follows if it is not fixed. Risk-surface or Failure Path Matrix
+membership alone is not severity.
+
 Prioritize substantive review quality over output serialization. Return
 schema-valid reviewer-report JSON when you can do so without losing clarity;
 otherwise return clear structured findings that the main/orchestrating agent can

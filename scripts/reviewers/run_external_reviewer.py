@@ -456,7 +456,10 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
             raise ValueError("collision-control prompt contract must be non-primary with exactly two reviewers")
         collision = contract.get("collision_control")
         if not isinstance(collision, dict) or collision.get("trigger") != "rejected_or_downgraded_blocker_collision":
-            raise ValueError("collision-control prompt contract requires rejected/downgraded blocker collision context")
+            raise ValueError(
+                "collision-control prompt contract requires rejected/downgraded "
+                "plausible blocker-path collision context"
+            )
         for key in [
             "collision_batch_id",
             "control_reviewer_count",
@@ -690,6 +693,15 @@ def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str)
     findings = raw.get("findings", []) or []
     if not isinstance(findings, list):
         raise ValueError("reviewer report findings must be a list")
+    optional_finding_fields = [
+        "validated_severity",
+        "blocker_path",
+        "acceptance_impact",
+        "mandatory_evidence_gap",
+        "validation_rationale",
+        "calibration_reason",
+        "no_blocker_path_reason",
+    ]
     for idx, finding in enumerate(findings, start=1):
         if not isinstance(finding, dict):
             raise ValueError(f"finding #{idx} must be an object")
@@ -701,18 +713,20 @@ def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str)
             evidence = [evidence]
         if not isinstance(evidence, list):
             evidence = []
-        report["findings"].append(
-            {
-                "id": str(finding.get("id") or f"F-{idx:03d}"),
-                "severity": severity,
-                "category": str(finding.get("category") or finding.get("focus_area") or "external-review"),
-                "title": str(finding.get("title") or finding.get("claim") or "Untitled finding"),
-                "evidence": [str(item) for item in evidence],
-                "why_it_matters": str(finding.get("why_it_matters") or finding.get("rationale") or ""),
-                "recommendation": str(finding.get("recommendation", "")),
-                "status": "candidate-unvalidated",
-            }
-        )
+        normalized_finding = {
+            "id": str(finding.get("id") or f"F-{idx:03d}"),
+            "severity": severity,
+            "category": str(finding.get("category") or finding.get("focus_area") or "external-review"),
+            "title": str(finding.get("title") or finding.get("claim") or "Untitled finding"),
+            "evidence": [str(item) for item in evidence],
+            "why_it_matters": str(finding.get("why_it_matters") or finding.get("rationale") or ""),
+            "recommendation": str(finding.get("recommendation", "")),
+            "status": "candidate-unvalidated",
+        }
+        for field in optional_finding_fields:
+            if field in finding:
+                normalized_finding[field] = finding[field]
+        report["findings"].append(normalized_finding)
     return report
 
 
