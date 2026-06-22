@@ -48,10 +48,11 @@ MVP supported target workflow:
 big-feature-contract-first
 ```
 
-v0.2 utility workflow:
+v0.2 utility workflows:
 
 ```text
 review-only-fusion
+pr-merge-readiness
 ```
 
 Non-MVP workflows remain reference/experimental and schema-valid only:
@@ -133,14 +134,18 @@ v0.2 includes a minimal Claude Code external reviewer provider:
 - API-key/proxy usage forbidden;
 - wrapper must fail if the configured forbidden Claude API/proxy environment variables are present;
 - Codex-launched Claude reviewer runs require escalated sandbox access for local
-  subscription auth and disable Claude Code tools with `--tools ""`;
+  subscription auth. Stdin packet transport disables Claude Code tools with
+  `--tools ""`; file prompt transport may use only `--tools Read` for the
+  generated prompt file in an isolated temporary directory;
 - review packet in, normalized reviewer-report out;
-- raw output, normalized report and invocation metadata stored as evidence;
+- normalized report and invocation metadata stored as evidence, with raw output
+  stored only when explicitly non-sensitive;
 - findings remain candidate/unvalidated.
 
 See:
 
 - `docs/external-reviewer-provider-model.md`
+- `docs/pr-merge-readiness.md`
 - `docs/adr/ADR-0016-external-reviewer-provider-interface.md`
 - `examples/external-reviewers/claude-code/`
 

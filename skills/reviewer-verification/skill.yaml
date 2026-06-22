@@ -19,6 +19,7 @@ compatible_workflows:
 - big-feature-contract-first
 - safe-refactor
 - review-only-fusion
+- pr-merge-readiness
 quality_bar:
 - Missing tests are concrete.
 - Evidence gaps are actionable.

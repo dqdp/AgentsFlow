@@ -18,6 +18,9 @@ def render_review_prompt(packet: dict[str, Any], role_contract: dict[str, Any]) 
         "All findings must be candidate-unvalidated. Report missing mandatory evidence. "
         "Report plausible P0/P1 blockers even outside a focused role. "
         "The main/orchestrating agent validates relevance before findings affect workflow decisions.\n\n"
+        "Your reviewer-report JSON must include review_context with run_id, material_change_id, "
+        "review_packet_path and reviewer_instance_id copied from the review packet when present. "
+        "Do not invent those values.\n\n"
         "Resolved reviewer role contract:\n"
         + yaml.safe_dump(role_contract, sort_keys=False)
         + "\n"

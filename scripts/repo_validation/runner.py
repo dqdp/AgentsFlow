@@ -30,6 +30,7 @@ from .project_initialization import (
     validate_project_onboarding_assessment_skill_contract,
 )
 from .project_overlay import validate_project_overlay_example
+from .pr_merge_readiness import validate_pr_merge_readiness_report
 from .required_files import REQUIRED_FILES
 from .review import (
     validate_enabled_review_minimum,
@@ -127,6 +128,7 @@ def validate_repository(root: Path) -> list[str]:
         root / 'templates' / 'project-documentation-disposition.yaml',
         *root.glob('examples/**/project-documentation-disposition.yaml'),
         *root.glob('Docs/agentsflow/runs/**/project-documentation-disposition.yaml'),
+        *root.glob('run-artifacts/agentsflow/runs/**/project-documentation-disposition.yaml'),
         *root.glob('examples/**/Docs/agentsflow/runs/**/project-documentation-disposition.yaml'),
     }
     for documentation_disposition in sorted(documentation_disposition_paths):
@@ -140,6 +142,7 @@ def validate_repository(root: Path) -> list[str]:
     )
     run_artifact_patterns = [
         'Docs/agentsflow/runs/*/run.yaml',
+        'run-artifacts/agentsflow/runs/*/run.yaml',
         'examples/**/Docs/agentsflow/runs/*/run.yaml',
     ]
     for run_artifact in {
@@ -150,6 +153,7 @@ def validate_repository(root: Path) -> list[str]:
         errors.extend(validate_workflow_run_artifact(root, run_artifact))
     review_prompt_contract_patterns = [
         'Docs/agentsflow/runs/*/review-prompt-contract.yaml',
+        'run-artifacts/agentsflow/runs/*/review-prompt-contract.yaml',
         'examples/**/Docs/agentsflow/runs/*/review-prompt-contract.yaml',
     ]
     for prompt_contract in sorted({
@@ -167,6 +171,7 @@ def validate_repository(root: Path) -> list[str]:
             errors.extend(validate_review_prompt_contract_run_references(root, prompt_contract, data))
     review_packet_patterns = [
         'Docs/agentsflow/runs/*/review-packets/*.json',
+        'run-artifacts/agentsflow/runs/*/review-packets/*.json',
         'examples/**/Docs/agentsflow/runs/*/review-packets/*.json',
     ]
     for review_packet in sorted({
@@ -174,7 +179,7 @@ def validate_repository(root: Path) -> list[str]:
         for pattern in review_packet_patterns
         for path in root.glob(pattern)
     }):
-        if review_packet.name == 'shared-content.json':
+        if review_packet.name in {'shared-content.json', 'shared-source.json'}:
             continue
         errors.extend(validate_review_packet_artifact(root, review_packet, True))
     for reviewer_report in root.glob('examples/**/Docs/agentsflow/runs/*/reviewer-report*.json'):
@@ -184,6 +189,9 @@ def validate_repository(root: Path) -> list[str]:
 
     for provider_config in list(root.rglob('external-review-provider.yaml')) + list(root.rglob('claude-code.yaml')):
         errors.extend(validate_external_review_provider(provider_config))
+
+    for report_path in sorted(root.glob('examples/pr-merge-readiness/**/pr-merge-readiness-report.json')):
+        errors.extend(validate_pr_merge_readiness_report(root, report_path))
 
     for rel in REQUIRED_FILES:
         if not (root / rel).exists():

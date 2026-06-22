@@ -30,6 +30,7 @@ compatible_workflows:
   - safe-refactor
   - bugfix-regression-capture
   - review-only-fusion
+  - pr-merge-readiness
 
 quality_bar:
   - Evidence is auditable.

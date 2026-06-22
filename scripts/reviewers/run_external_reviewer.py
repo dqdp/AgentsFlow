@@ -151,10 +151,18 @@ def validate_provider_config(config: dict[str, Any], requested_provider: str) ->
         raise ValueError("Claude Code external reviewers must set execution.sandbox_mode: require_escalated")
     if execution.get("output_format") != "json":
         raise ValueError("external reviewers must set execution.output_format: json")
-    if execution.get("permission_mode") != "plan":
-        raise ValueError("external reviewers must set execution.permission_mode: plan")
-    if str(execution.get("tools", "")) != "":
-        raise ValueError('Claude Code external reviewers must set execution.tools: ""')
+    if execution.get("permission_mode") != "default":
+        raise ValueError("external reviewers must set execution.permission_mode: default")
+    prompt_transport = str(execution.get("prompt_transport", "stdin"))
+    tools = str(execution.get("tools", ""))
+    if prompt_transport == "file":
+        if tools != "Read":
+            raise ValueError('Claude Code file prompt transport must set execution.tools: "Read"')
+    elif prompt_transport == "stdin":
+        if tools != "":
+            raise ValueError('Claude Code stdin prompt transport must set execution.tools: ""')
+    else:
+        raise ValueError("Claude Code external reviewers must set execution.prompt_transport to stdin or file")
     if "model" not in execution:
         raise ValueError("external reviewers must declare execution.model: opus")
     if "effort" not in execution:
@@ -412,8 +420,13 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
     elif profile == "homogeneous-plus-focused":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
             raise ValueError("homogeneous-plus-focused prompt contract must have three to eight reviewers")
-        if "generalist-a" not in reviewer_ids or "generalist-b" not in reviewer_ids:
-            raise ValueError("homogeneous-plus-focused requires generalist-a and generalist-b baseline reviewers")
+        generalist_ids = [
+            str(item.get("instance_id"))
+            for item in reviewers
+            if isinstance(item, dict) and item.get("role_id") == "generalist"
+        ]
+        if len(generalist_ids) < 2:
+            raise ValueError("homogeneous-plus-focused requires at least two generalist baseline reviewers")
         for key in [
             "baseline_same_prompt",
             "focused_reviewers_require_explicit_focus_zone",
@@ -422,7 +435,12 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
         ]:
             if prompt_policy.get(key) is not True:
                 raise ValueError(f"homogeneous-plus-focused prompt_policy.{key} must be true")
-        focused = [item for item in reviewers if isinstance(item, dict) and item.get("instance_id") not in {"generalist-a", "generalist-b"}]
+        baseline_ids = set(generalist_ids[:2])
+        focused = [
+            item
+            for item in reviewers
+            if isinstance(item, dict) and item.get("instance_id") not in baseline_ids
+        ]
         if any(not item.get("focus_zone") for item in focused):
             raise ValueError("homogeneous-plus-focused focused reviewers must have focus zones")
     elif profile == "heterogeneous-variable":
@@ -508,7 +526,7 @@ def validate_review_packet(
         raise ValueError("heterogeneous review packet must include focus_zone")
     if (
         composition == "homogeneous-plus-focused"
-        and reviewer_instance not in {"generalist-a", "generalist-b"}
+        and packet.get("reviewer_role") != "generalist"
         and not packet.get("focus_zone")
     ):
         raise ValueError("homogeneous-plus-focused focused reviewer packet must include focus_zone")
@@ -624,6 +642,22 @@ def render_prompt(packet: dict[str, Any], role_contract: dict[str, Any]) -> str:
     return render_review_prompt(packet, role_contract)
 
 
+def normalize_additional_verification_requests(value: object) -> list[dict[str, Any]]:
+    if not value:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("requests_for_additional_verification must be a list")
+    normalized: list[dict[str, Any]] = []
+    for index, item in enumerate(value, start=1):
+        if isinstance(item, dict):
+            normalized.append(item)
+        elif isinstance(item, str):
+            normalized.append({"id": f"REQUEST-{index:03d}", "request": item})
+        else:
+            raise ValueError(f"requests_for_additional_verification #{index} must be an object or string")
+    return normalized
+
+
 def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str) -> dict[str, Any]:
     reviewer = raw.get("reviewer") if isinstance(raw.get("reviewer"), dict) else {}
     reviewer_instance = str(packet.get("reviewer_instance_id") or packet.get("reviewer_role") or "reviewer")
@@ -640,9 +674,17 @@ def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str)
             "role": str(reviewer.get("role") or packet.get("reviewer_role", "reviewer")),
             **({"model": reviewer.get("model")} if reviewer.get("model") else {}),
         },
+        "review_context": {
+            "run_id": str(packet.get("run_id", "")),
+            "material_change_id": str(packet.get("material_change_id", "")),
+            "review_packet_path": str(packet.get("review_packet_path", "")),
+            "reviewer_instance_id": reviewer_instance,
+        },
         "summary": str(raw.get("summary") or "No summary provided."),
         "findings": [],
-        "requests_for_additional_verification": raw.get("requests_for_additional_verification", []) or [],
+        "requests_for_additional_verification": normalize_additional_verification_requests(
+            raw.get("requests_for_additional_verification", []) or []
+        ),
         "self_declared_limitations": raw.get("self_declared_limitations", []) or [],
     }
     findings = raw.get("findings", []) or []
@@ -826,9 +868,15 @@ def main() -> int:
             exit_code = result.exit_code
             command_display = result.command_display
 
-        raw_path.parent.mkdir(parents=True, exist_ok=True)
-        raw_path.write_text(raw_text, encoding="utf-8")
-        raw_output_hash = sha256_file(raw_path)
+        normalization = config.get("normalization", {}) or {}
+        preserve_raw_output = normalization.get("preserve_raw_output") is True
+        raw_output_hash = sha256_text(raw_text)
+        raw_source_path = ""
+        if preserve_raw_output:
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            raw_path.write_text(raw_text, encoding="utf-8")
+            raw_output_hash = sha256_file(raw_path)
+            raw_source_path = str(raw_path)
         failure_invocation = {
             "provider": args.provider,
             "reviewer_role": str(packet.get("reviewer_role", "reviewer")),
@@ -845,8 +893,12 @@ def main() -> int:
                 for item in (config.get("billing", {}) or {}).get("fail_if_env_present", []) or []
             ],
             "command": command_display,
+            "wrapper": "scripts/reviewers/run_external_reviewer.py",
+            "provider_config_path": str(config_path),
+            "provider_config_hash": sha256_file(config_path),
             "execution_mode": "mock" if args.mock_response else "real",
-            "permission_mode": str((config.get("execution", {}) or {}).get("permission_mode", "plan")),
+            "permission_mode": str((config.get("execution", {}) or {}).get("permission_mode", "default")),
+            "prompt_transport": str((config.get("execution", {}) or {}).get("prompt_transport", "stdin")),
             "sandbox_mode": str((config.get("execution", {}) or {}).get("sandbox_mode", "require_escalated")),
             "tools": str((config.get("execution", {}) or {}).get("tools", "")),
             "output_format": str((config.get("execution", {}) or {}).get("output_format", "json")),
@@ -862,7 +914,7 @@ def main() -> int:
             "schema_hash": packet_hashes["schema_hash"],
             "started_at": started.isoformat(),
             "exit_code": exit_code,
-            "raw_output_path": str(raw_path),
+            "raw_output_path": raw_source_path,
             "raw_output_hash": raw_output_hash,
             "stderr_path": str(stderr_path) if stderr else "",
             "normalized_output_path": str(output_path),
@@ -893,13 +945,12 @@ def main() -> int:
         normalized = normalize_report(reviewer_report, packet, args.provider)
         normalization_trace = {
             "method": normalization_method(raw_json, args.provider),
-            "source_path": str(raw_path),
+            "source_path": raw_source_path,
             "source_hash": raw_output_hash,
             "schema_validation": "passed",
             "normalized_by": "scripts/reviewers/run_external_reviewer.py",
         }
         normalized["normalization"] = normalization_trace
-        normalization = config.get("normalization", {}) or {}
         if normalization.get("require_schema_validation") is True:
             schema_ref = (config.get("outputs", {}) or {}).get("reviewer_report_schema")
             if not schema_ref:

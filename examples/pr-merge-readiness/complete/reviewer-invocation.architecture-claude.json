@@ -1,0 +1,49 @@
+{
+  "provider": "claude-code",
+  "reviewer_role": "architecture",
+  "billing_mode": "subscription-local",
+  "api_key_usage_forbidden": true,
+  "context_policy": {
+    "start_mode": "fresh_context",
+    "fork_conversation_context": false,
+    "session_persistence": false,
+    "input_mode": "review_packet"
+  },
+  "command": "claude -p <stdin> --output-format json --permission-mode default --tools \"\" --model opus --effort max --max-turns 3 --no-session-persistence",
+  "execution_mode": "real",
+  "permission_mode": "default",
+  "prompt_transport": "stdin",
+  "sandbox_mode": "require_escalated",
+  "tools": "",
+  "output_format": "json",
+  "requested_model": "opus",
+  "requested_effort": "max",
+  "provider_models_used": [
+    "claude-opus-4-8"
+  ],
+  "max_turns": 3,
+  "timeout_seconds": 900,
+  "started_at": "2026-06-22T10:00:00Z",
+  "finished_at": "2026-06-22T10:01:00Z",
+  "exit_code": 0,
+  "raw_output_path": "",
+  "raw_output_hash": "sha256:27efc1b2dc9ef469fd043b4085588a6bbec90dac2df987a48a10edd14a22a412",
+  "normalized_output_path": "reviewer-report.architecture-claude.json",
+  "normalized_output_hash": "sha256:4d0a852f91f82d8eb8860b12579e037027d3e90a5a2cd465da7b2570ca5dfe56",
+  "input_hash": "sha256:fad52807cd6d7ccd04b7aed6ed7286a9b34a6f7fb34fb7fe5b94af0ebfaf06bc",
+  "prompt_hash": "sha256:03ac8c41b9a8ca022f2512bf804b3f435198fbc998afb16f232471a031abb7ed",
+  "review_prompt_contract_hash": "sha256:55f71b1f3160065845b3440f8e1343712821afbe647d4a5a325e824b51e8a5c4",
+  "role_contract_hash": "sha256:de800ac257bf5aef5d27f7290485b8aee1d011ca5e51dbfbdc93b360d54092ea",
+  "rubric_hash": "sha256:6f4853522c9387ff114beb3985058c8c5232e7fe343fbb31976310a5a8b00767",
+  "schema_hash": "sha256:bfc1f5200138866c882b46a4bdabfeaf284dc2a7c9563fa3b4a1cd0cb7d9d2e5",
+  "forbidden_env_checked": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX"
+  ],
+  "wrapper": "scripts/reviewers/run_external_reviewer.py",
+  "provider_config_path": "examples/external-reviewers/claude-code/claude-code.yaml",
+  "provider_config_hash": "sha256:5fab30052ed512bf40b8a4e2866120d6352d8c55f5c2783d261513720d0daabd"
+}

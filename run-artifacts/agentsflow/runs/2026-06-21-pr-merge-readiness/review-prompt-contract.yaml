@@ -1,0 +1,221 @@
+version: 1
+artifact_kind: review_prompt_contract
+artifact_scope: run
+identity:
+  run_id: 2026-06-21-pr-merge-readiness
+  workflow: big-feature-contract-first
+  phase_id: development_review
+  review_profile: homogeneous-dual
+  topology: homogeneous-dual
+  composition: homogeneous
+  effective_strictness: L3
+  strictness_source: workflow_default
+  primary_gate: true
+inputs:
+  review_packet_schema: schemas/review-packet.schema.json
+  review_packets:
+  - reviewer: hygiene-codex-generalist-a
+    path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-packets/hygiene-codex-generalist-a.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:ab303e0e2cb5fb130fd47cdd1ae2e4026be62d8c402eb63eaac188361c20cdaf
+    shared_packet_content_hash: sha256:788d3c58e8116b7c5809adbab49182adb109ba5b8051436b231185712bd6c457
+  - reviewer: hygiene-codex-generalist-b
+    path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-packets/hygiene-codex-generalist-b.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:e093dc1370a9258ca0c9f4dcb4f96442c188654f695bfd82c5b6460d446baf98
+    shared_packet_content_hash: sha256:788d3c58e8116b7c5809adbab49182adb109ba5b8051436b231185712bd6c457
+  output_schema: schemas/reviewer-report.schema.json
+  task_contract: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/task.contract.md
+  verification_gate_report: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/verification-gate-report.md
+  evidence_report: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/evidence-report.md
+  review_invocation_set: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-invocation-set.json
+  reviewed_artifacts:
+  - path: README.md
+    kind: methodology_source
+  - path: docs/pr-merge-readiness.md
+    kind: methodology_source
+  - path: docs/workflow-model.md
+    kind: methodology_source
+  - path: docs/mvp-ready-workflow-standard.md
+    kind: methodology_source
+  - path: workflows/pr-merge-readiness/workflow.yaml
+    kind: methodology_source
+  - path: schemas/pr-merge-readiness-report.schema.json
+    kind: methodology_source
+  - path: templates/pr-merge-readiness-report.json
+    kind: methodology_source
+  - path: scripts/repo_validation/pr_merge_readiness.py
+    kind: methodology_source
+  - path: tests/test_pr_merge_readiness.py
+    kind: test
+  - path: examples/pr-merge-readiness/
+    kind: example
+  - path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/
+    kind: run_artifact
+  artifact_preparation_report: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-artifact-preparation.json
+provider_policy:
+  allow_external_reviewers: false
+  require_model_diversity: false
+  min_distinct_provider_model_families: 2
+  unsupported_provider_behavior: config_blocker
+reviewer_set:
+- instance_id: hygiene-codex-generalist-a
+  role_id: generalist
+  role_contract: profiles/reviewer_roles/generalist.yaml
+  independent: true
+- instance_id: hygiene-codex-generalist-b
+  role_id: generalist
+  role_contract: profiles/reviewer_roles/generalist.yaml
+  independent: true
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+  allowed_context_sources:
+  - review_packet
+  - referenced_artifacts
+permission_policy:
+  read_only: true
+  forbidden_actions:
+  - run_tests
+  - run_scripts
+  - modify_files
+  - create_patch
+  - update_evidence
+  explicit_tool_exceptions: []
+prompt_components:
+  shared_base_instructions: templates/review-prompts/base.md
+  role_contract_source: profiles/reviewer_roles/*.yaml
+  focus_supplement_source: focus_zone
+  finding_lifecycle: candidate-unvalidated
+  output_instructions: schemas/reviewer-report.schema.json
+prompt_policy:
+  same_prompt: true
+  same_packet: true
+  same_rubric: true
+  same_output_schema: true
+risk_surface_profile:
+  selected_risk_surfaces:
+  - authority_boundary
+  - human_approval
+  - external_io
+  - secret_handling
+  - persistence_consistency
+  - audit_persistence
+  review_topology_source: human_decision
+  escalation_reason: Development review uses mixed-provider generalists plus a focused
+    adversarial authority specialist because false-readiness, human merge authority,
+    live-vs-mock external evidence and collision-control bypass are material risk
+    surfaces for this slice.
+failure_path_matrix:
+  path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/task.contract.md
+  rows:
+  - id: PRM-FPM-001
+    risk_surface: authority_boundary
+    path_class: direct_bypass_attempt
+    evidence_binding: PRM-BHV-001
+    status: covered
+  - id: PRM-FPM-002
+    risk_surface: human_approval
+    path_class: approval_missing
+    evidence_binding: PRM-BHV-002
+    status: covered
+  - id: PRM-FPM-003
+    risk_surface: audit_persistence
+    path_class: missing_evidence_rejected
+    evidence_binding: PRM-BHV-003
+    status: covered
+  - id: PRM-FPM-004
+    risk_surface: external_io
+    path_class: live_unavailable
+    evidence_binding: PRM-BHV-004
+    status: covered
+  - id: PRM-FPM-005
+    risk_surface: secret_handling
+    path_class: sensitive_raw_redacted
+    evidence_binding: PRM-BHV-005
+    status: covered
+  - id: PRM-FPM-006
+    risk_surface: authority_boundary
+    path_class: malformed_request
+    evidence_binding: PRM-BHV-006
+    status: covered
+  - id: PRM-FPM-007
+    risk_surface: persistence_consistency
+    path_class: stale_evidence_excluded
+    evidence_binding: PRM-BHV-007
+    status: covered
+  - id: PRM-FPM-008
+    risk_surface: authority_boundary
+    path_class: direct_bypass_attempt
+    evidence_binding: PRM-BHV-008
+    status: covered
+  - id: PRM-FPM-009
+    risk_surface: authority_boundary
+    path_class: direct_bypass_attempt
+    evidence_binding: PRM-BHV-009
+    status: covered
+  - id: PRM-FPM-010
+    risk_surface: human_approval
+    path_class: malformed_request
+    evidence_binding: PRM-BHV-010
+    status: covered
+  - id: PRM-FPM-011
+    risk_surface: authority_boundary
+    path_class: direct_bypass_attempt
+    evidence_binding: PRM-BHV-011
+    status: covered
+  - id: PRM-FPM-012
+    risk_surface: authority_boundary
+    path_class: malformed_request
+    evidence_binding: PRM-BHV-012
+    status: covered
+  - id: PRM-FPM-013
+    risk_surface: external_io
+    path_class: malformed_request
+    evidence_binding: PRM-BHV-013
+    status: covered
+  - id: PRM-FPM-014
+    risk_surface: authority_boundary
+    path_class: malformed_request
+    evidence_binding: PRM-BHV-014
+    status: covered
+known_blockers: []
+rendered_prompts:
+- reviewer: hygiene-codex-generalist-a
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompts/hygiene-codex-generalist-a.md
+  prompt_hash: sha256:9211d758f51d78fecd06020f7cad52c242c77605958da6ce89e2e16f25ca0237
+  packet_hash: sha256:ab303e0e2cb5fb130fd47cdd1ae2e4026be62d8c402eb63eaac188361c20cdaf
+  schema_hash: sha256:bfc1f5200138866c882b46a4bdabfeaf284dc2a7c9563fa3b4a1cd0cb7d9d2e5
+  rubric_hash: sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843
+  role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
+  shared_prompt_content_hash: sha256:c890a82411d8c2d391a38f337b318ce21f0fb0c54e9fab8de01634646af3982e
+  shared_packet_content_hash: sha256:788d3c58e8116b7c5809adbab49182adb109ba5b8051436b231185712bd6c457
+- reviewer: hygiene-codex-generalist-b
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompts/hygiene-codex-generalist-b.md
+  prompt_hash: sha256:a0a8eab057c3cba47d43228523505226b98553c226208ac2b4e03874256710cc
+  packet_hash: sha256:e093dc1370a9258ca0c9f4dcb4f96442c188654f695bfd82c5b6460d446baf98
+  schema_hash: sha256:bfc1f5200138866c882b46a4bdabfeaf284dc2a7c9563fa3b4a1cd0cb7d9d2e5
+  rubric_hash: sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843
+  role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
+  shared_prompt_content_hash: sha256:c890a82411d8c2d391a38f337b318ce21f0fb0c54e9fab8de01634646af3982e
+  shared_packet_content_hash: sha256:788d3c58e8116b7c5809adbab49182adb109ba5b8051436b231185712bd6c457
+reviewer_assignments:
+- reviewer: hygiene-codex-generalist-a
+  provider: internal-agent
+  model_family: codex
+  packet_path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-packets/hygiene-codex-generalist-a.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/reviewer-report.hygiene-codex-generalist-a.json
+- reviewer: hygiene-codex-generalist-b
+  provider: internal-agent
+  model_family: codex
+  packet_path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-packets/hygiene-codex-generalist-b.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/reviewer-report.hygiene-codex-generalist-b.json
+collision_control: null
+validation:
+  schema: schemas/review-prompt-contract.schema.json
+  assembly_invariants:
+  - homogeneous-dual uses exactly two independent generalist reviewers.
+  - both reviewers receive the same packet content, prompt content, rubric and output
+    schema.
+  - reviewers start from fresh context and remain read-only.
+  - every reviewer must report plausible P0/P1 blockers outside ordinary focus.

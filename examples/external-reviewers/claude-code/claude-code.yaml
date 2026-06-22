@@ -24,7 +24,7 @@ execution:
   mode: non_interactive_print
   sandbox_mode: require_escalated
   output_format: json
-  permission_mode: plan
+  permission_mode: default
   tools: ""
   model: opus
   effort: max
@@ -57,5 +57,8 @@ outputs:
 normalization:
   force_finding_status: candidate-unvalidated
   require_schema_validation: true
+  # Example fixture output is non-sensitive. Project overlays should keep this
+  # false unless raw provider output has been explicitly classified as
+  # non-sensitive.
   preserve_raw_output: true
   record_trace: true

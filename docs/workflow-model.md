@@ -64,6 +64,13 @@ review of that plan followed by human approval is a separate
 `human_mediated_gate` unless the workflow or project binding explicitly models
 it as part of the plan gate's required evidence and decision policy.
 
+When a human-mediated gate asks for design acceptance before implementation or
+red capture, the main agent should not ask for blanket approval of a whole
+packet. It should first present an open decision inventory, then discuss each
+blocking or material decision with options, tradeoffs, a recommended path,
+rationale and a concrete acceptance question before recording the normalized
+human decision.
+
 ## Workflow manifest shape
 
 See `schemas/workflow.schema.json` and `templates/workflow.yaml`.
@@ -152,6 +159,7 @@ the latest material change is not authoritative for the changed scope.
 |---|---|---|
 | `big-feature-contract-first` | supported target | Implement a large feature through contract, BDD scenarios, impact map, verification, evidence. |
 | `review-only-fusion` | utility | Run independent review and fusion on an existing artifact or diff. |
+| `pr-merge-readiness` | utility | Decide whether a branch has enough validation, review, finding-validation and human approval evidence to open, accept or merge as a PR. |
 | `new-project-spec-first` | reference/next | Start a new project with problem framing, specs, ADR seeds, and initial contracts. |
 | `bugfix-regression-capture` | reference/next | Reproduce a bug, fix it, and convert it into a regression scenario. |
 | `agentic-system-hardening` | reference/experimental | Harden agent systems: prompts, tools, memory, context, policy, model router, traces. |
@@ -166,7 +174,6 @@ v0.2 supported path:
 
 | Candidate workflow | Candidate status | Purpose |
 |---|---|---|
-| `release-pr-readiness` | candidate/next | Decide whether a branch is ready to open, accept or merge as a pull request by composing validation, documentation consistency, review-gate evidence, finding relevance validation, human merge approval and post-merge verification planning. |
 | `knowledge-extraction` | candidate/next | Extract normalized project knowledge from a project documentation corpus or knowledge base with provenance, confidence, human-confirmation boundaries and persistence scope. |
 
 Current `project-initialization` may already produce

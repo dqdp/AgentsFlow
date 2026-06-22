@@ -23,15 +23,24 @@ Synthesize independent reviewer reports into consensus, disagreements, candidate
 
 ## Procedure
 
-1. Compare reviewer findings.
-2. Identify consensus.
-3. Identify disagreements.
-4. Surface any P0/P1 candidate blocker.
-5. Surface missing or stale risk-surface/FPM evidence as candidate mandatory
+1. Run mechanical intake: confirm expected reviewer reports exist, are
+   schema-valid, fresh for the latest material change and match the declared
+   reviewer assignment, provider, role and topic where applicable.
+2. Extract canonical finding metadata while preserving source findings: source
+   report, provider, model, topic, role, severity, evidence references, risk
+   surface and Failure Path Matrix row when available.
+3. Group findings as duplicate, related, or conflict. True duplicate groups keep
+   the highest candidate severity until relevance validation.
+4. Compare reviewer findings, including topic-pair comparison when a topology
+   mirrors providers or roles over the same topic.
+5. Identify consensus.
+6. Identify disagreements.
+7. Surface any P0/P1 candidate blocker.
+8. Surface missing or stale risk-surface/FPM evidence as candidate mandatory
    evidence gaps when reviewers report it.
-6. Preserve relevance questions and disagreements.
-7. Assign recommended verdict and proposed required changes.
-8. Hand off candidate findings for main-agent relevance validation.
+9. Preserve relevance questions and disagreements.
+10. Assign recommended verdict and proposed required changes.
+11. Hand off candidate findings for main-agent relevance validation.
 
 
 ## Quality bar
@@ -74,3 +83,12 @@ Fusion must not trigger repeated review cycles for non-blocking findings alone.
 ## Orchestration boundary
 
 Fusion is not the workflow orchestrator. It does not launch reviewers, run verification gates, run tests, call tools, or modify artifacts by default. It may recommend additional review or verification, but the main/orchestrating agent owns the decision to run another cycle.
+
+## Authority boundary
+
+Fusion is not an automatic acceptance gate and does not own human-mediated
+decisions. Deterministic automation may validate reviewer-report structure,
+schema, freshness and evidence references. Fusion provides decision support.
+The main/orchestrating agent validates candidate findings. Human-mediated gates
+remain human-owned and require normalized human decisions before acceptance is
+claimed.

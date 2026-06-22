@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/pr-merge-readiness-report.schema.json",
+  "title": "AgentsFlow PR Merge Readiness Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "version",
+    "artifact_kind",
+    "workflow",
+    "run_id",
+    "material_change_id",
+    "branch",
+    "status",
+    "checks",
+    "review_requirements",
+    "reviews",
+    "external_review_evidence",
+    "candidate_findings",
+    "human_decision",
+    "self_application",
+    "residual_limitations"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "human_decision": {
+            "properties": {
+              "status": {"const": "accepted"}
+            },
+            "required": ["status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "human_decision": {
+            "required": ["decision_id", "path"]
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "artifact_kind": {"type": "string", "const": "pr_merge_readiness_report"},
+    "workflow": {"type": "string", "const": "pr-merge-readiness"},
+    "run_id": {"type": "string", "minLength": 1},
+    "material_change_id": {"type": "string", "minLength": 1},
+    "status": {
+      "type": "string",
+      "enum": [
+        "accepted_merge_ready",
+        "awaiting_human_decision",
+        "blocked_missing_evidence",
+        "blocked_external_review",
+        "blocked_sensitive_raw_evidence",
+        "blocked_collision_control",
+        "blocked_stale_review",
+        "blocked_cyclic_self_proof",
+        "incomplete",
+        "rejected"
+      ]
+    },
+    "branch": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "base", "commit_range", "worktree_state"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "base": {"type": "string", "minLength": 1},
+        "commit_range": {"type": "string", "minLength": 1},
+        "worktree_state": {"type": "string", "minLength": 1}
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "category", "status", "evidence_path"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "category": {"type": "string", "minLength": 1},
+          "status": {"enum": ["pass", "fail", "blocked", "skipped", "inconclusive"]},
+          "evidence_path": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "review_requirements": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["required_reviews"],
+      "properties": {
+        "review_prompt_contract_path": {"type": "string", "minLength": 1},
+        "rubric_path": {"type": "string", "minLength": 1},
+        "required_reviews": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["id", "topic", "provider", "role"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "topic": {"type": "string", "minLength": 1},
+              "role": {"type": "string", "minLength": 1},
+              "provider": {"enum": ["internal-agent", "claude-code"]},
+              "required_live": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    },
+    "reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "topic",
+          "provider",
+          "status",
+          "packet_path",
+          "report_path",
+          "packet_prepared_at",
+          "latest_material_change_at"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "topic": {"type": "string", "minLength": 1},
+          "provider": {"enum": ["internal-agent", "claude-code"]},
+          "status": {"enum": ["pass", "pass-with-notes", "fail", "blocked"]},
+          "packet_path": {"type": "string", "minLength": 1},
+          "prompt_path": {"type": "string", "minLength": 1},
+          "role_contract_path": {"type": "string", "minLength": 1},
+          "report_path": {"type": "string", "minLength": 1},
+          "packet_prepared_at": {"type": "string", "minLength": 1},
+          "latest_material_change_at": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "external_review_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "provider",
+          "mode",
+          "required_live",
+          "status",
+          "normalized_report_path",
+          "invocation_metadata_path",
+          "raw_output"
+        ],
+        "properties": {
+          "provider": {"type": "string"},
+          "mode": {"enum": ["live", "mock", "unavailable"]},
+          "required_live": {"type": "boolean"},
+          "status": {"enum": ["pass", "fail", "blocked", "unavailable"]},
+          "normalized_report_path": {"type": "string", "minLength": 1},
+          "invocation_metadata_path": {"type": "string", "minLength": 1},
+          "raw_output": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["persistence"],
+            "properties": {
+              "persistence": {"enum": ["raw", "redacted", "summary", "pointer", "not_persisted"]},
+              "redaction_reason": {"type": "string"},
+              "reason": {"type": "string"},
+              "non_sensitive": {"type": "boolean"},
+              "artifact_path": {"type": "string"},
+              "artifact_hash": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "candidate_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "severity", "status"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "severity": {"enum": ["P0", "P1", "P2", "P3", "NOTE"]},
+          "status": {"enum": ["accepted", "rejected", "downgraded", "duplicate", "needs-more-evidence"]},
+          "collision_control": {"type": "object"}
+        }
+      }
+    },
+    "human_decision": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["accepted", "rejected", "deferred", "missing"]},
+        "decision_id": {"type": "string"},
+        "path": {"type": "string"}
+      }
+    },
+    "self_application": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["enabled", "proof_claim"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "application_mode": {"type": "string"},
+        "proof_claim": {"type": "string"}
+      }
+    },
+    "residual_limitations": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

@@ -7,7 +7,7 @@ Accepted for AgentsFlow v0.2 and updated in v0.1.13.
 ## v0.2 MVP scope
 
 AgentsFlow v0.2 has one application/onboarding workflow, one supported target
-workflow and one review utility workflow.
+workflow and utility workflows for review/fusion and PR merge readiness.
 
 Application workflow:
 
@@ -21,10 +21,11 @@ MVP supported target workflow:
 big-feature-contract-first
 ```
 
-v0.2 utility workflow:
+v0.2 utility workflows:
 
 ```text
 review-only-fusion
+pr-merge-readiness
 ```
 
 Non-MVP workflows remain in the repository as reference/experimental workflows and must remain schema-valid only:
@@ -120,7 +121,7 @@ Soft DoD terms are interpreted as operational checks:
 - `Claude Code external reviewer provider minimally works` means the automated
   mock smoke test passes through the project-bound wrapper without a live Claude
   call. This is the CI-safe MVP check.
-- Release or PR readiness may require additional operator evidence from a live
+- PR merge readiness may require additional operator evidence from a live
   subscription-local Claude Code review gate. That evidence should be recorded as
   a readiness artifact, not as a mandatory repository test, because it depends on
   local Claude subscription auth and an escalated Codex sandbox.
@@ -148,9 +149,12 @@ The Claude provider is in v0.2 MVP scope, but narrowly:
 - configured Claude API/proxy environment variables must fail fast;
 - project-bound wrapper only;
 - review packet in, normalized reviewer report out;
-- raw output and invocation metadata stored;
+- invocation metadata stored, with raw output stored only when explicitly
+  non-sensitive;
 - Codex-launched live runs use escalated sandbox access for subscription-local
-  auth and disable Claude Code tools with `--tools ""` for packet-bound review;
+  auth. Stdin packet transport disables Claude Code tools with `--tools ""`;
+  file prompt transport may use only `--tools Read` for the generated prompt
+  file in an isolated temporary directory;
 - provider/model diversity is proved through assignment, invocation-set and
   reviewer-report evidence, not by role names alone;
 - findings remain candidate/unvalidated.
@@ -169,9 +173,10 @@ add branch-scoped evidence such as:
 - relevance validation for P0/P1 candidate findings;
 - human merge decision and post-merge verification plan.
 
-This repository does not yet define a dedicated release/PR-readiness workflow.
-If added, it should stay small and compose existing validation, review and human
-decision artifacts instead of becoming a general release-management runtime.
+This repository defines `pr-merge-readiness` as a dedicated utility workflow for
+that branch-scoped decision. It stays small and composes existing validation,
+review, finding-validation and human-decision artifacts instead of becoming a
+general release-management runtime.
 
 ## Workflow-specific notes
 
@@ -238,6 +243,7 @@ Reference end-to-end development workflow:
 ```text
 intake -> operating context preflight -> repository grounding -> contract
 -> behavior bindings -> plan gate when effective strictness requires it
+-> contract acceptance as a human-mediated design decision review
 -> red capture (contract scenarios as executable tests, failing run)
 -> implementation -> verification gate (green re-run) -> review
 -> fusion -> finding validation -> final decision
@@ -251,6 +257,13 @@ If a project requires agentic review of the plan followed by human approval
 before red capture, model it explicitly as a human-mediated gate or a declared
 project-bound policy. Do not treat that step as an implicit side effect of
 `plan_gate`.
+
+The built-in `contract_acceptance` phase is a human-mediated design decision
+review, not a blanket approval prompt. The main agent presents an open decision
+inventory, then discusses each blocking or material decision with options,
+tradeoffs, recommended path, rationale and the exact acceptance question.
+Blocking decisions must be accepted, changed or explicitly deferred with
+residual risk before red capture starts.
 
 Open questions are classified in the task contract. Unresolved
 `blocking-material` questions pause the workflow; nonblocking questions are

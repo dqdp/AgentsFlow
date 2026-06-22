@@ -1,0 +1,11 @@
+{
+  "reviewer": "adversarial-codex",
+  "topic": "adversarial-authority",
+  "agentsflow_version": "0.2",
+  "workflow": "pr-merge-readiness",
+  "reviewer_instance_id": "adversarial-codex",
+  "reviewer_role": "adversarial",
+  "run_id": "2026-06-22-pr-merge-readiness-example",
+  "material_change_id": "pr-merge-readiness-example-change",
+  "review_packet_path": "review-packets/adversarial-codex.json"
+}

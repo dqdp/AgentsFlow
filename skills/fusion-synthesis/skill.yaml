@@ -11,6 +11,8 @@ inputs:
 - failure_path_matrix
 - evidence_freshness
 outputs:
+- mechanical_intake_summary
+- canonical_finding_groups
 - fusion_report
 - final_verdict
 - human_decision_items
@@ -19,10 +21,13 @@ compatible_workflows:
 - big-feature-contract-first
 - agentic-system-hardening
 - review-only-fusion
+- pr-merge-readiness
 quality_bar:
 - No plausible blocker is hidden by majority vote.
 - Disagreements are preserved.
 - FPM coverage and freshness gaps are preserved as candidate evidence issues.
+- Duplicate, related, and conflict groups preserve source findings and max candidate severity until relevance validation.
+- Human-mediated decisions remain human-owned; fusion provides decision support only.
 anti_patterns:
 - Averaging away blocking issues.
 - Reclassifying missing selected risk-path evidence as nonblocking without relevance validation.

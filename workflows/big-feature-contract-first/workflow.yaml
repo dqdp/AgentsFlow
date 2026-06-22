@@ -115,6 +115,7 @@ human_interaction:
   allowed_pause_phases:
   - operating_context_preflight
   - contract
+  - contract_acceptance
   - finding_validation
   - final_decision
   pause_on:
@@ -284,16 +285,33 @@ phases:
   coordinator: main-agent
   purpose: Human-mediated acceptance of the task contract, behavior bindings,
     risk surface profile, Failure Path Matrix, impact map and technical plan
-    before red-capture or implementation begins.
+    before red-capture or implementation begins. The main agent must first
+    present an open decision inventory and then review each blocking decision
+    with options, tradeoffs, recommendation and rationale.
   runs_after:
   - plan_gate
+  decision_review_contract:
+    artifact: decision-contract.md
+    required_before_prompt: true
+    required_sections:
+    - open_decision_inventory
+    - per_decision_options
+    - tradeoffs
+    - recommended_path
+    - rationale
+    - human_acceptance_question
+    acceptance_rule: Blocking decisions must be accepted, changed, or explicitly
+      deferred with residual risk before red-capture.
   outputs:
+  - design decision review packet in decision-contract.md
   - human contract acceptance decision in human-decisions.yaml
+  - per-decision acceptance or change requests in human-decisions.yaml
   - accepted-for-red-capture status in run metadata
   human_interaction:
     can_pause: true
     required: true
-    prompt_source: task.contract.md and plan artifacts
+    prompt_source: decision-contract.md plus task.contract.md, behavior bindings,
+      Failure Path Matrix, impact map and technical plan
     question_artifact: human-questions.yaml
     decision_artifact: human-decisions.yaml
     response_artifact: run.yaml

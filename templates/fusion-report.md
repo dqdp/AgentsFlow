@@ -10,6 +10,40 @@ Verification Gate Report: `<path>`
 
 This is a recommendation. It becomes a final workflow decision only after main-agent/human relevance validation when the workflow requires it.
 
+## Authority Boundary
+
+Fusion is decision support, not an automatic gate verdict and not a
+human-mediated decision. Deterministic automation may validate structure,
+schema, freshness and evidence references; the main/orchestrating agent validates
+candidate findings; human-mediated gates remain human-owned.
+
+## Mechanical Intake
+
+| Expected report | Present? | Schema valid? | Fresh? | Assignment/provider/topic match? | Notes |
+|---|---:|---:|---:|---:|---|
+| ... | yes/no | yes/no | yes/no | yes/no | ... |
+
+## Canonical Finding Extraction
+
+| Canonical ID | Source finding | Source report | Provider/model | Topic/role | Severity | Evidence refs | Risk/FPM refs |
+|---|---|---|---|---|---:|---|---|
+| CF-001 | ... | ... | ... | ... | P1 | ... | ... |
+
+## Duplicate / Related / Conflict Groups
+
+| Group ID | Group type | Finding IDs | Max candidate severity | Shared claim or conflict | Fusion handling |
+|---|---|---|---:|---|---|
+| G-001 | duplicate / related / conflict | CF-001, CF-002 | P1 | ... | ... |
+
+## Topic-Pair Comparison
+
+Use this section when the review topology mirrors providers or roles over the
+same topic.
+
+| Topic pair | Reviewer reports | Agreement | Disagreement | Fusion handling |
+|---|---|---|---|---|
+| ... | ... | ... | ... | ... |
+
 ## Consensus
 
 Points all reviewers agree on.

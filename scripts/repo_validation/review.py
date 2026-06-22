@@ -26,6 +26,7 @@ V0_2_SUPPORTED_TARGET_WORKFLOWS = {
 }
 V0_2_UTILITY_WORKFLOWS = {
     'review-only-fusion',
+    'pr-merge-readiness',
 }
 V0_2_REVIEW_CONTROL_WORKFLOWS = (
     V0_2_SUPPORTED_TARGET_WORKFLOWS | V0_2_UTILITY_WORKFLOWS
@@ -38,12 +39,16 @@ VERIFICATION_GATE_RESULT_STATES = {
     "needs_human_decision",
     "blocked",
 }
+RUN_ARTIFACT_MARKERS = (
+    ("Docs", "agentsflow", "runs"),
+    ("run-artifacts", "agentsflow", "runs"),
+)
 
 
 def _is_agentsflow_run_artifact_path(path: Path) -> bool:
     parts = path.parts
     return any(
-        parts[index : index + 3] == ("Docs", "agentsflow", "runs")
+        parts[index : index + 3] in RUN_ARTIFACT_MARKERS
         for index in range(len(parts) - 2)
     )
 
@@ -51,7 +56,7 @@ def _is_agentsflow_run_artifact_path(path: Path) -> bool:
 def _agentsflow_run_dir(path: Path) -> Path | None:
     parts = path.resolve().parts
     for index in range(len(parts) - 3):
-        if parts[index : index + 3] == ("Docs", "agentsflow", "runs"):
+        if parts[index : index + 3] in RUN_ARTIFACT_MARKERS:
             return Path(*parts[: index + 4])
     return None
 
@@ -180,6 +185,36 @@ def _provider_models_include_family(provider_models: object, model_family: str) 
     if not family or not isinstance(provider_models, list):
         return False
     return any(family in str(model).lower() for model in provider_models)
+
+
+def _validate_reviewer_report_context(
+    root: Path,
+    path: Path,
+    report: dict,
+    packet: dict,
+    packet_path: Path,
+    reviewer: str,
+    errors: list[str],
+) -> None:
+    context = report.get("review_context")
+    if not isinstance(context, dict):
+        errors.append(f"{path}: review_context is required for {reviewer}")
+        return
+    expected_run_id = str(packet.get("run_id") or "")
+    if expected_run_id and context.get("run_id") != expected_run_id:
+        errors.append(f"{path}: review_context.run_id must match packet for {reviewer}")
+    expected_material_change = str(packet.get("material_change_id") or "")
+    if expected_material_change and context.get("material_change_id") != expected_material_change:
+        errors.append(f"{path}: review_context.material_change_id must match packet for {reviewer}")
+    try:
+        default_packet_ref = packet_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        default_packet_ref = str(packet_path)
+    expected_packet_ref = str(packet.get("review_packet_path") or default_packet_ref)
+    if context.get("review_packet_path") != expected_packet_ref:
+        errors.append(f"{path}: review_context.review_packet_path must match assignment for {reviewer}")
+    if context.get("reviewer_instance_id") != reviewer:
+        errors.append(f"{path}: review_context.reviewer_instance_id must match assignment for {reviewer}")
 
 
 def _require_concrete_hash(path: Path, label: str, declared: object, actual: str, errors: list[str]) -> None:
@@ -534,8 +569,13 @@ def validate_review_prompt_contract_invariants(
     elif profile == "homogeneous-plus-focused":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
             errors.append(f"{path}: homogeneous-plus-focused must use three to eight reviewers")
-        if "generalist-a" not in reviewer_ids or "generalist-b" not in reviewer_ids:
-            errors.append(f"{path}: homogeneous-plus-focused requires generalist-a/generalist-b baseline")
+        generalist_ids = [
+            str(item.get("instance_id"))
+            for item in reviewers
+            if isinstance(item, dict) and item.get("role_id") == "generalist"
+        ]
+        if len(generalist_ids) < 2:
+            errors.append(f"{path}: homogeneous-plus-focused requires at least two generalist baseline reviewers")
         for key in [
             "baseline_same_prompt",
             "focused_reviewers_require_explicit_focus_zone",
@@ -544,10 +584,11 @@ def validate_review_prompt_contract_invariants(
         ]:
             if prompt_policy.get(key) is not True:
                 errors.append(f"{path}: homogeneous-plus-focused prompt_policy.{key} must be true")
+        baseline_ids = set(generalist_ids[:2])
         for reviewer in reviewers:
             if not isinstance(reviewer, dict):
                 continue
-            if reviewer.get("instance_id") not in {"generalist-a", "generalist-b"} and not reviewer.get("focus_zone"):
+            if reviewer.get("instance_id") not in baseline_ids and not reviewer.get("focus_zone"):
                 errors.append(f"{path}: focused reviewer {reviewer.get('instance_id')} must have focus_zone")
     elif profile == "heterogeneous-variable":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
@@ -599,7 +640,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     errors: list[str] = []
     run_path_artifact = _is_agentsflow_run_artifact_path(path)
     if run_path_artifact and data.get("artifact_scope", "run") != "run":
-        errors.append(f"{path}: review prompt contract under Docs/agentsflow/runs must declare artifact_scope: run")
+        errors.append(f"{path}: review prompt contract under AgentsFlow run artifacts must declare artifact_scope: run")
     if data.get("artifact_scope", "run") != "run" and not run_path_artifact:
         return errors
 
@@ -753,6 +794,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     )
     invocation_set: dict | None = None
     invocation_reviewers: dict[str, dict] = {}
+    invocation_set_completed = False
     if assignments:
         if _is_run_scope_artifact(path, data) and not artifact_preparation_report_path:
             errors.append(f"{path}: reviewer_assignments require inputs.artifact_preparation_report")
@@ -767,8 +809,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             else:
                 invocation_set = invocation_set_data
                 errors.extend(validate_against_schema(invocation_evidence_path, invocation_set, invocation_set_schema))
-                if invocation_set.get("status") != "completed":
-                    errors.append(f"{invocation_evidence_path}: review_invocation_set status must be completed")
+                invocation_set_completed = invocation_set.get("status") == "completed"
                 if external_assignment_present and invocation_set.get("runner_scheduling") != "external-first-async":
                     errors.append(
                         f"{invocation_evidence_path}: external reviewer assignments require "
@@ -792,9 +833,23 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     def resolve_assignment_output(ref: object, label: str) -> Path | None:
         return resolve_existing(ref, label, file_required=True)
 
-    def resolve_invocation_set_ref(ref: object, label: str) -> Path | None:
+    def resolve_optional_assignment_output(ref: object, label: str) -> Path | None:
         if not ref:
-            errors.append(f"{path}: {label} is required")
+            return None
+        ref_path = Path(str(ref))
+        if ref_path.is_absolute() or ".." in ref_path.parts:
+            errors.append(f"{path}: {label} must be relative and non-escaping: {ref}")
+            return None
+        resolved = root / ref_path
+        if resolved.exists() and not resolved.is_file():
+            errors.append(f"{path}: {label} must be a file artifact: {ref}")
+            return None
+        return resolved if resolved.is_file() else None
+
+    def resolve_invocation_set_ref(ref: object, label: str, *, required: bool = True) -> Path | None:
+        if not ref:
+            if required:
+                errors.append(f"{path}: {label} is required")
             return None
         ref_path = Path(str(ref))
         if ref_path.is_absolute():
@@ -832,7 +887,8 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 f"declared {declared}, computed {expected}"
             )
 
-    if assignments and artifact_preparation_report_path:
+    require_completed_assignment_outputs = invocation_set is None or invocation_set_completed
+    if assignments and artifact_preparation_report_path and require_completed_assignment_outputs:
         if invocation_set:
             if not invocation_set.get("artifact_preparation_report"):
                 errors.append(
@@ -989,9 +1045,19 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 errors.append(f"{path}: reviewer_assignments[{idx}].provider_config must be relative and non-escaping")
             elif not (root / provider_config).exists():
                 errors.append(f"{path}: reviewer_assignments[{idx}].provider_config does not exist: {provider_config}")
-        report_path = resolve_assignment_output(
-            assignment.get("report_path"), f"reviewer_assignments[{idx}].report_path"
-        )
+        report_path = None
+        if require_completed_assignment_outputs:
+            report_path = resolve_assignment_output(
+                assignment.get("report_path"), f"reviewer_assignments[{idx}].report_path"
+            )
+        elif assignment.get("report_path"):
+            report_ref = Path(str(assignment.get("report_path")))
+            if report_ref.is_absolute() or ".." in report_ref.parts:
+                errors.append(f"{path}: reviewer_assignments[{idx}].report_path must be relative and non-escaping")
+            else:
+                candidate_report_path = root / report_ref
+                if candidate_report_path.is_file():
+                    report_path = candidate_report_path
         if assignment.get("report_path") and Path(str(assignment.get("report_path"))).suffix != ".json":
             errors.append(f"{path}: reviewer_assignments[{idx}].report_path must be a JSON reviewer report")
             report_path = None
@@ -1023,22 +1089,54 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                             errors.append(
                                 f"{report_path}: reviewer.model is required to prove model diversity for {reviewer}"
                             )
-                        elif report_model != model_family:
+                        elif report_model != model_family and model_family.lower() not in report_model.lower():
                             errors.append(
                                 f"{report_path}: reviewer.model must match assignment model_family for {reviewer}"
                             )
                         else:
-                            evidence_model_family = report_model
+                            evidence_model_family = model_family
+                    if provider == "internal-agent" and packet_path:
+                        packet_data = parse_json(packet_path)
+                        if isinstance(packet_data, dict):
+                            _validate_reviewer_report_context(
+                                root,
+                                report_path,
+                                report_data,
+                                packet_data,
+                                packet_path,
+                                reviewer,
+                                errors,
+                            )
         if provider == "claude-code":
-            raw_output_path = resolve_assignment_output(
-                assignment.get("raw_output_path"), f"reviewer_assignments[{idx}].raw_output_path"
-            )
+            raw_output_path = None
+            if require_completed_assignment_outputs:
+                raw_output_path = resolve_optional_assignment_output(
+                    assignment.get("raw_output_path"), f"reviewer_assignments[{idx}].raw_output_path"
+                )
+            elif assignment.get("raw_output_path"):
+                raw_ref = Path(str(assignment.get("raw_output_path")))
+                if raw_ref.is_absolute() or ".." in raw_ref.parts:
+                    errors.append(f"{path}: reviewer_assignments[{idx}].raw_output_path must be relative and non-escaping")
+                else:
+                    candidate_raw_path = root / raw_ref
+                    if candidate_raw_path.is_file():
+                        raw_output_path = candidate_raw_path
             if raw_output_path:
                 parse_json(raw_output_path)
-            invocation_metadata_path = resolve_assignment_output(
-                assignment.get("invocation_metadata_path"),
-                f"reviewer_assignments[{idx}].invocation_metadata_path",
-            )
+            invocation_metadata_path = None
+            if require_completed_assignment_outputs:
+                invocation_metadata_path = resolve_assignment_output(
+                    assignment.get("invocation_metadata_path"),
+                    f"reviewer_assignments[{idx}].invocation_metadata_path",
+                )
+            elif assignment.get("invocation_metadata_path"):
+                invocation_ref = Path(str(assignment.get("invocation_metadata_path")))
+                if invocation_ref.is_absolute() or ".." in invocation_ref.parts:
+                    errors.append(f"{path}: reviewer_assignments[{idx}].invocation_metadata_path must be relative and non-escaping")
+                else:
+                    candidate_invocation_path = root / invocation_ref
+                    if candidate_invocation_path.is_file():
+                        invocation_metadata_path = candidate_invocation_path
             if invocation_metadata_path:
                 invocation_data = parse_json(invocation_metadata_path)
                 errors.extend(validate_against_schema(invocation_metadata_path, invocation_data, reviewer_invocation_schema))
@@ -1100,16 +1198,18 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         reviewer,
                     )
                     raw_output_path_ref = resolve_invocation_set_ref(
-                        invocation_data.get("raw_output_path"), f"{invocation_metadata_path}.raw_output_path"
+                        invocation_data.get("raw_output_path"),
+                        f"{invocation_metadata_path}.raw_output_path",
+                        required=False,
                     )
                     if raw_output_path and raw_output_path_ref and raw_output_path_ref.resolve() != raw_output_path.resolve():
                         errors.append(f"{invocation_metadata_path}: raw_output_path must match assignment for {reviewer}")
-                    if raw_output_path:
+                    if raw_output_path_ref:
                         require_invocation_hash(
                             invocation_metadata_path,
                             invocation_data,
                             "raw_output_hash",
-                            sha256_file(raw_output_path),
+                            sha256_file(raw_output_path_ref),
                             reviewer,
                         )
                     normalized_output_path_ref = resolve_invocation_set_ref(
@@ -1146,8 +1246,12 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             for key, expected in [("provider", provider), ("model_family", model_family)]:
                 if str(invocation_entry.get(key)) != expected:
                     errors.append(f"{path}: review_invocation_set reviewer {reviewer} {key} must match assignment")
-            invocation_report_path_ref = resolve_invocation_set_ref(
-                invocation_entry.get("report_path"), f"review_invocation_set.reviewers[{reviewer}].report_path"
+            invocation_report_path_ref = (
+                resolve_invocation_set_ref(
+                    invocation_entry.get("report_path"), f"review_invocation_set.reviewers[{reviewer}].report_path"
+                )
+                if require_completed_assignment_outputs
+                else None
             )
             if invocation_report_path_ref:
                 resolved_invocation_report = invocation_report_path_ref.resolve()
@@ -1161,11 +1265,17 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             if report_path and invocation_report_path_ref and invocation_report_path_ref.resolve() != report_path.resolve():
                 errors.append(f"{path}: review_invocation_set reviewer {reviewer} report_path must match assignment")
             if provider == "claude-code":
-                for key in ["raw_output_path", "invocation_metadata_path"]:
+                if require_completed_assignment_outputs:
                     resolve_invocation_set_ref(
-                        invocation_entry.get(key), f"review_invocation_set.reviewers[{reviewer}].{key}"
+                        invocation_entry.get("raw_output_path"),
+                        f"review_invocation_set.reviewers[{reviewer}].raw_output_path",
+                        required=False,
                     )
-                if str(invocation_entry.get("execution_mode") or "") != "real":
+                    resolve_invocation_set_ref(
+                        invocation_entry.get("invocation_metadata_path"),
+                        f"review_invocation_set.reviewers[{reviewer}].invocation_metadata_path",
+                    )
+                if require_completed_assignment_outputs and str(invocation_entry.get("execution_mode") or "") != "real":
                     errors.append(
                         f"{path}: review_invocation_set reviewer {reviewer} execution_mode must be real for completed external evidence"
                     )
@@ -1174,7 +1284,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             elif provider_policy.get("require_model_diversity") is not True:
                 completed_provider_model_families.add(f"{provider}/{model_family}")
 
-    if invocation_set and provider_policy.get("require_model_diversity") is True:
+    if invocation_set_completed and provider_policy.get("require_model_diversity") is True:
         minimum = int(provider_policy.get("min_distinct_provider_model_families", 2))
         invocation_families = set(str(item) for item in invocation_set.get("provider_model_families", []) or [])
         if len(completed_provider_model_families) < minimum or not completed_provider_model_families.issubset(invocation_families):
@@ -1204,7 +1314,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 errors.append(f"{shared_content_path}: shared packet content must be a JSON object")
                 shared_content = {}
             excluded_envelope_fields = set(str(item) for item in (shared_content.get("excluded_envelope_fields", []) or []))
-            allowed_excluded_envelope_fields = {"reviewer_instance_id", "provider"}
+            allowed_excluded_envelope_fields = {"review_packet_path", "reviewer_instance_id", "provider"}
             unexpected_excluded_fields = sorted(excluded_envelope_fields - allowed_excluded_envelope_fields)
             if unexpected_excluded_fields:
                 errors.append(
@@ -1302,7 +1412,7 @@ def validate_review_packet_artifact(root: Path, path: Path, check_references: bo
         errors.append(f"{path}: heterogeneous review packet must include focus_zone")
     if (
         composition == "homogeneous-plus-focused"
-        and reviewer_instance not in {"generalist-a", "generalist-b"}
+        and data.get("reviewer_role") != "generalist"
         and not data.get("focus_zone")
     ):
         errors.append(f"{path}: homogeneous-plus-focused focused reviewer packet must include focus_zone")

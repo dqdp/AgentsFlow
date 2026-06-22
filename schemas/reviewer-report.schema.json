@@ -18,6 +18,16 @@
       }
     },
     "summary": {"type": "string"},
+    "review_context": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "run_id": {"type": "string"},
+        "material_change_id": {"type": "string"},
+        "review_packet_path": {"type": "string"},
+        "reviewer_instance_id": {"type": "string"}
+      }
+    },
     "findings": {
       "type": "array",
       "items": {

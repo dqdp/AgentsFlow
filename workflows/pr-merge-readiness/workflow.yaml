@@ -1,0 +1,350 @@
+name: pr-merge-readiness
+version: 0.1
+intent: Decide whether a branch has enough recorded evidence, review output and
+  human approval to open, accept or merge as a pull request.
+default_strictness: L3
+entry_criteria:
+- Branch, base branch and intended commit range are known.
+- Verification and review evidence are available or explicitly marked blocked.
+- A human merge decision will be recorded before accepted merge-ready status.
+outputs:
+- pr-merge-readiness report
+- evidence summary
+- review and fusion reports
+- finding validation report
+- human merge decision record
+uses:
+  skills:
+  - evidence-reporting
+  - reviewer-verification
+  - reviewer-architecture
+  - reviewer-adversarial
+  - fusion-synthesis
+  scripts:
+  - validate_repo
+  - evidence_validate
+  templates:
+  - pr-merge-readiness-report.json
+  - evidence-report.md
+  - reviewer-report.md
+  - fusion-report.md
+  - finding-validation-report.md
+  - human-decisions.yaml
+  packs:
+  - agentic-system
+  - coding-agent
+supported_profiles:
+  strictness:
+  - L2
+  - L3
+  - L4
+  review_topologies:
+  - homogeneous-dual
+  - homogeneous-plus-focused
+  - heterogeneous-variable
+review:
+  topology: heterogeneous-variable
+  composition: heterogeneous
+  provider_strategy: provider-mirrored-topic-pairs
+  reviewers:
+  - verification-codex
+  - verification-claude
+  - architecture-codex
+  - architecture-claude
+  - adversarial-codex
+  - adversarial-claude
+  topic_pairs:
+  - topic: verification-evidence
+    role: verification
+    providers:
+    - internal-agent
+    - claude-code
+  - topic: architecture-process
+    role: architecture
+    providers:
+    - internal-agent
+    - claude-code
+  - topic: adversarial-authority
+    role: adversarial
+    providers:
+    - internal-agent
+    - claude-code
+  prompt_policy:
+    focus_prompts_required: true
+    focus_zones_may_overlap: true
+    all_reviewers_must_report_p0_p1_outside_focus: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
+  focus_zones:
+  - reviewer: verification-codex
+    role: verification
+    primary_focus:
+    - verification evidence
+    - red/green freshness
+    - missing or stale artifacts
+  - reviewer: verification-claude
+    role: verification
+    primary_focus:
+    - verification evidence
+    - red/green freshness
+    - missing or stale artifacts
+  - reviewer: architecture-codex
+    role: architecture
+    primary_focus:
+    - workflow boundary
+    - self-application artifact separation
+    - methodology consistency
+  - reviewer: architecture-claude
+    role: architecture
+    primary_focus:
+    - workflow boundary
+    - self-application artifact separation
+    - methodology consistency
+  - reviewer: adversarial-codex
+    role: adversarial
+    primary_focus:
+    - false readiness claims
+    - missing human approval
+    - mock-vs-live external review evidence
+  - reviewer: adversarial-claude
+    role: adversarial
+    primary_focus:
+    - false readiness claims
+    - missing human approval
+    - mock-vs-live external review evidence
+  gates:
+  - verification_gate
+  - evidence_gate
+  - fusion_gate
+  fusion_required: true
+  blocking_policy:
+    p0_blocks: true
+    p1_blocks: true
+    majority_cannot_override_blocker: true
+    missing_evidence: blocked
+phases:
+- name: readiness-intake
+  id: readiness_intake
+  kind: specification
+  mode: human_guided
+  coordinator: main-agent
+  purpose: Record branch, base branch, commit range, worktree state and required
+    evidence policy.
+  outputs:
+  - readiness intake
+- name: evidence-collection
+  id: evidence_collection
+  kind: reporting
+  runs_after:
+  - readiness_intake
+  purpose: Collect deterministic check evidence and evidence references from the
+    project-bound run.
+  skills:
+  - evidence-reporting
+  scripts:
+  - validate_repo
+  - evidence_validate
+  outputs:
+  - evidence summary
+  - command evidence paths
+- name: evidence-gate
+  id: evidence_gate
+  kind: verification
+  runs_after:
+  - evidence_collection
+  purpose: Validate that required evidence artifacts exist before independent
+    reviewers are used as gate evidence.
+  gate: evidence_gate
+  skills:
+  - evidence-reporting
+  scripts:
+  - evidence_validate
+  outputs:
+  - evidence gate report
+- name: provider-mirrored-review
+  id: provider_mirrored_review
+  kind: review
+  runs_after:
+  - evidence_gate
+  purpose: Run provider-mirrored topic-pair review over the same readiness
+    packet and output schema.
+  skills:
+  - reviewer-verification
+  - reviewer-architecture
+  - reviewer-adversarial
+  scripts: []
+  outputs:
+  - provider-mirrored reviewer reports
+  default_permissions:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+- name: fusion
+  id: fusion
+  kind: fusion
+  runs_after:
+  - provider_mirrored_review
+  purpose: Synthesize reviewer agreement, disagreement and candidate blockers
+    without majority-voting away P0/P1 findings.
+  skills:
+  - fusion-synthesis
+  scripts: []
+  outputs:
+  - fusion report
+  actor_class: fusion_agent
+  role: read_only_synthesis
+  may_launch_reviewers: false
+  may_run_gates: false
+  may_request_additional_review: true
+- name: finding-validation
+  id: finding_validation
+  kind: finding_validation
+  runs_after:
+  - fusion
+  purpose: Validate reviewer and fusion candidate findings against scope,
+    evidence, accepted decisions and collision-control rules.
+  outputs:
+  - finding validation report
+  - review cycle report
+- name: human-merge-decision
+  id: human_merge_decision
+  kind: decision
+  runs_after:
+  - finding_validation
+  mode: human_guided
+  coordinator: main-agent
+  purpose: Record the human-owned decision to accept, reject or defer merge
+    readiness.
+  human_interaction:
+    required: true
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+  outputs:
+  - human merge decision record
+- name: readiness-report
+  id: readiness_report
+  kind: reporting
+  runs_after:
+  - human_merge_decision
+  purpose: Produce the final branch-scoped readiness report from validated
+    evidence, review output and human decision state.
+  skills:
+  - evidence-reporting
+  outputs:
+  - pr-merge-readiness-report.json
+exit_criteria:
+- Readiness report validates against `schemas/pr-merge-readiness-report.schema.json`.
+- Accepted merge-ready status has recorded human merge approval bound to the
+  current material change and exact readiness report hash.
+- Missing evidence, stale review evidence and live-vs-mock external review gaps
+  are recorded as blockers or non-accepted states.
+- Rejected or downgraded P0/P1 candidate findings have collision-control evidence.
+review_control_rules:
+  review_agents_read_only: true
+  review_agents_run_after: evidence_gate
+  review_agents_may_run_tests: false
+  review_agents_may_modify_files: false
+  review_findings_are_candidate_findings: true
+  main_agent_must_validate_finding_relevance: true
+  unvalidated_findings_are_not_truth: true
+  p0_p1_findings_must_not_be_silently_discarded: true
+  missing_verification_is_reported_as_finding: true
+  candidate_blockers_must_be_validated: true
+  default_exit_when_no_validated_blocking_findings: true
+  missing_mandatory_evidence_blocks_acceptance: true
+  p0_p1_findings_require_recorded_validation: true
+  post_fix_materiality_classification_required: true
+review_cycle:
+  default_exit_when: no_validated_blocking_findings
+  max_review_cycles_required: false
+  max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
+  rerun_review_on:
+  - mandatory_evidence_added
+  - accepted_blocker_fixed
+  - material_artifact_change
+  - verification_gate_materially_changed
+  - human_requested
+  do_not_rerun_on:
+  - nonblocking_findings_with_non_material_fixes_only
+  - duplicate_consolidation
+  - irrelevant_findings_rejected_with_reason
+  - fusion_rewording_only
+  materiality_classification:
+    required_after_review_fixes: true
+    material_triggers_take_precedence_over_do_not_rerun: true
+    material_if_changes:
+    - selected_risk_surfaces_or_failure_path_matrix
+    - review_packet_content
+    - workflow_or_gate_policy
+    - schema_or_validator
+    - mandatory_evidence
+    - verification_gate_output
+    - examples_used_as_evidence
+    non_material_if_only:
+    - report_editorial_changes_only
+    - duplicate_consolidation
+    - non_source_of_truth_notes
+  blocking_default:
+    severities:
+    - P0
+    - P1
+    missing_mandatory_evidence_blocks: true
+    majority_cannot_override_candidate_blocker: true
+  validation_required_for:
+  - P0
+  - P1
+  - fusion_candidate_blockers
+  - mandatory_evidence_gaps
+  final_states:
+  - pass
+  - pass-with-notes
+  - needs-changes
+  - needs-verification-evidence
+  - human-decision-required
+  - blocked
+actor_model:
+  planning:
+    mode: human_guided
+    coordinator: main-agent
+  implementation_agent:
+    status: not_applicable
+verification:
+  gate_owns_evidence_production: true
+  allowed_instrument_classes:
+  - tests
+  - deterministic_scripts
+  - static_analysis
+  - documentation_consistency
+review_agent_permissions:
+  default:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+  explicit_tool_exceptions_allowed: true
+  tool_exception_rule: Must be declared in workflow, reviewer manifest, or prompt;
+    observations remain candidate findings.
+fusion:
+  role: read_only_synthesis
+  may_launch_reviewers: false
+  may_run_gates: false
+  may_request_additional_review: true
+mvp_status: v0.2-utility
+binding_model:
+  upstream_workflow_definition: true
+  requires_project_binding_for_execution: true
+  project_binding_artifact: .agentsflow/workflows/pr-merge-readiness.binding.yaml
+  workflow_run_contains_task_artifacts: true
+behavior_binding_policy:
+  required_acceptance_scenarios_need_bindings: true
+  canonical_artifact: '*.bindings.yaml'
+  specification_only_scenarios_allowed: true

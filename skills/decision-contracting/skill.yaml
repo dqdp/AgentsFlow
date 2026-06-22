@@ -11,6 +11,9 @@ inputs:
   - failure_path_matrix
 outputs:
   - structured_artifact
+  - open_decision_inventory
+  - option_tradeoff_matrix
+  - per_decision_acceptance_questions
   - target_workflow_decision_packet
   - readiness_decision_gaps
 compatible_workflows:

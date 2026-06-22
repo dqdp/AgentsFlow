@@ -52,6 +52,7 @@ v0.2 utility workflow:
 
 ```text
 review-only-fusion
+pr-merge-readiness
 ```
 
 Non-MVP workflows remain reference/experimental and schema-valid only:
@@ -183,7 +184,9 @@ When applying AgentsFlow to a concrete project:
   `CLAUDE_CODE_USE_VERTEX`.
 - External reviewer outputs are candidate findings, not authoritative truth.
 - External reviewers do not replace verification gates and do not modify files or run tests by default.
-- Store review packets, raw provider output, normalized reviewer report and invocation metadata as run evidence.
+- Store review packets, normalized reviewer report and invocation metadata as
+  run evidence. Store raw provider output only when explicitly non-sensitive;
+  otherwise store a redacted artifact, summary or pointer.
 
 ## Validation
 

@@ -27,7 +27,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from reviewers.prompt_rendering import render_review_prompt  # noqa: E402
 
 
-ENVELOPE_FIELDS = {"reviewer_instance_id", "provider"}
+ENVELOPE_FIELDS = {"review_packet_path", "reviewer_instance_id", "provider"}
 
 
 def sha256_file(path: Path) -> str:
@@ -60,6 +60,29 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
 def write_yaml(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+
+def validate_embedded_file_snapshots(root: Path, packet: dict[str, Any], packet_path: Path) -> None:
+    files = packet.get("files")
+    if not isinstance(files, list):
+        return
+    for idx, entry in enumerate(files):
+        if not isinstance(entry, dict):
+            continue
+        ref = entry.get("path")
+        if not isinstance(ref, str) or not ref:
+            continue
+        path = resolve_ref(root, ref, f"{packet_path}.files[{idx}].path")
+        if not path.is_file():
+            raise ValueError(f"{packet_path}: embedded file snapshot does not exist: {ref}")
+        content = entry.get("content")
+        if isinstance(content, str):
+            actual = path.read_text(encoding="utf-8")
+            if content != actual:
+                raise ValueError(f"{packet_path}: embedded file snapshot is stale for {ref}")
+        size_bytes = entry.get("size_bytes")
+        if isinstance(size_bytes, int) and size_bytes != path.stat().st_size:
+            raise ValueError(f"{packet_path}: embedded file size is stale for {ref}")
 
 
 def resolve_ref(root: Path, ref: object, label: str) -> Path:
@@ -176,6 +199,27 @@ def packet_shared_payload(packet: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in packet.items() if key not in ENVELOPE_FIELDS}
 
 
+def normalize_forbidden_actions(values: object) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    aliases = {
+        "run_tests": "Do not run tests.",
+        "run_scripts": "Do not execute scripts.",
+        "modify_files": "Do not modify files.",
+        "create_patch": "Do not produce patches.",
+        "update_evidence": "Do not update evidence.",
+    }
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value)
+        action = aliases.get(text, text)
+        if action not in seen:
+            normalized.append(action)
+            seen.add(action)
+    return normalized
+
+
 def artifact_entry(root: Path, ref: object, kind: str, required_by: list[str] | None = None) -> dict[str, Any]:
     path = resolve_ref(root, ref, kind)
     if not path.is_file():
@@ -227,6 +271,7 @@ def apply_common_packet_fields(
     identity = contract.get("identity", {}) or {}
     inputs = contract.get("inputs", {}) or {}
     packet = dict(packet)
+    packet.setdefault("agentsflow_version", "0.2")
     for key in ["workflow", "run_id", "review_profile", "composition"]:
         if identity.get(key) is not None:
             packet[key] = identity[key]
@@ -235,13 +280,28 @@ def apply_common_packet_fields(
         "path": contract_ref,
         "schema": "schemas/review-prompt-contract.schema.json",
     }
+    if contract.get("context_policy"):
+        packet["context_policy"] = contract["context_policy"]
+    permission_policy = contract.get("permission_policy", {}) or {}
+    if permission_policy.get("forbidden_actions"):
+        packet["forbidden_actions"] = normalize_forbidden_actions(permission_policy["forbidden_actions"])
+    if contract.get("risk_surface_profile"):
+        packet["risk_surface_profile"] = contract["risk_surface_profile"]
+    if contract.get("failure_path_matrix"):
+        packet["failure_path_matrix"] = contract["failure_path_matrix"]
+    if contract.get("known_blockers") is not None:
+        packet["known_blockers"] = contract["known_blockers"]
     if inputs.get("output_schema"):
         packet["output_schema"] = inputs["output_schema"]
     if inputs.get("verification_gate_report"):
         packet["verification_gate_report"] = {"path": inputs["verification_gate_report"]}
+        packet.setdefault("evidence_freshness", {})
         freshness = packet.get("evidence_freshness")
         if isinstance(freshness, dict):
             freshness["latest_green_gate"] = inputs["verification_gate_report"]
+            freshness.setdefault("material_change_id", packet.get("material_change_id", "current"))
+            freshness.setdefault("review_packet_generated_after_latest_green_gate", True)
+            freshness.setdefault("stale_evidence_marked_or_excluded", True)
     return packet
 
 
@@ -256,6 +316,7 @@ def prepare_artifacts(
 ) -> dict[str, Any]:
     contract = load_yaml(contract_path)
     shared_packet = load_json(shared_packet_path)
+    validate_embedded_file_snapshots(root, shared_packet, shared_packet_path)
     inputs = contract.setdefault("inputs", {})
     reviewers = reviewer_by_id(contract)
     assignments = assignment_by_reviewer(contract)
@@ -314,6 +375,7 @@ def prepare_artifacts(
         elif "focus_zone" in packet:
             packet.pop("focus_zone", None)
         packet_path = resolve_ref(root, packet_entry.get("path"), f"inputs.review_packets.{reviewer_id}.path")
+        packet["review_packet_path"] = rel_ref(root, packet_path)
         write_json(packet_path, packet)
         packet_hash = sha256_file(packet_path)
         packet_entry["packet_hash"] = packet_hash
@@ -433,6 +495,44 @@ def prepare_artifacts(
             "hash": shared_packet_hash,
         }
     write_json(preparation_path, preparation)
+    invocation_set_path = resolve_ref(root, inputs["review_invocation_set"], "inputs.review_invocation_set")
+    provider_model_families = sorted(
+        {
+            f"{assignment.get('provider')}/{assignment.get('model_family')}"
+            for assignment in contract.get("reviewer_assignments", []) or []
+            if isinstance(assignment, dict)
+            and assignment.get("provider")
+            and assignment.get("model_family")
+        }
+    )
+    invocation_reviewers: list[dict[str, Any]] = []
+    for assignment in contract.get("reviewer_assignments", []) or []:
+        if not isinstance(assignment, dict):
+            continue
+        entry = {
+            "reviewer": assignment.get("reviewer"),
+            "provider": assignment.get("provider"),
+            "model_family": assignment.get("model_family"),
+            "packet_path": assignment.get("packet_path"),
+            "report_path": assignment.get("report_path"),
+            "status": "predeclared",
+        }
+        for key in ["raw_output_path", "invocation_metadata_path"]:
+            if assignment.get(key):
+                entry[key] = assignment[key]
+        invocation_reviewers.append(entry)
+    invocation_set: dict[str, Any] = {
+        "artifact_kind": "review_invocation_set",
+        "review_prompt_contract": contract_ref,
+        "artifact_preparation_report": rel_ref(root, preparation_path),
+        "artifact_preparation_report_hash": sha256_file(preparation_path),
+        "status": "predeclared",
+        "provider_model_families": provider_model_families,
+        "reviewers": invocation_reviewers,
+    }
+    if any(item.get("provider") == "claude-code" for item in invocation_reviewers):
+        invocation_set["runner_scheduling"] = "external-first-async"
+    write_json(invocation_set_path, invocation_set)
     return preparation
 
 

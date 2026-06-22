@@ -33,6 +33,22 @@ def run(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedPr
     )
 
 
+def reviewer_report_context(
+    reviewer: str,
+    packet_ref: object,
+    material_change_id: str | None = None,
+    run_id: str = "2026-06-17-add-calculator",
+) -> dict[str, str]:
+    context = {
+        "run_id": run_id,
+        "review_packet_path": str(packet_ref),
+        "reviewer_instance_id": reviewer,
+    }
+    if material_change_id:
+        context["material_change_id"] = material_change_id
+    return context
+
+
 def write_minimal_review_preparation(path: Path, contract_path: Path, root: Path | None = None) -> None:
     import hashlib
     import yaml
@@ -529,6 +545,42 @@ def test_big_feature_requires_contract_acceptance() -> None:
             phase["runs_after"] = ["plan_gate"]
     errors = validate_big_feature_plan_gate_policy(workflow_path, without_red_dependency)
     assert any("red_capture phase must run after contract_acceptance" in error for error in errors)
+
+    without_design_review = copy.deepcopy(workflow)
+    for phase in without_design_review["phases"]:
+        if phase.get("id") == "contract_acceptance":
+            phase.pop("decision_review_contract", None)
+    errors = validate_big_feature_plan_gate_policy(workflow_path, without_design_review)
+    assert any("contract_acceptance must declare decision_review_contract" in error for error in errors)
+
+    without_pause_phase = copy.deepcopy(workflow)
+    allowed_pause_phases = without_pause_phase["human_interaction"]["allowed_pause_phases"]
+    allowed_pause_phases.remove("contract_acceptance")
+    errors = validate_big_feature_plan_gate_policy(workflow_path, without_pause_phase)
+    assert any("human_interaction.allowed_pause_phases must include contract_acceptance" in error for error in errors)
+
+
+def test_review_fusion_reusable_pipeline_is_documented() -> None:
+    review_model = (ROOT / "docs/review-fusion-model.md").read_text(encoding="utf-8")
+    fusion_skill = (ROOT / "skills/fusion-synthesis/SKILL.md").read_text(encoding="utf-8")
+    fusion_template = (ROOT / "templates/fusion-report.md").read_text(encoding="utf-8")
+    validation_template = (ROOT / "templates/finding-validation-report.md").read_text(encoding="utf-8")
+    combined = "\n".join(
+        [review_model, fusion_skill, fusion_template, validation_template]
+    ).lower()
+
+    required_terms = [
+        "mechanical intake",
+        "canonical finding",
+        "duplicate",
+        "related",
+        "conflict",
+        "topic-pair comparison",
+        "authority boundary",
+        "human-mediated",
+    ]
+    for term in required_terms:
+        assert term in combined
 
 
 def test_project_binding_rejects_path_escape(tmp_path) -> None:
@@ -2616,6 +2668,48 @@ def test_repository_validation_scans_root_run_review_artifacts(tmp_path) -> None
     assert f"{contract_path}: inputs.verification_gate_report does not exist: <verification-gate-report.md>" in joined
 
 
+def test_repository_validation_scans_run_artifacts_review_artifacts(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-run-artifacts-review-artifacts"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    source_run_dir = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
+    )
+    run_artifacts_dir = root / "run-artifacts/agentsflow/runs/2026-06-17-add-calculator"
+    run_artifacts_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_run_dir, run_artifacts_dir)
+
+    packet_path = run_artifacts_dir / "review-packets/generalist-a.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "<verification-gate-report.md>"
+    packet["evidence_freshness"]["latest_green_gate"] = "<verification-gate-report.md>"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    contract_path = run_artifacts_dir / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["inputs"]["verification_gate_report"] = "<verification-gate-report.md>"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    errors = validate_repo.validate_repository(root)
+    joined = "\n".join(errors)
+    assert f"{packet_path}: verification_gate_report.path must reference a verification gate report artifact" in joined
+    assert f"{packet_path}: evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+    assert f"{contract_path}: inputs.verification_gate_report does not exist: <verification-gate-report.md>" in joined
+
+
 def test_repository_validation_rejects_cross_run_verification_gate_report(tmp_path) -> None:
     import json
     import shutil
@@ -4578,7 +4672,7 @@ def test_claude_code_provider_command_defaults_model_and_effort() -> None:
             "execution": {
                 "command": "claude",
                 "output_format": "json",
-                "permission_mode": "plan",
+                "permission_mode": "default",
                 "max_turns": 3,
                 "no_session_persistence": True,
                 "use_bare_mode": False,
@@ -4635,6 +4729,9 @@ def test_external_reviewer_wrapper_normalizes_claude_code_envelope(tmp_path) -> 
                 "recommendation": "Parse result JSON before reviewer-report normalization.",
             }
         ],
+        "requests_for_additional_verification": [
+            "Confirm the wrapped string request is normalized into an object."
+        ],
     }
     raw = {
         "type": "result",
@@ -4680,6 +4777,12 @@ def test_external_reviewer_wrapper_normalizes_claude_code_envelope(tmp_path) -> 
     assert normalized["normalization"]["source_path"] == str(out.with_suffix(".raw.json"))
     assert normalized["normalization"]["schema_validation"] == "passed"
     assert normalized["normalization"]["normalized_by"] == "scripts/reviewers/run_external_reviewer.py"
+    assert normalized["requests_for_additional_verification"] == [
+        {
+            "id": "REQUEST-001",
+            "request": "Confirm the wrapped string request is normalized into an object.",
+        }
+    ]
     assert "output_hash" not in normalized["normalization"]
     invocation = json.loads(out.with_suffix(".invocation.json").read_text(encoding="utf-8"))
     assert invocation["requested_model"] == "opus"
@@ -4695,6 +4798,59 @@ def test_external_reviewer_wrapper_normalizes_claude_code_envelope(tmp_path) -> 
     assert invocation["provider_total_cost_usd"] == 1.23
     assert invocation["provider_service_tier"] == "standard"
     assert invocation["provider_speed"] == "standard"
+
+
+def test_external_reviewer_wrapper_can_skip_raw_output_persistence(tmp_path) -> None:
+    import json
+
+    reviewer_report = {
+        "reviewer": {
+            "id": "claude-code-architecture",
+            "provider": "claude-code",
+            "role": "architecture",
+            "model": "claude-opus-4-8",
+        },
+        "summary": "Envelope summary",
+        "findings": [],
+    }
+    raw = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": "```json\n" + json.dumps(reviewer_report) + "\n```",
+    }
+    mock_raw_path = tmp_path / "claude-envelope.json"
+    mock_raw_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+    config_path = tmp_path / "claude-code.yaml"
+    config_path.write_text(
+        (ROOT / "examples" / "external-reviewers" / "claude-code" / "claude-code.yaml")
+        .read_text(encoding="utf-8")
+        .replace("preserve_raw_output: true", "preserve_raw_output: false"),
+        encoding="utf-8",
+    )
+    out = tmp_path / "reviewer-report.json"
+    raw_output_path = tmp_path / "reviewer-report.raw.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", str(config_path),
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", str(mock_raw_path),
+        "--output", str(out),
+        "--raw-output", str(raw_output_path),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not raw_output_path.exists()
+    normalized = json.loads(out.read_text(encoding="utf-8"))
+    assert normalized["normalization"]["source_path"] == ""
+    invocation = json.loads(out.with_suffix(".invocation.json").read_text(encoding="utf-8"))
+    assert invocation["raw_output_path"] == ""
+    assert invocation["raw_output_hash"].startswith("sha256:")
+    assert invocation["normalization"]["source_path"] == ""
+    assert invocation["normalization"]["source_hash"] == invocation["raw_output_hash"]
 
 
 def test_external_reviewer_wrapper_rejects_non_json_claude_code_envelope(tmp_path) -> None:
@@ -4901,7 +5057,7 @@ def test_external_reviewer_wrapper_rejects_unsafe_permission_mode(tmp_path) -> N
         env=clean_env(),
     )
     assert result.returncode != 0
-    assert "permission_mode: plan" in (result.stdout + result.stderr)
+    assert "permission_mode: default" in (result.stdout + result.stderr)
 
 
 def test_external_reviewer_wrapper_rejects_non_escalated_sandbox_or_enabled_tools(tmp_path) -> None:
@@ -5377,7 +5533,13 @@ def test_review_prompt_contract_rejects_mock_external_review_evidence(tmp_path) 
         (internal_report, "internal-agent", "codex"),
         (claude_report, "claude-code", "opus"),
     ]:
+        assigned_reviewer = "generalist-a" if provider == "internal-agent" else "generalist-b"
         reviewer_id = "codex-generalist-a" if provider == "internal-agent" else "claude-generalist-b"
+        packet_ref = (
+            contract["inputs"]["review_packets"][0]["path"]
+            if provider == "internal-agent"
+            else contract["inputs"]["review_packets"][1]["path"]
+        )
         (root / report).write_text(
             json.dumps(
                 {
@@ -5387,6 +5549,7 @@ def test_review_prompt_contract_rejects_mock_external_review_evidence(tmp_path) 
                         "role": "generalist",
                         "model": model,
                     },
+                    "review_context": reviewer_report_context(assigned_reviewer, packet_ref),
                     "summary": "Report.",
                     "findings": [],
                 },
@@ -5530,7 +5693,13 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
         (internal_report, "internal-agent", "codex"),
         (claude_report, "claude-code", "opus"),
     ]:
+        assigned_reviewer = "generalist-a" if provider == "internal-agent" else "generalist-b"
         reviewer_id = "codex-generalist-a" if provider == "internal-agent" else "claude-generalist-b"
+        packet_ref = (
+            contract["inputs"]["review_packets"][0]["path"]
+            if provider == "internal-agent"
+            else contract["inputs"]["review_packets"][1]["path"]
+        )
         (root / report).write_text(
             json.dumps(
                 {
@@ -5540,6 +5709,7 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                         "role": "generalist",
                         "model": model,
                     },
+                    "review_context": reviewer_report_context(assigned_reviewer, packet_ref),
                     "summary": "Report.",
                     "findings": [],
                 },
@@ -5585,6 +5755,10 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                         "role": "generalist",
                         "model": "codex",
                     },
+                    "review_context": reviewer_report_context(
+                        reviewer,
+                        contract["inputs"]["review_packets"][0 if reviewer == "generalist-a" else 1]["path"],
+                    ),
                     "summary": "Internal reviewer artifact.",
                     "findings": [],
                 },
@@ -5687,16 +5861,31 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
         "billing_mode": "subscription-local",
         "api_key_usage_forbidden": True,
         "context_policy": {
-            "start_mode": "fresh_context",
-            "fork_conversation_context": False,
-            "session_persistence": False,
-        },
-        "command": "claude -p <prompt> --tools \"\"",
-        "execution_mode": "real",
-        "sandbox_mode": "require_escalated",
-        "tools": "",
-        "requested_model": "opus",
-        "requested_effort": "max",
+                "start_mode": "fresh_context",
+                "fork_conversation_context": False,
+                "session_persistence": False,
+            },
+            "forbidden_env_checked": [
+                "ANTHROPIC_API_KEY",
+                "ANTHROPIC_AUTH_TOKEN",
+                "ANTHROPIC_BASE_URL",
+                "CLAUDE_CODE_USE_BEDROCK",
+                "CLAUDE_CODE_USE_VERTEX",
+            ],
+            "command": "claude -p <prompt> --tools \"\"",
+            "wrapper": "scripts/reviewers/run_external_reviewer.py",
+            "provider_config_path": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "provider_config_hash": validate_repo.sha256_file(
+                root / "examples/external-reviewers/claude-code/claude-code.yaml"
+            ),
+            "execution_mode": "real",
+            "permission_mode": "default",
+            "prompt_transport": "stdin",
+            "sandbox_mode": "require_escalated",
+            "tools": "",
+            "output_format": "json",
+            "requested_model": "opus",
+            "requested_effort": "max",
         "provider_models_used": ["claude-opus-4-8"],
         "input_hash": packet_hash,
         "prompt_hash": prompt_hash,
@@ -5755,6 +5944,49 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert not errors
 
+    skip_raw_invocation = copy.deepcopy(valid_invocation)
+    skip_raw_invocation["raw_output_path"] = ""
+    skip_raw_invocation["raw_output_hash"] = "sha256:" + "1" * 64
+    (root / claude_invocation).write_text(json.dumps(skip_raw_invocation, indent=2), encoding="utf-8")
+    invocation_set_data = json.loads((root / invocation_set).read_text(encoding="utf-8"))
+    for reviewer_entry in invocation_set_data["reviewers"]:
+        if reviewer_entry["reviewer"] == "generalist-b":
+            reviewer_entry["raw_output_path"] = ""
+            reviewer_entry["raw_output_hash"] = skip_raw_invocation["raw_output_hash"]
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+    (root / claude_raw).unlink()
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+
+    (root / claude_raw).write_text(json.dumps({"type": "result", "result": "{}"}, indent=2), encoding="utf-8")
+    (root / claude_invocation).write_text(json.dumps(valid_invocation, indent=2), encoding="utf-8")
+    for reviewer_entry in invocation_set_data["reviewers"]:
+        if reviewer_entry["reviewer"] == "generalist-b":
+            reviewer_entry["raw_output_path"] = str(claude_raw)
+            reviewer_entry["raw_output_hash"] = raw_hash
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+
+    stale_internal_context = json.loads((root / internal_report).read_text(encoding="utf-8"))
+    stale_internal_context["review_context"]["run_id"] = "older-run"
+    (root / internal_report).write_text(json.dumps(stale_internal_context, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_context.run_id must match packet" in "\n".join(errors)
+
+    stale_internal_context["review_context"] = reviewer_report_context(
+        "generalist-a",
+        contract["inputs"]["review_packets"][0]["path"],
+    )
+    stale_internal_context["review_context"].pop("reviewer_instance_id")
+    (root / internal_report).write_text(json.dumps(stale_internal_context, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_context.reviewer_instance_id must match assignment" in "\n".join(errors)
+
+    stale_internal_context["review_context"] = reviewer_report_context(
+        "generalist-a",
+        contract["inputs"]["review_packets"][0]["path"],
+    )
+    (root / internal_report).write_text(json.dumps(stale_internal_context, indent=2), encoding="utf-8")
+
     stale_hash = copy.deepcopy(valid_invocation)
     stale_hash["input_hash"] = "sha256:" + "0" * 64
     (root / claude_invocation).write_text(json.dumps(stale_hash, indent=2), encoding="utf-8")
@@ -5812,8 +6044,12 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
                         "id": reviewer_id,
                         "provider": "internal-agent",
                         "role": "generalist",
-                        "model": "codex",
+                        "model": "gpt-5-codex",
                     },
+                    "review_context": reviewer_report_context(
+                        reviewer_id.removeprefix("codex-"),
+                        contract["inputs"]["review_packets"][0 if reviewer_id.endswith("-a") else 1]["path"],
+                    ),
                     "summary": "Internal reviewer artifact exists.",
                     "findings": [],
                 },
@@ -5903,10 +6139,25 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     assert data["status"] == "completed"
     assert data["artifact_preparation_report_hash"].startswith("sha256:")
     assert data["provider_model_families"] == ["claude-code/opus", "internal-agent/codex"]
+    internal_entry = next(item for item in data["reviewers"] if item["provider"] == "internal-agent")
+    assert internal_entry["evidence_model_family"] == "codex"
     external_entry = next(item for item in data["reviewers"] if item["provider"] == "claude-code")
     assert external_entry["execution_mode"] == "mock"
     assert external_report.exists()
     assert external_invocation.exists()
+
+    stale_internal = json.loads(internal_report_a.read_text(encoding="utf-8"))
+    stale_internal["review_context"]["run_id"] = "older-run"
+    internal_report_a.write_text(json.dumps(stale_internal, indent=2) + "\n", encoding="utf-8")
+    stale_result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract", str(contract_path),
+        "--output", str(output),
+        "--mock-response", f"generalist-b={external_raw}",
+        env=clean_env(),
+    )
+    assert stale_result.returncode == 2
+    assert "review_context.run_id must match packet" in (stale_result.stdout + stale_result.stderr)
 
 
 def test_run_review_set_starts_external_reviewers_asynchronously(tmp_path) -> None:
@@ -6006,6 +6257,10 @@ invocation_path.write_text(json.dumps({
             "role": "verification",
             "model": "codex",
         },
+        "review_context": reviewer_report_context(
+            "codex-verification",
+            "Docs/agentsflow/runs/async-review-set/review-packets/claude-a.json",
+        ),
         "summary": "Internal report.",
         "findings": [],
     }
@@ -6871,6 +7126,10 @@ def test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts(
                         "role": "generalist",
                         "model": "codex",
                     },
+                    "review_context": reviewer_report_context(
+                        reviewer,
+                        contract["inputs"]["review_packets"][0 if reviewer == "generalist-a" else 1]["path"],
+                    ),
                     "summary": "Internal reviewer artifact.",
                     "findings": [],
                 },
@@ -7040,11 +7299,6 @@ def _write_minimal_preparation_fixture(root: Path) -> tuple[Path, Path, Path, Pa
             "path": "Docs/agentsflow/runs/2026-06-21-prep/review-prompt-contract.yaml",
             "schema": "schemas/review-prompt-contract.schema.json",
         },
-        "context_policy": {
-            "start_mode": "fresh_context",
-            "fork_conversation_context": False,
-            "allowed_context_sources": ["review_packet", "referenced_artifacts"],
-        },
         "risk_surface_profile": {
             "selected_risk_surfaces": [],
             "review_topology_source": "workflow_default",
@@ -7060,7 +7314,6 @@ def _write_minimal_preparation_fixture(root: Path) -> tuple[Path, Path, Path, Pa
             "latest_green_gate": "Docs/agentsflow/runs/2026-06-21-prep/verification-gate-report.json",
         },
         "known_blockers": [],
-        "forbidden_actions": ["run_tests", "run_scripts", "modify_files", "create_patch", "update_evidence"],
         "output_schema": "schemas/reviewer-report.schema.json",
         "changed_files": ["src/new.py"],
     }
@@ -7231,6 +7484,46 @@ def test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths(tmp_path) ->
     assert not (run_dir / "review-packets/generalist-a.json").exists()
 
 
+def test_prepare_review_set_artifacts_rejects_stale_embedded_file_snapshot(tmp_path) -> None:
+    import json
+
+    root = tmp_path / "root"
+    root.mkdir()
+    contract_path, shared_packet_path, preparation_path, run_dir = _write_minimal_preparation_fixture(root)
+    shared_packet = json.loads(shared_packet_path.read_text(encoding="utf-8"))
+    shared_packet["files"] = [
+        {
+            "path": "AGENTS.md",
+            "size_bytes": 4,
+            "content": "stale",
+        }
+    ]
+    shared_packet_path.write_text(json.dumps(shared_packet, indent=2) + "\n", encoding="utf-8")
+    _git_commit_all(root)
+    (root / "src/new.py").write_text("print('new')\n", encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/prepare_review_set_artifacts.py",
+        "--root",
+        str(root),
+        "--contract",
+        str(contract_path.relative_to(root)),
+        "--shared-packet",
+        str(shared_packet_path.relative_to(root)),
+        "--preparation-output",
+        str(preparation_path.relative_to(root)),
+        "--include",
+        "src/new.py",
+        "--include",
+        "AGENTS.md",
+        env=clean_env(),
+    )
+
+    assert result.returncode != 0
+    assert "embedded file snapshot is stale for AGENTS.md" in (result.stdout + result.stderr)
+    assert not (run_dir / "review-packets/generalist-a.json").exists()
+
+
 def test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence(tmp_path) -> None:
     import json
 
@@ -7266,6 +7559,8 @@ def test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence(tmp
     assert (run_dir / "review-prompts/generalist-a.md").exists()
     assert (run_dir / "review-prompts/generalist-b.md").exists()
     assert preparation_path.exists()
+    invocation_set_path = run_dir / "review-invocation-set.json"
+    assert invocation_set_path.exists()
 
     preparation = json.loads(preparation_path.read_text(encoding="utf-8"))
     schema = json.loads((ROOT / "schemas/review-artifact-preparation.schema.json").read_text(encoding="utf-8"))
@@ -7273,6 +7568,14 @@ def test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence(tmp
     assert preparation["artifact_kind"] == "review_artifact_preparation"
     assert preparation["generated_artifacts"]["review_invocation_set"]["path"].endswith("review-invocation-set.json")
     assert {item["path"] for item in preparation["input_artifacts"]} >= {"src/new.py", "AGENTS.md"}
+    invocation_set = json.loads(invocation_set_path.read_text(encoding="utf-8"))
+    invocation_schema = json.loads((ROOT / "schemas/review-invocation-set.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(invocation_schema).validate(invocation_set)
+    assert invocation_set["status"] == "predeclared"
+    assert sorted(item["reviewer"] for item in invocation_set["reviewers"]) == [
+        "generalist-a",
+        "generalist-b",
+    ]
 
     updated_contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
     assert updated_contract["inputs"]["artifact_preparation_report"].endswith("prepared-review-artifacts.json")
@@ -7282,3 +7585,15 @@ def test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence(tmp
         assert packet["packet_hash"].startswith("sha256:")
     for prompt in updated_contract["rendered_prompts"]:
         assert prompt["prompt_hash"].startswith("sha256:")
+    packet_schema = json.loads((ROOT / "schemas/review-packet.schema.json").read_text(encoding="utf-8"))
+    packet_validator = jsonschema.Draft202012Validator(packet_schema)
+    for packet_path in [
+        run_dir / "review-packets/generalist-a.json",
+        run_dir / "review-packets/generalist-b.json",
+    ]:
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        packet_validator.validate(packet)
+        assert packet["context_policy"]["start_mode"] == "fresh_context"
+        forbidden_text = " ".join(action.lower() for action in packet["forbidden_actions"])
+        for phrase in ["modify files", "run tests", "produce patches", "execute scripts", "update evidence"]:
+            assert phrase in forbidden_text

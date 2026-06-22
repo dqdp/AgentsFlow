@@ -28,7 +28,7 @@
       "minLength": 1
     },
     "status": {
-      "enum": ["completed", "failed"]
+      "enum": ["predeclared", "completed", "failed"]
     },
     "started_at": {
       "type": "string"

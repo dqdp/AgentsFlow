@@ -120,6 +120,47 @@ Fusion outputs:
 - required changes;
 - human-decision items.
 
+## Reusable finding-control pipeline
+
+Review/fusion/finding-validation is a reusable gate-control block. Workflows
+select the review topology and provide the contract, evidence, risk surfaces,
+Failure Path Matrix and reviewer assignments; they should not duplicate the
+finding-control procedure locally.
+
+After reviewer reports arrive, the shared pipeline is:
+
+1. Mechanical intake: check that expected reviewer reports exist, are
+   schema-valid, fresh for the latest material change and match the declared
+   reviewer assignment, provider, model family, role and topic where applicable.
+2. Canonical finding extraction: preserve each source finding and add normalized
+   triage metadata such as provider, model, topic, role, severity, evidence
+   references, risk surface and FPM row when available.
+3. Duplicate / related / conflict grouping: group true duplicates without
+   losing max severity, mark related findings that share an area but differ in
+   mechanism, and preserve conflicts as disagreements requiring validation.
+4. Topic-pair comparison: when a topology uses mirrored topics or providers,
+   compare findings inside the same topic pair before drawing cross-topic
+   conclusions.
+5. Fusion report: surface consensus, disagreements, candidate blockers,
+   mandatory evidence gaps and validation priorities.
+6. Main-agent relevance validation: accept, reject, downgrade, mark duplicate,
+   request more evidence or escalate findings against contract, diff/artifact,
+   evidence, accepted decisions, scope and non-goals.
+7. Collision-control: if the orchestrator rejects or downgrades P0/P1 candidate
+   findings, batch those collisions and send them to two fresh-context control
+   reviewers before final triage.
+8. Review-cycle decision: exit only when there are no validated blockers, no
+   unresolved P0/P1 candidates and no mandatory evidence gaps.
+
+## Authority boundary
+
+This reusable block must not confuse automatic gates with human-in-the-loop
+authority. Deterministic automation may validate report structure, schema,
+freshness and declared evidence references. Fusion provides decision support.
+The main/orchestrating agent validates candidate findings. Human-mediated gates
+remain human-owned and require normalized human decisions before the workflow
+claims human acceptance or merge readiness.
+
 ## Non-negotiable rule
 
 Fusion must not erase a P0/P1 candidate issue by majority vote.

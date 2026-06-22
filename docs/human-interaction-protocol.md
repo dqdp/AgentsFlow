@@ -285,6 +285,14 @@ the human to edit YAML. The main agent asks the grouped questions, records
 answers in `human-decisions.yaml`, updates the task contract or run artifacts,
 and resumes from the paused phase.
 
+Before `big-feature-contract-first` exits `contract_acceptance`, the grouped
+decision packet must be structured as a design decision review. The main agent
+first presents the open decision inventory, then reviews each blocking or
+material decision with options, tradeoffs, recommended path, rationale and the
+exact human acceptance question. Red-capture may start only after blocking
+decisions are accepted, changed, or explicitly deferred with residual risk in
+`human-decisions.yaml`.
+
 ## Non-goals
 
 This protocol does not introduce:

@@ -20,6 +20,7 @@ compatible_workflows:
 - agentic-system-hardening
 - prompt-behavior-eval
 - review-only-fusion
+- pr-merge-readiness
 quality_bar:
 - Findings are plausible and testable.
 - Speculative concerns are labeled as such.

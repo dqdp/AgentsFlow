@@ -17,6 +17,7 @@ depends_on: []
 compatible_workflows:
 - big-feature-contract-first
 - review-only-fusion
+- pr-merge-readiness
 quality_bar:
 - Review is grounded in contract and ADRs.
 - Blocking issues are explicit.

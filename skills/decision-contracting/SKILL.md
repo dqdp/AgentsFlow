@@ -15,6 +15,13 @@ are captured as structured decision artifacts rather than hidden in chat.
 
 - Stay read-only unless a workflow explicitly assigns implementation authority to a different actor class.
 - Produce structured artifacts, not vague chat notes.
+- For design review or phase acceptance, do not ask for one blanket approval
+  before showing the decision structure.
+- Start with an open decision inventory.
+- For each blocking or material decision, present options, tradeoffs, a
+  recommended path, rationale and the exact human acceptance question.
+- Record acceptance, change requests or explicit deferrals per decision; do not
+  collapse unresolved blocking decisions into a single aggregate approval.
 - Surface assumptions, unknowns, and required evidence.
 - Keep scope boundaries explicit.
 - For prepare-workflow readiness, classify each missing or disputed decision as

@@ -16,9 +16,10 @@
     "CLAUDE_CODE_USE_BEDROCK",
     "CLAUDE_CODE_USE_VERTEX"
   ],
-  "command": "claude -p <prompt> --output-format json --permission-mode plan --tools \"\" --model opus --effort max --max-turns 3 --no-session-persistence",
+  "command": "claude -p <prompt> --output-format json --permission-mode default --tools \"\" --model opus --effort max --max-turns 3 --no-session-persistence",
   "execution_mode": "real",
-  "permission_mode": "plan",
+  "permission_mode": "default",
+  "prompt_transport": "stdin",
   "sandbox_mode": "require_escalated",
   "tools": "",
   "output_format": "json",
@@ -28,7 +29,7 @@
     "claude-opus-latest"
   ],
   "provider_model_usage": {},
-  "provider_total_cost_usd": 0.0,
+  "provider_total_cost_usd": 0,
   "provider_service_tier": "<provider-reported-service-tier>",
   "provider_speed": "<provider-reported-speed>",
   "max_turns": 3,
@@ -54,5 +55,8 @@
     "output_hash": "sha256:<normalized-reviewer-report>",
     "schema_validation": "passed",
     "normalized_by": "scripts/reviewers/run_external_reviewer.py"
-  }
+  },
+  "wrapper": "scripts/reviewers/run_external_reviewer.py",
+  "provider_config_path": "examples/external-reviewers/claude-code/claude-code.yaml",
+  "provider_config_hash": "sha256:<provider-config>"
 }

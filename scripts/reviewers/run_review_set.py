@@ -82,6 +82,30 @@ def validate_report_identity(report: dict[str, Any], reviewer: str, path: Path) 
         raise ValueError(f"{path}: reviewer.id must include assigned reviewer {reviewer}")
 
 
+def validate_report_review_context(
+    report: dict[str, Any],
+    packet: dict[str, Any],
+    packet_path: Path,
+    reviewer: str,
+    report_path: Path,
+    root: Path,
+) -> None:
+    context = report.get("review_context")
+    if not isinstance(context, dict):
+        raise ValueError(f"{report_path}: review_context is required for {reviewer}")
+    expected_run_id = str(packet.get("run_id") or "")
+    if expected_run_id and context.get("run_id") != expected_run_id:
+        raise ValueError(f"{report_path}: review_context.run_id must match packet for {reviewer}")
+    expected_material_change = str(packet.get("material_change_id") or "")
+    if expected_material_change and context.get("material_change_id") != expected_material_change:
+        raise ValueError(f"{report_path}: review_context.material_change_id must match packet for {reviewer}")
+    expected_packet_ref = str(packet.get("review_packet_path") or packet_path.resolve().relative_to(root.resolve()).as_posix())
+    if context.get("review_packet_path") != expected_packet_ref:
+        raise ValueError(f"{report_path}: review_context.review_packet_path must match assignment for {reviewer}")
+    if context.get("reviewer_instance_id") != reviewer:
+        raise ValueError(f"{report_path}: review_context.reviewer_instance_id must match assignment for {reviewer}")
+
+
 def parse_mock_responses(values: list[str]) -> dict[str, Path]:
     responses: dict[str, Path] = {}
     for value in values:
@@ -326,6 +350,7 @@ def validate_internal_assignment(
     root: Path,
     require_model_diversity: bool,
     wait_seconds: float,
+    progress_interval_seconds: float,
 ) -> None:
     reviewer = str(assignment["reviewer"])
     model_family = str(assignment["model_family"])
@@ -334,20 +359,32 @@ def validate_internal_assignment(
     if not report_path.exists() and wait_seconds > 0:
         entry["status"] = "waiting-for-report"
         deadline = dt.datetime.now(dt.timezone.utc).timestamp() + wait_seconds
+        last_progress = time.monotonic()
         while not report_path.exists() and dt.datetime.now(dt.timezone.utc).timestamp() < deadline:
+            now = time.monotonic()
+            if progress_interval_seconds > 0 and now - last_progress >= progress_interval_seconds:
+                print(
+                    f"review-set progress: waiting for internal reviewer {reviewer} report",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                last_progress = now
             time.sleep(0.25)
         entry["checked_at"] = now_utc()
     if not report_path.exists():
         raise ValueError(f"internal reviewer report is missing for {reviewer}: {report_path}")
     report = validate_report(report_path, root)
     validate_report_identity(report, reviewer, report_path)
+    packet_path = resolve_path(assignment["packet_path"], root)
+    packet = load_json(packet_path)
+    validate_report_review_context(report, packet, packet_path, reviewer, report_path, root)
     report_model = str(((report.get("reviewer") or {}).get("model") or ""))
     if require_model_diversity:
         if not report_model:
             raise ValueError(f"internal reviewer report model is required for {reviewer}")
-        if report_model != model_family:
+        if report_model != model_family and model_family.lower() not in report_model.lower():
             raise ValueError(f"internal reviewer report model must match assignment model_family for {reviewer}")
-        entry["evidence_model_family"] = report_model
+        entry["evidence_model_family"] = model_family
     entry["status"] = "report-present"
 
 
@@ -383,6 +420,7 @@ def start_external_assignment(
     entry: dict[str, Any],
     root: Path,
     mock_responses: dict[str, Path],
+    progress_interval_seconds: float,
 ) -> dict[str, Any]:
     raw_output_path = resolve_path(assignment["raw_output_path"], root)
     invocation_path = resolve_path(assignment["invocation_metadata_path"], root)
@@ -392,6 +430,12 @@ def start_external_assignment(
     entry["dispatch_started_at"] = now_utc()
     cmd = build_external_command(assignment, root, mock_responses)
     dispatch_started_monotonic = time.monotonic()
+    if progress_interval_seconds > 0:
+        print(
+            f"review-set progress: dispatched external reviewer {assignment['reviewer']}",
+            file=sys.stderr,
+            flush=True,
+        )
     process = subprocess.Popen(  # noqa: S603
         cmd,
         cwd=root,
@@ -406,6 +450,7 @@ def start_external_assignment(
         "raw_output_path": raw_output_path,
         "invocation_path": invocation_path,
         "dispatch_started_monotonic": dispatch_started_monotonic,
+        "last_progress_monotonic": dispatch_started_monotonic,
     }
 
 
@@ -444,6 +489,7 @@ def finish_external_assignment(
             "provider_total_cost_usd",
             "provider_service_tier",
             "provider_speed",
+            "raw_output_path",
             "raw_output_hash",
             "normalized_output_hash",
         ]:
@@ -470,6 +516,7 @@ def collect_external_assignments(
     root: Path,
     require_model_diversity: bool,
     timeout_seconds: float,
+    progress_interval_seconds: float,
 ) -> list[str]:
     errors: list[str] = []
     pending = [run for run in external_runs if run["entry"].get("status") == "running"]
@@ -481,7 +528,16 @@ def collect_external_assignments(
             entry = run["entry"]
             reviewer = str(run["assignment"]["reviewer"])
             elapsed = now - float(run["dispatch_started_monotonic"])
+            last_progress = float(run.get("last_progress_monotonic", run["dispatch_started_monotonic"]))
             if process.poll() is None and timeout_seconds > 0 and elapsed < timeout_seconds:
+                if progress_interval_seconds > 0 and now - last_progress >= progress_interval_seconds:
+                    entry["last_progress_at"] = now_utc()
+                    print(
+                        f"review-set progress: external reviewer {reviewer} still running after {elapsed:.0f}s",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    run["last_progress_monotonic"] = now
                 continue
             if process.poll() is None:
                 process.kill()
@@ -492,16 +548,30 @@ def collect_external_assignments(
                 entry["status"] = "timed-out"
                 entry["error"] = message
                 entry["dispatch_finished_at"] = now_utc()
+                if progress_interval_seconds > 0:
+                    print(f"review-set progress: {message}", file=sys.stderr, flush=True)
                 errors.append(message)
                 pending.remove(run)
                 progress = True
                 continue
             try:
                 finish_external_assignment(run, root, require_model_diversity)
+                if progress_interval_seconds > 0:
+                    print(
+                        f"review-set progress: external reviewer {reviewer} completed",
+                        file=sys.stderr,
+                        flush=True,
+                    )
             except Exception as exc:  # noqa: BLE001
                 if entry.get("status") == "running":
                     entry["status"] = "failed"
                 entry["error"] = str(exc)
+                if progress_interval_seconds > 0:
+                    print(
+                        f"review-set progress: external reviewer {reviewer} failed: {exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 errors.append(str(exc))
             pending.remove(run)
             progress = True
@@ -531,6 +601,12 @@ def main() -> int:
         type=float,
         default=900.0,
         help="Per external reviewer timeout after dispatch. Timed-out reviewers are killed and recorded as evidence.",
+    )
+    parser.add_argument(
+        "--progress-interval-seconds",
+        type=float,
+        default=30.0,
+        help="Emit external reviewer progress heartbeat lines to stderr at this interval. Use 0 to disable.",
     )
     args = parser.parse_args()
 
@@ -569,7 +645,15 @@ def main() -> int:
             if provider == "internal-agent":
                 internal_runs.append((assignment, entry))
             elif provider == "claude-code":
-                external_runs.append(start_external_assignment(assignment, entry, root, mock_responses))
+                external_runs.append(
+                    start_external_assignment(
+                        assignment,
+                        entry,
+                        root,
+                        mock_responses,
+                        max(0.0, args.progress_interval_seconds),
+                    )
+                )
         for assignment, entry in internal_runs:
             validate_internal_assignment(
                 assignment,
@@ -577,12 +661,14 @@ def main() -> int:
                 root,
                 require_model_diversity,
                 max(0.0, args.internal_report_wait_seconds),
+                max(0.0, args.progress_interval_seconds),
             )
         external_errors = collect_external_assignments(
             external_runs,
             root,
             require_model_diversity,
             max(0.0, args.external_reviewer_timeout_seconds),
+            max(0.0, args.progress_interval_seconds),
         )
         if external_errors:
             raise RuntimeError("; ".join(external_errors))
@@ -594,6 +680,7 @@ def main() -> int:
                 root,
                 locals().get("require_model_diversity", False),
                 max(0.0, args.external_reviewer_timeout_seconds),
+                max(0.0, args.progress_interval_seconds),
             )
             if collection_errors:
                 exc = RuntimeError(f"{exc}; external collection errors: {'; '.join(collection_errors)}")

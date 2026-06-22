@@ -10,17 +10,36 @@
     "billing_mode",
     "api_key_usage_forbidden",
     "context_policy",
+    "forbidden_env_checked",
     "command",
+    "wrapper",
+    "provider_config_path",
+    "provider_config_hash",
     "execution_mode",
+    "permission_mode",
+    "prompt_transport",
     "sandbox_mode",
     "tools",
+    "output_format",
+    "requested_model",
+    "requested_effort",
+    "input_hash",
+    "prompt_hash",
+    "review_prompt_contract_hash",
+    "role_contract_hash",
+    "rubric_hash",
+    "schema_hash",
     "started_at",
     "finished_at",
-    "exit_code"
+    "exit_code",
+    "raw_output_path",
+    "raw_output_hash",
+    "normalized_output_path",
+    "normalized_output_hash"
   ],
   "properties": {
     "provider": {
-      "type": "string"
+      "const": "claude-code"
     },
     "reviewer_role": {
       "type": "string"
@@ -59,26 +78,39 @@
     "command": {
       "type": "string"
     },
+    "wrapper": {
+      "const": "scripts/reviewers/run_external_reviewer.py"
+    },
+    "provider_config_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provider_config_hash": {
+      "type": "string"
+    },
     "execution_mode": {
       "enum": ["real", "mock"]
     },
     "permission_mode": {
-      "type": "string"
+      "const": "default"
+    },
+    "prompt_transport": {
+      "enum": ["stdin", "file"]
     },
     "sandbox_mode": {
       "const": "require_escalated"
     },
     "tools": {
-      "const": ""
+      "enum": ["", "Read"]
     },
     "output_format": {
-      "type": "string"
+      "const": "json"
     },
     "requested_model": {
-      "type": "string"
+      "const": "opus"
     },
     "requested_effort": {
-      "type": "string"
+      "const": "max"
     },
     "provider_models_used": {
       "type": "array",
@@ -176,5 +208,33 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "prompt_transport": {"const": "stdin"}
+        },
+        "required": ["prompt_transport"]
+      },
+      "then": {
+        "properties": {
+          "tools": {"const": ""}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "prompt_transport": {"const": "file"}
+        },
+        "required": ["prompt_transport"]
+      },
+      "then": {
+        "properties": {
+          "tools": {"const": "Read"}
+        }
+      }
+    }
+  ]
 }

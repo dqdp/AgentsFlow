@@ -57,9 +57,13 @@ explicitly record a strictness override reason.
 Passing the plan gate is necessary but not sufficient to enter red-capture. The
 workflow includes a human-mediated `contract_acceptance` after the plan gate
 and before red-capture. The main agent presents the contract, behavior bindings,
-risk surface profile, Failure Path Matrix, impact map and technical plan; the
-human accepts them for red-capture or requests changes. The agent records the
-normalized decision in `human-decisions.yaml` and updates run metadata before
+risk surface profile, Failure Path Matrix, impact map and technical plan through
+a `decision-contract.md` design review packet. That packet first lists the open
+decisions, then reviews each blocking/material decision with options, tradeoffs,
+recommended path, rationale and the exact human acceptance question. The human
+accepts decisions for red-capture, requests changes, or explicitly defers a
+nonblocking decision with residual risk. The agent records normalized
+per-decision results in `human-decisions.yaml` and updates run metadata before
 red-capture may begin.
 
 After review, fixes are classified as material or non-material before deciding

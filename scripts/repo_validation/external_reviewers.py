@@ -38,6 +38,8 @@ def validate_external_review_provider(path: Path) -> list[str]:
     normalization = data.get("normalization", {}) or {}
     if normalization.get("require_schema_validation") is not True:
         errors.append(f"{path}: claude-code normalization.require_schema_validation must be true")
+    if not isinstance(normalization.get("preserve_raw_output"), bool):
+        errors.append(f"{path}: claude-code normalization.preserve_raw_output must be explicitly true or false")
     execution = data.get("execution", {}) or {}
     if execution.get("command") != "claude":
         errors.append(f"{path}: claude-code execution.command must be claude")
@@ -45,10 +47,18 @@ def validate_external_review_provider(path: Path) -> list[str]:
         errors.append(f"{path}: claude-code execution.sandbox_mode must be require_escalated")
     if execution.get("output_format") != "json":
         errors.append(f"{path}: claude-code execution.output_format must be json")
-    if execution.get("permission_mode") != "plan":
-        errors.append(f"{path}: claude-code execution.permission_mode must be plan")
-    if execution.get("tools") != "":
-        errors.append(f'{path}: claude-code execution.tools must be ""')
+    if execution.get("permission_mode") != "default":
+        errors.append(f"{path}: claude-code execution.permission_mode must be default")
+    prompt_transport = str(execution.get("prompt_transport", "stdin"))
+    tools = str(execution.get("tools", ""))
+    if prompt_transport == "file":
+        if tools != "Read":
+            errors.append(f'{path}: claude-code file prompt transport must set execution.tools to "Read"')
+    elif prompt_transport == "stdin":
+        if tools != "":
+            errors.append(f'{path}: claude-code stdin prompt transport must set execution.tools to ""')
+    else:
+        errors.append(f"{path}: claude-code execution.prompt_transport must be stdin or file")
     if "model" not in execution:
         errors.append(f"{path}: claude-code execution.model must be declared as opus")
     elif execution.get("model") != "opus":

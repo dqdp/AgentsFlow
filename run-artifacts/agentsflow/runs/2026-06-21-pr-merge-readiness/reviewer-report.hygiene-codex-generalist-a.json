@@ -1,0 +1,36 @@
+{
+  "reviewer": {
+    "id": "hygiene-codex-generalist-a",
+    "provider": "internal-agent",
+    "role": "generalist",
+    "model": "codex"
+  },
+  "summary": "No P0/P1 blockers found. The helper extraction in pr_merge_readiness.py reads as behavior-preserving for the reviewed paths, and the missing raw-output hash regression asserts the precise blocker label rather than only the final blocked state. I found one nonblocking validation consistency gap around review_packet_path self-binding.",
+  "review_context": {
+    "run_id": "2026-06-21-pr-merge-readiness",
+    "material_change_id": "pr-merge-readiness-hygiene-v18",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-packets/hygiene-codex-generalist-a.json",
+    "reviewer_instance_id": "hygiene-codex-generalist-a"
+  },
+  "findings": [
+    {
+      "id": "HYG-A-001",
+      "severity": "P2",
+      "category": "review-context-validation",
+      "title": "Packet self-path is trusted when validating reviewer report context",
+      "evidence": [
+        "scripts/reviewers/prepare_review_set_artifacts.py:377-379 writes the per-reviewer review_packet_path into each generated packet and treats it as an envelope field.",
+        "scripts/repo_validation/review.py:777-780 validates reviewer_instance_id inside each packet but does not validate packet.review_packet_path against the actual inputs.review_packets path.",
+        "scripts/repo_validation/review.py:209-215 and scripts/repo_validation/pr_merge_readiness.py:556-562 use packet.review_packet_path as the expected reviewer-report review_context value, falling back to the actual packet path only when the packet field is absent."
+      ],
+      "why_it_matters": "A stale or hand-authored packet can carry an incorrect review_packet_path, and a reviewer report that copies that value can still pass context validation. That leaves a misleading packet reference even though the contract assignment points elsewhere. This does not appear to break the current generated artifacts because the preparation helper writes the correct value.",
+      "recommendation": "When validating packet artifacts or reviewer-report context, require packet.review_packet_path to equal the resolved assignment/default packet path. Add a regression that mutates only packet.review_packet_path and the report context to the same wrong value.",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [],
+  "self_declared_limitations": [
+    "Read-only review only; I did not run tests, scripts, package managers, network commands or git mutations.",
+    "I reviewed the provided packet, rendered prompt and referenced repository artifacts, and treated excluded stale review artifacts as historical context only."
+  ]
+}

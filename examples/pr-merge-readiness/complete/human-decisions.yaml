@@ -1,0 +1,14 @@
+version: 1
+run_id: 2026-06-22-pr-merge-readiness-example
+decisions:
+- decision_id: merge.acceptance
+  phase_id: human_merge_decision
+  question_ref: merge.acceptance
+  answer: accepted
+  status: confirmed
+  answered_by: human
+  classification: blocking-material
+  affected_artifacts:
+  - pr-merge-readiness-report.json
+  material_change_id: pr-merge-readiness-example-change
+  report_hash: sha256:f9a8cf19b92670736513afc166d76b9deb95f5f2abf86c01376897ebb3de787a

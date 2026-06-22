@@ -10,6 +10,14 @@ Validator: `<main/orchestrating agent or human>`
 
 Reviewer findings are candidate findings. They become accepted issues only after relevance validation.
 
+## Authority Boundary
+
+This report is the main/orchestrating agent's relevance validation record. It is
+not an automatic gate verdict and does not replace human-mediated decisions.
+Deterministic checks may validate report structure and evidence references, but
+accepted human decisions must still be recorded in the declared human decision
+artifact when the workflow requires them.
+
 ## Validation Inputs Checked
 
 - [ ] task contract / reviewed artifact brief
@@ -25,6 +33,14 @@ Reviewer findings are candidate findings. They become accepted issues only after
 | Finding ID | Source | Severity | Candidate blocker? | Candidate finding | Relevance status | Reason | Evidence checked | Decision impact |
 |---|---|---:|---:|---|---|---|---|---|
 | F-001 | reviewer-architecture | P1 | yes | ... | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | ... | contract, diff, gate report, ADR | ... |
+
+## Canonical Finding Groups Checked
+
+Use this section when fusion grouped findings before validation.
+
+| Group ID | Group type | Finding IDs | Max candidate severity | Validation status | Reason |
+|---|---|---|---:|---|---|
+| G-001 | duplicate / related / conflict | F-001, F-002 | P1 | ... | ... |
 
 ## Decision Matrix
 

@@ -43,9 +43,16 @@ The MVP implementation target is intentionally narrow:
 - API-key usage: forbidden;
 - launch mode: Codex invocations require escalated sandbox access so Claude Code
   can see subscription-local auth/keychain state;
-- tool mode: Claude Code tools are disabled; the external reviewer is
-  packet-bound unless a future tool-enabled review mode is explicitly designed;
-- output: normalized reviewer report + raw output + invocation metadata;
+- Claude permission mode: `default`. Do not use Claude Code `plan` mode for
+  reviewer invocations because plan mode may route the deliverable into
+  Claude-managed plan artifacts instead of returning schema-bound JSON to the
+  wrapper;
+- tool mode: Claude Code tools are disabled for stdin prompt transport. For
+  file prompt transport, only the `Read` tool is allowed and only so Claude can
+  read the generated review prompt file from its isolated temporary reviewer
+  directory;
+- output: normalized reviewer report + invocation metadata, plus raw output
+  only when the provider config explicitly preserves non-sensitive raw output;
 - normalization trace: source path/hash in the reviewer report, output hash in
   invocation metadata;
 - no multi-provider runtime;
@@ -73,7 +80,9 @@ Minimum required guardrails for Claude Code CLI wrappers:
   `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`;
 - do not use API-key-only execution modes;
 - run through an escalated Codex sandbox when invoked from Codex;
-- disable Claude Code tools with `--tools ""` for packet-bound review;
+- use Claude Code `--permission-mode default`;
+- use `--tools ""` for stdin packet transport, or `--tools Read` only for file
+  prompt transport where the temporary prompt file is the sole added directory;
 - record billing/auth mode in invocation metadata;
 - record stdout/stderr/exit code and normalized output;
 - validate output schema before passing it to finding validation or fusion.
@@ -128,8 +137,10 @@ For v0.2 this binding is intentionally small:
 - mock responses are smoke-test evidence only; completed review gates require
   external invocation metadata with `execution_mode: real`.
 - completed external evidence must be bound to the current packet, prompt,
-  contract, role contract, rubric, output schema, raw provider output and
-  normalized reviewer report hashes, with `exit_code: 0`.
+  contract, role contract, rubric, output schema and normalized reviewer report
+  hashes, with `exit_code: 0`; when raw provider output is preserved as
+  non-sensitive, its path/hash must also match, and otherwise a redacted,
+  summary or pointer artifact is recorded by the readiness report.
 - normalized reviewer reports may include `normalization` source trace, but
   the normalized report's own output hash is recorded outside the report to
   avoid self-referential hashes.
@@ -208,7 +219,9 @@ The Claude adapter must:
 3. verify subscription-local mode and reject API-key usage;
 4. render the provider prompt;
 5. invoke Claude Code CLI in non-interactive print mode;
-6. capture raw output, requested model/effort, provider-reported model usage and process metadata;
+6. capture requested model/effort, provider-reported model usage and process
+   metadata; capture raw output only when `normalization.preserve_raw_output`
+   is explicitly true for non-sensitive evidence;
 7. parse and normalize `reviewer-report.json`;
 8. record normalization source trace;
 9. validate schema;
@@ -221,9 +234,15 @@ For each external review invocation, store:
 
 ```text
 review-packet.<role>.json
-reviewer-report.<provider>-<role>.raw.json
 reviewer-report.<provider>-<role>.json
 reviewer-invocation.<provider>-<role>.json
+```
+
+When `normalization.preserve_raw_output: true` is explicitly selected for
+non-sensitive output, also store:
+
+```text
+reviewer-report.<provider>-<role>.raw.json
 ```
 
 ## Non-goals

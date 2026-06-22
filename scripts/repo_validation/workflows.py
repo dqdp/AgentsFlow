@@ -72,6 +72,10 @@ def validate_big_feature_plan_gate_policy(path: Path, data: dict) -> list[str]:
     plan_gate = phase_by_id.get("plan_gate")
     contract_acceptance = phase_by_id.get("contract_acceptance")
     red_capture = phase_by_id.get("red_capture")
+    allowed_pause_phases = {
+        str(item)
+        for item in ((data.get("human_interaction") or {}).get("allowed_pause_phases") or [])
+    }
     required_plan_artifacts = {
         "repository-grounding-report.md",
         "plan.md",
@@ -116,6 +120,41 @@ def validate_big_feature_plan_gate_policy(path: Path, data: dict) -> list[str]:
         runs_after = set(str(item) for item in contract_acceptance.get("runs_after", []) or [])
         if "plan_gate" not in runs_after:
             errors.append(f"{path}: contract_acceptance phase must run after plan_gate")
+        if "contract_acceptance" not in allowed_pause_phases:
+            errors.append(
+                f"{path}: human_interaction.allowed_pause_phases must include contract_acceptance"
+            )
+        decision_review = contract_acceptance.get("decision_review_contract")
+        if not isinstance(decision_review, dict):
+            errors.append(
+                f"{path}: contract_acceptance must declare decision_review_contract"
+            )
+        else:
+            if decision_review.get("artifact") != "decision-contract.md":
+                errors.append(
+                    f"{path}: contract_acceptance decision_review_contract.artifact must be decision-contract.md"
+                )
+            if decision_review.get("required_before_prompt") is not True:
+                errors.append(
+                    f"{path}: contract_acceptance decision_review_contract.required_before_prompt must be true"
+                )
+            required_sections = {
+                "open_decision_inventory",
+                "per_decision_options",
+                "tradeoffs",
+                "recommended_path",
+                "rationale",
+                "human_acceptance_question",
+            }
+            declared_sections = {
+                str(item) for item in decision_review.get("required_sections", []) or []
+            }
+            missing_sections = sorted(required_sections - declared_sections)
+            if missing_sections:
+                errors.append(
+                    f"{path}: contract_acceptance decision_review_contract missing required_sections: "
+                    + ", ".join(missing_sections)
+                )
     if isinstance(red_capture, dict):
         runs_after = set(str(item) for item in red_capture.get("runs_after", []) or [])
         if "plan_gate" not in runs_after:

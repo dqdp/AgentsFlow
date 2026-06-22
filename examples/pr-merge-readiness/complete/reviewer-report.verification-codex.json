@@ -1,0 +1,15 @@
+{
+  "reviewer": {
+    "id": "verification-codex",
+    "provider": "internal-agent",
+    "role": "verification"
+  },
+  "summary": "No blockers in example fixture.",
+  "findings": [],
+  "review_context": {
+    "run_id": "2026-06-22-pr-merge-readiness-example",
+    "material_change_id": "pr-merge-readiness-example-change",
+    "review_packet_path": "review-packets/verification-codex.json",
+    "reviewer_instance_id": "verification-codex"
+  }
+}

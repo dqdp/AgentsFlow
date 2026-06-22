@@ -20,6 +20,9 @@ The wrapper:
 - invokes Claude Code with the v0.2 default `--model opus --effort max` unless the config already resolves to those defaults;
 - requires `execution.sandbox_mode: require_escalated` when launched from Codex
   so Claude Code can access subscription-local auth/keychain state;
+- requires `execution.permission_mode: default`; Claude Code plan mode is not
+  used for reviewer gates because the wrapper must receive schema-bound JSON on
+  stdout, not a Claude-managed plan artifact;
 - invokes Claude Code with `--tools ""` so the reviewer is packet-bound and
   cannot read files outside the prepared review packet;
 - loads a review packet;
