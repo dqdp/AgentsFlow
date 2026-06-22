@@ -147,6 +147,34 @@ validated, but the default outcome is `needs-more-evidence`,
 when the main/orchestrating agent rejects or downgrades a plausible blocker-path
 candidate, not when the only blocker signal is an ungrounded severity label.
 
+### Boundary Trace
+
+Boundary Trace is a trigger-based extension of finding relevance validation. It
+is not a new workflow and not a new artifact type.
+
+Trigger conditions are:
+
+- accepted P0/P1 finding;
+- mandatory evidence gap;
+- new or changed review, finding, gate or acceptance invariant;
+- schema, prompt rendering, reviewer output, external normalization, evaluator,
+  provider, artifact storage, contract evidence or generated evidence behavior
+  changes;
+- reviewer-reported plausible boundary-loss path.
+
+The main/orchestrating agent owns Boundary Trace validation. Reviewers may
+suggest affected boundaries or suspected boundary impact, but those suggestions
+remain candidate-unvalidated until the validation report accepts, rejects,
+downgrades, marks duplicate or escalates the finding.
+
+Boundary impact is not severity. A boundary label can show where a finding,
+evidence requirement or decision may be lost between layers, but P0/P1 severity
+still requires the grounded blocker path above.
+
+Do not require Boundary Trace for every P2/P3/NOTE finding, optional backlog
+item or editorial cleanup. A non-blocking finding may still receive a Boundary
+Trace only when it exposes a mandatory evidence gap or a changed gate invariant.
+
 ### Default severity meaning
 
 | Severity | Default meaning | Blocking by default? |

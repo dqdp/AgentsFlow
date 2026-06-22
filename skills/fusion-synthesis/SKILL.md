@@ -37,11 +37,14 @@ Synthesize independent reviewer reports into consensus, disagreements, candidate
 6. Identify disagreements.
 7. Surface any P0/P1 candidate blocker and preserve the asserted blocker path
    when present.
-8. Surface missing or stale risk-surface/FPM evidence as candidate mandatory
+8. Preserve suspected boundary impact when reviewers identify a boundary-loss
+   path, but do not validate Boundary Trace or turn boundary impact into
+   severity. The main/orchestrating agent owns Boundary Trace validation.
+9. Surface missing or stale risk-surface/FPM evidence as candidate mandatory
    evidence gaps when reviewers report it.
-9. Preserve relevance questions and disagreements.
-10. Assign recommended verdict and proposed required changes.
-11. Hand off candidate findings for main-agent relevance validation.
+10. Preserve relevance questions and disagreements.
+11. Assign recommended verdict and proposed required changes.
+12. Hand off candidate findings for main-agent relevance validation.
 
 
 ## Quality bar
@@ -51,6 +54,9 @@ Synthesize independent reviewer reports into consensus, disagreements, candidate
 - Findings remain candidate findings until the main/orchestrating agent validates relevance.
 - Reviewer severity remains candidate severity until blocker-path calibration.
 - Risk-surface or Failure Path Matrix membership alone is not severity.
+- Boundary impact is not severity.
+- Reviewers may suggest affected boundaries; fusion preserves the suggestion,
+  while the main/orchestrating agent owns Boundary Trace validation.
 - FPM coverage and freshness gaps are preserved as evidence issues, not
   averaged away.
 

@@ -18,6 +18,12 @@ evidence requirement is at risk; what evidence supports it; and what acceptance
 consequence follows if it is not fixed. Risk-surface or Failure Path Matrix
 membership alone is not severity.
 
+Reviewers may suggest affected boundaries or suspected boundary impact when a
+finding could be lost between docs, schema, prompt rendering, reviewer output,
+external normalization, artifact storage, evaluator consumption, contract
+evidence, generated artifacts or human-decision recording. Boundary impact is
+not severity; the main/orchestrating agent owns Boundary Trace validation.
+
 Prioritize substantive review quality over output serialization. Return
 schema-valid reviewer-report JSON when you can do so without losing clarity;
 otherwise return clear structured findings that the main/orchestrating agent can

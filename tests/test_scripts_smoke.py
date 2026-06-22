@@ -670,6 +670,66 @@ def test_finding_validation_calibrates_blocker_severity() -> None:
     assert "membership alone is not severity" in rendered
 
 
+def test_finding_validation_boundary_trace_is_trigger_based() -> None:
+    protocol = (ROOT / "docs/review-agent-interaction-protocol.md").read_text(
+        encoding="utf-8"
+    ).lower()
+    fusion_model = (ROOT / "docs/review-fusion-model.md").read_text(encoding="utf-8").lower()
+    fusion_skill = (ROOT / "skills/fusion-synthesis/SKILL.md").read_text(encoding="utf-8").lower()
+    validation_template = (ROOT / "templates/finding-validation-report.md").read_text(
+        encoding="utf-8"
+    ).lower()
+    fusion_template = (ROOT / "templates/fusion-report.md").read_text(encoding="utf-8").lower()
+    reviewer_prompt = (ROOT / "templates/review-prompts/base.md").read_text(encoding="utf-8").lower()
+
+    combined = "\n".join(
+        [
+            protocol,
+            fusion_model,
+            fusion_skill,
+            validation_template,
+            fusion_template,
+            reviewer_prompt,
+        ]
+    )
+
+    required_terms = [
+        "boundary trace",
+        "trigger conditions",
+        "accepted p0/p1",
+        "mandatory evidence gap",
+        "boundary impact is not severity",
+        "main/orchestrating agent owns boundary trace validation",
+        "reviewers may suggest affected boundaries",
+        "suspected boundary impact",
+    ]
+    for term in required_terms:
+        assert term in combined
+
+    for label in [
+        "docs-rule",
+        "reviewer-output",
+        "schema",
+        "prompt-rendering",
+        "external-normalization",
+        "artifact-storage",
+        "evaluator",
+        "contract-evidence",
+        "generated-artifacts",
+        "human-decision",
+    ]:
+        assert label in validation_template
+
+    assert "required only when triggered" in validation_template
+    assert "provider" in validation_template
+    assert "reviewer-reported plausible boundary-loss path" in validation_template
+    assert "schema, prompt rendering, reviewer output" in protocol
+    assert "provider, artifact storage, contract evidence" in protocol
+    assert "not a new workflow" in protocol
+    assert "not a new artifact type" in protocol
+    assert "do not require boundary trace for every p2/p3" in protocol
+
+
 def test_project_binding_rejects_path_escape(tmp_path) -> None:
     import shutil
     import yaml

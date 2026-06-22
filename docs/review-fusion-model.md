@@ -168,6 +168,12 @@ Matrix membership, fusion must preserve the candidate finding but flag that the
 blocker path is missing. Risk/FPM membership guides review attention and
 verification depth; it is not severity by itself.
 
+When reviewers identify suspected boundary impact, fusion preserves that
+boundary hint for main-agent validation. Boundary Trace is required only when
+triggered by accepted P0/P1, a mandatory evidence gap, a changed gate invariant
+or another concrete boundary-loss path. The trace belongs to finding validation;
+fusion should not turn boundary impact into severity.
+
 ## Authority boundary
 
 This reusable block must not confuse automatic gates with human-in-the-loop

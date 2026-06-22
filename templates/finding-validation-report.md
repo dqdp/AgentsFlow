@@ -22,6 +22,49 @@ Risk-surface or Failure Path Matrix membership alone is not enough to validate
 P0/P1 severity. It may justify focused review or additional evidence, but the
 validated severity must come from acceptance impact.
 
+## Boundary Trace
+
+Boundary Trace is required only when triggered. It is a small validation block
+inside finding validation, not a separate gate.
+
+Trigger conditions:
+
+- accepted P0/P1 finding;
+- mandatory evidence gap;
+- new or changed review, finding, gate or acceptance invariant;
+- schema, prompt rendering, reviewer output, external normalization, evaluator,
+  provider, artifact storage, contract evidence or generated evidence behavior
+  changes;
+- reviewer-reported plausible boundary-loss path.
+
+Boundary impact is not severity. A boundary label can explain where an issue may
+be lost or misread, but validated severity still requires the grounded blocker
+path above.
+
+The main/orchestrating agent owns Boundary Trace validation. Reviewers may
+suggest affected boundaries or suspected boundary impact, but those suggestions
+remain candidate-unvalidated until this report validates them.
+
+Boundary labels:
+
+- `docs-rule`
+- `reviewer-output`
+- `schema`
+- `prompt-rendering`
+- `external-normalization`
+- `artifact-storage`
+- `evaluator`
+- `contract-evidence`
+- `generated-artifacts`
+- `human-decision`
+
+Do not add Boundary Trace for every P2/P3/NOTE finding or editorial cleanup by
+default. Use it only when one of the trigger conditions above applies.
+
+| Finding/invariant | Trigger | Affected boundaries | Existing evidence/contract | Consumer decision | Regression/evidence |
+|---|---|---|---|---|---|
+| F-001 | accepted P0/P1 / mandatory evidence gap / invariant change | `schema`, `evaluator` | ... | ... | ... |
+
 ## Authority Boundary
 
 This report is the main/orchestrating agent's relevance validation record. It is

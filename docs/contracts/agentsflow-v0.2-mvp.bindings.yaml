@@ -386,6 +386,23 @@ bindings:
           - pytest-output
     gates:
       - verification_gate
+  - id: AF-V02-BHV-023
+    scenario: "Finding validation traces boundary impact only when triggered"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-finding-validation-boundary-trace
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_finding_validation_boundary_trace_is_trigger_based"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
   - id: AF-V02-BHV-013
     scenario: "Reviewer fresh-context is protocol-level in v0.2"
     required: true
