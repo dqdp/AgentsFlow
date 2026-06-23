@@ -52,10 +52,10 @@ status: specification-only
 means the scenario is a useful specification or future coverage candidate, but
 it does not block the current workflow by default.
 
-Workflow profiles may strengthen this rule, for example:
+Workflow effective strictness may strengthen this rule, for example:
 
 ```text
-L3/L4: all P0/P1 acceptance scenarios must have executable bindings.
+reviewed/critical depth: all P0/P1 acceptance scenarios must have executable bindings.
 ```
 
 ## Binding shape
@@ -67,6 +67,10 @@ bindings:
   - id: AF-BHV-001
     scenario: "Agent must not modify unrelated files"
     required: true
+    risk_surfaces:
+      - filesystem_access
+    path_class: forbidden_path
+    evidence_class: script
     source:
       type: contract
       path: task.contract.md
@@ -74,12 +78,40 @@ bindings:
     checks:
       - id: boundary-check
         type: script
-        command: "python scripts/boundary_check.py --contract task.contract.md --changed-files changed-files.txt"
+        command: "python3 scripts/boundary_check.py --contract task.contract.md --changed-files changed-files.txt"
         evidence:
           - boundary-check-report
     gates:
       - verification_gate
 ```
+
+## Risk and path classification
+
+Behavior bindings are the preferred place to attach risk-surface and path-class
+labels to executable evidence. These labels are optional for low-risk scenarios,
+but are expected when the task contract selects risk surfaces in its Failure Path
+Matrix.
+
+Recommended fields:
+
+```yaml
+risk_surfaces:
+  - audit_persistence
+path_class: denied_attempt_persisted
+evidence_class: test
+failure_path_matrix_refs:
+  - FPM-002
+```
+
+`risk_surfaces` names one or more surfaces from `docs/risk-and-strictness.md` or
+the project overlay. `path_class` names the required path being exercised.
+`evidence_class` should match the existing check/gate vocabulary (`test`,
+`script`, `manual_evidence`, `trace_assertion`, `log_assertion`,
+`static_analysis`, `dynamic_analysis`, `security_scan`, `external_tool`, etc.).
+
+This is deliberately classification over existing checks, not a separate test
+inventory. A gate runner may use these fields to report missing coverage for a
+selected Failure Path Matrix row.
 
 ## Check types
 
@@ -98,12 +130,31 @@ Behavior bindings may point to:
 - manual evidence checks;
 - external tools.
 
+Gate instrument types and behavior-binding check types use the same vocabulary
+where possible. When a gate manifest uses a broader instrument class, map it to a
+binding check type as follows:
+
+| Gate instrument type | Behavior-binding check type |
+|---|---|
+| `tests` or `test` | `test` |
+| `deterministic_script` or `script` | `script` |
+| `bdd_runner` | `bdd_runner` |
+| `eval` or `eval_runner` | `eval` |
+| `trace_assertion` | `trace_assertion` |
+| `log_assertion` | `log_assertion` |
+| `static_analysis` | `static_analysis` |
+| `dynamic_analysis` | `dynamic_analysis` |
+| `benchmark` | `benchmark` |
+| `security_scan` | `security_scan` |
+| `manual_evidence` | `manual_evidence` |
+| `external_tool` | `external_tool` |
+
 Manual evidence is allowed only if the gate runner can deterministically check
 that the required artifact exists and is referenced in the gate report.
 
 ## Gate behavior
 
-A verification gate consuming behavior bindings must check that:
+A complete verification gate consuming behavior bindings should check that:
 
 - all required scenarios have at least one binding;
 - each binding has at least one executable check or manual evidence requirement;
@@ -111,8 +162,36 @@ A verification gate consuming behavior bindings must check that:
 - missing required bindings fail or block according to the workflow policy;
 - optional unbound scenarios are reported as warnings, not silently ignored.
 
+The v0.2 `bdd_binding_check.py` implementation enforces only the binding
+manifest shape: required bindings must declare at least one check and at least one
+gate, and checks must use recognized types with commands or targets where needed.
+It does not prove that the referenced checks actually ran or that gate evidence
+contains the check result. That execution/evidence correlation belongs to a
+project-bound verification gate runner and remains outside the minimal v0.2
+checker.
+
+The v0.2 checker also treats `risk_surfaces`, `path_class`,
+`evidence_class` and `failure_path_matrix_refs` as structured metadata. It does
+not enforce semantic coverage of every path class. That responsibility belongs
+to the project-bound gate runner or a future specialized coverage checker.
+
+## Red/green evidence (failing-run / passing-run pair)
+
+For any behavior bound to an implementation phase, the evidence bundle must record a
+failing run (red) captured before implementation and a passing run (green) captured
+after, for the same bound check. `validate_repo.py` enforces the workflow phase
+topology that makes this evidence pair mandatory by structure. The future
+`redgreen_check` gate runner will confirm that the failing-then-passing pair is
+present in concrete run artifacts. This model is the canonical home for the
+`failing_run` / `passing_run` evidence pair introduced by
+`docs/adr/ADR-0017-test-framed-implementation-phase.md`, which refines ADR-0010
+(gate executability) and ADR-0011 (behavior binding).
+
 ## Non-goal
 
 Behavior bindings are not intended to become a heavy test-management system in
 v0.2. The minimal implementation is one template, one schema, one checker, and
-integration with gate reports.
+integration with gate reports. Recording a failing-run/passing-run pair per ADR-0017
+is part of this minimal footprint, not a test-management system: it is a structural
+byproduct of the test-framed implementation phase and adds no authoring surface
+beyond the existing template, schema, checker and gate-report integration.

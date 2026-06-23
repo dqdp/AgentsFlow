@@ -49,9 +49,42 @@
           "severity_if_unverified": {
             "type": "string"
           },
+          "risk_surfaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "path_class": {
+            "type": "string"
+          },
+          "evidence_class": {
+            "type": "string",
+            "enum": [
+              "test",
+              "script",
+              "bdd_runner",
+              "eval",
+              "trace_assertion",
+              "log_assertion",
+              "static_analysis",
+              "dynamic_analysis",
+              "benchmark",
+              "security_scan",
+              "manual_evidence",
+              "external_tool"
+            ]
+          },
+          "failure_path_matrix_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "checks": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 0,
             "items": {
               "type": "object",
               "required": [
@@ -63,12 +96,36 @@
           },
           "gates": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 0,
             "items": {
               "type": "string"
             }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "required": {
+                  "const": true
+                }
+              },
+              "required": [
+                "required"
+              ]
+            },
+            "then": {
+              "properties": {
+                "checks": {
+                  "minItems": 1
+                },
+                "gates": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
       }
     }
   }

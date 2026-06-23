@@ -1,0 +1,244 @@
+version: 1
+
+source:
+  collection_mode: agent-led-dialogue
+  interviewer: main-agent
+  based_on_artifacts:
+    - project-intake.yaml
+    - project-raw-scan.json
+    - project-inventory.json
+    - project-assessment.json
+  raw_dialogue_reference: initialization-chat
+
+interview_state:
+  status: confirmed
+  confirmed_by: project-owner
+  confirmation_summary: "Use a lightweight default workflow with pytest as the mandatory verification gate and two read-only reviewers; use two control reviewers for each per-cycle batch of disputed rejected or downgraded plausible blocker-path findings."
+
+project_context:
+  project_owner: project-owner
+  project_domain:
+    value: small Python library/tooling project
+    status: confirmed
+  user_domain_expertise:
+    value: project owner is authoritative for local project intent
+    status: confirmed
+  project_risk_level:
+    value: normal
+    status: confirmed
+
+workflow_defaults:
+  default_workflow:
+    value: big-feature-contract-first
+    status: confirmed
+  strictness_source:
+    value: workflow_default
+    status: confirmed
+  strictness_override_policy:
+    value: "Use workflow defaults unless project risk or pilot scope justifies an explicit override."
+    status: confirmed
+  preferred_strictness_taxonomy:
+    value: compact
+    status: follow-up
+  default_review_topology:
+    value: homogeneous-dual
+    status: confirmed
+
+risk_surface_policy:
+  catalog_source: docs/risk-and-strictness.md
+  project_default_surfaces: []
+  project_local_surfaces: []
+  selection_rule: "Each task contract selects the feature-specific subset; project defaults are recommendations, not automatic coverage claims."
+  failure_path_matrix_required_when:
+    - selected_surface_has_denial_failure_timeout_rejection_persistence_or_authority_semantics
+  required_path_class_policy:
+    source: docs/risk-and-strictness.md
+    local_extensions_require_definition: true
+  review_topology_policy:
+    default: homogeneous-dual
+    escalate_when_selected_surfaces_include:
+      - authority_boundary
+      - policy_authorization
+      - audit_persistence
+      - secret_handling
+      - data_privacy
+      - external_io
+      - filesystem_access
+      - network_access
+      - runtime_budget
+      - timeout
+      - persistence_consistency
+      - human_approval
+      - irreversible_action
+    escalation_rule: "Use the smallest focused or heterogeneous reviewer set that maps to existing reviewer role contracts."
+
+verification_gate_policy:
+  mandatory_blockers:
+    - tests
+  advisory_checks:
+    - lint
+    - typecheck
+  canonical_commands:
+    test: "PYTHONPATH=src python3 -m pytest tests"
+    lint: null
+    typecheck: null
+    security: null
+    performance: null
+    domain_specific: []
+  red_green_required_for_implementation: true
+  evidence_required:
+    - command
+    - exit_code
+    - output_summary
+    - artifact_path
+  unresolved_items: []
+
+review_policy:
+  reviewer_count: 2
+  composition: homogeneous
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  reviewer_roles:
+    - generalist
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts
+  read_only_by_default: true
+  review_after_green_gate: true
+  allow_external_reviewers: false
+  preferred_external_provider: null
+  allow_different_models: false
+  provider_strategy:
+    assignment_source: review_prompt_contract.reviewer_assignments
+    default_internal_provider: internal-agent
+    supported_external_providers:
+      - claude-code
+    different_models_requires_assignments: true
+    min_distinct_provider_model_families: 2
+    unsupported_provider_behavior: config_blocker
+  candidate_findings_require_main_validation: true
+  external_reviewer_context_policy:
+    full_repo_access: false
+    packet_only: true
+    raw_logs_allowed: false
+
+review_cycle_policy:
+  control_reviewer_count: 2
+  control_review_trigger: rejected_or_downgraded_blocker_collision
+  control_review_purpose: Check a per-cycle batch of disputed plausible blocker-path findings after the main agent rejects or downgrades them.
+  control_review_context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - disputed_blocker_findings
+      - orchestrator_collision_reason
+      - referenced_artifacts
+  rerun_review_on:
+    - project_overlay_materially_changed
+    - mandatory_evidence_added
+    - human_requested
+  do_not_rerun_on:
+    - nonblocking_findings_with_non_material_fixes_only
+    - irrelevant_findings_rejected_with_reason
+  materiality_classification:
+    required_after_review_fixes: true
+    material_triggers_take_precedence_over_do_not_rerun: true
+    material_if_changes:
+      - task_contract_or_scope
+      - selected_risk_surfaces_or_failure_path_matrix
+      - behavior_bindings
+      - affected_implementation_behavior
+      - review_packet_content
+      - project_overlay_or_binding
+      - workflow_or_gate_policy
+      - review_cycle_policy
+      - schema_or_validator
+      - mandatory_evidence
+      - verification_gate_output
+      - examples_used_as_evidence
+    non_material_if_only:
+      - report_editorial_changes_only
+      - duplicate_consolidation
+      - non_source_of_truth_notes
+  escalate_to_human_on:
+    - validated_blocking_finding_disputed
+    - gate_override_requested
+    - max_review_cycles_exceeded
+
+authority_policy:
+  approve_scope_changes: project-owner
+  approve_gate_policy_changes: project-owner
+  approve_review_topology_changes: project-owner
+  accept_residual_risk: project-owner
+  approve_legacy_migration: project-owner
+  override_blocking_gate: project-owner
+
+artifact_policy:
+  runs_root: Docs/agentsflow/runs/
+  evidence_root: Docs/agentsflow/evidence/
+  commit_reports: true
+  store_raw_logs: optional
+  redact_sensitive_evidence: true
+  external_reviewer_sensitive_evidence: forbidden-unless-approved
+  structured_command_evidence_required: true
+  evidence_freshness:
+    material_change_id_required: true
+    green_gate_after_latest_material_change_required: true
+    review_packet_after_latest_green_gate_required: true
+    stale_evidence_must_be_marked_or_excluded: true
+
+decision_log:
+  - id: verification.mandatory_blockers
+    question: Which checks must block acceptance?
+    answer:
+      - tests
+    status: confirmed
+    source: human-dialogue
+  - id: verification.canonical_test_command
+    question: What is the canonical test command?
+    answer: "PYTHONPATH=src python3 -m pytest tests"
+    status: confirmed
+    source: human-dialogue
+  - id: review.reviewer_count
+    question: How many read-only reviewers are required by default?
+    answer: 2
+    status: confirmed
+    source: human-dialogue
+  - id: review.composition
+    question: What is the default review composition?
+    answer: "homogeneous-dual: two generalist reviewers with the same prompt, packet, rubric and output schema."
+    status: confirmed
+    source: human-dialogue
+  - id: review_cycle.control_reviewers
+    question: How many control reviewers are required for a blocker-path collision batch?
+    answer: "Two fresh-context control reviewers review one per-cycle batch after plausible blocker-path findings are rejected or downgraded by the main/orchestrating agent."
+    status: confirmed
+    source: human-dialogue
+  - id: review.context_policy
+    question: Should reviewers inherit the main agent conversation context?
+    answer: "No. Reviewers start from fresh zero context and receive only the review packet and referenced artifacts."
+    status: confirmed
+    source: human-dialogue
+  - id: review.allow_different_models
+    question: Should review use different models or harnesses when available?
+    answer: "false; if changed to true, the review prompt contract must include reviewer_assignments with at least two distinct provider/model-family pairs."
+    status: confirmed
+    source: human-dialogue
+  - id: review_cycle.max_review_cycles
+    question: Should review cycles have a numeric cap before escalation?
+    answer: "No default cap. If the project sets max_review_cycles, it must be at least 3; if omitted, review cycles are not limited by count."
+    status: confirmed
+    source: human-dialogue
+  - id: risk_surface_policy.project_defaults
+    question: Which risk surfaces should the project treat as default candidates during task contract drafting?
+    answer: []
+    status: confirmed
+    source: human-dialogue
+
+unresolved_questions: []

@@ -32,3 +32,4 @@ source of truth for automation.
 - Required behavior becomes traceable to executable checks.
 - Review agents can distinguish specification-only scenarios from verified acceptance scenarios.
 - Gate reports can identify missing required bindings as failures, blockers or inconclusive results according to workflow policy.
+- Refined by ADR-0017: scenarios bound to test-type checks must be exercised by a captured failing run before implementation and a passing run after, so a required binding is evidenced as a red→green pair, not a single green run.

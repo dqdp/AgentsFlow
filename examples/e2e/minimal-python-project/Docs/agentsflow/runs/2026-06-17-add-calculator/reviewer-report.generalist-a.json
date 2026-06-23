@@ -1,0 +1,13 @@
+{
+  "reviewer": {
+    "id": "generalist-a",
+    "provider": "internal",
+    "role": "generalist"
+  },
+  "summary": "No blocking findings in this sample e2e review.",
+  "findings": [],
+  "requests_for_additional_verification": [],
+  "self_declared_limitations": [
+    "Fixture report for the primary v0.2 e2e example."
+  ]
+}

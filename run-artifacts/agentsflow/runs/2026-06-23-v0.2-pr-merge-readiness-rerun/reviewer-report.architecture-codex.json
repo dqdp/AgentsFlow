@@ -1,0 +1,81 @@
+{
+  "reviewer": {
+    "id": "architecture-codex",
+    "provider": "internal-agent",
+    "role": "architecture",
+    "model": "codex"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-rerun",
+    "material_change_id": "8a2c197",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/review-packets/architecture-codex.json",
+    "reviewer_instance_id": "architecture-codex"
+  },
+  "summary": "I found one candidate P1 blocker in the external-review failure-evidence hardening: provider non-zero exits write reviewer invocation metadata without the new failure marker required to make missing normalized output schema-valid. I did not find a concrete blocker in the repeated review_control_rules/review_cycle policy; it remains duplication/backlog unless validation later finds contradictory behavior. I also noted a non-blocking stale self-application binding risk.",
+  "findings": [
+    {
+      "id": "ARCH-CODEX-P1-001",
+      "severity": "P1",
+      "category": "external-review-failure-evidence",
+      "title": "Non-zero provider exits still produce schema-invalid failed invocation metadata",
+      "evidence": [
+        "schemas/reviewer-invocation.schema.json:20-37 requires normalized_output_path but no longer requires normalized_output_hash at the top level.",
+        "schemas/reviewer-invocation.schema.json:217-226 requires failure_message when failure_stage is present, otherwise requires normalized_output_hash.",
+        "scripts/reviewers/run_external_reviewer.py:937-953 writes invocation metadata for exit_code != 0 without failure_stage, failure_message, or normalized_output_hash, then raises.",
+        "scripts/reviewers/run_external_reviewer.py:1003-1015 only adds failure_stage/failure_message if invocation_path does not already exist, so the non-zero exit metadata written at lines 951-953 is not repaired.",
+        "scripts/repo_validation/review.py:1143-1148 validates invocation metadata against the schema and only treats it as failed evidence when failure_stage is present.",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/evidence-report.md:37-44 claims failed external reviewer invocation metadata is now schema-valid evidence."
+      ],
+      "why_it_matters": "The change claims to harden failed external-review evidence, but the actual provider failure path cannot satisfy the updated invocation schema. This recreates the prior failure mode where a live Claude review failure cannot be represented as durable schema-valid failure evidence.",
+      "recommendation": "Add failure_stage and failure_message before writing invocation metadata for exit_code != 0, and add a targeted test for a non-zero provider process result validating the invocation metadata against schemas/reviewer-invocation.schema.json.",
+      "blocker_path": "pr-merge-readiness requires failed external reviewer invocations to be recorded as non-completed but schema-valid evidence; the schema requires either normalized_output_hash or failure_stage, while the non-zero provider path writes neither.",
+      "acceptance_impact": "Accepting this branch would leave the advertised failure-evidence hardening broken for live provider non-zero exits, so a provider-mirrored review failure can still block or confuse readiness without valid failure evidence.",
+      "mandatory_evidence_gap": true,
+      "calibration_reason": "This is P1 because it is a concrete validator/schema contradiction on a failure path explicitly named by the rerun scope, not a style or duplication concern.",
+      "status": "candidate-unvalidated"
+    },
+    {
+      "id": "ARCH-CODEX-P2-001",
+      "severity": "P2",
+      "category": "self-application-artifact-separation",
+      "title": "Active pr-merge-readiness binding still points at the superseded material change",
+      "evidence": [
+        ".agentsflow/workflows/pr-merge-readiness.binding.yaml:10 records run_id 2026-06-23-v0.2-pr-merge-readiness.",
+        ".agentsflow/workflows/pr-merge-readiness.binding.yaml:49 records raw_root under the older 2026-06-23-v0.2-pr-merge-readiness run.",
+        ".agentsflow/workflows/pr-merge-readiness.binding.yaml:120-124 records self_application.target_content_head fc5f09c.",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/run.yaml:13-18 records methodology_source_commit and target_content_head 8a2c197.",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/verification-gate-report.md:5-11 cites the same binding while declaring target content head 8a2c197."
+      ],
+      "why_it_matters": "The run artifacts consistently target 8a2c197, but the active project binding still carries fc5f09c-era self-application and raw evidence paths. That can confuse future reruns or operators about which run/material change the overlay is bound to.",
+      "recommendation": "Either update the binding to the rerun material change or remove run-specific fields from the reusable binding and keep material_change_id/run roots only in run artifacts.",
+      "no_blocker_path_reason": "I am not marking this P1 because the current review packet and verification artifacts are run-scoped to 8a2c197 and no final merge-ready claim has been made yet.",
+      "status": "candidate-unvalidated"
+    },
+    {
+      "id": "ARCH-CODEX-NOTE-001",
+      "severity": "NOTE",
+      "category": "workflow-composition-integrity",
+      "title": "Repeated review policy is duplication, not an acceptance blocker on current evidence",
+      "evidence": [
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/readiness-intake.md:45-48 classifies repeated review-control policy as non-blocking unless there is a concrete contradiction, broken validator path, or false readiness claim.",
+        "workflows/pr-merge-readiness/workflow.yaml:250-313 repeats review control and review cycle policy but keeps read-only reviewers, no hardcoded max_review_cycles, mandatory-evidence blocking, and no-majority-override semantics.",
+        "docs/review-agent-interaction-protocol.md:292-303 matches the two-control-reviewer collision rule and optional max_review_cycles policy.",
+        "docs/review-fusion-model.md:124-155 says workflows should not duplicate the shared finding-control procedure locally, but the checked pr-merge-readiness copy did not show a contradictory acceptance path."
+      ],
+      "why_it_matters": "Duplication raises maintenance risk, but I did not find a concrete current contradiction or false readiness path from this repetition.",
+      "recommendation": "Track factoring into a reusable policy/profile artifact after v0.2 unless another reviewer validates a concrete break path.",
+      "no_blocker_path_reason": "No grounded acceptance blocker found for the repeated review_control_rules/review_cycle text itself.",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQ-ARCH-001",
+      "request": "Add a targeted wrapper test for a real provider non-zero exit path and validate the produced reviewer-invocation metadata against schemas/reviewer-invocation.schema.json."
+    }
+  ],
+  "self_declared_limitations": [
+    "Read-only review only; I did not run tests, execute scripts, modify files, create patches, or update evidence.",
+    "I inspected the assigned packet, referenced artifacts, source files, schemas, validators, and git diff context, but did not invoke live Claude."
+  ]
+}

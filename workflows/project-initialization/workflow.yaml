@@ -1,36 +1,41 @@
 name: project-initialization
 version: 0.1
-intent: Initialize an existing or new project for AgentsFlow usage by creating a validated
-  project overlay from intake, raw scan, structured inventory, expert assessments
-  and human approval.
+intent: Run a mode-gated project initialization path for discovery, onboarding,
+  target-workflow preparation, legacy cleanup or risk/domain assessment. Overlay
+  drafting, validation and human approval are required only for modes that
+  activate or prepare project bindings/policy.
+default_strictness: L3
 category: onboarding
 mvp_status: support-workflow
 entry_criteria:
 - Project repository exists or project root is known.
-- AgentsFlow upstream is available via Git submodule or CMake FetchContent/FetchPackage-style
-  dependency.
+- AgentsFlow upstream is available or can be resolved when the run produces
+  overlay or workflow-binding artifacts.
 - A project intake/research assignment is provided. Unknown-project discovery uses
   the standard exploratory assignment, not an empty prompt.
+- The intake declares intent_mode. If intent_mode is prepare-workflow, it also
+  declares the supported target_workflow. In v0.2 the supported target is
+  big-feature-contract-first.
 outputs:
-- .agentsflow/agentsflow.lock.yaml
-- .agentsflow/project.yaml
 - project-intake.yaml
 - project-raw-scan.json
 - project-inventory.json
 - project-assessment.json
+- project-assessment.architecture.json
+- project-assessment.verification.json
+- project-assessment.adversarial.json
+- project-assessment.prompt-engineering.json when target workflow is prompt-sensitive
 - domain-identification section
-- workflow bindings
-- project-bound gate drafts
-- initialization-report.md
-- legacy-agent-system-inventory.json
-- legacy-adoption-decision.yaml
-- active-instruction-map.yaml
+- human questions or decisions when the selected intent mode requires them
+- mode-gated artifacts declared in mode_gated_outputs
 uses:
   skills:
   - project-intake-analysis
   - project-inventory-structuring
   - project-onboarding-assessment
+  - project-operating-decisions-interview
   - project-overlay-drafting
+  - reviewer-generalist
   - repository-grounding
   - decision-contracting
   - legacy-agent-system-discovery
@@ -43,10 +48,19 @@ uses:
   templates:
   - agentsflow.lock.yaml
   - project-intake.yaml
+  - human-questions.yaml
+  - human-decisions.yaml
   - research-assignment.unknown-project.md
   - project-raw-scan.json
   - project-inventory.json
+  - project-assessment.role.json
   - project-assessment.json
+  - project-operating-decisions.yaml
+  - finding-validation-report.md
+  - review-cycle-report.md
+  - documentation-history-index.md
+  - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md
   - project.yaml
   - workflow.binding.yaml
   - initialization-report.md
@@ -68,19 +82,199 @@ actor_model:
   researcher_agents:
     default_mode: read_only_structured_assessment
     require_research_assignment: true
+intent_modes:
+  required: true
+  prepare_workflow_requires_target_workflow: true
+  supported:
+  - unknown-discovery
+  - adoption-onboarding
+  - prepare-workflow
+  - legacy-cleanup
+  - risk-domain-assessment
+mode_gated_outputs:
+  unknown-discovery:
+  - project-raw-scan.json
+  - project-inventory.json
+  - project-assessment.architecture.json
+  - project-assessment.verification.json
+  - project-assessment.adversarial.json
+  - project-assessment.prompt-engineering.json when target workflow is prompt-sensitive
+  - project-assessment.json
+  - human-questions.yaml
+  adoption-onboarding:
+  - .agentsflow/agentsflow.lock.yaml
+  - project-operating-decisions.yaml
+  - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
+  - legacy-agent-system-inventory.json when legacy artifacts are in scope
+  - legacy-adoption-decision.yaml when legacy artifacts are in scope
+  - agent-instruction-migration-plan.md when legacy artifacts are in scope
+  - legacy-backup-manifest.yaml when legacy artifacts are in scope
+  - .agentsflow/project.yaml draft
+  - workflow bindings draft
+  - project-bound gate drafts
+  - active-instruction-map.yaml draft
+  - initialization-report.md
+  prepare-workflow:
+  - .agentsflow/agentsflow.lock.yaml when needed
+  - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
+  - target workflow binding draft
+  - target workflow human decision packet when target workflow operating context is missing or material design decisions are discovered
+  - finding-validation-report.md
+  - review-cycle-report.md
+  legacy-cleanup:
+  - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
+  - legacy-agent-system-inventory.json
+  - legacy-adoption-decision.yaml
+  - agent-instruction-migration-plan.md
+  - active-instruction-map.yaml draft
+  risk-domain-assessment:
+  - domain-identification section
+  - project-assessment.architecture.json
+  - project-assessment.verification.json
+  - project-assessment.adversarial.json
+  - project-assessment.prompt-engineering.json when target workflow is prompt-sensitive
+  - project-assessment.json
+  - human domain-expertise questions
+intent_mode_phase_policy:
+  phases_without_applies_to_intent_modes_apply_to_all: true
+  unknown-discovery:
+    may_exit_after: expert_assessment
+    must_not_require:
+    - documentation_disposition_decision
+    - operating_decisions_interview
+    - overlay_draft
+    - project_initialization_gate
+    - target_workflow_context_decision_packet
+    - target_workflow_readiness_gate
+    - target_workflow_binding_draft
+    - initialization_review
+    - finding_validation
+    - human_approval
+  adoption-onboarding:
+    requires:
+    - documentation_disposition_decision
+    - operating_decisions_interview
+    - overlay_draft
+    - project_initialization_gate
+    - initialization_review
+    - finding_validation
+    - human_approval
+  prepare-workflow:
+    requires_target_workflow: true
+    requires_sufficient_operating_context: true
+    target_workflow_context_decision_packet: conditional_when_target_workflow_context_or_material_design_decision_is_missing
+    overlay_scope: target_workflow_binding_and_gate_readiness_only
+    requires:
+    - documentation_disposition_decision
+    - target_workflow_readiness_gate
+    - target_workflow_binding_draft
+    - initialization_review
+    - finding_validation
+    conditional_requires:
+    - target_workflow_context_decision_packet
+    human_approval: required_only_before_activating_binding_or_policy
+  legacy-cleanup:
+    requires:
+    - documentation_disposition_decision
+    - legacy_adoption_mode_decision
+    - legacy_migration_or_quarantine_plan
+    - human_approval
+  risk-domain-assessment:
+    may_exit_after: expert_assessment
+    must_not_require:
+    - documentation_disposition_decision
+    - overlay_draft
+    - project_initialization_gate
+    - target_workflow_context_decision_packet
+    - target_workflow_readiness_gate
+    - target_workflow_binding_draft
+    - initialization_review
+    - finding_validation
+    - human_approval
+overlay_policy:
+  before_human_approval: draft_only
+  may_activate_overlay_before_approval: false
+  may_rewrite_agent_instructions_before_approval: false
+expert_assessment:
+  topology: triad-synthesis
+  reviewers_read_only: true
+  fresh_context_no_fork: true
+  role_reports:
+  - architecture
+  - verification
+  - adversarial
+  conditional_role_reports:
+  - role: prompt_engineering
+    when: target_workflow_or_target_feature_changes_prompt_specs_output_contracts_or_model_tool_use
+  synthesis_report: project-assessment.json
+expert_assessment_output_contract:
+  response_format: strict_json
+  schema: schemas/project-assessment.schema.json
+  role_report_template: templates/project-assessment.role.json
+  synthesis_template: templates/project-assessment.json
+  validation_required_before_synthesis: true
+  invalid_output_policy: reject_and_rerun_or_pause
+  raw_prose_must_not_be_normalized_as_authoritative: true
+  launch_prompt_requirements:
+  - return_only_valid_json
+  - no_markdown_or_prose_outside_json
+  - must_conform_to_schema
+  - no_human_questions_directly
+  - read_only_no_tests_no_edits
+  synthesis_requirements:
+  - all_role_reports_schema_valid
+  - role_report_validation_recorded
+  - invalid_role_output_blocks_synthesis
+  - candidate_findings_not_authoritative
+human_interaction:
+  mode: main-agent-mediated
+  reviewers_may_ask_human: false
+  pause_state: paused_waiting_for_human
+  question_artifact: human-questions.yaml
+  decision_artifact: human-decisions.yaml
+  allowed_pause_phases:
+  - read_project_intake
+  - documentation_disposition_decision
+  - legacy_adoption_mode_decision
+  - operating_decisions_interview
+  - target_workflow_context_decision_packet
+  - human_approval
+  allowed_resume_states:
+  - answered
+  - explicitly_deferred_with_constraints
 phases:
 - id: read_project_intake
   kind: intake
-  purpose: Read project-intake / research assignment. Unknown-project discovery uses
-    the standard exploratory assignment and gives the user a chance to provide context.
+  purpose: Read project-intake / research assignment, including intent_mode and
+    the supported target_workflow when intent_mode is prepare-workflow. Unknown-project discovery
+    uses the standard exploratory assignment and gives the user a chance to provide
+    context.
   mode: human_guided
   coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: project-intake-analysis
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: project-intake.yaml
+    allowed_resume_states:
+    - answered
+    - unresolved
   outputs:
   - project-intake.yaml
 - id: attach_or_verify_upstream
   kind: setup
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - prepare-workflow
+  - legacy-cleanup
   purpose: Attach or verify pinned AgentsFlow upstream via Git submodule or CMake
-    FetchContent/FetchPackage-style dependency.
+    FetchContent/FetchPackage-style dependency when the run will produce overlay,
+    workflow-binding or migration artifacts.
   outputs:
   - agentsflow.lock.yaml
 - id: raw_project_scan
@@ -97,88 +291,431 @@ phases:
   - documentation-history-index.md
 - id: legacy_agent_system_discovery
   kind: research
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - legacy-cleanup
   purpose: Discover existing AGENTS.md files, agent instructions, skills, prompts,
     workflow docs, process artifacts and Markdown implementation history that may
     conflict with AgentsFlow.
   outputs:
   - legacy-agent-system-inventory.json
   - agent-instruction-conflicts.md
-- id: legacy_adoption_mode_decision
-  kind: decision
-  purpose: Choose full-archive-rebuild, knowledge-extraction, minimal-patch-adapt
-    or shadow-pilot adoption mode for existing agent/process artifacts.
-  outputs:
-  - legacy-adoption-decision.yaml
-- id: legacy_migration_or_quarantine_plan
-  kind: specification
-  purpose: Draft migration, extraction, patch or quarantine plan and active instruction
-    map.
-  outputs:
-  - agent-instruction-migration-plan.md
-  - legacy-backup-manifest.yaml
-  - active-instruction-map.yaml
-- id: domain_identification
-  kind: research
-  purpose: Identify apparent project domain(s), domain evidence, domain assumptions
-    and user domain-expertise questions.
-  outputs:
-  - domain-identification section in project-inventory.json
 - id: structured_project_inventory
   kind: specification
   purpose: Model fills project-inventory.json from raw scan plus selected docs, separating
     observed facts, inferred judgments, and domain assumptions.
   outputs:
   - project-inventory.json
+- id: domain_identification
+  kind: research
+  purpose: Identify apparent project domain(s), domain evidence, domain assumptions
+    and user domain-expertise questions from the structured inventory and project
+    evidence.
+  runs_after:
+  - structured_project_inventory
+  outputs:
+  - domain-identification section in project-inventory.json
 - id: expert_assessment
   kind: review
-  purpose: Read-only expert agents produce candidate workflow/gate/risk recommendations.
+  purpose: Read-only architecture, verification and adversarial assessment agents
+    produce schema-valid JSON candidate workflow/gate/risk recommendations; prompt-sensitive
+    target workflows may add a prompt-engineering assessment. The main agent may
+    synthesize them into project-assessment.json only after schema validation passes.
+  skills:
+  - project-onboarding-assessment
+  output_contract: expert_assessment_output_contract
   outputs:
+  - project-assessment.architecture.json
+  - project-assessment.verification.json
+  - project-assessment.adversarial.json
+  - project-assessment.prompt-engineering.json when target workflow is prompt-sensitive
   - project-assessment.json
+- id: documentation_disposition_decision
+  kind: decision
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - prepare-workflow
+  - legacy-cleanup
+  purpose: Ask the human to choose an explicit documentation legacy adoption mode,
+    then classify current project documentation and Markdown history as authoritative,
+    evidence-only, extract-and-normalize, stale/superseded, needs-human-decision
+    or rewrite/delete only after approval. This decision is broader than legacy
+    agent-system adoption and must not rewrite or delete existing project docs
+    during initialization.
+  legacy_adoption_question_required: true
+  agent_may_select_legacy_adoption_without_human: false
+  supported_documentation_legacy_adoption_modes:
+  - preserve-as-is
+  - knowledge-extraction
+  - rewrite-migration
+  - archive-delete
+  supported_documentation_extraction_depths:
+  - light
+  - standard
+  - deep
+  default_documentation_extraction_depth_by_intent_mode:
+    prepare-workflow: standard
+    adoption-onboarding: standard
+    legacy-cleanup: standard
+  optional_light_depth_allowed_for: exploratory, design-only or pilot runs that
+    do not unlock an implementation phase unless the human explicitly accepts the
+    risk.
+  documentation_legacy_adoption_modes:
+    preserve-as-is: Keep project documentation nearly unchanged and classify it
+      for authority/evidence use.
+    knowledge-extraction: Extract normalized knowledge into AgentsFlow artifacts
+      while preserving source docs unless separately approved. Depth is selected
+      separately as light, standard or deep.
+    rewrite-migration: Rewrite or migrate project documentation after explicit
+      human approval and a migration plan.
+    archive-delete: Archive or delete stale documentation only after explicit
+      human approval and backup/quarantine evidence.
+  implementation_readiness_rule: "extraction_depth: light cannot unlock an implementation phase unless the human explicitly accepts that risk or the workflow upgrades extraction_depth to standard or deep."
+  runs_after:
+  - documentation_and_history_discovery
+  - expert_assessment
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: documentation-history-index.md
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: project-documentation-disposition.yaml
+    allowed_resume_states:
+    - answered
+  inputs:
+  - documentation-history-index.md
+  - project-inventory.json
+  - project-assessment.json
+  outputs:
+  - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
+- id: legacy_adoption_mode_decision
+  kind: decision
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - legacy-cleanup
+  purpose: Choose full-archive-rebuild, knowledge-extraction, minimal-patch-adapt
+    or shadow-pilot adoption mode for existing agent/process artifacts after the
+    structured inventory, domain identification and expert assessment exist.
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: legacy-agent-system-discovery
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: legacy-adoption-decision.yaml
+    allowed_resume_states:
+    - answered
+    - defaulted
+    - unresolved
+  inputs:
+  - project-inventory.json
+  - project-assessment.json
+  - project-documentation-disposition.yaml
+  - legacy-agent-system-inventory.json
+  outputs:
+  - legacy-adoption-decision.yaml
+- id: legacy_migration_or_quarantine_plan
+  kind: specification
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - legacy-cleanup
+  purpose: Draft migration, extraction, patch or quarantine plan and active instruction
+    map after the legacy adoption mode has been decided or explicitly deferred.
+  runs_after:
+  - legacy_adoption_mode_decision
+  inputs:
+  - legacy-adoption-decision.yaml
+  - project-assessment.json
+  outputs:
+  - agent-instruction-migration-plan.md
+  - legacy-backup-manifest.yaml
+  - active-instruction-map.yaml
+- id: operating_decisions_interview
+  kind: decision
+  applies_to_intent_modes:
+  - adoption-onboarding
+  purpose: Conduct an agent-led dialogue with the human project owner to decide
+    gate policy, review topology, reviewer/model strategy, review-cycle limits,
+    risk-surface policy, authority boundaries and evidence storage before
+    drafting the project overlay.
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: project-operating-decisions-interview
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: project-operating-decisions.yaml
+    allowed_resume_states:
+    - answered
+    - defaulted
+    - unresolved
+  inputs:
+  - project-intake.yaml
+  - project-inventory.json
+  - project-assessment.json
+  outputs:
+  - project-operating-decisions.yaml
+- id: target_workflow_context_decision_packet
+  kind: decision
+  applies_to_intent_modes:
+  - prepare-workflow
+  purpose: Capture missing gate, review, evidence or authority context, plus
+    material scope, ADR, risk-surface, Failure Path Matrix, contract, gate,
+    review, evidence, authority or workflow-design decisions discovered while
+    preparing the declared target workflow, as a run-level decision packet.
+    This phase must not promote those answers into long-lived project operating
+    policy unless the human explicitly switches to onboarding or policy
+    activation.
+  decision_categories:
+  - scope
+  - adr
+  - risk
+  - risk-surface
+  - failure-path-matrix
+  - contract
+  - gate
+  - review
+  - evidence
+  - authority
+  - workflow-design
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: target workflow readiness preflight
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: human-decisions.yaml
+    allowed_resume_states:
+    - answered
+    - explicitly_deferred_with_constraints
+    resume_policy:
+      unresolved_blocking_material_decisions: block_target_workflow_readiness
+      unresolved_nonblocking_decisions: may_resume_as_follow_up_or_limitation
+  inputs:
+  - project-intake.yaml
+  - project-inventory.json
+  - project-assessment.json
+  - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
+  - existing project policy/workflow binding when available
+  - target workflow preflight findings when available
+  outputs:
+  - target workflow human decision packet
+  - human-decisions.yaml
 - id: overlay_draft
   kind: specification
+  applies_to_intent_modes:
+  - adoption-onboarding
   purpose: Draft .agentsflow project overlay, workflow bindings and project-bound
-    gates.
+    gates from inventory, expert recommendations and confirmed or explicitly
+    unresolved operating decisions. These artifacts remain draft-only until
+    human approval.
+  inputs:
+  - project-inventory.json
+  - project-assessment.json
+  - project-documentation-disposition.yaml
+  - project-operating-decisions.yaml when adoption-onboarding mode drafts a project overlay
   outputs:
-  - project.yaml
-  - workflow bindings
-  - project-bound gate drafts
+  - project.yaml draft for adoption-onboarding
+  - workflow bindings draft for adoption-onboarding
+  - project-bound gate drafts for adoption-onboarding
 - id: project_initialization_gate
   kind: gate
+  applies_to_intent_modes:
+  - adoption-onboarding
   gate: project_initialization_gate
-  purpose: Validate initialization artifacts and overlay structure.
+  purpose: Validate onboarding initialization artifacts and draft project overlay
+    structure before review and human approval.
   outputs:
   - project-initialization-gate-report.md
+- id: target_workflow_readiness_gate
+  kind: gate
+  applies_to_intent_modes:
+  - prepare-workflow
+  gate: target_workflow_readiness_gate
+  runs_after:
+  - target_workflow_context_decision_packet
+  runs_after_policy: after_conditional_target_workflow_context_decision_packet_when_required
+  purpose: Validate that prepare-workflow has a declared target workflow and enough
+    project-bound operating context, or has captured the missing gate, review,
+    evidence, risk-surface, Failure Path Matrix, authority and material design
+    decisions as a human decision packet.
+  outputs:
+  - target-workflow-readiness-gate-report.md
+- id: target_workflow_binding_draft
+  kind: specification
+  applies_to_intent_modes:
+  - prepare-workflow
+  runs_after:
+  - target_workflow_readiness_gate
+  purpose: Draft the target workflow binding/readiness handoff after
+    target_workflow_readiness_gate has accepted the operating context. Unresolved
+    blocking-material decisions are routed to human decision handling and block
+    this phase.
+  inputs:
+  - project-inventory.json
+  - project-assessment.json
+  - project-documentation-disposition.yaml
+  - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
+  - target-workflow-readiness-gate-report.md
+  - target workflow human decision packet when prepare-workflow mode has missing context or material design decisions
+  - existing project policy/workflow binding when prepare-workflow mode already has sufficient context
+  outputs:
+  - target workflow binding draft for prepare-workflow
+- id: initialization_review
+  kind: review
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - prepare-workflow
+  purpose: Run the configured read-only initialization review after the applicable
+    mode-specific gate and before human approval or activation.
+  runs_after:
+  - project_initialization_gate
+  - target_workflow_readiness_gate
+  - target_workflow_binding_draft
+  runs_after_policy: after_applicable_intent_mode_gate_and_prepare_workflow_binding_draft
+  outputs:
+  - reviewer reports
+- id: finding_validation
+  kind: finding_validation
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - prepare-workflow
+  purpose: Validate initialization review candidate findings against the selected
+    intent mode, applicable gate evidence, accepted ADRs and project policy before
+    human approval or activation.
+  runs_after:
+  - initialization_review
+  outputs:
+  - finding-validation-report.md
+  - review-cycle-report.md
 - id: human_approval
   kind: decision
-  purpose: Human approves, rejects or requests changes to the project overlay.
+  applies_to_intent_modes:
+  - adoption-onboarding
+  - prepare-workflow
+  - legacy-cleanup
+  purpose: Human approves, rejects or requests changes to the draft project overlay,
+    workflow bindings, active instruction map and operating decisions.
+  runs_after:
+  - finding_validation
+  - legacy_migration_or_quarantine_plan
+  runs_after_policy: after_applicable_intent_mode_preapproval_phase
+  mode: human_guided
+  coordinator: main-agent
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: initialization-report.md
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: initialization-report.md
+    allowed_resume_states:
+    - answered
+    - rejected
+    - unresolved
   outputs:
   - initialization-report.md
 exit_criteria:
 - Project intake was recorded and standard exploratory assignment was used when no
   user direction was provided.
+- intent_mode was recorded, and target_workflow was recorded when intent_mode was
+  prepare-workflow.
 - Raw scan and structured inventory exist.
 - Documentation and Markdown implementation history were considered when present.
+- Current project documentation disposition was recorded before legacy adoption,
+  target-workflow readiness or overlay drafting for existing-project modes.
+- Documentation legacy adoption mode was explicitly confirmed by the human;
+  the main agent did not select preserve-as-is, knowledge extraction,
+  rewrite/migration or archive/delete without human confirmation.
+- Documentation extraction depth was recorded separately from adoption mode when
+  knowledge extraction was selected. Light extraction does not unlock an
+  implementation phase unless the human explicitly accepts that risk or the
+  workflow upgrades extraction depth to standard or deep.
 - Domain identification and user domain-expertise questions were recorded.
-- Project overlay was drafted or explicitly deferred.
-- Human approval state is recorded.
+- For adoption-onboarding, human operating decisions were collected through an
+  agent-led dialogue or explicitly marked as unresolved before overlay drafting.
+- For prepare-workflow, sufficient target workflow operating context was found
+  or missing gate/review/evidence/risk-surface/Failure Path Matrix/authority
+  context and material target-workflow design decisions were confirmed or
+  explicitly deferred with stated constraints in a human decision packet.
+  Unresolved blocking-material decisions block target workflow readiness.
+- For unknown-discovery and risk-domain-assessment, overlay drafting and human
+  approval were not required unless explicitly requested.
+- Project overlay or target workflow binding was drafted or explicitly deferred
+  according to intent_mode.
+- Draft overlay artifacts were not treated as active policy before human approval.
+- Human approval state is recorded when draft artifacts are activated or when
+  project policy requires approval.
 - Legacy agent/process artifacts were discovered and classified when present.
-- Legacy adoption mode was selected or explicitly deferred.
+- Legacy adoption mode was selected or explicitly deferred when legacy cleanup or
+  onboarding was in scope.
 - Active instruction map exists or is explicitly deferred for non-existing legacy
   artifacts.
+review_control_rules:
+  review_findings_are_candidate_findings: true
+  main_agent_must_validate_finding_relevance: true
+  post_fix_materiality_classification_required: true
 review:
-  topology: single-reviewer
+  topology: homogeneous-dual
+  composition: homogeneous
   reviewers:
-  - verification
+  - generalist-a
+  - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
   gates:
   - project_initialization_gate
+  - target_workflow_readiness_gate
   fusion_required: false
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles: 1
+  max_review_cycles_required: false
+  max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
   rerun_review_on:
   - project_overlay_materially_changed
   - mandatory_evidence_added
   - human_requested
   do_not_rerun_on:
-  - nonblocking_findings_only
+  - nonblocking_findings_with_non_material_fixes_only
   - irrelevant_findings_rejected_with_reason
+  materiality_classification:
+    required_after_review_fixes: true
+    material_triggers_take_precedence_over_do_not_rerun: true
+    material_if_changes:
+    - task_contract_or_scope
+    - selected_risk_surfaces_or_failure_path_matrix
+    - behavior_bindings
+    - affected_implementation_behavior
+    - review_packet_content
+    - target_workflow_context_decision_packet
+    - project_overlay_or_binding
+    - workflow_or_gate_policy
+    - review_cycle_policy
+    - schema_or_validator
+    - mandatory_evidence
+    - examples_used_as_evidence
+    non_material_if_only:
+    - report_editorial_changes_only
+    - duplicate_consolidation
+    - non_source_of_truth_notes

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Human Decisions",
+  "type": "object",
+  "required": ["version", "run_id", "decisions"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {"type": "integer"},
+    "run_id": {"type": "string"},
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "decision_id",
+          "phase_id",
+          "question_ref",
+          "answer",
+          "status",
+          "answered_by",
+          "classification",
+          "affected_artifacts"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "decision_id": {"type": "string"},
+          "phase_id": {"type": "string"},
+          "question_ref": {"type": "string"},
+          "answer": {},
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "defaulted",
+              "unresolved",
+              "rejected",
+              "superseded",
+              "explicitly_deferred_with_constraints"
+            ]
+          },
+          "answered_by": {"type": "string"},
+          "classification": {
+            "type": "string",
+            "enum": ["blocking-material", "nonblocking-follow-up", "nonblocking-known-limitation", "out-of-scope"]
+          },
+          "rationale": {"type": "string"},
+          "deferral_constraints": {
+            "type": "object",
+            "required": ["constraints"],
+            "additionalProperties": true,
+            "properties": {
+              "constraints": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              },
+              "owner": {"type": "string"},
+              "review_before": {"type": "string"}
+            }
+          },
+          "affected_artifacts": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "classification": {"const": "blocking-material"}
+              },
+              "required": ["classification"]
+            },
+            "then": {
+              "not": {
+                "properties": {
+                  "status": {"const": "defaulted"}
+                },
+                "required": ["status"]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {"const": "explicitly_deferred_with_constraints"}
+              },
+              "required": ["status"]
+            },
+            "then": {
+              "required": ["deferral_constraints"]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

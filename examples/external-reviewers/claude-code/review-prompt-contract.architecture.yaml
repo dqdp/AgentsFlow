@@ -1,0 +1,132 @@
+version: 1
+artifact_kind: review_prompt_contract
+artifact_scope: example
+
+identity:
+  run_id: YYYY-MM-DD-task-slug
+  workflow: big-feature-contract-first
+  phase_id: review
+  review_profile: heterogeneous-variable
+  topology: heterogeneous-variable
+  composition: heterogeneous
+  effective_strictness: L3
+  strictness_source: workflow_default
+  primary_gate: true
+
+inputs:
+  review_packet_schema: schemas/review-packet.schema.json
+  review_packets:
+    - reviewer: architecture
+      path: examples/external-reviewers/claude-code/review-packet.architecture.json
+      schema: schemas/review-packet.schema.json
+      packet_hash: sha256:<architecture-review-packet>
+    - reviewer: verification
+      path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-packets/verification.json
+      schema: schemas/review-packet.schema.json
+      packet_hash: sha256:<verification-review-packet>
+    - reviewer: adversarial
+      path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-packets/adversarial.json
+      schema: schemas/review-packet.schema.json
+      packet_hash: sha256:<adversarial-review-packet>
+  output_schema: schemas/reviewer-report.schema.json
+  task_contract: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/task.contract.md
+  verification_gate_report: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/verification-gate-report.md
+  evidence_report: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/evidence-report.md
+
+reviewer_set:
+  - instance_id: architecture
+    role_id: architecture
+    role_contract: profiles/reviewer_roles/architecture.yaml
+    independent: true
+    focus_zone:
+      primary_focus:
+        - boundaries
+        - ADR consistency
+        - coupling
+        - design drift
+      may_report_outside_focus: true
+  - instance_id: verification
+    role_id: verification
+    role_contract: profiles/reviewer_roles/verification.yaml
+    independent: true
+    focus_zone:
+      primary_focus:
+        - tests
+        - gate evidence
+        - red/green framing
+        - regression coverage
+      may_report_outside_focus: true
+  - instance_id: adversarial
+    role_id: adversarial
+    role_contract: profiles/reviewer_roles/adversarial.yaml
+    independent: true
+    focus_zone:
+      primary_focus:
+        - counterexamples
+        - hidden failure modes
+        - bypasses
+        - false completion
+      may_report_outside_focus: true
+
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+  allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
+
+permission_policy:
+  read_only: true
+  forbidden_actions:
+    - run_tests
+    - run_scripts
+    - modify_files
+    - create_patch
+    - update_evidence
+  explicit_tool_exceptions: []
+
+prompt_components:
+  shared_base_instructions: templates/review-prompts/base.md
+  role_contract_source: profiles/reviewer_roles/*.yaml
+  focus_supplement_source: focus_zone
+  finding_lifecycle: candidate-unvalidated
+  output_instructions: schemas/reviewer-report.schema.json
+
+prompt_policy:
+  focus_prompts_required: true
+  shared_packet_allowed: true
+  focus_zones_may_overlap: true
+  all_reviewers_must_report_p0_p1_outside_focus: true
+
+rendered_prompts:
+  - reviewer: architecture
+    prompt_path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-prompts/architecture.md
+    prompt_hash: sha256:<architecture-rendered-prompt>
+    packet_hash: sha256:<architecture-review-packet>
+    schema_hash: sha256:<reviewer-report-schema>
+    rubric_hash: sha256:<shared-heterogeneous-rubric>
+    role_contract_hash: sha256:<architecture-role-contract>
+  - reviewer: verification
+    prompt_path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-prompts/verification.md
+    prompt_hash: sha256:<verification-rendered-prompt>
+    packet_hash: sha256:<verification-review-packet>
+    schema_hash: sha256:<reviewer-report-schema>
+    rubric_hash: sha256:<shared-heterogeneous-rubric>
+    role_contract_hash: sha256:<verification-role-contract>
+  - reviewer: adversarial
+    prompt_path: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-prompts/adversarial.md
+    prompt_hash: sha256:<adversarial-rendered-prompt>
+    packet_hash: sha256:<adversarial-review-packet>
+    schema_hash: sha256:<reviewer-report-schema>
+    rubric_hash: sha256:<shared-heterogeneous-rubric>
+    role_contract_hash: sha256:<adversarial-role-contract>
+
+collision_control: null
+
+validation:
+  schema: schemas/review-prompt-contract.schema.json
+  assembly_invariants:
+    - heterogeneous-variable uses three to eight reviewers.
+    - every heterogeneous reviewer has a role contract and focus zone.
+    - focus zones may overlap.
+    - every reviewer must report plausible P0/P1 blockers outside focus.

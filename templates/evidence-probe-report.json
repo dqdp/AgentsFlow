@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "artifact_kind": "evidence_probe_report",
+  "run_id": "YYYY-MM-DD-task-slug",
+  "workflow": "big-feature-contract-first",
+  "probe_id": "probe-001",
+  "objective": "Collect missing evidence for a narrow needs-more-evidence objective.",
+  "trigger": "needs_more_evidence",
+  "context_policy": {
+    "start_mode": "fresh_context",
+    "fork_conversation_context": false,
+    "allowed_context_sources": [
+      "probe_packet",
+      "referenced_artifacts",
+      "project_bound_instruments"
+    ]
+  },
+  "permission_policy": {
+    "read": true,
+    "modify_files": false,
+    "run_project_bound_instruments_only": true,
+    "may_decide_findings": false
+  },
+  "allowed_instruments": [
+    {
+      "id": "verification-gate",
+      "source": "project_binding"
+    }
+  ],
+  "commands_run": [
+    {
+      "instrument_id": "verification-gate",
+      "command": "<project-bound command>",
+      "exit_code": 0,
+      "result": "pass"
+    }
+  ],
+  "evidence_collected": [
+    {
+      "kind": "gate-log",
+      "reference": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/evidence/<log>",
+      "summary": "Evidence collected for the probe objective."
+    }
+  ],
+  "limitations": [],
+  "decision_authority": "none-evidence-only"
+}

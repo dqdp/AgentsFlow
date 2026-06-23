@@ -5,6 +5,12 @@ bindings:
     scenario: "Required behavior scenario name"
     required: true
     status: executable
+    risk_surfaces:
+      - authority_boundary
+    path_class: valid_delegation
+    evidence_class: script
+    failure_path_matrix_refs:
+      - FPM-001
     source:
       type: contract
       path: task.contract.md
@@ -13,7 +19,7 @@ bindings:
     checks:
       - id: example-check
         type: script
-        command: "python scripts/example_check.py"
+        command: "python3 scripts/example_check.py"
         evidence:
           - example-check-report
     gates:

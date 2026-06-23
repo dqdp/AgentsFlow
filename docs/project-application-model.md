@@ -36,25 +36,19 @@ my-project/
   .agentsflow/
     agentsflow.lock.yaml          # pinned upstream version/commit/source
     project.yaml                  # project-level AgentsFlow config
+    project-operating-decisions.yaml # human-owned gate/review/evidence decisions from agent-led interview
     upstream/                     # pinned AgentsFlow dependency; read-only during normal work
 
     workflows/                    # project bindings for upstream workflows
       big-feature-contract-first.binding.yaml
-      bugfix-regression-capture.binding.yaml
-      review-only-fusion.binding.yaml
-      new-project-spec-first.binding.yaml
 
     gates/                        # project-bound executable gate manifests
       plan_gate.yaml
       verification_gate.yaml
-      regression_gate.yaml
-      evidence_gate.yaml
-      spec_review_gate.yaml
 
     scripts/                      # project-specific deterministic runners/checks
       run_plan_gate.sh
       run_verification_gate.sh
-      run_regression_gate.sh
       collect_evidence.sh
       check_boundaries.py
 
@@ -81,9 +75,31 @@ Rare. Updating `.agentsflow/upstream` or `agentsflow.lock.yaml` is a process cha
 
 Medium frequency. Examples: adding a new static analyzer, changing the verification gate, changing review topology, or changing evidence storage.
 
+Changes to `project-operating-decisions.yaml` are policy changes, not ordinary run
+artifacts. They should be made through the same agent-led decision interview
+style used during initialization: the agent asks focused questions, summarizes
+the decision, records provenance/status, and then updates the structured
+artifact.
+
 ### C. Workflow run
 
 Frequent. A feature, bugfix, review, or project specification task creates a run directory under `Docs/agentsflow/runs/`.
+
+Workflow-run human interaction uses `human-questions.yaml` and
+`human-decisions.yaml` as run artifacts. They are not long-lived policy files by
+themselves. Long-lived operating policy is normalized into
+`.agentsflow/project-operating-decisions.yaml` only when the workflow or project
+policy says the decision should persist beyond the current run.
+
+For `prepare-workflow` initialization, the project does not have to prove that a
+full onboarding workflow already ran. It must provide enough operating context
+for the target workflow: project or draft binding, verification gate policy,
+review policy, evidence/run artifact location and any human-owned authority
+decisions that affect the workflow. If preparation reveals a material design
+fork that affects scope, ADR alignment, risk posture, contracts, gates, review,
+evidence, authority or workflow-design, the run records it as a human-mediated
+target-workflow decision checkpoint before the binding/readiness artifacts are
+treated as ready.
 
 ## Operational rules
 
@@ -92,9 +108,15 @@ Frequent. A feature, bugfix, review, or project specification task creates a run
 2. Project-specific commands and tools live in the project overlay, not upstream.
 3. Task-specific contracts, plans, reports and evidence live in workflow run directories.
 4. Long-lived accepted decisions are promoted to normal project docs/ADRs.
-5. No silent upstream drift: every project records the pinned AgentsFlow version/commit.
+5. Draft overlays and active-instruction maps are not active policy until human approval.
+6. No silent upstream drift: every project records the pinned AgentsFlow version/commit.
 ```
 
 ## Relationship to project binding
 
-The project overlay binds universal AgentsFlow workflows and gate contracts to a concrete repository. See `docs/project-binding-model.md`.
+The project overlay binds universal AgentsFlow workflows and gate contracts to a
+concrete repository. `.agentsflow/project.yaml` uses the flat canonical manifest
+shape from `docs/project-binding-model.md`; upstream source/pinning details live
+in `.agentsflow/agentsflow.lock.yaml`.
+
+See `docs/project-binding-model.md`.

@@ -1,0 +1,280 @@
+version: 1
+artifact_kind: review_prompt_contract
+artifact_scope: run
+identity:
+  run_id: 2026-06-23-v0.2-pr-merge-readiness-daed76c
+  workflow: pr-merge-readiness
+  phase_id: provider_mirrored_review
+  review_profile: heterogeneous-variable
+  topology: heterogeneous-variable
+  composition: heterogeneous
+  effective_strictness: L3
+  strictness_source: workflow_default
+  primary_gate: true
+inputs:
+  review_packet_schema: schemas/review-packet.schema.json
+  review_packets:
+  - reviewer: verification-codex
+    path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/verification-codex.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:b70f041177b0350c83016323d67f52a1063edecb88d6605cd4df54afd67ebe7b
+  - reviewer: verification-claude
+    path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/verification-claude.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:aab2b15191f6c23961b6d97ff6a2ea895cd0716deeb47ed7dff7369d4aaa9e07
+  - reviewer: architecture-codex
+    path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/architecture-codex.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:ce37260ff0cf090ea4ac385853e2af0a90641078fcbda0e29c208e0b83f15b4b
+  - reviewer: architecture-claude
+    path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/architecture-claude.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:3ae19712df15ccac8e738bb8dc2c28022d04d20ddae61ad5fabb5f75fcdfb049
+  - reviewer: adversarial-codex
+    path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/adversarial-codex.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:aa6f776d6cf02b0ed1d76cad7559915cb07d4d38133239268e63eb5d37aa83bc
+  - reviewer: adversarial-claude
+    path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/adversarial-claude.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:25346d62159a22f1e2c572522aae6db64aa61c592d714a4623a3ec19cb0ae0ad
+  output_schema: schemas/reviewer-report.schema.json
+  verification_gate_report: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/verification-gate-report.md
+  evidence_report: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence-report.md
+  command_evidence: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/command-evidence.json
+  artifact_preparation_report: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-artifact-preparation.json
+  review_invocation_set: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-invocation-set.json
+  reviewed_artifacts:
+  - path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/readiness-intake.md
+    kind: readiness_intake
+  - path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence-report.md
+    kind: evidence_report
+  - path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/command-evidence.json
+    kind: command_evidence
+  - path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/verification-gate-report.md
+    kind: verification_gate_report
+reviewer_set:
+- instance_id: verification-codex
+  role_id: verification
+  role_contract: profiles/reviewer_roles/verification.yaml
+  independent: true
+  focus_zone:
+    topic: verification-evidence
+    provider_pair: verification
+    primary_focus:
+    - deterministic validation evidence
+    - test and schema coverage
+    - stale or missing artifacts
+- instance_id: verification-claude
+  role_id: verification
+  role_contract: profiles/reviewer_roles/verification.yaml
+  independent: true
+  focus_zone:
+    topic: verification-evidence
+    provider_pair: verification
+    primary_focus:
+    - deterministic validation evidence
+    - test and schema coverage
+    - stale or missing artifacts
+- instance_id: architecture-codex
+  role_id: architecture
+  role_contract: profiles/reviewer_roles/architecture.yaml
+  independent: true
+  focus_zone:
+    topic: architecture-process
+    provider_pair: architecture
+    primary_focus:
+    - workflow boundary
+    - methodology consistency
+    - self-application artifact separation
+    - workflow composition integrity
+- instance_id: architecture-claude
+  role_id: architecture
+  role_contract: profiles/reviewer_roles/architecture.yaml
+  independent: true
+  focus_zone:
+    topic: architecture-process
+    provider_pair: architecture
+    primary_focus:
+    - workflow boundary
+    - methodology consistency
+    - self-application artifact separation
+    - workflow composition integrity
+- instance_id: adversarial-codex
+  role_id: adversarial
+  role_contract: profiles/reviewer_roles/adversarial.yaml
+  independent: true
+  focus_zone:
+    topic: adversarial-authority
+    provider_pair: adversarial
+    primary_focus:
+    - false readiness claims
+    - missing human approval
+    - mock-vs-live external review evidence
+- instance_id: adversarial-claude
+  role_id: adversarial
+  role_contract: profiles/reviewer_roles/adversarial.yaml
+  independent: true
+  focus_zone:
+    topic: adversarial-authority
+    provider_pair: adversarial
+    primary_focus:
+    - false readiness claims
+    - missing human approval
+    - mock-vs-live external review evidence
+provider_policy:
+  allow_external_reviewers: true
+  require_model_diversity: true
+  min_distinct_provider_model_families: 2
+  unsupported_provider_behavior: config_blocker
+reviewer_assignments:
+- reviewer: verification-codex
+  provider: internal-agent
+  model_family: codex
+  packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/verification-codex.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.verification-codex.json
+- reviewer: verification-claude
+  provider: claude-code
+  model_family: opus
+  requested_model: opus
+  requested_effort: max
+  provider_config: .agentsflow/external-reviewers/claude-code.yaml
+  packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/verification-claude.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.verification-claude.json
+  raw_output_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/raw/verification-claude.raw.json
+  invocation_metadata_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-invocation.verification-claude.json
+- reviewer: architecture-codex
+  provider: internal-agent
+  model_family: codex
+  packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/architecture-codex.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.architecture-codex.json
+- reviewer: architecture-claude
+  provider: claude-code
+  model_family: opus
+  requested_model: opus
+  requested_effort: max
+  provider_config: .agentsflow/external-reviewers/claude-code.yaml
+  packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/architecture-claude.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.architecture-claude.json
+  raw_output_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/raw/architecture-claude.raw.json
+  invocation_metadata_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-invocation.architecture-claude.json
+- reviewer: adversarial-codex
+  provider: internal-agent
+  model_family: codex
+  packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/adversarial-codex.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.adversarial-codex.json
+- reviewer: adversarial-claude
+  provider: claude-code
+  model_family: opus
+  requested_model: opus
+  requested_effort: max
+  provider_config: .agentsflow/external-reviewers/claude-code.yaml
+  packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/adversarial-claude.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.adversarial-claude.json
+  raw_output_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/raw/adversarial-claude.raw.json
+  invocation_metadata_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-invocation.adversarial-claude.json
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+  allowed_context_sources:
+  - review_packet
+  - referenced_artifacts
+permission_policy:
+  read_only: true
+  forbidden_actions:
+  - run_tests
+  - run_scripts
+  - modify_files
+  - create_patch
+  - update_evidence
+  explicit_tool_exceptions: []
+prompt_components:
+  shared_base_instructions: templates/review-prompts/base.md
+  finding_lifecycle: candidate-unvalidated
+  output_instructions: schemas/reviewer-report.schema.json
+prompt_policy:
+  focus_prompts_required: true
+  focus_zones_may_overlap: true
+  all_reviewers_must_report_p0_p1_outside_focus: true
+  same_output_schema: true
+  provider_mirrored_topic_pairs: true
+risk_surface_profile:
+  selected_risk_surfaces:
+  - verification_evidence
+  - architecture_process
+  - adversarial_authority
+  - workflow_composition_integrity
+  review_topology_source: human_decision
+  escalation_reason: PR acceptance uses provider-mirrored topic-pair review.
+failure_path_matrix:
+  path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/readiness-intake.md
+  rows:
+  - id: FPM-VERIFY-001
+    risk_surface: verification_evidence
+    path_class: missing_or_stale_required_evidence
+    evidence_binding: evidence-report.md, evidence/command-evidence.json and verification-gate-report.md
+  - id: FPM-COMPOSITION-001
+    risk_surface: workflow_composition_integrity
+    path_class: modularity_drift_or_policy_contradiction
+    evidence_binding: readiness-intake.md workflow_composition_integrity focus
+  - id: FPM-ARCH-001
+    risk_surface: architecture_process
+    path_class: methodology_boundary_or_self_application_confusion
+    evidence_binding: readiness-intake.md and architecture-process review focus
+  - id: FPM-AUTH-001
+    risk_surface: adversarial_authority
+    path_class: false_merge_ready_claim_without_human_decision
+    evidence_binding: human-decisions.yaml must exist before merge_ready
+known_blockers: []
+rendered_prompts:
+- reviewer: verification-codex
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-prompts/verification-codex.md
+  prompt_hash: sha256:a68db0ca31c5330c72d85cc5e9e301b39aa397d943ffa84b81fadb08571ffab0
+  packet_hash: sha256:b70f041177b0350c83016323d67f52a1063edecb88d6605cd4df54afd67ebe7b
+  schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
+  rubric_hash: sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7
+  role_contract_hash: sha256:f84eaababb550c5b14f9a6c98b015d3f94379e5813b4fb63ed466d0ef3debf1f
+- reviewer: verification-claude
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-prompts/verification-claude.md
+  prompt_hash: sha256:7ab8a958c5371a0bf5872b176e4b90ddea98e21dba8cac9420db7c6960b1e817
+  packet_hash: sha256:aab2b15191f6c23961b6d97ff6a2ea895cd0716deeb47ed7dff7369d4aaa9e07
+  schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
+  rubric_hash: sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7
+  role_contract_hash: sha256:f84eaababb550c5b14f9a6c98b015d3f94379e5813b4fb63ed466d0ef3debf1f
+- reviewer: architecture-codex
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-prompts/architecture-codex.md
+  prompt_hash: sha256:8cef1affc908af1867a6d77a04f9ce24a35cd691044cb9a9631802ccc60b7a57
+  packet_hash: sha256:ce37260ff0cf090ea4ac385853e2af0a90641078fcbda0e29c208e0b83f15b4b
+  schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
+  rubric_hash: sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7
+  role_contract_hash: sha256:a866516c5cbcb62caf987046bf82432d5bcfbfba2bcc132a0ab99db9ad7bace0
+- reviewer: architecture-claude
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-prompts/architecture-claude.md
+  prompt_hash: sha256:dc1cd85112a8e465a220af661d868baa731163930fcd4a4d7d24d604ba31c32d
+  packet_hash: sha256:3ae19712df15ccac8e738bb8dc2c28022d04d20ddae61ad5fabb5f75fcdfb049
+  schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
+  rubric_hash: sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7
+  role_contract_hash: sha256:a866516c5cbcb62caf987046bf82432d5bcfbfba2bcc132a0ab99db9ad7bace0
+- reviewer: adversarial-codex
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-prompts/adversarial-codex.md
+  prompt_hash: sha256:61dffa9aa76aeea7782e0913757e5e3a3903f0b92a85b546fe5767ff1c258102
+  packet_hash: sha256:aa6f776d6cf02b0ed1d76cad7559915cb07d4d38133239268e63eb5d37aa83bc
+  schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
+  rubric_hash: sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7
+  role_contract_hash: sha256:41bf3c0c70efe7369cdf57e2c201bbb2bcdbb198c703207de2ff5b5e39148e47
+- reviewer: adversarial-claude
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-prompts/adversarial-claude.md
+  prompt_hash: sha256:dd9f897b6bc504a811cfaff68e93c40354bd60caaab92ae5985fe867f107a8f7
+  packet_hash: sha256:25346d62159a22f1e2c572522aae6db64aa61c592d714a4623a3ec19cb0ae0ad
+  schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
+  rubric_hash: sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7
+  role_contract_hash: sha256:41bf3c0c70efe7369cdf57e2c201bbb2bcdbb198c703207de2ff5b5e39148e47
+validation:
+  schema: schemas/review-prompt-contract.schema.json
+  assembly_invariants:
+  - heterogeneous-variable uses provider-mirrored topic pairs for verification, architecture
+    and adversarial authority.
+  - all reviewers start from fresh context and remain read-only.
+  - all reviewer reports use schemas/reviewer-report.schema.json.
+  - provider/model diversity requires internal-agent/codex and claude-code/opus evidence
+    before readiness can be accepted.

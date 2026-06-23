@@ -1,0 +1,161 @@
+version: 1
+artifact_kind: review_prompt_contract
+artifact_scope: run
+identity:
+  run_id: 2026-06-23-pr-readiness-github-publication-focused-review-rerun
+  workflow: pr-merge-readiness
+  phase_id: focused_source_review_after_p1_fix
+  review_profile: homogeneous-dual
+  topology: homogeneous-dual
+  composition: homogeneous
+  effective_strictness: L3
+  strictness_source: focused_review_after_result_url_boundary_fix
+  primary_gate: true
+inputs:
+  review_packet_schema: schemas/review-packet.schema.json
+  output_schema: schemas/reviewer-report.schema.json
+  verification_gate_report: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/verification-gate-report.md
+  review_invocation_set: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-invocation-set.json
+  review_packets:
+  - reviewer: publication-rerun-codex
+    path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-codex.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:535d15defb063ba462d56862b14cae9dc600a1d0732e1677ad3735f31cb2774c
+    shared_packet_content_hash: sha256:f3bf7bbee0e7fdc8bdb48f26109739ca1b1492690a5a3e24a7e3de82b524cf1e
+  - reviewer: publication-rerun-claude
+    path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-claude.json
+    schema: schemas/review-packet.schema.json
+    packet_hash: sha256:3b85a3f7ca571ee35475788534a8b55851636ff6bc56b5d183d46e506f774c8d
+    shared_packet_content_hash: sha256:f3bf7bbee0e7fdc8bdb48f26109739ca1b1492690a5a3e24a7e3de82b524cf1e
+  reviewed_artifacts:
+  - path: docs/pr-merge-readiness.md
+    kind: source_diff_file
+  - path: examples/pr-merge-readiness/complete/human-decisions.yaml
+    kind: source_diff_file
+  - path: examples/pr-merge-readiness/complete/pr-merge-readiness-report.json
+    kind: source_diff_file
+  - path: schemas/pr-merge-readiness-report.schema.json
+    kind: source_diff_file
+  - path: scripts/repo_validation/pr_merge_readiness.py
+    kind: source_diff_file
+  - path: templates/pr-merge-readiness-report.json
+    kind: source_diff_file
+  - path: tests/test_pr_merge_readiness.py
+    kind: source_diff_file
+  - path: workflows/pr-merge-readiness/workflow.yaml
+    kind: source_diff_file
+  artifact_preparation_report: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-artifact-preparation.json
+provider_policy:
+  allow_external_reviewers: true
+  require_model_diversity: true
+  min_distinct_provider_model_families: 2
+reviewer_set:
+- instance_id: publication-rerun-codex
+  role_id: generalist
+  role_contract: profiles/reviewer_roles/generalist.yaml
+  independent: true
+- instance_id: publication-rerun-claude
+  role_id: generalist
+  role_contract: profiles/reviewer_roles/generalist.yaml
+  independent: true
+reviewer_assignments:
+- reviewer: publication-rerun-codex
+  provider: internal-agent
+  model_family: codex
+  packet_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-codex.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-codex.json
+- reviewer: publication-rerun-claude
+  provider: claude-code
+  model_family: opus
+  requested_model: opus
+  requested_effort: max
+  provider_config: .agentsflow/external-reviewers/claude-code.yaml
+  packet_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-claude.json
+  report_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-claude.json
+  raw_output_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/evidence/raw/publication-rerun-claude.raw.json
+  invocation_metadata_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-invocation.publication-rerun-claude.json
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+  allowed_context_sources:
+  - review_packet
+  - referenced_artifacts
+permission_policy:
+  read_only: true
+  forbidden_actions:
+  - run_tests
+  - run_scripts
+  - modify_files
+  - create_patch
+  - update_evidence
+  explicit_tool_exceptions: []
+prompt_components:
+  shared_base_instructions: templates/review-prompts/base.md
+  role_contract_source: profiles/reviewer_roles/generalist.yaml
+  finding_lifecycle: candidate-unvalidated
+  output_instructions: schemas/reviewer-report.schema.json
+prompt_policy:
+  same_prompt: true
+  same_packet: true
+  same_rubric: true
+  same_output_schema: true
+  focus_prompts_required: false
+  focus_zones_may_overlap: true
+  all_reviewers_must_report_p0_p1_outside_focus: true
+risk_surface_profile:
+  selected_risk_surfaces:
+  - human_decision_authority
+  - publication_evidence_integrity
+  - workflow_phase_ordering
+  - schema_evaluator_drift
+  review_topology_source: human_decision
+  escalation_reason: Focused review accepted a P1 publication evidence boundary finding;
+    this rerun verifies the source diff after requiring URL-backed github-publication-result.json
+    evidence.
+failure_path_matrix:
+  path: embedded:focused-source-review-packet#failure_path_matrix
+  rows:
+  - id: FPM-PUB-001
+    risk_surface: publication_evidence_integrity
+    path_class: published_claim_uses_report_url_without_result_artifact_url
+    evidence_binding: schema/evaluator/tests
+  - id: FPM-HUMAN-001
+    risk_surface: human_decision_authority
+    path_class: preliminary_or_intake_decision_confused_with_final_hash_bound_acceptance
+    evidence_binding: workflow/docs/human decisions/evaluator
+  - id: FPM-PHASE-001
+    risk_surface: workflow_phase_ordering
+    path_class: optional_github_publication_runs_before_final_acceptance_or_final_gate
+    evidence_binding: workflow phases and evaluator state classification
+  - id: FPM-DRIFT-001
+    risk_surface: schema_evaluator_drift
+    path_class: schema_template_fixture_evaluator_docs_describe_different publication
+      or decision states
+    evidence_binding: schema/template/evaluator/tests/example fixture
+known_blockers: []
+rendered_prompts:
+- reviewer: publication-rerun-codex
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-prompts/publication-rerun-codex.md
+  prompt_hash: sha256:18fcc97bcf4b8d4d255fe861e68cf360c444e1cf3adfd51847f36941d295ee31
+  packet_hash: sha256:535d15defb063ba462d56862b14cae9dc600a1d0732e1677ad3735f31cb2774c
+  schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
+  rubric_hash: sha256:0c89cbc70f45dfc395898af1388b73a0c72d57449123cff6ce974a41fd1b47f7
+  role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
+  shared_packet_content_hash: sha256:f3bf7bbee0e7fdc8bdb48f26109739ca1b1492690a5a3e24a7e3de82b524cf1e
+  shared_prompt_content_hash: sha256:29730404e30382311d3104211eb67bc111d3524e2a485f3e9e20467b63082125
+- reviewer: publication-rerun-claude
+  prompt_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-prompts/publication-rerun-claude.md
+  prompt_hash: sha256:1d9f2ec3ac3b2f482c49ce447bfea8a979ec619637e9f683fba8a0c20b832bf8
+  packet_hash: sha256:3b85a3f7ca571ee35475788534a8b55851636ff6bc56b5d183d46e506f774c8d
+  schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
+  rubric_hash: sha256:0c89cbc70f45dfc395898af1388b73a0c72d57449123cff6ce974a41fd1b47f7
+  role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
+  shared_packet_content_hash: sha256:f3bf7bbee0e7fdc8bdb48f26109739ca1b1492690a5a3e24a7e3de82b524cf1e
+  shared_prompt_content_hash: sha256:29730404e30382311d3104211eb67bc111d3524e2a485f3e9e20467b63082125
+validation:
+  schema: schemas/review-prompt-contract.schema.json
+  assembly_invariants:
+  - two fresh-context read-only generalist reviewers
+  - same packet/rubric/schema
+  - mixed internal Codex and external Claude providers
+  - rerun after accepted publication result URL evidence boundary fix

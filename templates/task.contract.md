@@ -3,12 +3,44 @@
 Status: Draft
 Workflow: <workflow-name>
 Domain Pack: <domain-pack>
-Strictness: <L0-L4>
-Review Topology: <none|single-reviewer|triad-fusion|multi-model-fusion>
+Effective Strictness: <workflow-default-or-explicit-override>
+Review Topology: <none|homogeneous-dual|homogeneous-plus-focused|heterogeneous-variable>
+Target Workflow: <workflow-name>
 
 ## Intent
 
 Describe what this task is trying to achieve and why it matters.
+
+## Operating Context Preflight
+
+| Item | Required? | Source | Status | Blocking code / notes |
+|---|---:|---|---|---|
+| Project binding or accepted project policy | yes | `.agentsflow/` or project decision | present/missing | `needs-project-binding` |
+| Verification gate binding and runner | yes | `.agentsflow/gates/*` | present/missing | `needs-verification-gate` |
+| Review policy and reviewer count | yes | project operating decisions / binding | present/missing | `needs-review-policy` |
+| Evidence and run artifact location | yes | project policy / binding | present/missing | `needs-evidence-location` |
+| Red-capture applicability | implementation workflows only | contract / binding | required/not-required | `needs-red-capture-policy` |
+| Human authority / approval boundaries | yes | project operating decisions / accepted decision packet | present/missing | `needs-human-authority-decision` |
+| Human final acceptance policy | policy-defined | project operating decisions | required/not-required | `needs-human-authority-decision` when required but missing |
+
+## Risk Surface Profile
+
+Select only surfaces that materially affect this feature. Use the upstream
+catalog in `docs/risk-and-strictness.md` unless the project overlay defines a
+project-local surface.
+
+| Risk surface | Why selected | Required path classes | Coverage status | Review impact |
+|---|---|---|---|---|
+| `authority_boundary` | ... | `valid_delegation`, `malformed_request`, `direct_bypass_attempt` | bound/deferred/not-applicable | homogeneous-dual/focused/heterogeneous |
+
+## Failure Path Matrix
+
+Required when selected risk surfaces include denial, failure, timeout, rejection,
+persistence or authority semantics.
+
+| ID | Risk surface | Path class | Trigger | Expected authority | Expected context/state | Expected audit/persistence | Must not happen | Evidence binding |
+|---|---|---|---|---|---|---|---|---|
+| FPM-001 | `audit_persistence` | `denied_attempt_persisted` | ... | ... | ... | ... | silent deny without durable evidence | `AF-BHV-...` / gate check / approved deferral |
 
 ## Non-goals
 
@@ -56,9 +88,22 @@ Feature: <feature-name>
 
 Map scenarios to checks:
 
-| Scenario | Verification |
+| Scenario | Risk surface | Path class | Verification |
+|---|---|---|---|
+| Scenario name | `audit_persistence` | `denied_attempt_persisted` | `pytest tests/...`, trace assertion, boundary check, review checklist |
+
+## Audit and Persistence Contract
+
+Fill this when `audit_persistence` or `persistence_consistency` is selected.
+
+| Item | Decision |
 |---|---|
-| Scenario name | `pytest tests/...`, trace assertion, boundary check, review checklist |
+| Event or attempt recorded | ... |
+| Write timing relative to side effect | before/with/after/not-applicable |
+| Denied/rejected/timeout/downstream-failure paths recorded | yes/no/details |
+| Correlation id / run id | ... |
+| Redacted or omitted fields | ... |
+| Read-back / consistency evidence | ... |
 
 ## Evidence Required
 
@@ -66,6 +111,7 @@ The final evidence report must include:
 
 - changed files;
 - scenario coverage;
+- risk surface and Failure Path Matrix coverage when selected;
 - commands run and results;
 - boundary check result;
 - impact map result;
@@ -74,7 +120,19 @@ The final evidence report must include:
 
 ## Open Questions
 
-- ...
+Questions are classified before asking the human. Blocking questions pause the
+workflow; nonblocking questions use a recorded default when one is allowed.
+
+| ID | Question | Classification | Default | Answer required before implementation? | Decision / status | Affected artifacts |
+|---|---|---|---|---:|---|---|
+| Q-001 | ... | blocking-material / nonblocking-follow-up / nonblocking-known-limitation / out-of-scope | ... | yes/no | open/confirmed/unresolved; defaulted only for nonblocking classifications with an allowed default | ... |
+
+## Grouped Decision Packet
+
+When human input is needed, the main agent asks one grouped decision prompt:
+blocking-material questions first, then nonblocking questions with proposed
+defaults. The agent records answers in `human-decisions.yaml` and updates this
+contract instead of asking the human to fill structured files by hand.
 
 ## Hidden Regression Candidates
 

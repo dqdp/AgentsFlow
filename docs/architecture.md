@@ -25,7 +25,8 @@
                      │ parameterize
 ┌───────────────────────────────────────────┐
 │ Domain Packs / Profiles                    │
-│ domain rules, strictness, review topology  │
+│ domain rules, default/effective strictness │
+│ and review topology                        │
 └───────────────────────────────────────────┘
 ```
 
@@ -36,13 +37,15 @@ User intent
   ↓
 Workflow selection
   ↓
-Domain pack + strictness + review topology
+Domain pack + workflow default strictness + review topology
   ↓
 Contract/specification authoring
   ↓
 BDD scenarios and boundaries
   ↓
 Impact map and verification binding
+  ↓
+Red capture for implementation work (tests run against the unimplemented state, failing run captured — ADR-0017)
   ↓
 Implementation or review
   ↓
@@ -76,7 +79,8 @@ Acceptance proof
 | Gate manifest | Declares executable gate and runner | `gates/<gate-id>.yaml` |
 | Evidence report | Completion proof | target project or task artifact |
 | Domain pack | Domain rules | `packs/<domain>/PACK.md` |
-| Strictness profile | Gate depth | `profiles/strictness/*.yaml` |
+| Default strictness | Workflow-owned baseline gate depth | `workflows/<name>/workflow.yaml` |
+| Strictness override | Explicit project/run deviation from the workflow default | `.agentsflow/workflows/*.binding.yaml`, workflow run metadata |
 
 ## Design boundaries
 
@@ -86,3 +90,4 @@ Acceptance proof
 - Verification gates run declared instruments through deterministic runner entrypoints and produce evidence bundles/reports.
 - Reviewers inspect gate artifacts; they do not run tests, call scripts, or modify source artifacts.
 - Fusion synthesizes; it does not erase blocking issues by majority vote.
+- An implementation phase must be framed by red-capture and green-verify phases, so the red→green pair becomes gate evidence by construction (ADR-0017; workflow-topology enforcement is in `validate_repo.py`; run-artifact evidence-pair validation remains future work).

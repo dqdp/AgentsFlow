@@ -1,0 +1,70 @@
+{
+  "reviewer": {
+    "id": "verification-codex",
+    "provider": "internal-agent",
+    "role": "verification",
+    "model": "codex"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-daed76c",
+    "material_change_id": "daed76c",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/verification-codex.json",
+    "reviewer_instance_id": "verification-codex"
+  },
+  "summary": "Read-only verification review found the deterministic command evidence internally consistent for daed76c: HEAD and main match the packet commits, command-evidence hashes match the recorded outputs, pytest reports 228 passed, validate_repo output reports pass, and diff-check output is the expected empty hash. The wrapper/regression surface is covered by targeted tests for Claude envelope normalization, schema-adjacent output, invalid output, forbidden env/config, nonzero provider exit metadata, stale hashes, review context identity, mock-vs-real rejection, and PR readiness evaluator consumption. I found one candidate P1 evidence-handling blocker in the live external-review artifacts created for this run: real Claude invocation metadata and normalized reports persist raw provider output without an accompanying non-sensitive declaration or redacted/summary/pointer readiness artifact. I also found one P2 process gap: live external reviewer reports exist, but the review invocation set remains predeclared rather than completed, which is acceptable while this review phase is still in progress but must be closed before readiness acceptance.",
+  "findings": [
+    {
+      "id": "VERIFY-RAW-OUTPUT-001",
+      "severity": "P1",
+      "category": "verification_evidence",
+      "title": "Live Claude review evidence persists raw provider output without a non-sensitive declaration",
+      "evidence": [
+        "docs/external-reviewer-provider-model.md states raw provider output is captured only when normalization.preserve_raw_output is explicitly true for non-sensitive evidence; docs/pr-merge-readiness.md lists sensitive raw external output without redaction or non-sensitive declaration as a blocker condition.",
+        "The current self-application provider config .agentsflow/external-reviewers/claude-code.yaml has normalization.preserve_raw_output: true; this overlay is not tracked in main..HEAD, but it controlled the live reviewer invocations present in this run directory.",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-invocation.verification-claude.json, reviewer-invocation.architecture-claude.json, and reviewer-invocation.adversarial-claude.json all record execution_mode: real and raw_output_path values under evidence/raw/*.raw.json.",
+        "The raw provider output files currently exist: verification-claude.raw.json is 10604 bytes, architecture-claude.raw.json is 7356 bytes, and adversarial-claude.raw.json is 9107 bytes.",
+        "The normalized reviewer reports for verification-claude, architecture-claude, and adversarial-claude include normalization.source_path entries pointing directly to those raw provider output files.",
+        "No pr-merge-readiness-report.json or human-decisions.yaml exists yet in the run directory to declare these raw outputs non-sensitive, bind raw hashes as acceptable raw evidence, or instead provide redacted/summary/pointer artifacts."
+      ],
+      "blocker_path": "External reviewer provider raw-output policy and pr-merge-readiness sensitive-evidence policy -> live Claude invocation/report normalization artifacts -> final readiness acceptance would either preserve raw provider output without explicit non-sensitive classification or conflict with a redacted/summary/pointer declaration because the report normalization traces point at raw files.",
+      "acceptance_impact": "The run should not be accepted as merge-ready using these live external reviewer artifacts until raw output persistence is classified and either explicitly declared non-sensitive with hash-bound raw evidence, or regenerated/redacted so the final readiness evidence uses redacted, summary, or pointer artifacts without raw source paths.",
+      "mandatory_evidence_gap": true,
+      "calibration_reason": "P1 is warranted because the readiness model treats this as a blocking evidence-retention condition for live external review. It is not P0 because no final readiness report or merge_ready claim exists yet, and the raw files are untracked run artifacts rather than committed branch content.",
+      "status": "candidate-unvalidated"
+    },
+    {
+      "id": "VERIFY-INVOCATION-SET-001",
+      "severity": "P2",
+      "category": "verification_evidence",
+      "title": "Live external reviewer artifacts exist while review-invocation-set remains predeclared",
+      "evidence": [
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-invocation-set.json still has status: predeclared for the reviewer set.",
+        "Live external artifacts now exist for verification-claude, architecture-claude, and adversarial-claude, including reviewer-report.*.json and reviewer-invocation.*.json files.",
+        "docs/review-fusion-model.md describes mechanical intake as checking expected reviewer reports for existence, schema validity, freshness, and assignment/provider/model-family match; scripts/reviewers/run_review_set.py is the set-level artifact intended to record that completed evidence."
+      ],
+      "why_it_matters": "This is not a blocker during an in-progress review phase, especially because internal reviewer reports are not all present yet. Before final readiness acceptance, however, the run needs a completed set-level invocation artifact or equivalent validated intake evidence so fusion and readiness evaluation do not rely on loose individual report files.",
+      "recommendation": "After all assigned internal reports are present, complete or regenerate the review invocation set so it records completed live external evidence and validates assignment/report/hash/model-family bindings.",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Before any readiness_report or merge_ready state, classify the live Claude raw outputs as explicitly non-sensitive with hash-bound raw evidence, or regenerate/redact the external reviewer artifacts so raw provider output is not retained as the normalization source."
+    },
+    {
+      "id": "REQUEST-002",
+      "request": "After all reviewer reports are present, produce a completed review-invocation-set artifact and run the normal schema/hash/context validation path against it."
+    },
+    {
+      "id": "REQUEST-003",
+      "request": "Keep human-decisions.yaml absent until the declared human_merge_decision phase, then bind the final readiness report hash and material_change_id before any accepted_merge_ready claim."
+    }
+  ],
+  "self_declared_limitations": [
+    "I stayed read-only: no tests, scripts, validators, patches, or evidence updates were run or created.",
+    "I used file inspection, git read-only commands, and hash/size checks only.",
+    "Some live Claude artifacts appeared during this review; they are untracked run artifacts outside target main..daed76c, so findings about them are run-evidence findings, not branch diff findings.",
+    "I did not perform schema validation by executing repository validators; schema behavior was assessed from source, tests, and recorded evidence."
+  ]
+}

@@ -1,4 +1,9 @@
 name: multi-model-fusion
+deprecated: true
+replacement: heterogeneous-variable
+notes:
+  - Kept as a historical topology name.
+  - v0.2 treats model diversity as an explicit reviewer/provider choice inside a review profile.
 requirements:
   - reviewers should use diverse models or harnesses when available
   - fusion must surface blocking issues

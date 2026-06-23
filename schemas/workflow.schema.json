@@ -6,6 +6,7 @@
     "name",
     "version",
     "intent",
+    "default_strictness",
     "uses",
     "phases"
   ],
@@ -18,6 +19,10 @@
     },
     "intent": {
       "type": "string"
+    },
+    "default_strictness": {
+      "type": "string",
+      "enum": ["L0", "L1", "L2", "L3", "L4"]
     },
     "entry_criteria": {
       "type": "array",
@@ -61,6 +66,10 @@
       "additionalProperties": true
     },
     "actor_model": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "human_interaction": {
       "type": "object",
       "additionalProperties": true
     },

@@ -6,9 +6,18 @@ inputs:
   - accepted_decisions
   - domain_pack
   - strictness
+  - target_workflow_context
+  - risk_surface_profile
+  - failure_path_matrix
 outputs:
   - structured_artifact
+  - open_decision_inventory
+  - option_tradeoff_matrix
+  - per_decision_acceptance_questions
+  - target_workflow_decision_packet
+  - readiness_decision_gaps
 compatible_workflows:
+  - project-initialization
   - new-project-spec-first
   - big-feature-contract-first
   - agentic-system-hardening

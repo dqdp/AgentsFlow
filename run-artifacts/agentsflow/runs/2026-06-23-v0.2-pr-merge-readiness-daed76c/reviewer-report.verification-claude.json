@@ -1,0 +1,82 @@
+{
+  "reviewer": {
+    "id": "verification-claude",
+    "provider": "claude-code",
+    "role": "verification"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-daed76c",
+    "material_change_id": "daed76c",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/verification-claude.json",
+    "reviewer_instance_id": "verification-claude"
+  },
+  "summary": "Verification-axis review of v0.2-prehandoff-design @ daed76c under pr-merge-readiness, based solely on the review packet and its inlined evidence_summary; the listed reviewed_artifacts were not provided as content. The deterministic green gates referenced (repo_validation passed; pytest 228 passed; diff-check passed; mock external-reviewer smoke passed) are internally consistent and bound to daed76c, and the human-authority boundary appears respected (merge_ready_not_claimed_yet=true; no merge-ready claim present, so FPM-AUTH-001 is not triggered at this phase). Two candidate verification gaps: (P1) the packet surfaces only green evidence with no red-capture / fail-first evidence for a branch whose stated theme explicitly introduces red/green contract-first controls — a mandatory-evidence gap if red-capture is required (FPM-VERIFY-001); (P2) the new external-reviewer wrapper and the named 'provider failure evidence hardening' are verified only by a single success-path mock smoke, with no negative/failure-path evidence surfaced. All findings are candidate-unvalidated and may be resolved by artifacts not included in the packet (evidence-report.md, command-evidence.json); see requests_for_additional_verification. The merge decision is deferred to human authority.",
+  "findings": [
+    {
+      "id": "VERIFY-RED-CAPTURE-001",
+      "severity": "P1",
+      "category": "external-review",
+      "title": "Only green verification evidence surfaced; no red-capture/fail-first evidence for a branch that introduces red/green contract-first controls",
+      "evidence": [
+        "pr_change_summary.major_areas includes 'big-feature-contract-first red/green and contract acceptance controls' and 'review/fusion/finding-validation hardening', indicating new behavior and new tests developed under a red/green discipline.",
+        "evidence_summary contains only green results: pytest '228 passed', repo_validation 'passed', range_diff_check 'passed', external_reviewer_smoke 'passed'. No red-capture / fail-first evidence is referenced anywhere in the packet (no evidence_summary key and no reviewed_artifacts entry for red-capture).",
+        "Verification role_contract must_report explicitly lists: 'Green-only implementation evidence where red-capture is required.'",
+        "Blocker path: the mandatory-evidence requirement at risk is red-capture/green-verify for newly introduced behavior (FPM-VERIFY-001 path_class missing_or_stale_required_evidence). If red-capture is required, the green-only evidence set cannot establish that the new tests fail before implementation, so their regression-protection value is unproven and merge-readiness cannot be confirmed on the verification axis. Acceptance consequence if unfixed: a green-only readiness claim that does not bind the red/green discipline the branch itself introduces.",
+        "Caveat / why candidate-unvalidated: only the packet's curated evidence_summary was provided, not the contents of evidence-report.md or evidence/command-evidence.json; red-capture artifacts may exist there, and whether pr-merge-readiness mandates red-capture depends on workflow.yaml contents not provided. See requests_for_additional_verification item 1."
+      ],
+      "why_it_matters": "",
+      "recommendation": "",
+      "status": "candidate-unvalidated"
+    },
+    {
+      "id": "VERIFY-EXT-REVIEWER-MOCK-001",
+      "severity": "P2",
+      "category": "external-review",
+      "title": "External-reviewer wrapper and 'provider failure evidence hardening' verified only by a single success-path mock smoke; no failure-path evidence surfaced",
+      "evidence": [
+        "pr_change_summary.major_areas includes 'external Claude reviewer provider wrapper and review-set integration' and 'Claude output normalization and provider failure evidence hardening'.",
+        "The only external-reviewer test evidence is evidence_summary.external_reviewer_smoke, which invokes run_external_reviewer.py with a single --mock-response (mock-raw-output.json) over one success-path packet, and self-declares limitation: 'Mock smoke proves wrapper/provider normalization path only. It does not replace live Claude review.'",
+        "No negative/failure-path verification is surfaced (malformed/empty provider output, provider error/timeout, failure-evidence emission), despite 'provider failure evidence hardening' being a named deliverable. The deterministic negative-path tests should exist and be enumerable within the '228 passed' suite, but the packet does not surface them.",
+        "Verification consequence: the newly hardened failure-handling and failure-evidence behavior is not demonstrated by deterministic evidence in the packet, so regression protection for those paths is unconfirmed. Not asserted as a merge blocker because live provider calls are non-deterministic; the gap is the absence of the deterministic negative-path coverage. See requests_for_additional_verification item 2."
+      ],
+      "why_it_matters": "",
+      "recommendation": "",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Confirm whether evidence-report.md and evidence/command-evidence.json contain red-capture (fail-first) evidence bound to daed76c for the new tests and the new red/green contract-first controls, and whether pr-merge-readiness mandates red-capture for newly introduced behavior. Resolves VERIFY-RED-CAPTURE-001."
+    },
+    {
+      "id": "REQUEST-002",
+      "request": "Confirm the '228 passed' suite includes deterministic negative/failure-path tests for the external reviewer provider wrapper and Claude output normalization (malformed/empty provider output, provider error/timeout, failure-evidence emission), and that run_external_reviewer.py enforces validation of output against schemas/reviewer-report.schema.json (enforced, not merely produced). Resolves VERIFY-EXT-REVIEWER-MOCK-001."
+    },
+    {
+      "id": "REQUEST-003",
+      "request": "Confirm whether scripts/validate_repo.py checks cross-file consistency of the duplicated review_control_rules / review_cycle policy blocks (WARN-WORKFLOW-COMPOSITION-001 / FPM-COMPOSITION-001); if it does not, document that the green repo_validation result does not cover policy-duplication drift, so 'passed' is not evidence against a policy contradiction."
+    },
+    {
+      "id": "REQUEST-004",
+      "request": "Confirm test-coverage data for the new Python modules under scripts/reviewers/ (run_external_reviewer.py, run_review_set.py); no coverage metric is surfaced for the 53272 insertions."
+    },
+    {
+      "id": "REQUEST-005",
+      "request": "Independently verify the evidence-freshness claim (evidence_freshness.review_packet_generated_after_latest_green_gate=true) and that command-evidence.json hashes match the referenced command-output files and the external-reviewer smoke output_hash; these are self-asserted in the packet and not verifiable from packet content alone."
+    }
+  ],
+  "self_declared_limitations": [
+    "I reviewed only the review packet and its inlined evidence_summary. The listed reviewed_artifacts (evidence-report.md, evidence/command-evidence.json, verification-gate-report.md, workflow.yaml, run_external_reviewer.py, run_review_set.py, docs/review-fusion-model.md, docs/review-agent-interaction-protocol.md) were not provided as content; 'missing/un-surfaced' observations reflect absence from the packet, not proof of absence from the run.",
+    "Per forbidden_actions I did not run tests, scripts, or validators; all pass/fail results and the '228 passed' count are taken as asserted by the packet.",
+    "I cannot independently verify hashes, timestamps, or freshness/consistency claims from the packet alone.",
+    "Severity grades are candidate-unvalidated. In particular, whether red-capture is a mandatory gate for pr-merge-readiness depends on workflow/contract contents not provided; the main/orchestrating agent must validate relevance before these findings affect workflow decisions."
+  ],
+  "normalization": {
+    "method": "deterministic-extraction",
+    "source_path": "",
+    "source_hash": "sha256:12d50b4bcc4eeb2e388fb2be6278933e50ac4e4bbb07dfd4666275e83db83067",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py"
+  }
+}

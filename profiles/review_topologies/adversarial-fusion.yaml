@@ -1,4 +1,9 @@
 name: adversarial-fusion
+deprecated: true
+replacement: homogeneous-plus-focused
+notes:
+  - Kept as a historical topology name.
+  - v0.2 models adversarial review as an explicit focused reviewer or heterogeneous role.
 requirements:
   - primary reviewer
   - adversarial reviewer

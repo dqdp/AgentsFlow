@@ -10,13 +10,15 @@
     "version",
     "billing",
     "execution",
+    "context_policy",
     "permissions",
     "inputs",
-    "outputs"
+    "outputs",
+    "normalization"
   ],
   "properties": {
     "provider": {
-      "type": "string"
+      "const": "claude-code"
     },
     "kind": {
       "const": "external_reviewer_provider"
@@ -40,9 +42,33 @@
         },
         "fail_if_env_present": {
           "type": "array",
-          "contains": {
-            "const": "ANTHROPIC_API_KEY"
-          },
+          "allOf": [
+            {
+              "contains": {
+                "const": "ANTHROPIC_API_KEY"
+              }
+            },
+            {
+              "contains": {
+                "const": "ANTHROPIC_AUTH_TOKEN"
+              }
+            },
+            {
+              "contains": {
+                "const": "ANTHROPIC_BASE_URL"
+              }
+            },
+            {
+              "contains": {
+                "const": "CLAUDE_CODE_USE_BEDROCK"
+              }
+            },
+            {
+              "contains": {
+                "const": "CLAUDE_CODE_USE_VERTEX"
+              }
+            }
+          ],
           "items": {
             "type": "string"
           }
@@ -52,7 +78,69 @@
     },
     "execution": {
       "type": "object",
-      "additionalProperties": true
+      "required": [
+        "command",
+        "sandbox_mode",
+        "output_format",
+        "permission_mode",
+        "tools",
+        "model",
+        "effort",
+        "use_bare_mode",
+        "no_session_persistence"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "command": {
+          "const": "claude"
+        },
+        "sandbox_mode": {
+          "const": "require_escalated"
+        },
+        "output_format": {
+          "const": "json"
+        },
+        "permission_mode": {
+          "const": "default"
+        },
+        "tools": {
+          "enum": ["", "Read"]
+        },
+        "prompt_transport": {
+          "enum": ["stdin", "file"]
+        },
+        "model": {
+          "const": "opus"
+        },
+        "effort": {
+          "const": "max"
+        },
+        "use_bare_mode": {
+          "const": false
+        },
+        "no_session_persistence": {
+          "const": true
+        }
+      }
+    },
+    "context_policy": {
+      "type": "object",
+      "required": ["start_mode", "fork_conversation_context", "session_persistence"],
+      "additionalProperties": true,
+      "properties": {
+        "start_mode": {
+          "const": "fresh_context"
+        },
+        "fork_conversation_context": {
+          "const": false
+        },
+        "session_persistence": {
+          "const": false
+        },
+        "input_mode": {
+          "type": "string"
+        }
+      }
     },
     "permissions": {
       "type": "object",
@@ -72,7 +160,7 @@
           "const": false
         },
         "run_tools": {
-          "type": "boolean"
+          "const": false
         }
       },
       "additionalProperties": true
@@ -84,6 +172,22 @@
     "outputs": {
       "type": "object",
       "additionalProperties": true
+    },
+    "normalization": {
+      "type": "object",
+      "required": ["require_schema_validation", "preserve_raw_output"],
+      "additionalProperties": true,
+      "properties": {
+        "require_schema_validation": {
+          "const": true
+        },
+        "preserve_raw_output": {
+          "type": "boolean"
+        },
+        "record_trace": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

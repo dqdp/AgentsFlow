@@ -82,11 +82,12 @@ Domain packs should not replace workflows. They parameterize them.
 
 A profile tunes execution depth:
 
-- strictness level;
+- workflow default/effective strictness;
 - review topology;
 - evidence level.
 
-Strictness is metadata, not the main abstraction.
+Strictness is metadata, not the main abstraction. A workflow owns the default;
+project bindings and runs record explicit overrides only when needed.
 
 ## Why not “BDD framework”?
 
@@ -127,11 +128,29 @@ Use model-based reviewers where judgment is necessary.
 
 Use fusion to classify disagreement, not to average away blocking issues.
 
+## Rule of red-before-green
+
+When a workflow implements, the contract is first turned into executable tests that
+are run against the unimplemented state to capture a failing (red) result;
+implementation then makes them pass (green). This keeps tests honest — an
+always-green or never-run test cannot certify implementation (ADR-0010) — and makes
+the contract's behavior binding (ADR-0011) executable before code exists. The rule
+is structural: an `implementation` phase must always be framed by a red-capture
+phase before it and a green-verify phase after it. See `docs/adr/ADR-0017-test-framed-implementation-phase.md`
+(accepted rule; structural workflow enforcement is in `validate_repo.py`).
+
 ## Rule of gradual adoption
 
 Do not use heavy process for small work.
 
-The same workflow can be executed with different strictness profiles. A low-risk change may need only boundaries and evidence; a high-risk prompt/policy/runtime change may need BDD scenarios, impact map, independent reviewers, fusion, and hidden regressions.
+Each workflow should declare the normal depth it needs. A low-risk bugfix
+workflow can default to a lighter path; a big-feature or agentic-system workflow
+can default to deeper planning, review and evidence. A project or run can still
+override that default, but the override must be explicit and reasoned.
+
+This avoids turning strictness into a routine human setup question. The human
+should decide material risk exceptions, not manually pick process levels for
+every workflow run.
 
 ## Review controls are composable, not hard-coded
 
@@ -142,7 +161,8 @@ gates and reviewers it needs, which topology to use, and how strict the final
 acceptance decision should be.
 
 This preserves the project philosophy: skills and scripts are reusable bricks,
-workflows are assemblies, and strictness/review topology are parameters of assembly.
+workflows are assemblies, and workflow defaults plus explicit overrides control
+assembly depth.
 
 
 ## Reviewer findings are candidate findings

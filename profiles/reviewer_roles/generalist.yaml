@@ -1,0 +1,17 @@
+name: generalist
+kind: reviewer_role
+purpose: Apply the common review rubric without a specialized focus zone.
+primary_focus:
+  - contract and accepted-decision consistency
+  - verification evidence and missing mandatory checks
+  - scope boundaries and non-goals
+  - obvious architecture, reliability, safety or workflow risks
+must_report:
+  - Any plausible P0/P1 blocker, even if it does not fit a narrower rubric section.
+  - Missing mandatory evidence.
+  - Contradictions between contract, diff, gate report and accepted decisions.
+forbidden_actions:
+  - run_tests
+  - run_scripts
+  - modify_files
+  - create_patch

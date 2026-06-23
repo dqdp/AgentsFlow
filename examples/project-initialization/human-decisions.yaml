@@ -1,0 +1,30 @@
+version: 1
+run_id: "2026-06-18-project-initialization"
+artifact_role: run_decision_log
+
+decisions:
+  - decision_id: documentation-legacy-adoption
+    phase_id: documentation_disposition_decision
+    question_ref: documentation-legacy-adoption
+    answer:
+      mode: knowledge-extraction
+      extraction_depth: standard
+      persistence_scope: run-level
+    status: confirmed
+    answered_by: project-owner
+    classification: blocking-material
+    rationale: "Use run-level standard extraction for the initialization example without rewriting source documentation."
+    affected_artifacts:
+      - project-documentation-disposition.yaml
+      - project-knowledge-extraction.md
+  - decision_id: verification.canonical_test_command
+    phase_id: operating_decisions_interview
+    question_ref: verification.canonical_test_command
+    answer: "PYTHONPATH=src python3 -m pytest tests"
+    status: confirmed
+    answered_by: project-owner
+    classification: blocking-material
+    rationale: "This is the project's observed local test command for the minimal Python example."
+    affected_artifacts:
+      - project-operating-decisions.yaml
+      - .agentsflow/gates/verification_gate.yaml

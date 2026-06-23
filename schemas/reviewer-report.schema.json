@@ -18,6 +18,16 @@
       }
     },
     "summary": {"type": "string"},
+    "review_context": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "run_id": {"type": "string"},
+        "material_change_id": {"type": "string"},
+        "review_packet_path": {"type": "string"},
+        "reviewer_instance_id": {"type": "string"}
+      }
+    },
     "findings": {
       "type": "array",
       "items": {
@@ -32,6 +42,13 @@
           "evidence": {"type": "array", "items": {"type": "string"}},
           "why_it_matters": {"type": "string"},
           "recommendation": {"type": "string"},
+          "validated_severity": {"enum": ["P0", "P1", "P2", "P3", "NOTE"]},
+          "blocker_path": {"type": "string", "minLength": 1},
+          "acceptance_impact": {"type": "string", "minLength": 1},
+          "mandatory_evidence_gap": {"type": "boolean"},
+          "validation_rationale": {"type": "string", "minLength": 1},
+          "calibration_reason": {"type": "string", "minLength": 1},
+          "no_blocker_path_reason": {"type": "string", "minLength": 1},
           "status": {"const": "candidate-unvalidated"}
         }
       }
@@ -43,6 +60,25 @@
     "self_declared_limitations": {
       "type": "array",
       "items": {"type": "string"}
+    },
+    "normalization": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["method", "source_path", "source_hash", "schema_validation", "normalized_by"],
+      "properties": {
+        "method": {
+          "enum": [
+            "native-json",
+            "deterministic-extraction",
+            "orchestrator-extraction",
+            "model-structured-extraction"
+          ]
+        },
+        "source_path": {"type": "string"},
+        "source_hash": {"type": "string"},
+        "schema_validation": {"const": "passed"},
+        "normalized_by": {"type": "string"}
+      }
     }
   }
 }

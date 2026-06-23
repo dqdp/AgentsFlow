@@ -1,0 +1,11 @@
+{
+  "reviewer": "verification-codex",
+  "topic": "verification-evidence",
+  "agentsflow_version": "0.2",
+  "workflow": "pr-merge-readiness",
+  "reviewer_instance_id": "verification-codex",
+  "reviewer_role": "verification",
+  "run_id": "2026-06-22-pr-merge-readiness-example",
+  "material_change_id": "pr-merge-readiness-example-change",
+  "review_packet_path": "review-packets/verification-codex.json"
+}

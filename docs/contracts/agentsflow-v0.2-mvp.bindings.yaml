@@ -1,0 +1,605 @@
+version: 1
+contract: agentsflow-v0.2-mvp.contract.md
+bindings:
+  - id: AF-V02-BHV-001
+    scenario: "Live external reviewer requires run-scope prompt contract"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-live-example-scope
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_rejects_live_example_scope"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-002
+    scenario: "Homogeneous dual review requires shared prompt and packet hashes"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-shared-review-hashes
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_rejects_missing_shared_hash"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-003
+    scenario: "Project gate binding must match the upstream gate id"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-upstream-gate-id
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_rejects_wrong_upstream_gate_id"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-004
+    scenario: "v0.2 review-control workflow requires top-level review policy"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-v02-review-control-policy
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_v02_review_control_phase_requires_top_level_review_policy"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-005
+    scenario: "Primary e2e run metadata and reviewer reports are schema-valid"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-e2e-run-schemas
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_primary_e2e_workflow_run_artifacts_schema_pass"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-006
+    scenario: "Homogeneous plus focused keeps baseline reviewers unfocused"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P2
+    checks:
+      - id: pytest-plus-focused-baseline
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-007
+    scenario: "Prepare-workflow target is limited to the supported target workflow"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-prepare-workflow-target-script
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow"
+        evidence:
+          - pytest-output
+      - id: pytest-prepare-workflow-target-schema
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-008
+    scenario: "Prepare-workflow missing context or design forks use a run-level decision packet"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-prepare-context-packet
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement"
+        evidence:
+          - pytest-output
+      - id: pytest-prepare-readiness-blocks-material-design
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-015
+    scenario: "Existing-project initialization records documentation disposition"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-documentation-disposition-schema
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-human-decision-record
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_resolves_human_decision_record"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-example-chain
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_example_claimed_files_exist"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-workflow-wiring
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-readiness-gate
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition"
+        evidence:
+          - pytest-output
+      - id: pytest-documentation-disposition-artifact-discovery
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_repo_validation_checks_all_documentation_disposition_artifacts"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-016
+    scenario: "Expert assessment role reports are schema-bound before synthesis"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-project-assessment-schema-bound
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_assessment_schema_requires_triad_synthesis"
+        evidence:
+          - pytest-output
+      - id: pytest-project-assessment-referenced-artifacts
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_assessment_synthesis_validates_referenced_role_reports"
+        evidence:
+          - pytest-output
+      - id: pytest-project-assessment-skill-contract
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_onboarding_assessment_skill_carries_schema_bound_contract"
+        evidence:
+          - pytest-output
+      - id: pytest-project-assessment-workflow-contract
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_initialization_expert_assessment_requires_schema_bound_json_contract"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-009
+    scenario: "Big-feature plan gate follows effective strictness"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-plan-gate-default-required
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates"
+        evidence:
+          - pytest-output
+      - id: pytest-plan-gate-l2-override-optional
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2"
+        evidence:
+          - pytest-output
+      - id: pytest-strictness-override-reason-required
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_strictness_override_requires_reason"
+        evidence:
+          - pytest-output
+      - id: pytest-raw-strictness-source-required
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_rejects_raw_strictness_without_override_source"
+        evidence:
+          - pytest-output
+      - id: pytest-unsupported-strictness-override-rejected
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_rejects_unsupported_strictness_override"
+        evidence:
+          - pytest-output
+      - id: pytest-strictness-override-requires-workflow-support-list
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_binding_rejects_strictness_override_without_workflow_support_list"
+        evidence:
+          - pytest-output
+      - id: pytest-workflow-run-strictness-source-required
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_strictness_requires_source_and_override_reason"
+        evidence:
+          - pytest-output
+      - id: pytest-workflow-run-default-strictness-must-match
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_rejects_disguised_workflow_default_strictness"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-010
+    scenario: "Evidence probe reports are evidence-only"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-evidence-probe-report-schema
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-011
+    scenario: "Collision control uses one batch and two control reviewers"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-collision-review-packet
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch"
+        evidence:
+          - pytest-output
+      - id: pytest-collision-prompt-contract
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-012
+    scenario: "Review cycle caps are optional project policy or workflow binding"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-upstream-review-cycle-policy
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles"
+        evidence:
+          - pytest-output
+      - id: pytest-binding-review-cycle-policy
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-022
+    scenario: "Finding validation calibrates blocker severity"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-finding-validation-severity-calibration
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_finding_validation_calibrates_blocker_severity"
+        evidence:
+          - pytest-output
+      - id: pytest-external-reviewer-preserves-blocker-metadata
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_normalizes_claude_code_envelope"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-accepted-p1-requires-blocker-path
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_accepted_p1_without_blocker_path_is_invalid_calibration"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-needs-evidence-p1-requires-blocker-path
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_needs_more_evidence_p1_without_blocker_path_is_invalid_calibration"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-rejected-p1-without-path-no-collision
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_rejected_p1_without_blocker_path_does_not_require_collision_control"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-validated-severity-authoritative
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_validated_blocker_severity_overrides_lower_candidate_severity"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-mandatory-gap-blocks-by-candidate
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_mandatory_evidence_gap_blocks_regardless_of_candidate_severity"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-mandatory-gap-blocks-by-source
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_readiness"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-023
+    scenario: "Finding validation traces boundary impact only when triggered"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-finding-validation-boundary-trace
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_finding_validation_boundary_trace_is_trigger_based"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-013
+    scenario: "Reviewer fresh-context is protocol-level in v0.2"
+    required: true
+    status: manual-evidence
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P2
+    checks:
+      - id: docs-fresh-context-protocol-boundary
+        type: manual_evidence
+        target: "docs/review-agent-interaction-protocol.md"
+        evidence:
+          - "docs/review-prompt-contract.md"
+          - "schemas/review-prompt-contract.schema.json"
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-014
+    scenario: "Workflow run phase guard rejects future-phase artifacts"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-phase-guard-rejects-future-artifact
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_future_phase_artifact"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-unlisted-artifact
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_unlisted_artifact_without_explicit_forbidden"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-checks-phase-evidence
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_phase_evidence_and_status_artifacts"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-list-shaped-phase-evidence
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_list_shaped_phase_evidence"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-draft-artifact-promotion
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_draft_artifact_as_evidence_or_output"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-allowed-draft-overlap
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_allowed_and_draft_overlap"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-checks-top-level-draft-slot
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_uses_top_level_draft_slot"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-checks-review-evidence-status-keys
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_review_and_evidence_phase_status_keys"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-rejects-malformed-artifacts-root
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_malformed_artifacts_root_paths"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-checks-top-level-run-root
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_repo_validation_checks_top_level_workflow_run_phase_guard"
+        evidence:
+          - pytest-output
+      - id: pytest-phase-guard-allows-current-artifacts
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_allows_current_phase_artifacts"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-017
+    scenario: "Risk surface and Failure Path Matrix metadata are represented for contract-first implementation"
+    required: true
+    status: executable
+    risk_surfaces:
+      - authority_boundary
+      - audit_persistence
+    path_class: risk_fpm_metadata_representation
+    evidence_class: test
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-behavior-binding-risk-path-metadata
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_behavior_binding_schema_allows_risk_path_metadata"
+        evidence:
+          - pytest-output
+      - id: pytest-project-operating-risk-policy
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_project_operating_decisions_schema_passes"
+        evidence:
+          - pytest-output
+      - id: pytest-review-packet-risk-context
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_packet_schema_accepts_risk_surface_context"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-018
+    scenario: "Provider-assigned review gates require structured artifact preparation"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-review-artifact-preparation-schema
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_artifact_preparation_schema_passes"
+        evidence:
+          - pytest-output
+      - id: pytest-review-contract-requires-preparation
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_assignments_require_preparation_evidence"
+        evidence:
+          - pytest-output
+      - id: pytest-review-contract-binds-preparation
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-019
+    scenario: "Review artifact preparation fails closed on uncovered dirty paths"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-prepare-review-artifacts-dirty-paths
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths"
+        evidence:
+          - pytest-output
+      - id: pytest-prepare-review-artifacts-generates-evidence
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-020
+    scenario: "Review set dispatch starts external reviewers asynchronously"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-review-set-external-async
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_run_review_set_starts_external_reviewers_asynchronously"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate
+  - id: AF-V02-BHV-021
+    scenario: "Review set collection preserves completed external reviewer evidence on timeout"
+    required: true
+    status: executable
+    source:
+      type: contract
+      path: agentsflow-v0.2-mvp.contract.md
+      section: Behavioral Scenarios
+    severity_if_unverified: P1
+    checks:
+      - id: pytest-review-set-external-timeout-preserves-completed
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_run_review_set_times_out_hung_external_without_losing_completed_peer"
+        evidence:
+          - pytest-output
+    gates:
+      - verification_gate

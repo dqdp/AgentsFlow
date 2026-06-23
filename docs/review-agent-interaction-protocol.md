@@ -34,6 +34,17 @@ A candidate finding becomes an accepted issue only after the main/orchestrating
 agent validates it against the contract, artifact/diff, gate report, evidence,
 accepted decisions, workflow profile, scope, and non-goals.
 
+### Rule 3: Reviewers start from fresh context
+
+Review agents start from zero conversation context. They must not receive a
+forked main-agent/orchestrator conversation. The orchestrator prepares an explicit
+review packet with referenced artifacts; that packet is the reviewer input.
+
+Primary review gates run at least two reviewers. Collision-control also uses two
+fresh-context control reviewers. When the orchestrator rejects or downgrades one
+or more plausible blocker-path candidate findings in a review cycle, it records
+one collision batch and sends that focused packet to those two control reviewers.
+
 ## Review loop overview
 
 ```text
@@ -106,9 +117,63 @@ By default, a finding is a validated blocker when:
 ```text
 validation_status in {accepted-relevant, needs-more-evidence, human-decision-required}
 AND severity in {P0, P1}
+AND a grounded blocker path is recorded
 ```
 
 Workflow profiles may tighten or relax this default, but must do so explicitly.
+
+### Blocker-path severity calibration
+
+Reviewer severity is a candidate label. The main/orchestrating agent validates
+severity separately from relevance before a finding can block acceptance.
+
+To validate a finding as P0/P1, the validation report must record a grounded
+blocker path:
+
+- the contract clause, accepted decision, gate policy, safety rule, authority
+  boundary or mandatory evidence requirement at risk;
+- the current evidence showing the violation, contradiction or evidence gap;
+- the concrete acceptance consequence if the artifact is accepted unchanged;
+- why P2/P3/NOTE would understate the acceptance risk.
+
+Risk-surface or Failure Path Matrix membership alone is not enough to validate
+P0/P1 severity. It can justify focused review, additional verification or a
+higher-priority validation check, but it does not make a finding a blocker
+without a concrete acceptance consequence.
+
+A P0/P1 candidate without a grounded blocker path is still preserved and
+validated, but the default outcome is `needs-more-evidence`,
+`rejected-irrelevant` or a recorded severity downgrade. Collision-control applies
+when the main/orchestrating agent rejects or downgrades a plausible blocker-path
+candidate, not when the only blocker signal is an ungrounded severity label.
+
+### Boundary Trace
+
+Boundary Trace is a trigger-based extension of finding relevance validation. It
+is not a new workflow and not a new artifact type.
+
+Trigger conditions are:
+
+- accepted P0/P1 finding;
+- mandatory evidence gap;
+- new or changed review, finding, gate or acceptance invariant;
+- schema, prompt rendering, reviewer output, external normalization, evaluator,
+  provider, artifact storage, contract evidence or generated evidence behavior
+  changes;
+- reviewer-reported plausible boundary-loss path.
+
+The main/orchestrating agent owns Boundary Trace validation. Reviewers may
+suggest affected boundaries or suspected boundary impact, but those suggestions
+remain candidate-unvalidated until the validation report accepts, rejects,
+downgrades, marks duplicate or escalates the finding.
+
+Boundary impact is not severity. A boundary label can show where a finding,
+evidence requirement or decision may be lost between layers, but P0/P1 severity
+still requires the grounded blocker path above.
+
+Do not require Boundary Trace for every P2/P3/NOTE finding, optional backlog
+item or editorial cleanup. A non-blocking finding may still receive a Boundary
+Trace only when it exposes a mandatory evidence gap or a changed gate invariant.
 
 ### Default severity meaning
 
@@ -132,6 +197,10 @@ needs-more-evidence
 ```
 
 not `pass`.
+
+For implementation workflows, an absent captured failing run (red) for a required
+scenario is itself a missing-mandatory-evidence condition (ADR-0017): a green-only
+evidence bundle is an evidence gap, not a pass.
 
 ## Default loop exit criterion
 
@@ -174,14 +243,64 @@ Default rerun triggers:
 
 Default non-triggers:
 
-- only P2/P3 notes remain;
+- only P2/P3 notes remain and any fixes are non-material;
 - purely editorial changes to reports;
 - duplicate finding consolidation;
 - main agent rejects a candidate blocker as irrelevant with evidence-based reason;
 - fusion rewording without new findings.
 
-A workflow may set `max_review_cycles`; the default is `2` for implementation
-workflows and `1` for review-only/spec review workflows unless overridden.
+### Materiality classification after fixes
+
+After any fix made in response to review, the main/orchestrating agent must
+classify the fix before deciding whether to rerun reviewers. The severity of the
+original finding and the materiality of the fix are separate decisions: a P2
+finding can still lead to a material fix if the fix changes what future
+reviewers or validators must judge.
+
+The fix is **material** when it changes any review input that can affect
+acceptance:
+
+- task contract, scope, non-goals, acceptance criteria or behavior bindings;
+- selected risk surfaces, Failure Path Matrix rows or review-packet content;
+- workflow, gate, review-cycle, reviewer, evidence-probe or collision-control
+  policy;
+- schemas, validators, deterministic checks or test fixtures used as contract
+  evidence;
+- project overlay, workflow binding, gate binding, authority policy or evidence
+  storage policy;
+- verification gate results, mandatory evidence or the evidence bundle;
+- examples or docs that are presented as authoritative evidence for the current
+  workflow.
+
+A material fix requires the relevant verification/checks to be refreshed and the
+review-cycle policy to be applied to the updated input. If the change fixes an
+accepted P0/P1 blocker, adds mandatory evidence, changes the contract, or changes
+the reviewed artifact in an acceptance-affecting way, reviewers are rerun.
+Material rerun triggers take precedence over `do_not_rerun_on` entries.
+
+The fix is **non-material** when it only changes editorial wording, report
+formatting, duplicate grouping, non-authoritative notes, or non-source-of-truth
+documentation without changing contracts, schemas, validators, gates, evidence,
+bindings, reviewed behavior or examples used as evidence. Non-material fixes do
+not rerun reviewers by default.
+
+The classification must be recorded in the finding-validation or review-cycle
+report. This prevents both failure modes: rerunning reviewers after every
+nonblocking cleanup, and silently accepting a nonblocking cleanup that changed a
+contract-bearing artifact.
+
+Exception: if one or more plausible blocker-path candidate findings are rejected
+or downgraded by the main/orchestrating agent and the workflow records a
+collision, it launches two fresh-context control reviewers focused on the
+collision batch and the orchestrator collision reason. This is not a replacement
+for the primary review gate, and it is batched per review cycle rather than per
+finding.
+
+`max_review_cycles` is an optional project policy or workflow-binding cap.
+Upstream workflow definitions must not hardcode a numeric default or require a
+project value. If a project omits `max_review_cycles`, review cycles are not
+limited by count; normal exit, blocking evidence and human-escalation rules still
+apply. If a project supplies the cap, the value must be at least 3.
 
 ## Main-agent relevance-validation procedure
 
@@ -198,7 +317,7 @@ For each finding, the main agent must inspect the available relevant inputs:
 - verification gate report;
 - evidence bundle and command logs;
 - relevant ADRs and accepted decisions;
-- workflow profile, strictness, review topology;
+- workflow profile, effective strictness, review topology;
 - scope, non-goals, and explicit exclusions;
 - prior validated findings, if any.
 
@@ -226,11 +345,16 @@ For each finding, the main agent must inspect the available relevant inputs:
    - Would accepting the artifact violate the contract, mandatory gate, ADR, safety rule,
      scope boundary, or required evidence policy?
 
-6. **Classify validation status.**
+6. **Calibrate blocker severity.**
+   - If the finding is P0/P1, record the blocker path or the reason no grounded
+     blocker path exists.
+   - Do not treat selected risk surfaces or FPM rows as severity by themselves.
+
+7. **Classify validation status.**
    - Choose exactly one validation status.
    - Record the reason and evidence checked.
 
-7. **Determine loop action.**
+8. **Determine loop action.**
    - `fix-or-revise`
    - `rerun-verification-gate`
    - `rerun-review-agents`
@@ -242,15 +366,16 @@ For each finding, the main agent must inspect the available relevant inputs:
 
 | Condition | Validation status | Blocking? | Default action |
 |---|---|---:|---|
-| Finding is supported by contract/evidence and severity is P0/P1 | accepted-relevant | Yes | Fix/revise, then rerun verification gate and relevant review cycle. |
+| Finding is supported by contract/evidence and has a grounded P0/P1 blocker path | accepted-relevant | Yes | Fix/revise, then rerun verification gate and relevant review cycle. |
 | Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | No | Record follow-up or fix if cheap; no review rerun by default. |
-| Finding may be valid but required evidence is missing | needs-more-evidence | Yes if mandatory evidence or P0/P1; otherwise workflow-defined | Run verification gate/checks; rerun review only if evidence materially changes. |
+| Finding is tagged P0/P1 but lacks a grounded blocker path | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | No by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
+| Finding may be valid but required evidence is missing | needs-more-evidence | Yes if mandatory evidence or grounded P0/P1 blocker path; otherwise workflow-defined | Run verification gate/checks; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | No | Record reason; no rerun. |
 | Finding is factually contradicted by contract/diff/evidence | rejected-irrelevant | No | Record contradiction; no rerun. |
 | Finding duplicates an already validated issue | duplicate | Inherits original | Link to original; no rerun. |
 | Finding conflicts with accepted ADR or requires changing an accepted decision | human-decision-required | Yes until resolved | Escalate to human / ADR workflow. |
 | Reviewers disagree on a P0/P1 issue and evidence is insufficient | needs-more-evidence or human-decision-required | Yes | Produce/refresh evidence or escalate. |
-| Fusion surfaces a candidate blocker from one reviewer only | candidate-unvalidated → validate via matrix | Depends on validation | Majority cannot erase it; validate explicitly. |
+| Fusion surfaces a candidate blocker from one reviewer only | candidate-unvalidated, then one validation status from the lifecycle | Depends on validation | Majority cannot erase it; validate explicitly. |
 
 ## Final review-cycle decision states
 
@@ -270,14 +395,16 @@ Each workflow may define:
 ```yaml
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles: 2
+  max_review_cycles_required: false
+  max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
   rerun_review_on:
     - accepted_blocker_fixed
     - mandatory_evidence_added
     - contract_changed
     - material_artifact_change
   do_not_rerun_on:
-    - nonblocking_findings_only
+    - nonblocking_findings_with_non_material_fixes_only
     - duplicate_consolidation
     - irrelevant_findings_rejected_with_reason
   blocking_default:

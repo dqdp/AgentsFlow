@@ -2,17 +2,186 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AgentsFlow Project Assessment",
   "type": "object",
-  "required": ["version", "assessment_type", "candidate_findings", "workflow_recommendations", "gate_recommendations", "risks", "open_questions"],
+  "required": ["version", "assessment_type", "role", "candidate_findings", "workflow_recommendations", "gate_recommendations", "risks", "open_questions"],
   "properties": {
     "version": {"type": "integer"},
     "assessment_type": {"type": "string"},
+    "role": {
+      "type": "string",
+      "enum": ["architecture", "verification", "adversarial", "prompt_engineering", "synthesis"]
+    },
+    "readiness": {
+      "type": "string",
+      "enum": ["ready", "ready_with_blockers", "not_ready"]
+    },
     "basis": {"type": "object"},
-    "candidate_findings": {"type": "array"},
+    "role_reports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "artifact", "authority"],
+        "additionalProperties": true,
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["architecture", "verification", "adversarial", "prompt_engineering"]
+          },
+          "artifact": {
+            "type": "string",
+            "enum": [
+              "project-assessment.architecture.json",
+              "project-assessment.verification.json",
+              "project-assessment.adversarial.json",
+              "project-assessment.prompt-engineering.json"
+            ]
+          },
+          "authority": {"const": "candidate"}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {"role": {"const": "architecture"}},
+              "required": ["role"]
+            },
+            "then": {
+              "properties": {"artifact": {"const": "project-assessment.architecture.json"}}
+            }
+          },
+          {
+            "if": {
+              "properties": {"role": {"const": "verification"}},
+              "required": ["role"]
+            },
+            "then": {
+              "properties": {"artifact": {"const": "project-assessment.verification.json"}}
+            }
+          },
+          {
+            "if": {
+              "properties": {"role": {"const": "adversarial"}},
+              "required": ["role"]
+            },
+            "then": {
+              "properties": {"artifact": {"const": "project-assessment.adversarial.json"}}
+            }
+          },
+          {
+            "if": {
+              "properties": {"role": {"const": "prompt_engineering"}},
+              "required": ["role"]
+            },
+            "then": {
+              "properties": {"artifact": {"const": "project-assessment.prompt-engineering.json"}}
+            }
+          }
+        ]
+      }
+    },
+    "candidate_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "status"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {"type": "string"},
+          "severity": {"enum": ["P0", "P1", "P2", "P3", "NOTE"]},
+          "title": {"type": "string"},
+          "finding": {"type": "string"},
+          "status": {"const": "candidate-unvalidated"},
+          "authority": {"const": "candidate"}
+        },
+        "anyOf": [
+          {"required": ["finding"]},
+          {"required": ["title"]}
+        ]
+      }
+    },
+    "open_questions_for_main_agent": {"type": "array"},
+    "positive_evidence": {"type": "array"},
+    "recommended_next_phase": {"type": "string"},
+    "role_report_validation": {
+      "type": "object",
+      "required": [
+        "schema",
+        "all_role_reports_schema_valid",
+        "invalid_role_report_policy",
+        "synthesis_allowed",
+        "raw_prose_normalized_as_authoritative"
+      ],
+      "properties": {
+        "schema": {"const": "schemas/project-assessment.schema.json"},
+        "all_role_reports_schema_valid": {"const": true},
+        "invalid_role_report_policy": {"const": "reject_and_rerun_or_pause"},
+        "synthesis_allowed": {"const": true},
+        "raw_prose_normalized_as_authoritative": {"const": false}
+      },
+      "additionalProperties": true
+    },
     "workflow_recommendations": {"type": "array"},
     "gate_recommendations": {"type": "array"},
     "risks": {"type": "array"},
     "open_questions": {"type": "array"},
     "requires_human_decisions": {"type": "array"}
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "enum": ["architecture", "verification", "adversarial", "prompt_engineering"]
+          }
+        },
+        "required": ["role"]
+      },
+      "then": {
+        "required": [
+          "readiness",
+          "open_questions_for_main_agent",
+          "positive_evidence",
+          "recommended_next_phase"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "role": {"const": "synthesis"}
+        },
+        "required": ["role"]
+      },
+      "then": {
+        "required": ["role_reports", "role_report_validation"],
+        "properties": {
+          "role_reports": {
+            "minItems": 3,
+            "allOf": [
+              {
+                "contains": {
+                  "type": "object",
+                  "properties": {"role": {"const": "architecture"}},
+                  "required": ["role"]
+                }
+              },
+              {
+                "contains": {
+                  "type": "object",
+                  "properties": {"role": {"const": "verification"}},
+                  "required": ["role"]
+                }
+              },
+              {
+                "contains": {
+                  "type": "object",
+                  "properties": {"role": {"const": "adversarial"}},
+                  "required": ["role"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": true
 }

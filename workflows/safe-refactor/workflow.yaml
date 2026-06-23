@@ -2,6 +2,7 @@ name: safe-refactor
 version: 0.1
 intent: Perform a scoped refactor while preserving behavior and preventing unrelated
   changes.
+default_strictness: L2
 entry_criteria:
 - Behavior should remain stable; structural change is desired.
 outputs:
@@ -36,8 +37,8 @@ supported_profiles:
   - L3
   review_topologies:
   - none
-  - single-reviewer
-  - dual-independent
+  - homogeneous-dual
+  - homogeneous-plus-focused
 phases:
 - name: scope
   purpose: Define refactor scope and non-goals.
@@ -67,6 +68,22 @@ phases:
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+- name: refactor-baseline-capture
+  purpose: Run behavior-preservation checks before the refactor and capture the
+    baseline result required for comparison.
+  skills:
+  - evidence-reporting
+  scripts:
+  - impact_map_check
+  - evidence_validate
+  outputs:
+  - baseline capture gate report
+  - pre-refactor evidence
+  id: refactor_baseline_capture
+  kind: verification
+  gate: verification_gate
+  test_framing: baseline_capture
+  owns_evidence_production: true
 - name: change
   purpose: Apply refactor within boundaries.
   skills: []
@@ -75,6 +92,24 @@ phases:
   outputs:
   - diff
   id: change
+  kind: implementation
+  change_type: refactor
+- name: refactor-green-verify
+  purpose: Re-run the same behavior-preservation checks after the refactor.
+  skills:
+  - evidence-reporting
+  scripts:
+  - boundary_check
+  - impact_map_check
+  - evidence_validate
+  outputs:
+  - green verification gate report
+  - post-refactor evidence
+  id: refactor_green_verify
+  kind: verification
+  gate: verification_gate
+  test_framing: green_verify
+  owns_evidence_production: true
 - name: evidence
   purpose: Prove behavior preservation.
   skills:
@@ -85,10 +120,11 @@ phases:
   outputs:
   - evidence report
   id: evidence
+  kind: reporting
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 review_control_rules:
   review_agents_read_only: true
   review_agents_run_after: verification_gate
@@ -105,7 +141,9 @@ review_control_rules:
   p0_p1_findings_require_recorded_validation: true
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles: 2
+  max_review_cycles_required: false
+  max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
   rerun_review_on:
   - accepted_blocker_fixed
   - mandatory_evidence_added
@@ -114,7 +152,7 @@ review_cycle:
   - verification_gate_materially_changed
   - human_requested
   do_not_rerun_on:
-  - nonblocking_findings_only
+  - nonblocking_findings_with_non_material_fixes_only
   - duplicate_consolidation
   - irrelevant_findings_rejected_with_reason
   - fusion_rewording_only

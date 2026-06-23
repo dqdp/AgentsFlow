@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Human Questions",
+  "type": "object",
+  "required": ["version", "run_id", "questions"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {"type": "integer"},
+    "run_id": {"type": "string"},
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "decision_id",
+          "phase_id",
+          "status",
+          "classification",
+          "grouping",
+          "question",
+          "basis",
+          "options",
+          "answer_required",
+          "affected_artifacts"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "decision_id": {"type": "string"},
+          "phase_id": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["open", "answered", "defaulted", "unresolved", "cancelled"]
+          },
+          "classification": {
+            "type": "string",
+            "enum": ["blocking-material", "nonblocking-follow-up", "nonblocking-known-limitation", "out-of-scope"]
+          },
+          "grouping": {"type": "string"},
+          "question": {"type": "string"},
+          "basis": {"type": "object", "additionalProperties": true},
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "label", "impact"],
+              "additionalProperties": true,
+              "properties": {
+                "id": {"type": "string"},
+                "label": {"type": "string"},
+                "impact": {"type": "string"}
+              }
+            }
+          },
+          "default": {"type": "object", "additionalProperties": true},
+          "answer_required": {"type": "boolean"},
+          "affected_artifacts": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "classification": {"const": "blocking-material"}
+              },
+              "required": ["classification"]
+            },
+            "then": {
+              "required": ["default"],
+              "properties": {
+                "status": {
+                  "enum": ["open", "answered", "unresolved", "cancelled"]
+                },
+                "answer_required": {"const": true},
+                "default": {
+                  "type": "object",
+                  "required": ["allowed"],
+                  "additionalProperties": true,
+                  "properties": {
+                    "allowed": {"const": false}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

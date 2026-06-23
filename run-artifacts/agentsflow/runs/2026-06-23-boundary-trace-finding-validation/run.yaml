@@ -1,0 +1,97 @@
+version: 1
+run_id: 2026-06-23-boundary-trace-finding-validation
+workflow: big-feature-contract-first
+agentsflow_version: v0.2.0
+binding: .agentsflow/workflows/big-feature-contract-first.binding.yaml
+strictness: L2
+strictness_source: task_override
+strictness_override_reason: Lightweight self-application hardening slice with no product implementation phase.
+review_topology: homogeneous-plus-focused
+status: review_passed
+
+application_mode: self_application_lightweight
+methodology_source: repository_head
+methodology_source_commit: 5359f28
+target_project: AgentsFlow
+run_artifacts_are_not_methodology_source: true
+
+phase_guard:
+  current_phase: finding_validation
+  completed_phases:
+    - operating_context_preflight
+    - contract
+    - red_capture
+    - implementation
+    - verification_gate
+    - development_review
+  allowed_next_phases:
+    - commit
+  allowed_outputs:
+    - task.contract.md
+    - plan.md
+    - red-capture-report.md
+    - verification-gate-report.md
+    - evidence-report.md
+    - reviewer-report.codex-generalist.json
+    - reviewer-report.codex-generalist-b.json
+    - reviewer-report.codex-process-semantics.json
+    - finding-validation-report.md
+  draft_artifacts: []
+  forbidden_outputs_until_phase_exit: []
+  blocked: false
+  blocked_by: []
+
+artifacts:
+  root: run-artifacts/agentsflow/runs/2026-06-23-boundary-trace-finding-validation
+  task_contract: task.contract.md
+  plan: plan.md
+  red_capture_report: red-capture-report.md
+  verification_gate_report: verification-gate-report.md
+  evidence_report: evidence-report.md
+  reviewer_reports:
+    - reviewer-report.codex-generalist.json
+    - reviewer-report.codex-process-semantics.json
+    - reviewer-report.codex-generalist-b.json
+  finding_validation_report: finding-validation-report.md
+
+phase_status:
+  - phase: operating_context_preflight
+    status: completed
+    notes:
+      - Repository was clean on branch v0.2-prehandoff-design before this run.
+      - This is a lightweight self-application slice, not a full project-initialization run.
+      - Run artifacts stay under run-artifacts/agentsflow/runs and are not methodology source.
+      - Review topology is homogeneous-plus-focused: two generalist baseline reviewers plus one focused process-semantics reviewer.
+  - phase: contract
+    status: completed
+    output_refs:
+      - task.contract.md
+      - plan.md
+  - phase: red_capture
+    status: completed
+    output_refs:
+      - red-capture-report.md
+  - phase: implementation
+    status: completed
+    notes:
+      - Boundary Trace was added to existing review/fusion docs, templates and skill guidance.
+      - No new workflow, schema, validator or mandatory artifact type was introduced.
+  - phase: verification_gate
+    status: completed
+    output_refs:
+      - verification-gate-report.md
+      - evidence-report.md
+  - phase: development_review
+    status: completed
+    output_refs:
+      - reviewer-report.codex-generalist.json
+      - reviewer-report.codex-process-semantics.json
+      - reviewer-report.codex-generalist-b.json
+    notes:
+      - Review gate completed as homogeneous-plus-focused with two generalist baseline reviewers and one focused process-semantics reviewer.
+      - First-pass accepted P1/P2 findings were fixed before final triage.
+      - Post-fix generalist baseline reviewer reported no P0/P1.
+  - phase: finding_validation
+    status: completed
+    output_refs:
+      - finding-validation-report.md

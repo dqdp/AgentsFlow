@@ -1,17 +1,22 @@
 name: impact-map-builder
 type: skill
 version: 0.1
-purpose: "Map affected modules/paths to required tests, scripts, contracts, and ADRs."
+purpose: "Map affected modules/paths and selected risk surfaces to required tests, scripts, contracts, ADRs, evidence bindings, and verification gaps."
 
 inputs:
   - contract
   - changed_paths_or_planned_paths
   - domain_pack
+  - risk_surface_profile
+  - failure_path_matrix
+  - behavior_bindings
 
 outputs:
   - impact_map
   - required_tests
   - required_scripts
+  - risk_surface_check_map
+  - failure_path_binding_gaps
   - related_adrs
 
 depends_on:
@@ -24,7 +29,8 @@ compatible_workflows:
 quality_bar:
   - Required tests are specific enough for an implementer.
   - Gaps are visible.
+  - Gaps identify affected risk surfaces, path classes, and FPM rows.
 
 anti_patterns:
   - Saying “run tests” without specifying which tests.
-
+  - Claiming risk-surface coverage without mapped evidence.

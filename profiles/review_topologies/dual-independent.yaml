@@ -1,4 +1,9 @@
 name: dual-independent
+deprecated: true
+replacement: homogeneous-dual
+notes:
+  - Kept as a historical topology name.
+  - v0.2 default is homogeneous-dual: same prompt, same packet, same rubric.
 requirements:
   - two independent reviewers
   - no cross-contamination before reports

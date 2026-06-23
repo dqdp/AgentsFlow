@@ -1,0 +1,74 @@
+version: 1
+artifact_role: template
+
+scope:
+  intent_mode: prepare-workflow
+  target_workflow: big-feature-contract-first
+  project_root: .
+  run_level_only: true
+
+documentation_legacy_adoption:
+  # Template placeholder. Runtime artifacts must replace this with the mode,
+  # depth and scope explicitly confirmed by the human in the referenced decision
+  # record.
+  mode: knowledge-extraction # preserve-as-is | knowledge-extraction | rewrite-migration | archive-delete
+  extraction_depth: standard # light | standard | deep
+  persistence_scope: run-level # run-level | project-level
+  question_required: true
+  agent_may_select_without_human: false
+  recommended_by_agent: knowledge-extraction
+  decision_record: human-decisions.yaml#documentation-legacy-adoption
+  extraction_artifact: project-knowledge-extraction.md
+  human_confirmation:
+    required: true
+    status: pending
+    source: human-dialogue
+
+default_policy:
+  do_not_delete_or_rewrite_without_human_approval: true
+  unclassified_documents: needs-human-decision
+
+documents:
+  - path: README.md
+    source_type: readme
+    disposition: keep-authoritative
+    authority_scope: project overview and supported entry points
+    confidence: medium
+    evidence:
+      - README.md
+    rationale: "Current project overview appears intentionally maintained."
+    normalized_targets: []
+    human_approval_required: false
+    questions_for_human: []
+  - path: Docs/history/example-plan.md
+    source_type: implementation-history
+    disposition: keep-evidence
+    authority_scope: null
+    confidence: medium
+    evidence:
+      - Docs/history/example-plan.md
+    rationale: "Useful historical context, but not an active source of workflow authority."
+    normalized_targets: []
+    human_approval_required: false
+    questions_for_human: []
+  - path: Docs/old-process.md
+    source_type: process-artifact
+    disposition: extract-and-normalize
+    authority_scope: null
+    confidence: low
+    evidence:
+      - Docs/old-process.md
+    rationale: "Contains useful process knowledge that should be normalized before use."
+    normalized_targets:
+      - human-decisions.yaml
+      - target-workflow-readiness-gate-report.md
+    human_approval_required: true
+    questions_for_human:
+      - Should this process document remain active after the AgentsFlow overlay is approved?
+
+unresolved:
+  - "Confirm whether older process documents remain authoritative."
+
+destructive_changes:
+  allowed_without_human_approval: false
+  human_approval_required: true

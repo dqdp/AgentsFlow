@@ -1,20 +1,75 @@
 workflow: big-feature-contract-first
 extends: workflows/big-feature-contract-first/workflow.yaml
 agentsflow_version: 0.2
+strictness_source: workflow_default
 binding:
   project: example-project-overlay
   docs_root: Docs/
   runs_root: Docs/agentsflow/runs/
+risk_surface_policy:
+  catalog_source: docs/risk-and-strictness.md
+  project_default_surfaces:
+    - authority_boundary
+    - audit_persistence
+  project_local_surfaces: []
+  failure_path_matrix_required_when:
+    - selected_surface_has_denial_failure_timeout_rejection_persistence_or_authority_semantics
 gates:
+  plan_gate:
+    extends: gates/plan_gate.yaml
+    manifest: .agentsflow/gates/plan_gate.yaml
+    runner: .agentsflow/scripts/run_plan_gate.sh
   verification_gate:
     extends: gates/verification_gate.yaml
     manifest: .agentsflow/gates/verification_gate.yaml
     runner: .agentsflow/scripts/run_verification_gate.sh
 behavior_bindings:
   default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
+evidence_policy:
+  structured_command_evidence_required: true
+  freshness:
+    material_change_id_required: true
+    green_gate_after_latest_material_change_required: true
+    review_packet_after_latest_green_gate_required: true
+    stale_evidence_must_be_marked_or_excluded: true
 review:
-  topology: triad-fusion
+  topology: heterogeneous-variable
+  topology_source: risk_surface_profile
+  selected_risk_surfaces:
+    - authority_boundary
+    - audit_persistence
+  escalation_reason: "Example overlay selects authority and audit surfaces that need architecture, verification and adversarial focus."
+  composition: heterogeneous
   reviewers:
     - architecture
     - verification
     - adversarial
+  prompt_policy:
+    focus_prompts_required: true
+    shared_packet_allowed: true
+    focus_zones_may_overlap: true
+    all_reviewers_must_report_p0_p1_outside_focus: true
+  focus_zones:
+    - reviewer: architecture
+      role: architecture
+      primary_focus:
+        - boundaries
+        - ADR consistency
+    - reviewer: verification
+      role: verification
+      primary_focus:
+        - tests
+        - evidence
+        - red/green framing
+    - reviewer: adversarial
+      role: adversarial
+      primary_focus:
+        - hidden failure modes
+        - bypasses
+        - false completion
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts

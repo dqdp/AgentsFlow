@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "assessment_type": "project-onboarding",
+  "role": "architecture",
+  "readiness": "ready",
+  "basis": {
+    "intake": "project-intake.yaml",
+    "raw_scan": "project-raw-scan.json",
+    "inventory": "project-inventory.json"
+  },
+  "candidate_findings": [],
+  "open_questions_for_main_agent": [],
+  "positive_evidence": [],
+  "recommended_next_phase": "proceed_to_documentation_disposition",
+  "workflow_recommendations": [],
+  "gate_recommendations": [],
+  "risks": [],
+  "open_questions": [],
+  "requires_human_decisions": []
+}

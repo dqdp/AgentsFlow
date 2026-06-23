@@ -1,0 +1,44 @@
+{
+  "reviewer": {
+    "id": "architecture-codex",
+    "provider": "internal-agent",
+    "role": "architecture",
+    "model": "codex"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-daed76c",
+    "material_change_id": "daed76c",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/architecture-codex.json",
+    "reviewer_instance_id": "architecture-codex"
+  },
+  "summary": "No P0/P1 architecture or process acceptance blocker identified. The pr-merge-readiness run preserves the main boundaries I checked: run artifacts are declared non-methodology source, final readiness is forbidden until the readiness_report phase, human merge approval is still required, review agents are packet-bound/read-only, and the workflow remains a utility rather than a release runtime. The repeated review_control_rules/review_cycle blocks are a real maintainability risk, but I did not find a concrete contradiction, broken validator path, or false merge-ready claim that would make this PR unsafe to accept. ADR-0017 red-capture is not a blocker for this pr-merge-readiness gate because this workflow has no implementation phase.",
+  "findings": [
+    {
+      "id": "ARCH-DUP-REVIEW-CONTROL-001",
+      "severity": "P2",
+      "category": "workflow_composition_integrity",
+      "title": "Review-control policy is duplicated across workflow YAML files instead of factored into one reusable policy artifact",
+      "evidence": [
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/architecture-codex.json declares WARN-WORKFLOW-COMPOSITION-001: common review-control policy is repeated across workflow YAML files rather than factored into one reusable profile/policy artifact.",
+        "workflows/big-feature-contract-first/workflow.yaml, workflows/review-only-fusion/workflow.yaml, workflows/pr-merge-readiness/workflow.yaml, and workflows/project-initialization/workflow.yaml each carry local review_control_rules/review_cycle blocks.",
+        "docs/review-fusion-model.md defines a reusable finding-control pipeline and states workflows should select review topology and provide context rather than duplicate the finding-control procedure locally.",
+        "The inspected duplicated blocks differ by workflow context, for example verification_gate versus evidence_gate and different materiality triggers, but I did not find a contradictory acceptance rule or validator bypass in the current artifacts."
+      ],
+      "why_it_matters": "This can drift as future edits touch one workflow policy block but not the others. In this PR it remains a non-blocking factoring issue because the shared docs, validators, and current pr-merge-readiness packet preserve the mandatory gates, candidate-finding lifecycle, human authority boundary, and freshness rules.",
+      "recommendation": "Track a follow-up to factor shared review-cycle invariants into a reusable profile or policy artifact, leaving only workflow-specific deltas in workflow.yaml.",
+      "no_blocker_path_reason": "No current acceptance break found: repository validation evidence is green in the packet, pr-merge-readiness does not claim merge_ready, and the repeated blocks do not contradict the human-decision or candidate-finding rules I inspected.",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Before final merge-ready status, ensure the final readiness report includes completed live provider-mirrored review evidence, finding validation, and a human merge decision bound to material_change_id daed76c and the final report hash."
+    }
+  ],
+  "self_declared_limitations": [
+    "Read-only review only: I inspected files and git metadata but did not run tests, execute scripts, modify files, create patches, or update evidence.",
+    "I focused on architecture/process boundaries and sampled the large main..HEAD diff through source-of-truth docs, workflows, validators, run artifacts, and reviewer/provider paths rather than line-reviewing every added artifact.",
+    "Findings are candidate-unvalidated and should be handled by the main orchestrator's relevance-validation process before affecting acceptance."
+  ]
+}

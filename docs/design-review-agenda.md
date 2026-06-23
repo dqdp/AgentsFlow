@@ -11,7 +11,8 @@ Use this file to guide the next discussion.
 ## 2. Abstraction boundaries
 
 - Are workflows, skills, scripts, templates, packs, and profiles separated cleanly?
-- Is strictness correctly modeled as metadata rather than a primary object?
+- Is strictness correctly modeled as workflow default plus explicit override,
+  rather than a primary object or routine human setup choice?
 - Should review topology be a profile, a workflow parameter, or both?
 
 ## 3. Specification-development gap

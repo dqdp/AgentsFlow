@@ -1,0 +1,610 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsFlow Project Documentation Disposition",
+  "type": "object",
+  "required": [
+    "version",
+    "scope",
+    "documentation_legacy_adoption",
+    "default_policy",
+    "documents",
+    "destructive_changes"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "artifact_role": {
+      "type": "string",
+      "enum": [
+        "template",
+        "run_artifact"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "intent_mode",
+        "project_root",
+        "run_level_only"
+      ],
+      "properties": {
+        "intent_mode": {
+          "type": "string",
+          "enum": [
+            "adoption-onboarding",
+            "prepare-workflow",
+            "legacy-cleanup"
+          ]
+        },
+        "target_workflow": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "project_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_level_only": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "intent_mode": {
+                "const": "prepare-workflow"
+              }
+            },
+            "required": [
+              "intent_mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "target_workflow",
+              "run_level_only"
+            ],
+            "properties": {
+              "target_workflow": {
+                "type": "string",
+                "enum": [
+                  "big-feature-contract-first"
+                ]
+              },
+              "run_level_only": {
+                "const": true
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "documentation_legacy_adoption": {
+      "type": "object",
+      "required": [
+        "mode",
+        "question_required",
+        "agent_may_select_without_human",
+        "decision_record",
+        "human_confirmation"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "preserve-as-is",
+            "knowledge-extraction",
+            "rewrite-migration",
+            "archive-delete"
+          ]
+        },
+        "extraction_depth": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "light",
+            "standard",
+            "deep",
+            null
+          ]
+        },
+        "persistence_scope": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "run-level",
+            "project-level",
+            null
+          ]
+        },
+        "question_required": {
+          "const": true
+        },
+        "agent_may_select_without_human": {
+          "const": false
+        },
+        "recommended_by_agent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "preserve-as-is",
+            "knowledge-extraction",
+            "rewrite-migration",
+            "archive-delete",
+            null
+          ]
+        },
+        "decision_record": {
+          "type": "string",
+          "pattern": "^human-decisions\\.yaml#[A-Za-z0-9._-]+$"
+        },
+        "extraction_artifact": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "implementation_risk_acceptance": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "required",
+            "status",
+            "source",
+            "decision_record"
+          ],
+          "properties": {
+            "required": {
+              "const": true
+            },
+            "status": {
+              "const": "accepted"
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "human-dialogue",
+                "human-decisions.yaml",
+                "human-decision-log"
+              ]
+            },
+            "decision_record": {
+              "type": "string",
+              "pattern": "^human-decisions\\.yaml#[A-Za-z0-9._-]+$"
+            }
+          },
+          "additionalProperties": true
+        },
+        "human_confirmation": {
+          "type": "object",
+          "required": [
+            "required",
+            "status",
+            "source"
+          ],
+          "properties": {
+            "required": {
+              "const": true
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "confirmed",
+                "accepted",
+                "pending"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "human-dialogue",
+                "human-decisions.yaml",
+                "human-decision-log"
+              ]
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "knowledge-extraction"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "extraction_depth",
+              "persistence_scope",
+              "extraction_artifact"
+            ],
+            "properties": {
+              "extraction_depth": {
+                "type": "string",
+                "enum": [
+                  "light",
+                  "standard",
+                  "deep"
+                ]
+              },
+              "persistence_scope": {
+                "type": "string",
+                "enum": [
+                  "run-level",
+                  "project-level"
+                ]
+              },
+              "extraction_artifact": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "default_policy": {
+      "type": "object",
+      "required": [
+        "do_not_delete_or_rewrite_without_human_approval",
+        "unclassified_documents"
+      ],
+      "properties": {
+        "do_not_delete_or_rewrite_without_human_approval": {
+          "const": true
+        },
+        "unclassified_documents": {
+          "type": "string",
+          "enum": [
+            "needs-human-decision",
+            "keep-evidence"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "source_type",
+          "disposition",
+          "evidence",
+          "rationale",
+          "human_approval_required"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "readme",
+              "adr",
+              "architecture-doc",
+              "agent-instructions",
+              "workflow-doc",
+              "runbook",
+              "implementation-history",
+              "process-artifact",
+              "domain-doc",
+              "other"
+            ]
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "keep-authoritative",
+              "keep-evidence",
+              "extract-and-normalize",
+              "mark-stale-or-superseded",
+              "needs-human-decision",
+              "rewrite-or-delete-after-approval"
+            ]
+          },
+          "authority_scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "normalized_targets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "human_approval_required": {
+            "type": "boolean"
+          },
+          "questions_for_human": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "disposition": {
+                  "const": "rewrite-or-delete-after-approval"
+                }
+              },
+              "required": [
+                "disposition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "human_approval_required": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "disposition": {
+                  "const": "mark-stale-or-superseded"
+                }
+              },
+              "required": [
+                "disposition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "human_approval_required": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "disposition": {
+                  "const": "keep-authoritative"
+                }
+              },
+              "required": [
+                "disposition"
+              ]
+            },
+            "then": {
+              "required": [
+                "confidence",
+                "authority_scope"
+              ],
+              "properties": {
+                "authority_scope": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ],
+        "additionalProperties": true
+      }
+    },
+    "no_material_documents_rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "destructive_changes": {
+      "type": "object",
+      "required": [
+        "allowed_without_human_approval",
+        "human_approval_required"
+      ],
+      "properties": {
+        "allowed_without_human_approval": {
+          "const": false
+        },
+        "human_approval_required": {
+          "const": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "not": {
+          "properties": {
+            "artifact_role": {
+              "const": "template"
+            }
+          },
+          "required": [
+            "artifact_role"
+          ]
+        }
+      },
+      "then": {
+        "properties": {
+          "documentation_legacy_adoption": {
+            "properties": {
+              "human_confirmation": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "confirmed",
+                      "accepted"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "documents": {
+            "maxItems": 0
+          }
+        },
+        "required": [
+          "documents"
+        ]
+      },
+      "then": {
+        "required": [
+          "no_material_documents_rationale"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "properties": {
+              "intent_mode": {
+                "const": "prepare-workflow"
+              }
+            },
+            "required": [
+              "intent_mode"
+            ]
+          },
+          "documentation_legacy_adoption": {
+            "properties": {
+              "mode": {
+                "const": "knowledge-extraction"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          }
+        },
+        "required": [
+          "scope",
+          "documentation_legacy_adoption"
+        ]
+      },
+      "then": {
+        "properties": {
+          "documentation_legacy_adoption": {
+            "properties": {
+              "persistence_scope": {
+                "const": "run-level"
+              },
+              "extraction_artifact": {
+                "const": "project-knowledge-extraction.md"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "properties": {
+              "intent_mode": {
+                "const": "prepare-workflow"
+              },
+              "run_level_only": {
+                "const": true
+              }
+            },
+            "required": [
+              "intent_mode",
+              "run_level_only"
+            ]
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "documents": {
+            "items": {
+              "properties": {
+                "normalized_targets": {
+                  "items": {
+                    "not": {
+                      "anyOf": [
+                        {
+                          "pattern": "(^|/)project-operating-decisions\\.yaml$"
+                        },
+                        {
+                          "pattern": "(^|/)active-instruction-map\\.yaml$"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

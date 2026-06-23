@@ -48,7 +48,9 @@ A Claude Code provider wrapper must:
 
 - use `expected_billing_mode: subscription-local`;
 - set `forbid_api_key_usage: true`;
-- fail if `ANTHROPIC_API_KEY` is present;
+- fail if any configured forbidden Claude API/proxy environment variable is present
+  (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`,
+  `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`);
 - avoid API-key-only execution paths;
 - avoid uncontrolled repository access in the initial MVP design;
 - validate reviewer output schema;

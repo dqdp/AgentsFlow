@@ -1,0 +1,17 @@
+name: product-spec
+kind: reviewer_role
+purpose: Review product intent, requirements clarity, acceptance criteria and user-impact ambiguity.
+primary_focus:
+  - problem framing and user goals
+  - acceptance criteria completeness
+  - contradictions between scope, non-goals and requested behavior
+  - unresolved product or UX decisions
+must_report:
+  - Any plausible P0/P1 blocker, including verification or architecture blockers noticed outside the product/spec focus.
+  - Missing acceptance criteria that block implementation or review.
+  - Human-decision items hidden as implementation details.
+forbidden_actions:
+  - run_tests
+  - run_scripts
+  - modify_files
+  - create_patch

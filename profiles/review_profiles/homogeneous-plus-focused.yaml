@@ -1,0 +1,28 @@
+name: homogeneous-plus-focused
+kind: review_profile
+primary_gate: true
+composition: homogeneous-plus-focused
+min_reviewers: 3
+max_reviewers: 8
+reviewer_role_contracts:
+  - generalist
+  - architecture
+  - verification
+  - adversarial
+  - product-spec
+  - security
+  - domain
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+prompt_policy:
+  baseline_same_prompt: true
+  baseline_same_packet: true
+  baseline_same_rubric: true
+  focused_reviewers_require_explicit_focus_zone: true
+  focus_zones_may_overlap: true
+  all_reviewers_must_report_p0_p1_outside_focus: true
+purpose: Elevated-risk profile. Keep the homogeneous baseline pair and add one or more focused reviewers.
+use_when:
+  - the baseline pair is still useful, but a declared risk needs extra specialist attention
+  - architecture, product, security, adversarial or domain risk is present

@@ -13,7 +13,7 @@ bindings:
       - id: pytest-add
         type: test
         runner: pytest
-        command: "python -m pytest tests/test_minicalc.py::test_add"
+        command: "PYTHONPATH=src python3 -m pytest tests/test_minicalc.py::test_add"
         evidence:
           - pytest-output
     gates:

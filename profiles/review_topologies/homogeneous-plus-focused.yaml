@@ -1,0 +1,37 @@
+name: homogeneous-plus-focused
+kind: review_topology
+description: Elevated-risk topology that keeps the homogeneous baseline pair and adds focused reviewer roles.
+composition: homogeneous-plus-focused
+review_profile: homogeneous-plus-focused
+min_reviewers: 3
+max_reviewers: 8
+reviewers:
+  - role: generalist
+    instance: generalist-a
+    independent: true
+  - role: generalist
+    instance: generalist-b
+    independent: true
+  - role: explicit-focus-role
+    instance: focused-reviewer
+    independent: true
+prompt_policy:
+  baseline_same_prompt: true
+  baseline_same_packet: true
+  baseline_same_rubric: true
+  focused_reviewers_require_explicit_focus_zone: true
+  focus_zones_may_overlap: true
+  all_reviewers_must_report_p0_p1_outside_focus: true
+fusion:
+  required: true
+  skill: fusion-synthesis
+  preserve_blocking_issues: true
+blocking_policy:
+  p0_blocks: true
+  p1_blocks: true
+  majority_cannot_override_blocker: true
+  missing_evidence: needs-additional-verification
+requirements:
+  - baseline homogeneous pair
+  - one or more explicit focused reviewers
+  - focus zones may overlap

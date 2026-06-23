@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "artifact_kind": "pr_merge_readiness_report",
+  "workflow": "pr-merge-readiness",
+  "run_id": "<YYYY-MM-DD-pr-merge-readiness>",
+  "material_change_id": "<current-material-change-id>",
+  "branch": {
+    "name": "<branch>",
+    "base": "<base-branch>",
+    "commit_range": "<base>..HEAD",
+    "worktree_state": "<clean|documented-dirty>"
+  },
+  "status": "awaiting_human_decision",
+  "checks": [
+    {
+      "id": "repo-validation",
+      "category": "verification",
+      "status": "pass",
+      "evidence_path": "evidence/repo-validation.log"
+    }
+  ],
+  "review_requirements": {
+    "review_prompt_contract_path": "review-prompt-contract.yaml",
+    "rubric_path": "rubric.json",
+    "required_reviews": [
+      {
+        "id": "verification-codex",
+        "topic": "verification-evidence",
+        "role": "verification",
+        "provider": "internal-agent",
+        "required_live": false
+      },
+      {
+        "id": "verification-claude",
+        "topic": "verification-evidence",
+        "role": "verification",
+        "provider": "claude-code",
+        "required_live": true
+      },
+      {
+        "id": "architecture-codex",
+        "topic": "architecture-process",
+        "role": "architecture",
+        "provider": "internal-agent",
+        "required_live": false
+      },
+      {
+        "id": "architecture-claude",
+        "topic": "architecture-process",
+        "role": "architecture",
+        "provider": "claude-code",
+        "required_live": true
+      },
+      {
+        "id": "adversarial-codex",
+        "topic": "adversarial-authority",
+        "role": "adversarial",
+        "provider": "internal-agent",
+        "required_live": false
+      },
+      {
+        "id": "adversarial-claude",
+        "topic": "adversarial-authority",
+        "role": "adversarial",
+        "provider": "claude-code",
+        "required_live": true
+      }
+    ]
+  },
+  "reviews": [
+    {
+      "id": "<reviewer-id>",
+      "topic": "<review-topic>",
+      "provider": "<internal-agent|claude-code>",
+      "status": "pass",
+      "packet_path": "review-packets/<reviewer-id>.json",
+      "prompt_path": "review-prompts/<reviewer-id>.md",
+      "role_contract_path": "profiles/reviewer_roles/<role>.yaml",
+      "report_path": "reviewer-report.<reviewer-id>.json",
+      "packet_prepared_at": "<iso8601>",
+      "latest_material_change_at": "<iso8601>"
+    }
+  ],
+  "external_review_evidence": [
+    {
+      "provider": "claude-code",
+      "mode": "live",
+      "required_live": true,
+      "status": "pass",
+      "normalized_report_path": "reviewer-report.<reviewer-id>.json",
+      "invocation_metadata_path": "reviewer-invocation.<reviewer-id>.json",
+      "raw_output": {
+        "persistence": "redacted",
+        "redaction_reason": "<why raw provider output is not persisted as committed evidence>",
+        "artifact_path": "evidence/raw/<reviewer-id>.redacted-summary.md",
+        "artifact_hash": "sha256:<64-hex-digest>"
+      }
+    }
+  ],
+  "candidate_findings": [],
+  "human_decision": {
+    "status": "missing"
+  },
+  "github_publication": {
+    "decision_required": true,
+    "decision_id": "github.publication",
+    "decision_path": "human-decisions.yaml",
+    "status": "skipped",
+    "required_for_merge_readiness": false,
+    "publication_mode": "summary_comment",
+    "target": "pull_request",
+    "tool": "gh",
+    "action": "pr comment",
+    "body_path": "github-publication.md",
+    "result_path": "github-publication-result.json",
+    "reason": "Human selected no GitHub PR publication for this readiness run."
+  },
+  "self_application": {
+    "enabled": false,
+    "proof_claim": "not_self_application"
+  },
+  "residual_limitations": []
+}

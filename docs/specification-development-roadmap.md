@@ -2,6 +2,10 @@
 
 Status: **open research area for v0.2+**.
 
+`new-project-spec-first` is reference/next in v0.2, not a supported target
+workflow. This roadmap tracks the later deeper research/specification-development
+track beyond the v0.2 pilot path.
+
 The current repository has enough structure for contracts and workflows, but the specification-development side is intentionally underdeveloped. This should become a first-class area rather than an afterthought.
 
 ## Why this matters
@@ -92,4 +96,6 @@ Plan mode should be a phase pattern implemented by reusable skills/scripts,
 not a single global workflow.
 ```
 
-Workflows such as `new-project-spec-first`, `big-feature-contract-first`, and `safe-refactor` can each invoke plan-mode skills with different strictness.
+Workflows such as `new-project-spec-first`, `big-feature-contract-first`, and
+`safe-refactor` can each invoke plan-mode skills at the depth declared by their
+workflow default, with explicit project/run overrides only when justified.

@@ -8,19 +8,26 @@ inputs:
 - artifact
 - evidence_report
 - domain_pack
+- risk_surface_profile
+- failure_path_matrix
+- known_blockers
 outputs:
 - adversarial_review_report
 - risk_notes
 depends_on: []
 compatible_workflows:
+- big-feature-contract-first
 - agentic-system-hardening
 - prompt-behavior-eval
 - review-only-fusion
+- pr-merge-readiness
 quality_bar:
 - Findings are plausible and testable.
 - Speculative concerns are labeled as such.
+- Bypass/failure concerns identify concrete surfaces, path classes, or triggers.
 anti_patterns:
 - Blocking on vague suspicion without a concrete failure mode.
+- Expanding scope by inventing unselected risk surfaces without contract or policy support.
 mode: read_only
 actor_class: review_agent
 runs_after:

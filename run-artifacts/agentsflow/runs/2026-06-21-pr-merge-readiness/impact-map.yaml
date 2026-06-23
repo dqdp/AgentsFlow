@@ -1,0 +1,58 @@
+name: pr-merge-readiness
+version: 0.1
+
+modules:
+  - name: workflow-definition
+    paths:
+      - workflows/pr-merge-readiness/**
+    required_tests:
+      - tests/test_pr_merge_readiness.py
+    required_scripts:
+      - validate_repo
+    related_contracts:
+      - run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/task.contract.md
+    related_adrs:
+      - docs/adr/ADR-0017-test-framed-implementation-phase.md
+  - name: readiness-report-contract
+    paths:
+      - schemas/pr-merge-readiness-report.schema.json
+      - templates/pr-merge-readiness-report.*
+      - examples/pr-merge-readiness/**
+    required_tests:
+      - tests/test_pr_merge_readiness.py
+    required_scripts:
+      - validate_repo
+    related_contracts:
+      - run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/task.contract.md
+    related_adrs:
+      - docs/adr/ADR-0016-external-reviewer-provider-interface.md
+      - docs/adr/ADR-0018-phase-transition-control.md
+  - name: review-gate-shape
+    paths:
+      - workflows/pr-merge-readiness/**
+      - templates/review-prompt-contract.yaml
+      - schemas/review-prompt-contract.schema.json
+      - scripts/repo_validation/**
+    required_tests:
+      - tests/test_pr_merge_readiness.py
+      - tests/test_scripts_smoke.py
+    required_scripts:
+      - validate_repo
+    related_contracts:
+      - run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/task.contract.md
+    related_adrs:
+      - docs/adr/ADR-0016-external-reviewer-provider-interface.md
+  - name: documentation-integration
+    paths:
+      - README.md
+      - docs/workflow-model.md
+      - docs/mvp-ready-workflow-standard.md
+      - docs/pr-merge-readiness.md
+    required_tests:
+      - tests/test_scripts_smoke.py
+    required_scripts:
+      - validate_repo
+    related_contracts:
+      - run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/task.contract.md
+    related_adrs:
+      - docs/adr/ADR-0013-agentsflow-project-application-model.md

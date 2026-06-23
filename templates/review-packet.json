@@ -2,12 +2,44 @@
   "agentsflow_version": "v0.2.0",
   "workflow": "big-feature-contract-first",
   "run_id": "YYYY-MM-DD-task-slug",
-  "reviewer_role": "architecture",
+  "reviewer_role": "generalist",
+  "reviewer_instance_id": "generalist-a",
   "provider": "claude-code",
-  "review_goal": "Find architecture, scope, ADR, and design consistency risks.",
+  "review_goal": "Apply the common baseline review rubric and find acceptance-blocking risks.",
+  "review_profile": "homogeneous-dual",
+  "composition": "homogeneous",
+  "prompt_policy": {
+    "same_prompt": true,
+    "same_packet": true,
+    "same_rubric": true,
+    "same_output_schema": true
+  },
+  "role_contract": "profiles/reviewer_roles/generalist.yaml",
+  "role_contract_hash": "sha256:<generalist-role-contract>",
+  "review_prompt_contract": {
+    "path": "Docs/agentsflow/runs/<run-id>/review-prompt-contract.yaml",
+    "schema": "schemas/review-prompt-contract.schema.json"
+  },
+  "context_policy": {
+    "start_mode": "fresh_context",
+    "fork_conversation_context": false,
+    "allowed_context_sources": [
+      "review_packet",
+      "referenced_artifacts"
+    ]
+  },
   "task_contract": {
     "path": "Docs/agentsflow/runs/<run-id>/task.contract.md",
     "summary": "..."
+  },
+  "risk_surface_profile": {
+    "selected_risk_surfaces": [],
+    "review_topology_source": "workflow_default",
+    "escalation_reason": ""
+  },
+  "failure_path_matrix": {
+    "path": "Docs/agentsflow/runs/<run-id>/task.contract.md#failure-path-matrix",
+    "rows": []
   },
   "plan": {
     "path": "Docs/agentsflow/runs/<run-id>/plan.md",
@@ -20,12 +52,22 @@
     "summary": "..."
   },
   "evidence_summary": "...",
+  "evidence_freshness": {
+    "material_change_id": "<latest-material-change-id-or-none>",
+    "latest_green_gate": "Docs/agentsflow/runs/<run-id>/verification-gate-report.md",
+    "review_packet_generated_after_latest_green_gate": true,
+    "stale_evidence_marked_or_excluded": true
+  },
+  "known_blockers": [],
   "accepted_adrs": [],
   "project_rules": [],
   "forbidden_actions": [
+    "Do not use or assume forked orchestrator conversation context.",
     "Do not modify files.",
     "Do not run tests.",
+    "Do not execute scripts.",
     "Do not produce patches.",
+    "Do not update evidence.",
     "Return candidate findings only."
   ],
   "output_schema": "schemas/reviewer-report.schema.json"

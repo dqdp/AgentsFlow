@@ -10,6 +10,9 @@ Independently review artifacts for architecture consistency, modularity, scope, 
 - `diff_or_artifact`
 - `adrs`
 - `evidence_report`
+- `risk_surface_profile`
+- `failure_path_matrix`
+- `review_topology_rationale`
 
 
 ## Outputs
@@ -22,19 +25,29 @@ Independently review artifacts for architecture consistency, modularity, scope, 
 1. Read contract and fixed decisions.
 2. Check boundary preservation.
 3. Check module design.
-4. Flag architecture drift.
-5. Classify issues by severity.
+4. Check whether selected architecture-relevant risk surfaces, such as
+   `authority_boundary`, `public_api_contract`, `state_migration`,
+   `persistence_consistency` or project-local surfaces, are reflected in
+   boundaries and FPM rows.
+5. Check review topology rationale for role/focus-zone fit when the packet
+   claims risk-driven focused or heterogeneous review.
+6. Flag architecture drift.
+7. Classify issues by severity.
 
 
 ## Quality bar
 
 - Review is grounded in contract and ADRs.
 - Blocking issues are explicit.
+- Risk-surface concerns are tied to contract/FPM/evidence, not architectural
+  taste.
 
 
 ## Anti-patterns
 
 - Reviewing by taste without contract reference.
+- Choosing a different topology instead of reporting why the recorded topology
+  rationale is inconsistent or unsupported.
 
 
 ## Handoff
@@ -72,3 +85,10 @@ blocking findings and no mandatory evidence gaps.
 ## Tool permission rule
 
 This reviewer is read-only by default. Tool use is exceptional and must be explicitly granted by the workflow, reviewer manifest, or prompt. Any tool observation remains a candidate finding and does not replace verification-gate evidence.
+
+## Risk-aware focus
+
+Treat selected risk surfaces, Failure Path Matrix rows, evidence freshness and
+known blockers as review inputs. Report missing or stale risk evidence as
+candidate findings. Do not infer unselected risk surfaces as mandatory scope
+unless the contract, ADRs or project policy make the omission a plausible P0/P1.

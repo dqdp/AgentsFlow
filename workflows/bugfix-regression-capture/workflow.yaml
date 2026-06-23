@@ -2,18 +2,23 @@ name: bugfix-regression-capture
 version: 0.1
 intent: Fix a bug by first reproducing it and then turning it into a permanent regression
   scenario.
+default_strictness: L2
 entry_criteria:
 - A bug or failure mode is known.
 outputs:
 - reproduction note
 - regression scenario
 - fix evidence
+- review reports
+- finding validation report
+- review cycle report
 uses:
   skills:
   - regression-capture
   - bdd-scenario-design
   - impact-map-builder
   - evidence-reporting
+  - reviewer-generalist
   scripts:
   - gherkin_lint
   - impact_map_check
@@ -22,14 +27,30 @@ uses:
   - task.contract.md
   - impact-map.yaml
   - evidence-report.md
+  - reviewer-report.md
+  - finding-validation-report.md
+  - review-cycle-report.md
   packs:
   - agentic-system
   - coding-agent
   - backend-service
 review:
-  topology: single-reviewer
+  topology: homogeneous-dual
+  composition: homogeneous
   reviewers:
-  - verification
+  - generalist-a
+  - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
   gates:
   - regression_gate
   - verification_gate
@@ -47,7 +68,8 @@ supported_profiles:
   - L3
   review_topologies:
   - none
-  - single-reviewer
+  - homogeneous-dual
+  - homogeneous-plus-focused
 phases:
 - name: reproduce
   purpose: Capture the failure before fixing.
@@ -76,6 +98,22 @@ phases:
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+- name: regression-red-capture
+  purpose: Run the captured regression scenario against the broken state and record
+    the failing result before applying the fix.
+  skills:
+  - regression-capture
+  - evidence-reporting
+  scripts:
+  - evidence_validate
+  outputs:
+  - regression red-capture gate report
+  - failing-run evidence
+  id: regression_red_capture
+  kind: verification
+  gate: regression_gate
+  test_framing: red_capture
+  owns_evidence_production: true
 - name: fix
   purpose: Apply fix and run impact checks.
   skills:
@@ -85,6 +123,23 @@ phases:
   outputs:
   - diff and test results
   id: fix
+  kind: implementation
+- name: regression-verification-gate
+  purpose: Re-run the same regression scenario after the fix and record the passing
+    result.
+  skills:
+  - evidence-reporting
+  scripts:
+  - impact_map_check
+  - evidence_validate
+  outputs:
+  - regression verification gate report
+  - passing-run evidence
+  id: regression_verification_gate
+  kind: verification
+  gate: regression_gate
+  test_framing: green_verify
+  owns_evidence_production: true
 - name: evidence
   purpose: Produce evidence.
   skills:
@@ -94,10 +149,42 @@ phases:
   outputs:
   - evidence report
   id: evidence
+  kind: reporting
+- name: review
+  purpose: Run read-only independent review after the regression verification evidence
+    is available.
+  runs_after:
+  - regression_verification_gate
+  - evidence
+  skills:
+  - reviewer-generalist
+  scripts: []
+  outputs:
+  - reviewer reports
+  id: review
+  kind: review
+  default_permissions:
+    read: true
+    write: false
+    run_tests: false
+    run_verification_instruments: false
+    run_tools: false
+  explicit_tool_exceptions_allowed: true
+- name: finding-validation
+  purpose: Validate bugfix review candidate findings against the regression contract,
+    diff, gate report, evidence, accepted decisions, scope and non-goals.
+  runs_after:
+  - review
+  outputs:
+  - finding-validation-report.md
+  - review-cycle-report.md
+  id: finding_validation
+  kind: finding_validation
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
+- Review candidate blockers were relevance-validated before final bugfix decision.
 review_control_rules:
   review_findings_are_candidate_findings: true
   main_agent_must_validate_finding_relevance: true
@@ -107,9 +194,12 @@ review_control_rules:
   default_exit_when_no_validated_blocking_findings: true
   missing_mandatory_evidence_blocks_acceptance: true
   p0_p1_findings_require_recorded_validation: true
+  post_fix_materiality_classification_required: true
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles: 2
+  max_review_cycles_required: false
+  max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
   rerun_review_on:
   - accepted_blocker_fixed
   - mandatory_evidence_added
@@ -118,10 +208,27 @@ review_cycle:
   - verification_gate_materially_changed
   - human_requested
   do_not_rerun_on:
-  - nonblocking_findings_only
+  - nonblocking_findings_with_non_material_fixes_only
   - duplicate_consolidation
   - irrelevant_findings_rejected_with_reason
   - fusion_rewording_only
+  materiality_classification:
+    required_after_review_fixes: true
+    material_triggers_take_precedence_over_do_not_rerun: true
+    material_if_changes:
+    - task_contract_or_scope
+    - behavior_bindings
+    - workflow_or_gate_policy
+    - review_cycle_policy
+    - schema_or_validator
+    - project_overlay_or_binding
+    - mandatory_evidence
+    - verification_gate_output
+    - examples_used_as_evidence
+    non_material_if_only:
+    - report_editorial_changes_only
+    - duplicate_consolidation
+    - non_source_of_truth_notes
   blocking_default:
     severities:
     - P0
@@ -183,7 +290,7 @@ concrete_gates:
 - evidence_gate
 - regression_gate
 - verification_gate
-mvp_status: v0.2-mvp
+mvp_status: post-v0.2-reference
 binding_model:
   upstream_workflow_definition: true
   requires_project_binding_for_execution: true

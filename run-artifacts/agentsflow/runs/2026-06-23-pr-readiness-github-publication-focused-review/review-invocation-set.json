@@ -1,0 +1,35 @@
+{
+  "artifact_kind": "review_invocation_set",
+  "review_prompt_contract": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/review-prompt-contract.yaml",
+  "artifact_preparation_report": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/review-artifact-preparation.json",
+  "artifact_preparation_report_hash": "sha256:458ac7f926b4bd2193cc94f14923b7d5e2ca5df11d35881a0371203453aa6c95",
+  "status": "predeclared",
+  "provider_model_families": [
+    "claude-code/opus",
+    "internal-agent/codex"
+  ],
+  "runner_scheduling": "external-first-async",
+  "reviewers": [
+    {
+      "reviewer": "publication-codex",
+      "provider": "internal-agent",
+      "model_family": "codex",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/review-packets/publication-codex.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/reviewer-report.publication-codex.json",
+      "status": "predeclared"
+    },
+    {
+      "reviewer": "publication-claude",
+      "provider": "claude-code",
+      "model_family": "opus",
+      "requested_model": "opus",
+      "requested_effort": "max",
+      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/review-packets/publication-claude.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/reviewer-report.publication-claude.json",
+      "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/evidence/raw/publication-claude.raw.json",
+      "invocation_metadata_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/reviewer-invocation.publication-claude.json",
+      "status": "predeclared"
+    }
+  ]
+}

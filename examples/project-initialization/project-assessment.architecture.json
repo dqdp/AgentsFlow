@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "assessment_type": "project-onboarding",
+  "role": "architecture",
+  "readiness": "ready_with_blockers",
+  "basis": {
+    "intake": "project-intake.yaml",
+    "raw_scan": "project-raw-scan.json",
+    "inventory": "project-inventory.json"
+  },
+  "candidate_findings": [],
+  "open_questions_for_main_agent": [
+    {
+      "question": "Which modules should be treated as stable architecture boundaries?",
+      "blocking": true,
+      "rationale": "Architecture authority affects workflow binding and gate policy."
+    }
+  ],
+  "positive_evidence": [
+    "Project inventory was produced before assessment.",
+    "Architecture questions are recorded as candidate questions for the main agent."
+  ],
+  "recommended_next_phase": "proceed_to_documentation_disposition",
+  "workflow_recommendations": [
+    "Use big-feature-contract-first for feature work that can change public behavior."
+  ],
+  "gate_recommendations": [],
+  "risks": [
+    "Architecture boundaries are not authoritative until project owner confirmation."
+  ],
+  "open_questions": [
+    "Which modules should be treated as stable architecture boundaries?"
+  ],
+  "requires_human_decisions": [
+    "Confirm architecture authority boundaries before drafting high-risk workflow bindings."
+  ]
+}

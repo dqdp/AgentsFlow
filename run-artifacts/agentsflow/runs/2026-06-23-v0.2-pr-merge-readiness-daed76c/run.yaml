@@ -1,0 +1,139 @@
+version: 1
+run_id: 2026-06-23-v0.2-pr-merge-readiness-daed76c
+workflow: pr-merge-readiness
+agentsflow_version: v0.2.0
+binding: .agentsflow/workflows/pr-merge-readiness.binding.yaml
+strictness: L3
+strictness_source: workflow_default
+review_topology: heterogeneous-variable
+status: human_merge_decision_pending
+application_mode: self_application_pr_acceptance
+methodology_source: repository_head
+methodology_source_commit: daed76c
+target_project: AgentsFlow
+target_branch: v0.2-prehandoff-design
+base_branch: main
+base_commit: aa4374a
+target_content_head: daed76c
+run_artifacts_are_not_methodology_source: true
+phase_guard:
+  current_phase: human_merge_decision
+  completed_phases:
+  - readiness_intake
+  - evidence_collection
+  - evidence_gate
+  - provider_mirrored_review
+  - fusion
+  - finding_validation
+  allowed_next_phases:
+  - provider_mirrored_review
+  - fusion
+  - finding_validation
+  - human_merge_decision
+  - readiness_report
+  allowed_outputs:
+  - readiness-intake.md
+  - evidence-report.md
+  - verification-gate-report.md
+  - evidence/command-evidence.json
+  - evidence/command-outputs/validate-repo.txt
+  - evidence/command-outputs/pytest.txt
+  - evidence/command-outputs/diff-check-main-head.txt
+  - evidence/command-outputs/mock-claude-reviewer-report.json
+  - evidence/command-outputs/mock-claude-reviewer-report.invocation.json
+  - evidence/command-outputs/mock-claude-reviewer-report.raw.json
+  - review-prompt-contract.yaml
+  - review-artifact-preparation.json
+  - review-invocation-set.json
+  - reviewer-report.verification-codex.json
+  - reviewer-report.architecture-codex.json
+  - reviewer-report.adversarial-codex.json
+  - reviewer-report.verification-claude.json
+  - reviewer-report.architecture-claude.json
+  - reviewer-report.adversarial-claude.json
+  - reviewer-invocation.verification-claude.json
+  - reviewer-invocation.architecture-claude.json
+  - reviewer-invocation.adversarial-claude.json
+  - fusion-report.md
+  - finding-validation-report.md
+  - review-cycle-report.md
+  - human-questions.yaml
+  - human-decisions.yaml
+  - pr-merge-readiness-report.json
+  draft_artifacts: []
+  forbidden_outputs_until_phase_exit:
+  - path: pr-merge-readiness-report.json
+    until_phase: readiness_report
+    reason: Final readiness report must not be authoritative before evidence, review, finding validation
+      and human merge decision complete.
+  blocked: false
+  blocked_by: []
+artifacts:
+  root: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c
+  readiness_intake: readiness-intake.md
+  command_evidence: evidence/command-evidence.json
+  evidence_report: evidence-report.md
+  verification_gate_report: verification-gate-report.md
+  review_prompt_contract: review-prompt-contract.yaml
+  review_artifact_preparation: review-artifact-preparation.json
+  review_invocation_set: review-invocation-set.json
+  fusion_report: fusion-report.md
+  finding_validation_report: finding-validation-report.md
+  review_cycle_report: review-cycle-report.md
+  human_questions: human-questions.yaml
+selected_focus:
+- deterministic_validation_evidence
+- provider_mirrored_review
+- workflow_composition_integrity
+- human_merge_authority
+- self_application_artifact_separation
+phase_status:
+- phase: readiness_intake
+  status: completed
+  notes:
+  - Worktree was clean before fresh acceptance run artifacts were created.
+  - Target content head for PR acceptance is daed76c.
+- phase: evidence_collection
+  status: completed
+  output_refs:
+  - evidence/command-evidence.json
+  - evidence-report.md
+- phase: evidence_gate
+  status: completed
+  output_refs:
+  - verification-gate-report.md
+- phase: provider_mirrored_review
+  status: completed
+  output_refs:
+  - review-prompt-contract.yaml
+  - review-artifact-preparation.json
+  - review-invocation-set.json
+  - reviewer-report.verification-codex.json
+  - reviewer-report.architecture-codex.json
+  - reviewer-report.adversarial-codex.json
+  - reviewer-report.verification-claude.json
+  - reviewer-report.architecture-claude.json
+  - reviewer-report.adversarial-claude.json
+  notes:
+  - External Claude invocations completed with execution_mode real.
+  - Raw Claude output is not persisted as committed evidence; summary artifacts
+    are recorded under evidence/raw/*.summary.md.
+- phase: fusion
+  status: completed
+  output_refs:
+  - fusion-report.md
+- phase: finding_validation
+  status: completed
+  output_refs:
+  - finding-validation-report.md
+  - review-cycle-report.md
+  notes:
+  - No validated P0/P1 blockers remain.
+  - Review cycle exits by no_validated_blocking_findings.
+- phase: human_merge_decision
+  status: pending
+  output_refs:
+  - human-questions.yaml
+  notes:
+  - Final readiness report is intentionally not produced until the human merge
+    decision is recorded.

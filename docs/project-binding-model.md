@@ -75,6 +75,141 @@ my-project/
     fusion-report.md
 ```
 
+## Canonical v0.2 overlay shape
+
+Use one project manifest shape in v0.2. `.agentsflow/project.yaml` is a flat
+project-level manifest:
+
+```yaml
+name: my-project
+agentsflow_version: 0.2
+
+paths:
+  docs_root: Docs/
+  adr_root: Docs/adr/
+  agentsflow_root: .agentsflow/
+  runs_root: Docs/agentsflow/runs/
+
+project_rules:
+  default_workflow: big-feature-contract-first
+
+verification_defaults:
+  evidence_root: Docs/agentsflow/evidence/
+  ci_source: local-or-ci
+```
+
+Do not use a nested shape such as:
+
+```yaml
+project:
+  name: my-project
+application:
+  upstream_mode: git-submodule
+```
+
+Pinning and upstream source information belongs in `.agentsflow/agentsflow.lock.yaml`,
+not in `project.yaml`.
+
+## Canonical workflow binding shape
+
+Workflow bindings live under `.agentsflow/workflows/*.binding.yaml`.
+
+`extends` points to a workflow inside the pinned AgentsFlow upstream root. Gate
+`extends` paths also point to upstream gate contracts. Gate `manifest` and
+`runner` paths point to project-local overlay files.
+
+```yaml
+workflow: big-feature-contract-first
+extends: workflows/big-feature-contract-first/workflow.yaml
+agentsflow_version: 0.2
+strictness_source: workflow_default
+# Optional override:
+# strictness: L2
+# strictness_source: project_override
+# strictness_override_reason: "Minimal pilot fixture; plan-gate evidence is intentionally out of scope."
+
+binding:
+  project: my-project
+  docs_root: Docs/
+  runs_root: Docs/agentsflow/runs/
+
+gates:
+  plan_gate:
+    extends: gates/plan_gate.yaml
+    manifest: .agentsflow/gates/plan_gate.yaml
+    runner: .agentsflow/scripts/run_plan_gate.sh
+  verification_gate:
+    extends: gates/verification_gate.yaml
+    manifest: .agentsflow/gates/verification_gate.yaml
+    runner: .agentsflow/scripts/run_verification_gate.sh
+
+behavior_bindings:
+  default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
+
+risk_surface_policy:
+  catalog_source: docs/risk-and-strictness.md
+  project_default_surfaces: []
+  project_local_surfaces: []
+  failure_path_matrix_required_when:
+    - selected_surface_has_denial_failure_timeout_rejection_persistence_or_authority_semantics
+
+evidence_policy:
+  structured_command_evidence_required: true
+  freshness:
+    material_change_id_required: true
+    green_gate_after_latest_material_change_required: true
+    review_packet_after_latest_green_gate_required: true
+    stale_evidence_must_be_marked_or_excluded: true
+
+review:
+  topology: homogeneous-dual
+  composition: homogeneous
+  reviewers:
+    - generalist-a
+    - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts
+```
+
+This shape is validated by `scripts/validate_project_binding.py`.
+
+The binding-level `risk_surface_policy` is a project default and local extension
+hook. It does not claim feature coverage by itself. A workflow run still selects
+feature-specific risk surfaces in the task contract and binds required path
+classes through behavior bindings and gate evidence.
+
+Strictness is inherited from the upstream workflow by default. The workflow's
+`default_strictness` is the baseline source of truth; a project binding sets
+`strictness` only when it intentionally overrides that baseline. Overrides should
+include `strictness_source: project_override` or `task_override` and a
+`strictness_override_reason`.
+
+A raw local `strictness` value without override source and reason is invalid.
+The override value must also be listed in the upstream workflow's
+`supported_profiles.strictness`; otherwise it must not affect required gate
+selection.
+
+Binding validation requires all unconditional workflow gates and also requires
+conditional gates whose `applies_to_strictness` includes the effective
+strictness. For example, `big-feature-contract-first` has `default_strictness:
+L3`, so a binding that inherits the default must provide a project `plan_gate`
+binding. A deliberately lighter L2 fixture may omit `plan_gate` only if the
+binding explicitly records the override.
+
+`review_cycle.max_review_cycles` is optional. If omitted, review cycles are not
+limited by count; the workflow still exits when there are no validated blocking
+findings or when another declared escalation condition applies. If a project
+sets `max_review_cycles`, it must be at least 3.
+
 ## Gate contract vs project-bound executable gate
 
 Upstream gate manifests are **gate contracts/templates**. They define what must be

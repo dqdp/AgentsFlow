@@ -10,19 +10,34 @@ billing:
   forbid_api_key_usage: true
   fail_if_env_present:
     - ANTHROPIC_API_KEY
+    - ANTHROPIC_AUTH_TOKEN
+    - ANTHROPIC_BASE_URL
+    - CLAUDE_CODE_USE_BEDROCK
+    - CLAUDE_CODE_USE_VERTEX
   notes: >
-    API-key based Claude usage is forbidden for the v0.2 MVP because it can
-    create uncontrolled cost. This provider is intended for local subscription
-    Claude Code CLI usage only.
+    API-key based Claude usage and alternate Claude API/proxy routes are
+    forbidden for the v0.2 MVP because they can create uncontrolled cost. This
+    provider is intended for local subscription Claude Code CLI usage only.
 
 execution:
   command: claude
   mode: non_interactive_print
+  sandbox_mode: require_escalated
   output_format: json
-  timeout_seconds: 600
+  permission_mode: default
+  tools: ""
+  model: opus
+  effort: max
+  timeout_seconds: 900
   max_turns: 3
   use_bare_mode: false
   no_session_persistence: true
+
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+  session_persistence: false
+  input_mode: review_packet
 
 permissions:
   read_packet_only: true
@@ -42,4 +57,7 @@ outputs:
 normalization:
   force_finding_status: candidate-unvalidated
   require_schema_validation: true
-  preserve_raw_output: true
+  # Safe default: do not persist raw provider output unless the project has
+  # explicitly classified the review packet/output as non-sensitive.
+  preserve_raw_output: false
+  record_trace: true

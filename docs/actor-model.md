@@ -15,6 +15,11 @@ The human owns intent and accepted changes to intent. The human may approve scop
 changes, accepted-decision changes, ADR changes, high-risk overrides, and final
 decisions when the workflow returns `human-decision-required`.
 
+In a `human_mediated_gate`, the human is the final authority after the
+main/orchestrating agent has synthesized evidence, reviewer findings, options and
+recommended consequences. The human is not asked to manually fill YAML; the main
+agent records the normalized decision.
+
 ### Main / Orchestrating Agent
 
 The main/orchestrating agent coordinates the workflow. It reads `workflow.yaml`,
@@ -48,6 +53,23 @@ Examples of verification instruments:
 
 The gate produces evidence. It does not perform taste-based review.
 
+In gate terminology, verification gates are normally `deterministic_gate`
+instances: a runner evaluates declared instruments and emits a gate report. If
+manual evidence is required, the runner reports `needs_human_decision` or
+`blocked`; it does not silently approve the gate.
+
+### Evidence Probe Agent
+
+An evidence probe agent is a limited fresh-context actor used only for a narrow
+`needs-more-evidence` objective. It is not a reviewer and not a control reviewer.
+It may read referenced artifacts and run explicitly project-bound verification
+instruments needed for the probe objective, but it must not modify files, update
+contracts, create patches, or decide whether a finding is accepted or rejected.
+
+The probe records facts in `evidence-probe-report.json`. Gate or runner outputs
+remain the source of pass/fail semantics; the probe report is evidence input for
+the main/orchestrating agent's relevance validation.
+
 ### Review Agent
 
 Review agents are read-only by default and run after the relevant evidence exists.
@@ -59,6 +81,14 @@ reviewer manifest, or reviewer prompt grants them. Such permissions must be
 scoped, documented, and exceptional. Tool-enabled review still does not replace a
 verification gate: observations produced by reviewer tools are candidate findings
 until validated by the main/orchestrating agent.
+
+A `review_gate` is the workflow control point that consumes reviewer reports and
+main-agent relevance validation. The reviewers themselves do not make the final
+workflow decision.
+
+Review-agent gate evidence is a normalized reviewer-report JSON artifact. Raw
+Markdown or chat output may be preserved as a sidecar and normalized by the
+main/orchestrating agent before gate use.
 
 ### Fusion Agent
 
@@ -109,11 +139,12 @@ agents.
 | Actor | Read repo/docs | Write spec/plan docs | Modify source | Run verification instruments | Produce candidate findings | Synthesize reports | Final authority |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Human | yes | yes | yes | optional | yes | yes | yes |
-| Main/orchestrating agent | yes | yes | controlled | through gate/tool runner | validates | prepares | no, unless human delegated |
+| Main/orchestrating agent | yes | yes | controlled | through gate/tool runner | validates | prepares | no, unless human delegated or recording a human-mediated decision |
 | Planning agent | yes | yes | no | no by default | no | no | no |
 | Implementation agent | yes | yes | yes, future/explicit | future/explicit | no | no | no |
 | Verification gate | yes | gate report only | no | yes | no | no | gate result only |
-| Review agent | yes | reviewer report only | no | no by default | yes | no | no |
+| Evidence probe agent | yes | evidence probe report only | no | project-bound only | no | no | no |
+| Review agent | yes | review output only | no | no by default | yes | no | no |
 | Fusion agent | yes | fusion report only | no | no | no | yes | no |
 | Script/tool runner | limited | machine output | no | yes | no | no | no |
 | External planning provider | depends | external artifacts | no by default | no by default | maybe | maybe | no |
@@ -124,9 +155,13 @@ agents.
 Planning is currently human-guided, not delegated-agent default.
 Planning Agent and Implementation Agent are reserved roles.
 Verification Gate owns evidence production.
+Evidence Probe Agent may collect missing facts through project-bound instruments,
+but it does not decide findings or acceptance.
 Review agents are read-only by default.
 Review-agent tool use is explicit, scoped, and exceptional.
 Review-agent findings remain candidate findings until validated.
 Fusion Agent synthesizes; it does not orchestrate by default.
 Human remains final authority for scope, accepted-decision changes, and overrides.
+Human-mediated gates require main-agent synthesis plus a recorded human decision;
+they are not automatic gates and not review-agent gates.
 ```

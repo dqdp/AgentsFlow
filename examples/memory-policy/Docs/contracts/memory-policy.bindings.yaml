@@ -13,13 +13,23 @@ bindings:
     checks:
       - id: contract-lint
         type: script
-        command: "python scripts/contract_lint.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md"
+        command: "python3 scripts/contract_lint.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md"
         evidence:
           - contract-lint-output
       - id: boundary-check
         type: script
-        command: "python scripts/boundary_check.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md --changed-files examples/memory-policy/changed-files.txt"
+        command: "python3 scripts/boundary_check.py --contract examples/memory-policy/Docs/contracts/memory-policy.contract.md --changed-files examples/memory-policy/changed-files.txt"
         evidence:
           - boundary-check-output
     gates:
       - verification_gate
+  - id: AF-MEM-SPEC-001
+    scenario: "Future memory-retention policy variants are documented for later coverage"
+    required: false
+    status: specification-only
+    source:
+      type: contract
+      path: memory-policy.contract.md
+      section: Behavioral Scenarios
+    checks: []
+    gates: []

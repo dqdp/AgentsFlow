@@ -1,6 +1,7 @@
 name: research-to-ADR
 version: 0.1
 intent: Convert research into a decision memo and ADR draft without premature implementation.
+default_strictness: L2
 entry_criteria:
 - A design question needs external/internal research before implementation.
 outputs:
@@ -29,9 +30,9 @@ supported_profiles:
   - L2
   - L3
   review_topologies:
-  - single-reviewer
-  - triad-fusion
-  - multi-model-fusion
+  - homogeneous-dual
+  - homogeneous-plus-focused
+  - heterogeneous-variable
 phases:
 - name: question
   purpose: Frame research question.
@@ -75,7 +76,7 @@ phases:
 exit_criteria:
 - Required artifacts are produced.
 - Required scripts pass or skipped items are explicitly justified.
-- Evidence is sufficient for the selected strictness profile.
+- Evidence is sufficient for the effective strictness.
 review_control_rules:
   review_findings_are_candidate_findings: true
   main_agent_must_validate_finding_relevance: true
@@ -87,7 +88,9 @@ review_control_rules:
   p0_p1_findings_require_recorded_validation: true
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles: 1
+  max_review_cycles_required: false
+  max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
   rerun_review_on:
   - accepted_blocker_fixed
   - mandatory_evidence_added
@@ -96,7 +99,7 @@ review_cycle:
   - verification_gate_materially_changed
   - human_requested
   do_not_rerun_on:
-  - nonblocking_findings_only
+  - nonblocking_findings_with_non_material_fixes_only
   - duplicate_consolidation
   - irrelevant_findings_rejected_with_reason
   - fusion_rewording_only

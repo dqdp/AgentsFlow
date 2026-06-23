@@ -1,0 +1,29 @@
+name: heterogeneous-variable
+kind: review_profile
+primary_gate: true
+composition: heterogeneous
+min_reviewers: 3
+max_reviewers: 8
+reviewer_role_contracts:
+  - architecture
+  - verification
+  - adversarial
+  - product-spec
+  - security
+  - domain
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+prompt_policy:
+  focus_prompts_required: true
+  shared_packet_allowed: true
+  focus_zones_may_overlap: true
+  all_reviewers_must_report_p0_p1_outside_focus: true
+purpose: High or specialized risk profile with an explicit reviewer set from 3 to 8.
+use_when:
+  - risk is high enough that roles should be deliberately different
+  - focus zones are explicit and may overlap
+focus_zones:
+  required: true
+  min_reviewers: 3
+  max_reviewers: 8

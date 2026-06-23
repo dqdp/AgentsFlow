@@ -115,7 +115,8 @@ In summary:
 ### Default blocking rule
 
 A finding blocks acceptance by default when it has been validated as relevant and
-its severity is P0/P1, or when mandatory verification evidence is missing.
+its validated severity is P0/P1 with a grounded blocker path, or when mandatory
+verification evidence is missing.
 
 Candidate blockers must be explicitly validated, rejected with reason, marked as
 duplicate, escalated, or resolved by additional evidence.
@@ -136,7 +137,7 @@ mandatory evidence gaps.
 The project core defines the shared interfaces and invariants:
 
 ```text
-Gate = decision point.
+Gate = workflow control point with explicit exit criteria and authority mode.
 Reviewer = independent read-only evaluator.
 Fusion = synthesis of reviewer outputs.
 Evidence = artifact proving what was checked.
@@ -144,14 +145,28 @@ Topology = configuration of the review process.
 Blocking issue = issue that cannot be overridden by majority vote.
 ```
 
-The project core does **not** decide that every task must use two reviewers, full gates,
-or fusion. Those choices belong to workflows and profiles.
+Gate authority mode must be explicit when it affects workflow behavior:
+
+```text
+deterministic_gate = runner/check evidence -> gate report
+review_gate = reviewer reports -> main-agent relevance validation
+human_mediated_gate = evidence/review synthesis -> recorded human decision
+```
+
+The project core does **not** decide that every task must use review, full gates,
+or fusion. Those choices belong to workflows and profiles. When a primary review
+gate is enabled, the core requires at least two reviewers. Collision-control is
+not a one-reviewer shortcut: after the main/orchestrating agent rejects or
+downgrades one or more plausible blocker-path candidate findings in a review
+cycle, it records one collision batch and sends that batch to two fresh-context
+control reviewers.
 
 A workflow decides:
 
 - how many reviewers to run;
 - which reviewer roles to use;
 - which gates are mandatory or optional;
+- which gate authority modes are used;
 - whether fusion is required;
 - what counts as pass/fail/needs-human-decision;
 - which checks belong inside the verification gate.
@@ -161,6 +176,8 @@ The core only requires that:
 - every concrete gate has a manifest, deterministic runner, explicit inputs, instruments, required evidence, outputs, result states and pass policy;
 - every review agent returns a structured report;
 - review agents are read-only and run after the verification gate;
+- review agents start from fresh zero conversation context and never inherit a forked main-agent/orchestrator context;
+- primary review gates use at least two reviewers;
 - review-agent findings are candidate findings until validated for relevance;
 - fusion preserves P0/P1 candidate issues and does not erase blockers by majority vote;
 - the main/orchestrating agent validates relevance before findings become accepted issues;
@@ -171,14 +188,86 @@ The core only requires that:
 Review topology is workflow/profile metadata. Common topology names are:
 
 - `none`;
-- `single-reviewer`;
-- `dual-independent`;
-- `triad-fusion`;
-- `adversarial-fusion`;
-- `multi-model-fusion`.
+- `homogeneous-dual`;
+- `homogeneous-plus-focused`;
+- `heterogeneous-variable`;
+- `collision-control` for rejected or downgraded plausible blocker-path
+  collision batches only, not as a primary gate.
 
 A topology declares reviewer roles, independence requirements, whether fusion is
 required, and blocking policy. See `schemas/review-topology.schema.json`.
+
+`single-reviewer` is not a valid primary review topology in v0.2. Collision
+control is modeled as a focused two-reviewer batch in the review-cycle policy,
+not as the normal gate topology.
+
+Heterogeneous role names are not free-form hints. A role id such as `adversarial`
+must resolve to a role definition in `profiles/reviewer_roles/`. The role
+definition explains the primary focus, required reports and forbidden actions.
+Focus zones may overlap, and every reviewer must still report any plausible P0/P1
+blocker noticed outside its primary focus.
+
+### Risk-driven topology selection
+
+The default primary review topology remains `homogeneous-dual`: two independent
+generalist reviewers using the same prompt, same packet, same rubric and same
+output schema. A workflow, project binding or task contract should select
+`homogeneous-plus-focused` or `heterogeneous-variable` only when the selected
+risk surfaces justify extra focused attention.
+
+Risk-driven escalation is recorded as metadata, not inferred silently:
+
+```yaml
+review:
+  topology: heterogeneous-variable
+  topology_source: risk_surface_profile
+  selected_risk_surfaces:
+    - authority_boundary
+    - audit_persistence
+  escalation_reason: "Authority and audit failure paths need architecture, verification and adversarial focus."
+```
+
+The review packet for each reviewer must include:
+
+- selected risk surfaces;
+- Failure Path Matrix or a pointer to it;
+- behavior bindings classified by risk surface/path class;
+- latest green gate evidence after the latest material change;
+- known validated blockers and their status.
+
+This keeps risk-driven review grounded in the contract and evidence instead of
+turning role selection into reviewer preference.
+
+### Supplemental human-requested review
+
+After a green gate and primary review/fusion, the human may request supplemental
+review. Supplemental review is allowed, but it must be recorded as a separate
+review request with:
+
+- requester and reason;
+- reviewed artifact or diff;
+- reviewer count, role set and context policy;
+- whether the review can affect acceptance;
+- the exact evidence packet supplied.
+
+Supplemental findings are still candidate findings. They reopen the fix loop
+only when the main/orchestrating agent validates a P0/P1 finding or mandatory
+evidence gap. If no P0/P1 finding is validated and no material artifact change
+occurs afterward, the workflow must not run another primary review gate merely
+because supplemental review happened.
+
+### Evidence freshness
+
+Reviewers should inspect evidence produced after the latest material change. A
+review packet should therefore identify the current `material_change_id`, the
+latest green verification gate for that change, and whether reviewer inputs were
+prepared after that gate.
+
+If a task contract, behavior binding, selected risk surface, Failure Path Matrix,
+gate policy, implementation behavior or mandatory evidence changes materially
+after review, the prior review is stale for the affected scope. The run records
+the invalidation reason and refreshes verification and review according to the
+workflow's review-cycle policy.
 
 ## Actor classes
 
@@ -247,7 +336,11 @@ It may inspect:
 - verification gate report;
 - test results and logs produced by the gate;
 - evidence report;
-- prior reviewer reports if the workflow explicitly allows non-independent review.
+- prior reviewer reports only when explicitly included in a control-review or
+  fusion packet.
+
+It starts from fresh zero conversation context. It must not receive a forked
+conversation from the main/orchestrating agent.
 
 It must not:
 
@@ -346,6 +439,9 @@ allowed_inputs:
   - gate_report
   - evidence_bundle
   - logs
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
 forbidden_actions:
   - run_tests
   - run_scripts

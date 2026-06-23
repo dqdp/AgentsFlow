@@ -3,8 +3,8 @@
 Status: Example
 Workflow: big-feature-contract-first
 Domain Pack: coding-agent
-Strictness: L2
-Review Topology: single-reviewer
+Effective Strictness: L2
+Review Topology: homogeneous-dual
 
 ## Intent
 

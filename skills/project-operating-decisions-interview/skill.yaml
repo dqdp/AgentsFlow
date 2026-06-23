@@ -1,0 +1,30 @@
+name: project-operating-decisions-interview
+type: skill
+version: 0.1
+purpose: "Conduct an agent-led human dialogue that turns project operating choices into a structured project-operating-decisions artifact."
+inputs:
+  - project_intake
+  - project_raw_scan
+  - project_inventory
+  - project_assessment
+  - legacy_adoption_outputs
+  - human_dialogue_answers
+  - candidate_risk_surface_recommendations
+outputs:
+  - project_operating_decisions
+depends_on:
+  - project-intake-analysis
+  - project-inventory-structuring
+  - project-onboarding-assessment
+compatible_workflows:
+  - project-initialization
+quality_bar:
+  - The interaction is conversational; the human is not asked to manually fill YAML or JSON.
+  - Gate, review, review-cycle, risk-surface, authority and evidence policies are explicit.
+  - Every material decision is confirmed, defaulted, recommended or unresolved.
+  - Unresolved decisions remain visible and do not silently become project defaults.
+anti_patterns:
+  - Treating model recommendations as human approval.
+  - Drafting project-bound gates before mandatory checks are decided.
+  - Leaving reviewer count, model diversity or maximum review cycles implicit.
+  - Treating project-default risk surfaces as selected feature coverage.

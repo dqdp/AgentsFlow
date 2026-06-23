@@ -1,0 +1,21 @@
+name: homogeneous-dual
+kind: review_profile
+primary_gate: true
+composition: homogeneous
+min_reviewers: 2
+max_reviewers: 2
+reviewer_role_contracts:
+  - generalist
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+prompt_policy:
+  same_prompt: true
+  same_packet: true
+  same_rubric: true
+  same_output_schema: true
+  reviewer_labels_are_instance_ids_only: true
+purpose: Baseline review profile. Two independent generalist reviewers receive the same prompt, packet, rubric and schema.
+use_when:
+  - normal-risk implementation or specification review
+  - default review gate when no special risk is declared

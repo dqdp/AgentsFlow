@@ -1,0 +1,64 @@
+{
+  "reviewer": {
+    "id": "architecture-claude",
+    "provider": "claude-code",
+    "role": "architecture"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-daed76c",
+    "material_change_id": "daed76c",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/architecture-claude.json",
+    "reviewer_instance_id": "architecture-claude"
+  },
+  "summary": "From the review packet alone, the pr-merge-readiness run for v0.2-prehandoff-design at daed76c is internally consistent and phase-disciplined: the human authority boundary is respected (human_merge_decision_required=true, merge_ready_not_claimed_yet=true, final report forbidden until readiness_report), declared evidence bindings for FPM-VERIFY-001/FPM-COMPOSITION-001/FPM-ARCH-001 are present in reviewed_artifacts, and evidence is asserted fresh against daed76c (review_packet_generated_after_latest_green_gate=true). I found no confirmed P0/P1 acceptance blocker that I can substantiate from the packet. The main residual architecture-process risk inside my focus is that part of the acceptance evidence is produced by the review/gate/verification machinery that this same PR modifies (ARCH-SELF-APPLICATION-001, P2, candidate-unvalidated), mitigated for now by the still-pending human merge decision. The workflow-composition duplication (WARN-WORKFLOW-COMPOSITION-001) and the live external-reviewer path could not be independently verified by me because I lacked file contents and a live provider run; these are recorded as verification requests and limitations rather than findings. No merge_ready claim should be emitted before human-decisions.yaml exists (FPM-AUTH-001), which the current packet correctly does not do.",
+  "findings": [
+    {
+      "id": "ARCH-SELF-APPLICATION-001",
+      "severity": "P2",
+      "category": "external-review",
+      "title": "Acceptance evidence is partly produced by the same review/gate/verification machinery being changed in this PR (self-application boundary)",
+      "evidence": [
+        "pr_change_summary.major_areas includes 'review/fusion/finding-validation hardening', 'Claude output normalization and provider failure evidence hardening', 'workflow phase guard and self-application run artifacts', and 'blocked run evidence discipline' — i.e., the change set modifies the review/gate/verification machinery itself.",
+        "This run is a self-application of the pr-merge-readiness workflow on the AgentsFlow repo (run_id 2026-06-23-v0.2-pr-merge-readiness-daed76c); the green-gate signals (repo_validation, pytest 228 passed, external_reviewer_smoke, range_diff_check) are produced by scripts/workflows that fall within the reviewed change set.",
+        "FPM-ARCH-001 declares path_class 'methodology_boundary_or_self_application_confusion' bound to readiness-intake.md, making this an in-focus declared failure path.",
+        "Mitigations observed in the packet: pytest and validate_repo provide partly independent signals, and human_authority_boundary keeps human_merge_decision_required=true with merge_ready_not_claimed_yet=true, so a human decision gate still stands between this evidence and any accept/merge — this is why the finding is P2 and not P0/P1.",
+        "Unvalidated: from the packet alone I cannot confirm whether the specific gate/verification/review-control/finding-validation logic used to generate the green-gate evidence was itself altered in daed76c in a way that would make that evidence self-validating; the actual diff and file contents were not in scope."
+      ],
+      "why_it_matters": "",
+      "recommendation": "",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Confirm whether the verification-gate, review-control, finding-validation and evidence-discipline logic exercised to produce the green-gate evidence for daed76c was modified within daed76c; if so, validate that evidence with an independent re-run or an unchanged-baseline comparison so acceptance does not rest on self-validating output (see ARCH-SELF-APPLICATION-001)."
+    },
+    {
+      "id": "REQUEST-002",
+      "request": "Live external Claude reviewer path is only covered by a mock smoke; evidence_summary.external_reviewer_smoke.limitation states the mock proves wrapper/provider normalization only and does not replace live Claude review. Recommend a live provider run before the wrapper is relied upon for any gating decision."
+    },
+    {
+      "id": "REQUEST-003",
+      "request": "Verify the duplicated review_control_rules and review_cycle policy blocks across the workflow YAML files (WARN-WORKFLOW-COMPOSITION-001 / FPM-COMPOSITION-001) are mutually consistent (identical or demonstrably non-contradictory). I could not confirm absence of contradiction without the file contents, so the 'non-blocking' classification is not independently verified by this report."
+    },
+    {
+      "id": "REQUEST-004",
+      "request": "Confirm that no merge_ready or readiness_report claim is emitted before human-decisions.yaml exists and is validated (FPM-AUTH-001). The current packet state correctly shows merge_ready_not_claimed_yet=true."
+    }
+  ],
+  "self_declared_limitations": [
+    "This report is based solely on the review packet metadata, summaries and declared evidence paths; the actual diff and file contents of the 370 changed files (53,272 insertions / 992 deletions) were not available to me, so I performed no substantive code- or design-level review of the change.",
+    "I could not open the workflow YAML files, so I cannot independently confirm whether the repeated review_control_rules/review_cycle blocks contain any contradiction or drift; I neither confirm nor refute the 'non-blocking warning' resolution of WARN-WORKFLOW-COMPOSITION-001.",
+    "I could not verify whether the gate/verification/review machinery that produced the acceptance evidence was self-modified within this change set; ARCH-SELF-APPLICATION-001 is structural/observational and remains candidate-unvalidated.",
+    "Self-application artifact separation appears to rest on the run-artifacts/agentsflow/runs/... directory convention, which I could only observe by path; I did not verify that methodology definitions (workflows/, scripts/, schemas/, profiles/, docs/) are free of contamination from generated run artifacts.",
+    "The large, multi-area change set bundles eight distinct methodology concerns into one merge unit; this may be an intentional v0.2 pre-handoff consolidation, but without file access I could not assess internal atomicity, coupling or rollback boundaries, so I did not raise it as a finding."
+  ],
+  "normalization": {
+    "method": "deterministic-extraction",
+    "source_path": "",
+    "source_hash": "sha256:2ff4f57553fee9f18b4a76315c04896dafe80f96fc3b684a9ac664267967f56a",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py"
+  }
+}

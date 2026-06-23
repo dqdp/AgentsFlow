@@ -1,0 +1,32 @@
+name: heterogeneous-variable
+kind: review_topology
+description: High or specialized risk topology with three to eight explicitly described reviewer roles.
+composition: heterogeneous
+review_profile: heterogeneous-variable
+min_reviewers: 3
+max_reviewers: 8
+reviewers:
+  - role: architecture
+    independent: true
+  - role: verification
+    independent: true
+  - role: adversarial
+    independent: true
+prompt_policy:
+  focus_prompts_required: true
+  shared_packet_allowed: true
+  focus_zones_may_overlap: true
+  all_reviewers_must_report_p0_p1_outside_focus: true
+fusion:
+  required: true
+  skill: fusion-synthesis
+  preserve_blocking_issues: true
+blocking_policy:
+  p0_blocks: true
+  p1_blocks: true
+  majority_cannot_override_blocker: true
+  missing_evidence: needs-additional-verification
+requirements:
+  - three to eight reviewers
+  - every heterogeneous role has an explicit role definition
+  - focus zones may overlap

@@ -19,7 +19,27 @@
       ]
     },
     "paths": {
-      "type": "object"
+      "type": "object",
+      "required": [
+        "docs_root",
+        "agentsflow_root",
+        "runs_root"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "docs_root": {
+          "type": "string"
+        },
+        "adr_root": {
+          "type": "string"
+        },
+        "agentsflow_root": {
+          "type": "string"
+        },
+        "runs_root": {
+          "type": "string"
+        }
+      }
     },
     "project_rules": {
       "type": "object"

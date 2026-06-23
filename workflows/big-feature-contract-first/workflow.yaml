@@ -2,14 +2,18 @@ name: big-feature-contract-first
 version: 0.1
 intent: Implement a large feature through contract, BDD scenarios, impact map, verification
   gates, and evidence.
+default_strictness: L3
 entry_criteria:
 - Feature is large enough to risk scope creep or architectural drift.
 outputs:
 - task contract
+- risk surface profile in task contract
+- Failure Path Matrix in task contract when selected risk surfaces require it
 - BDD scenarios
 - impact map
 - implementation plan
 - evidence report
+- human decision packet when blocking questions exist
 - review/fusion reports when enabled
 uses:
   skills:
@@ -18,8 +22,10 @@ uses:
   - impact-map-builder
   - adr-consistency-check
   - evidence-reporting
+  - reviewer-generalist
   - reviewer-architecture
   - reviewer-verification
+  - reviewer-adversarial
   - fusion-synthesis
   scripts:
   - contract_lint
@@ -29,23 +35,68 @@ uses:
   - evidence_validate
   templates:
   - task.contract.md
+  - repository-grounding-report.md
+  - plan.md
+  - task-breakdown.md
+  - decision-contract.md
   - impact-map.yaml
   - evidence-report.md
+  - human-questions.yaml
+  - human-decisions.yaml
   - reviewer-report.md
   - fusion-report.md
+  - finding-validation-report.md
+  - review-cycle-report.md
   packs:
   - agentic-system
   - coding-agent
   - backend-service
 review:
-  topology: triad-fusion
+  topology: homogeneous-dual
+  composition: homogeneous
+  topology_source: workflow_default
+  risk_surface_escalation_policy:
+    default_topology: homogeneous-dual
+    allowed_escalated_topologies:
+    - homogeneous-plus-focused
+    - heterogeneous-variable
+    escalate_when_selected_surfaces_include:
+    - authority_boundary
+    - policy_authorization
+    - audit_persistence
+    - secret_handling
+    - data_privacy
+    - external_io
+    - filesystem_access
+    - network_access
+    - runtime_budget
+    - timeout
+    - persistence_consistency
+    - human_approval
+    - irreversible_action
+    rule: Use the smallest focused or heterogeneous reviewer set that maps to
+      existing reviewer role contracts.
   reviewers:
-  - architecture
-  - verification
-  - adversarial
+  - generalist-a
+  - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+    focused_reviewers_require_explicit_focus_zone: true
+    focus_zones_may_overlap: true
+    all_reviewers_must_report_p0_p1_outside_focus: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+    - review_packet
+    - referenced_artifacts
   gates:
   - contract_gate
   - impact_gate
+  - plan_gate
   - verification_gate
   - evidence_gate
   - fusion_gate
@@ -55,6 +106,52 @@ review:
     p1_blocks: true
     majority_cannot_override_blocker: true
     missing_evidence: needs-additional-verification
+human_interaction:
+  mode: main-agent-mediated
+  reviewers_may_ask_human: false
+  pause_state: paused_waiting_for_human
+  question_artifact: human-questions.yaml
+  decision_artifact: human-decisions.yaml
+  allowed_pause_phases:
+  - operating_context_preflight
+  - contract
+  - contract_acceptance
+  - finding_validation
+  - final_decision
+  pause_on:
+  - unresolved_blocking_material_question
+  - scope_or_contract_amendment
+  - accepted_decision_or_adr_conflict
+  - exhausted_review_cycles
+  - final_human_acceptance_required_by_project_policy
+operating_context_preflight:
+  sufficient_context_required: true
+  prior_project_initialization_required: false
+  accepted_sources:
+  - project-operating-decisions.yaml
+  - workflow binding
+  - task contract
+  - explicit human decision packet
+  blockers:
+  - needs-project-binding
+  - needs-verification-gate
+  - needs-review-policy
+  - needs-evidence-location
+  - needs-red-capture-policy
+  - needs-human-authority-decision
+open_question_policy:
+  classification_required: true
+  classifications:
+  - blocking-material
+  - nonblocking-follow-up
+  - nonblocking-known-limitation
+  - out-of-scope
+  default_behavior:
+    blocking-material: pause_for_human
+    nonblocking-follow-up: record_followup
+    nonblocking-known-limitation: record_default_or_limitation
+    out-of-scope: record_out_of_scope
+  grouped_decision_packet_required: true
 supported_profiles:
   strictness:
   - L1
@@ -62,13 +159,38 @@ supported_profiles:
   - L3
   - L4
   review_topologies:
-  - single-reviewer
-  - dual-independent
-  - triad-fusion
-  - multi-model-fusion
+  - homogeneous-dual
+  - homogeneous-plus-focused
+  - heterogeneous-variable
 phases:
+- name: operating-context-preflight
+  id: operating_context_preflight
+  kind: planning
+  mode: human_guided
+  coordinator: main-agent
+  purpose: Confirm sufficient operating context for the target workflow before
+    contract drafting or implementation. The project may have completed
+    project-initialization, may be partly initialized, or may have been developed
+    with AgentsFlow from the start; missing required context is recorded as a
+    concrete blocker.
+  outputs:
+  - task contract operating context preflight
+  - human-questions.yaml when blocking questions exist
+  - human-decisions.yaml when answers are provided
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: task.contract.md open questions
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: task.contract.md
+    allowed_resume_states:
+    - answered
+    - unresolved
 - name: contract
-  purpose: Write/approve task contract.
+  purpose: Write the task contract draft, including operating context preflight,
+    selected risk surfaces, Failure Path Matrix when required, and classified
+    open questions.
   skills:
   - contract-authoring
   - bdd-scenario-design
@@ -76,13 +198,29 @@ phases:
   - contract_lint
   - gherkin_lint
   outputs:
-  - task contract
+  - task.contract.md
+  - risk surface profile in task.contract.md
+  - Failure Path Matrix in task.contract.md when selected risk surfaces require it
+  - grouped decision packet when needed
+  - draft contract awaiting human acceptance before red capture
   id: contract
   kind: specification
   mode: human_guided
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+  inputs:
+  - operating context preflight
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: task.contract.md open questions
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: task.contract.md
+    allowed_resume_states:
+    - answered
+    - unresolved
 - name: impact
   purpose: Map changed areas to required checks.
   skills:
@@ -98,6 +236,111 @@ phases:
   coordinator: main-agent
   reserved_optional_actors:
   - planning-agent
+- name: technical-plan
+  id: technical_plan
+  kind: specification
+  applies_to_strictness:
+  - L3
+  - L4
+  purpose: Produce the grounded plan artifacts required when effective strictness
+    includes the plan gate before red capture or implementation begins.
+  runs_after:
+  - impact
+  skills:
+  - contract-authoring
+  - impact-map-builder
+  scripts: []
+  templates:
+  - repository-grounding-report.md
+  - plan.md
+  - task-breakdown.md
+  - decision-contract.md
+  outputs:
+  - repository-grounding-report.md
+  - plan.md
+  - task-breakdown.md
+  - decision-contract.md
+- name: plan-gate
+  purpose: Validate that the implementation plan is grounded, scoped, testable
+    and ready for implementation before red capture or code changes begin.
+  skills:
+  - evidence-reporting
+  scripts: []
+  outputs:
+  - plan-gate-report.md
+  - plan-gate-report.json
+  id: plan_gate
+  kind: gate
+  gate: plan_gate
+  runs_after:
+  - technical_plan
+  applies_to_strictness:
+  - L3
+  - L4
+  owns_evidence_production: true
+- name: contract-acceptance
+  id: contract_acceptance
+  kind: decision
+  mode: human_guided
+  coordinator: main-agent
+  purpose: Human-mediated acceptance of the task contract, behavior bindings,
+    risk surface profile, Failure Path Matrix, impact map and technical plan
+    before red-capture or implementation begins. The main agent must first
+    present an open decision inventory and then review each blocking decision
+    with options, tradeoffs, recommendation and rationale.
+  runs_after:
+  - plan_gate
+  decision_review_contract:
+    artifact: decision-contract.md
+    required_before_prompt: true
+    required_sections:
+    - open_decision_inventory
+    - per_decision_options
+    - tradeoffs
+    - recommended_path
+    - rationale
+    - human_acceptance_question
+    acceptance_rule: Blocking decisions must be accepted, changed, or explicitly
+      deferred with residual risk before red-capture.
+  outputs:
+  - design decision review packet in decision-contract.md
+  - human contract acceptance decision in human-decisions.yaml
+  - per-decision acceptance or change requests in human-decisions.yaml
+  - accepted-for-red-capture status in run metadata
+  human_interaction:
+    can_pause: true
+    required: true
+    prompt_source: decision-contract.md plus task.contract.md, behavior bindings,
+      Failure Path Matrix, impact map and technical plan
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: run.yaml
+    allowed_resume_states:
+    - accepted_for_red_capture
+    - changes_requested
+    - rejected
+- name: red-capture
+  purpose: Turn contract scenarios into executable tests and run them against the
+    not-yet-implemented state, capturing the expected failing result. Required
+    failure-path rows selected in the contract must be bound or explicitly
+    deferred before this phase starts.
+  runs_after:
+  - plan_gate
+  - contract_acceptance
+  runs_after_policy: after_applicable_strictness_gate
+  skills:
+  - evidence-reporting
+  scripts:
+  - impact_map_check
+  - evidence_validate
+  outputs:
+  - red capture gate report
+  - failing-run evidence
+  id: red_capture
+  kind: verification
+  gate: verification_gate
+  test_framing: red_capture
+  owns_evidence_production: true
 - name: implementation
   purpose: Implement within boundaries.
   skills: []
@@ -105,9 +348,11 @@ phases:
   outputs:
   - diff
   id: implementation
+  kind: implementation
 - name: verification_gate
   purpose: Run required tests, deterministic checks, boundary checks, impact checks,
-    and evidence validation.
+    and evidence validation, including selected risk-surface/path-class coverage
+    and evidence freshness after the latest material change.
   actor_class: verification_gate
   may_run_tests: true
   skills:
@@ -120,8 +365,10 @@ phases:
   - verification gate report
   - evidence bundle
   - evidence report
+  - Failure Path Matrix coverage summary when applicable
   id: verification_gate
   kind: verification
+  test_framing: green_verify
   owns_evidence_production: true
   instruments:
   - type: tests
@@ -136,7 +383,9 @@ phases:
     source: optional/profile
   gate: verification_gate
 - name: review
-  purpose: Run read-only independent review after the verification gate.
+  purpose: Run read-only independent review after the verification gate, using a
+    review packet that includes selected risk surfaces, Failure Path Matrix,
+    latest green evidence, known blockers and evidence freshness.
   actor_class: review_agent
   runs_after:
   - verification_gate
@@ -144,12 +393,10 @@ phases:
   may_run_tests: false
   may_modify_files: false
   skills:
-  - reviewer-architecture
-  - reviewer-verification
-  - fusion-synthesis
+  - reviewer-generalist
   scripts: []
   outputs:
-  - review/fusion reports
+  - reviewer reports
   id: review
   kind: review
   default_permissions:
@@ -159,12 +406,76 @@ phases:
     run_verification_instruments: false
     run_tools: false
   explicit_tool_exceptions_allowed: true
+- name: fusion
+  id: fusion
+  kind: fusion
+  purpose: Synthesize candidate findings and preserve candidate blockers without
+    treating reviewer majority as authoritative truth.
+  skills:
+  - fusion-synthesis
+  scripts: []
+  runs_after:
+  - review
+  outputs:
+  - fusion-report.md
+- name: finding-validation
+  id: finding_validation
+  kind: finding_validation
+  purpose: Validate reviewer and fusion findings against the contract, diff,
+    verification evidence, accepted decisions and scope; record blocker status
+    and post-fix materiality classification before deciding whether another review
+    cycle is required.
+  runs_after:
+  - fusion
+  outputs:
+  - finding-validation-report.md
+  - review-cycle-report.md
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: finding-validation-report.md
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: finding-validation-report.md
+    allowed_resume_states:
+    - answered
+    - unresolved
+- name: final-decision
+  id: final_decision
+  kind: decision
+  purpose: Close the workflow when no validated blockers or mandatory evidence gaps
+    remain, or pause for final human acceptance when project policy requires it.
+  runs_after:
+  - finding_validation
+  outputs:
+  - final decision summary
+  human_interaction:
+    can_pause: true
+    required: conditional
+    prompt_source: review-cycle-report.md
+    question_artifact: human-questions.yaml
+    decision_artifact: human-decisions.yaml
+    response_artifact: final decision summary
+    allowed_resume_states:
+    - answered
+    - defaulted
+    - unresolved
 exit_criteria:
 - Required artifacts are produced.
+- Operating context preflight completed, or unresolved blocking-material items
+  are recorded as a workflow pause/blocker.
+- Selected risk surfaces are recorded, and required Failure Path Matrix rows are
+  bound to evidence or explicitly deferred with approved residual risk.
 - Required scripts pass or skipped items are explicitly justified.
 - Verification gate produced a gate report/evidence bundle.
+- Verification evidence is fresh after the latest material change.
 - Review agents ran after the verification gate and did not run tests/scripts themselves.
-- Evidence is sufficient for the selected strictness profile.
+- P0/P1 candidate findings were relevance-validated and no validated blockers or
+  mandatory evidence gaps remain.
+- Post-review fixes were classified as material or non-material before deciding
+  whether to rerun review.
+- Human final acceptance was recorded when required by project policy.
+- Evidence is sufficient for the effective strictness.
 review_control_rules:
   review_agents_read_only: true
   review_agents_run_after: verification_gate
@@ -179,9 +490,12 @@ review_control_rules:
   default_exit_when_no_validated_blocking_findings: true
   missing_mandatory_evidence_blocks_acceptance: true
   p0_p1_findings_require_recorded_validation: true
+  post_fix_materiality_classification_required: true
 review_cycle:
   default_exit_when: no_validated_blocking_findings
-  max_review_cycles: 2
+  max_review_cycles_required: false
+  max_review_cycles_source: project_policy_or_workflow_binding
+  max_review_cycles_absent_means: unlimited
   rerun_review_on:
   - accepted_blocker_fixed
   - mandatory_evidence_added
@@ -190,10 +504,36 @@ review_cycle:
   - verification_gate_materially_changed
   - human_requested
   do_not_rerun_on:
-  - nonblocking_findings_only
+  - nonblocking_findings_with_non_material_fixes_only
   - duplicate_consolidation
   - irrelevant_findings_rejected_with_reason
   - fusion_rewording_only
+  materiality_classification:
+    required_after_review_fixes: true
+    material_triggers_take_precedence_over_do_not_rerun: true
+    evidence_freshness_after_material_change_required: true
+    material_if_changes:
+    - task_contract_or_scope
+    - selected_risk_surfaces_or_failure_path_matrix
+    - behavior_bindings
+    - affected_implementation_behavior
+    - workflow_or_gate_policy
+    - review_cycle_policy
+    - schema_or_validator
+    - project_overlay_or_binding
+    - review_packet_content
+    - mandatory_evidence
+    - verification_gate_output
+    - examples_used_as_evidence
+    non_material_if_only:
+    - report_editorial_changes_only
+    - duplicate_consolidation
+    - non_source_of_truth_notes
+  supplemental_review:
+    allowed_when_requested_by_human: true
+    requires_recorded_reason: true
+    findings_remain_candidate: true
+    reopens_fix_loop_only_on_validated_p0_p1_or_mandatory_evidence_gap: true
   blocking_default:
     severities:
     - P0
@@ -256,6 +596,7 @@ concrete_gates:
 - evidence_gate
 - fusion_gate
 - impact_gate
+- plan_gate
 - verification_gate
 mvp_status: v0.2-mvp
 binding_model:

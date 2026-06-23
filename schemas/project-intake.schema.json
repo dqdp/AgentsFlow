@@ -2,12 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AgentsFlow Project Intake / Research Assignment",
   "type": "object",
-  "required": ["version", "mode", "objective", "analysis_focus", "constraints"],
+  "required": ["version", "mode", "intent_mode", "objective", "analysis_focus", "constraints"],
   "properties": {
     "version": {"type": "integer"},
     "mode": {
       "type": "string",
       "enum": ["unknown-project-discovery", "directed-onboarding", "problem-driven", "migration-driven", "risk-driven"]
+    },
+    "intent_mode": {
+      "type": "string",
+      "enum": ["unknown-discovery", "adoption-onboarding", "prepare-workflow", "legacy-cleanup", "risk-domain-assessment"]
+    },
+    "target_workflow": {
+      "type": ["string", "null"],
+      "minLength": 1
     },
     "objective": {"type": "string"},
     "standard_assignment": {"type": "object"},
@@ -19,5 +27,26 @@
     "domain_expertise_questions": {"type": "object"},
     "questions_for_human": {"type": "array", "items": {"type": "string"}}
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "intent_mode": {"const": "prepare-workflow"}
+        },
+        "required": ["intent_mode"]
+      },
+      "then": {
+        "required": ["target_workflow"],
+        "properties": {
+          "target_workflow": {
+            "type": "string",
+            "enum": [
+              "big-feature-contract-first"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

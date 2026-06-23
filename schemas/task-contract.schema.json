@@ -10,5 +10,12 @@
     "Behavioral Scenarios",
     "Verification Binding",
     "Evidence Required"
+  ],
+  "recommended_sections": [
+    "Operating Context Preflight",
+    "Risk Surface Profile",
+    "Failure Path Matrix",
+    "Audit and Persistence Contract",
+    "Open Questions"
   ]
 }

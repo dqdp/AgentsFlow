@@ -8,17 +8,23 @@ inputs:
 - diff_or_artifact
 - adrs
 - evidence_report
+- risk_surface_profile
+- failure_path_matrix
+- review_topology_rationale
 outputs:
 - architecture_review_report
 depends_on: []
 compatible_workflows:
 - big-feature-contract-first
 - review-only-fusion
+- pr-merge-readiness
 quality_bar:
 - Review is grounded in contract and ADRs.
 - Blocking issues are explicit.
+- Architecture risk-surface findings are tied to contract, FPM, evidence, or ADR context.
 anti_patterns:
 - Reviewing by taste without contract reference.
+- Choosing a different topology instead of reporting inconsistencies in the recorded rationale.
 mode: read_only
 actor_class: review_agent
 runs_after:

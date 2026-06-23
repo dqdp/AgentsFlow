@@ -14,7 +14,23 @@
     },
     "max_review_cycles": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 3
+    },
+    "max_review_cycles_required": {
+      "type": "boolean"
+    },
+    "max_review_cycles_source": {
+      "enum": [
+        "project_policy",
+        "workflow_binding",
+        "project_policy_or_workflow_binding",
+        "none"
+      ]
+    },
+    "max_review_cycles_absent_means": {
+      "enum": [
+        "unlimited"
+      ]
     },
     "rerun_review_on": {
       "type": "array",
@@ -25,6 +41,7 @@
           "contract_changed",
           "material_artifact_change",
           "verification_gate_materially_changed",
+          "project_overlay_materially_changed",
           "human_requested",
           "workflow_requires_second_pass"
         ]
@@ -34,7 +51,7 @@
       "type": "array",
       "items": {
         "enum": [
-          "nonblocking_findings_only",
+          "nonblocking_findings_with_non_material_fixes_only",
           "duplicate_consolidation",
           "irrelevant_findings_rejected_with_reason",
           "fusion_rewording_only",

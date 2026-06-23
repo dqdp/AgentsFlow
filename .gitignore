@@ -4,6 +4,9 @@ __pycache__/
 .venv/
 .env
 .DS_Store
+.agentsflow/
+run-artifacts/**/evidence/stale-review-reports/
+run-artifacts/**/evidence/raw/*.raw.json
 build/
 dist/
 *.egg-info/

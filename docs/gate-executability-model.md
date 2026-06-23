@@ -30,6 +30,39 @@ BDD scenario exists
   -> model says gate passed
 ```
 
+## Gate authority modes
+
+The word "gate" is a workflow-control term, not a single authority model. When
+the distinction matters, a workflow or project binding should identify the gate
+authority mode.
+
+```text
+deterministic_gate
+  A deterministic runner evaluates declared checks, scripts, schemas or manual
+  evidence presence and emits a gate report.
+
+review_gate
+  Independent review agents inspect a declared packet and emit candidate
+  findings. The main/orchestrating agent validates relevance. The exit condition
+  is no validated blockers and no mandatory evidence gaps, unless project policy
+  adds human approval.
+
+human_mediated_gate
+  The main/orchestrating agent synthesizes evidence, reviewer findings and
+  options for the human. The human decision is recorded in the workflow-run
+  decision artifacts before the workflow can proceed.
+```
+
+These modes can be combined in a larger workflow control sequence, but they must
+not be collapsed into one implicit step. For example, a deterministic `plan_gate`
+can check that the plan packet is present and grounded; a separate
+human-mediated plan decision can consume reviewer findings and record human
+approval or amendment before red-capture begins.
+
+This document's executability rule applies to project-bound executable gate
+manifests and runners. It does not turn review agents or human approval into
+deterministic scripts.
+
 ## Upstream gate contract vs project-bound executable gate
 
 AgentsFlow has two gate layers.
@@ -120,6 +153,19 @@ Required BDD scenarios become gate-relevant through behavior binding manifests:
 The gate runner checks the binding, executes or confirms the bound checks, and
 includes results in the gate report.
 
+## Red-capture relationship
+
+Executability is necessary but not sufficient: a bound check must also have been run
+against the unsatisfied state. For implementation work, ADR-0017 requires the same
+check to produce a captured failing run (red) before implementation and a passing
+run (green) after. This closes the gap where an always-green test, or a test never
+run against broken code, could self-certify the gate — the failure mode this rule
+exists to prevent. `validate_repo.py` enforces the framing structurally: a workflow
+with a `kind: implementation` phase must frame it with a red-capture phase and a
+green-verify phase using `test_framing` markers. Refactor-only workflows may use
+`baseline_capture` before `change_type: refactor`, because the pre-change
+behavior-preservation baseline is expected to pass rather than fail.
+
 ## Review/fusion relation
 
 Review agents and fusion agents consume gate reports. They do not replace gates.
@@ -135,7 +181,8 @@ authoritative verification signal.
 - workflow references resolve to upstream gate contracts;
 - gate manifests have runner interfaces/generic runner paths;
 - schemas/templates/scripts exist;
-- workflow phases declare gate references.
+- workflow phases declare gate references;
+- a workflow with a `kind: implementation` phase frames it with a pre-implementation red-capture phase, or refactor baseline-capture phase, and a post-implementation green-verify phase.
 
 `validate_project_binding.py` checks a concrete project overlay:
 
@@ -143,4 +190,4 @@ authoritative verification signal.
 - project gate bindings extend upstream gate contracts;
 - project-level runners exist;
 - required commands/instruments are declared;
-- required behavior binding files are present where configured.
+- project-bound gates and runners referenced by workflow bindings exist.

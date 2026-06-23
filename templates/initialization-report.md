@@ -12,6 +12,12 @@
 
 ## Expert assessments
 
+## Human operating decisions
+
+- Source: agent-led dialogue
+- Artifact: `project-operating-decisions.yaml`
+- Status: draft / confirmed / needs-human-decision / rejected
+
 ## Proposed project overlay
 
 ## Proposed project-bound gates

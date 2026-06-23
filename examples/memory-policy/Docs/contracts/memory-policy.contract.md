@@ -3,8 +3,8 @@
 Status: Example
 Workflow: agentic-system-hardening
 Domain Pack: agentic-system
-Strictness: L2
-Review Topology: single-reviewer
+Effective Strictness: L2
+Review Topology: homogeneous-dual
 
 ## Intent
 

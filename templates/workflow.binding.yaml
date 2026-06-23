@@ -1,13 +1,27 @@
 workflow: big-feature-contract-first
 extends: workflows/big-feature-contract-first/workflow.yaml
 agentsflow_version: 0.2
+strictness_source: workflow_default
+# Optional: set `strictness` only when overriding the workflow default, and
+# include `strictness_override_reason`.
 
 binding:
   project: my-project
   docs_root: Docs/
   runs_root: Docs/agentsflow/runs/
 
+risk_surface_policy:
+  catalog_source: docs/risk-and-strictness.md
+  project_default_surfaces: []
+  project_local_surfaces: []
+  failure_path_matrix_required_when:
+    - selected_surface_has_denial_failure_timeout_rejection_persistence_or_authority_semantics
+
 gates:
+  plan_gate:
+    extends: gates/plan_gate.yaml
+    manifest: .agentsflow/gates/plan_gate.yaml
+    runner: .agentsflow/scripts/run_plan_gate.sh
   verification_gate:
     extends: gates/verification_gate.yaml
     manifest: .agentsflow/gates/verification_gate.yaml
@@ -16,9 +30,28 @@ gates:
 behavior_bindings:
   default_pattern: "Docs/agentsflow/runs/*/*.bindings.yaml"
 
+evidence_policy:
+  structured_command_evidence_required: true
+  freshness:
+    material_change_id_required: true
+    green_gate_after_latest_material_change_required: true
+    review_packet_after_latest_green_gate_required: true
+    stale_evidence_must_be_marked_or_excluded: true
+
 review:
-  topology: triad-fusion
+  topology: homogeneous-dual
+  composition: homogeneous
   reviewers:
-    - architecture
-    - verification
-    - adversarial
+    - generalist-a
+    - generalist-b
+  prompt_policy:
+    same_prompt: true
+    same_packet: true
+    same_rubric: true
+    same_output_schema: true
+  context_policy:
+    start_mode: fresh_context
+    fork_conversation_context: false
+    allowed_context_sources:
+      - review_packet
+      - referenced_artifacts

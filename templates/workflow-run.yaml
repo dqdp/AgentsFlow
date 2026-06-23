@@ -3,16 +3,53 @@ run_id: "YYYY-MM-DD-task-slug"
 workflow: big-feature-contract-first
 agentsflow_version: v0.2.0
 binding: .agentsflow/workflows/big-feature-contract-first.binding.yaml
-strictness: L2
-review_topology: single-reviewer
+strictness: L3
+strictness_source: workflow_default
+review_topology: homogeneous-dual
+review_composition: homogeneous
+prompt_policy:
+  same_prompt: true
+  same_packet: true
+  same_rubric: true
+reviewer_context:
+  start_mode: fresh_context
+  fork_conversation_context: false
 status: in_progress
+
+phase_guard:
+  current_phase: operating_context_preflight
+  completed_phases: []
+  allowed_next_phases:
+    - contract
+  allowed_outputs:
+    - human-questions.yaml
+    - human-decisions.yaml
+  draft_artifacts:
+    - task.contract.md
+  forbidden_outputs_until_phase_exit:
+    - path: plan.md
+      until_phase: technical_plan
+      reason: Implementation plans are not operating-context-preflight outputs.
+    - path: evidence-report.md
+      until_phase: verification_gate
+      reason: Evidence reports are produced after verification evidence exists.
+  blocked: false
+  blocked_by: []
+
+human_interaction:
+  question_artifact: human-questions.yaml
+  decision_artifact: human-decisions.yaml
+  allowed_statuses:
+    - running
+    - paused_waiting_for_human
+    - resumed
+    - completed
+    - blocked
 
 artifacts:
   root: Docs/agentsflow/runs/YYYY-MM-DD-task-slug
-  contract: task.contract.md
-  plan: plan.md
-  behavior_bindings: behavior.bindings.yaml
-  evidence_report: evidence-report.md
-  final_report: final-report.md
+  human_questions: human-questions.yaml
+  human_decisions: human-decisions.yaml
+  task_contract_draft: task.contract.md
 
 phase_status: []

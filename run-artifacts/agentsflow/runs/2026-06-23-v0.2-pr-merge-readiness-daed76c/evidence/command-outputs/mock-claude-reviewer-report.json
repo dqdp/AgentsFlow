@@ -1,0 +1,40 @@
+{
+  "reviewer": {
+    "id": "claude-architecture-reviewer",
+    "provider": "claude-code",
+    "role": "architecture",
+    "model": "opus"
+  },
+  "review_context": {
+    "run_id": "YYYY-MM-DD-task-slug",
+    "material_change_id": "",
+    "review_packet_path": "",
+    "reviewer_instance_id": "architecture"
+  },
+  "summary": "No blocking architecture findings in the sample packet.",
+  "findings": [
+    {
+      "id": "CR-001",
+      "severity": "P3",
+      "category": "sample",
+      "title": "Sample review packet uses placeholder summaries",
+      "evidence": [
+        "review-packet.architecture.json contains placeholder summary fields"
+      ],
+      "why_it_matters": "A real workflow run should provide concrete contract, plan and evidence summaries.",
+      "recommendation": "Populate the review packet from actual workflow-run artifacts before invoking external review.",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [],
+  "self_declared_limitations": [
+    "Sample output only; no repository was inspected."
+  ],
+  "normalization": {
+    "method": "native-json",
+    "source_path": "/tmp/agentsflow-pr-readiness-daed76c/mock-claude-reviewer-report.raw.json",
+    "source_hash": "sha256:a1906934184145b8fa5bec68fe848a01f26aec00089a5561229354f37d486fe8",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py"
+  }
+}

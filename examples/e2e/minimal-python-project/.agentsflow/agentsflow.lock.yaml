@@ -1,0 +1,20 @@
+agentsflow:
+  version: v0.2.0
+  source:
+    type: git-submodule
+    path: .agentsflow/upstream
+    ref: v0.2.0
+    commit: illustrative-v0.2-prehandoff
+  schema_version: 1
+
+project_overlay:
+  path: .agentsflow/project.yaml
+  binding_version: 1
+
+update_policy:
+  upstream_is_read_only_during_normal_workflows: true
+  upgrade_requires_review: true
+
+fixture_resolution:
+  extends_root: repository_root
+  note: "Repository fixture validates binding extends against the AgentsFlow checkout; real projects resolve through the pinned upstream dependency."

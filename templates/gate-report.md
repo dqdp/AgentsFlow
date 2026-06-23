@@ -1,5 +1,15 @@
 # Gate Report
 
+Gate authority mode:
+
+- `deterministic_gate`
+- `review_gate`
+- `human_mediated_gate`
+
+Use the mode that matches who has decision authority for this report. A
+deterministic gate report must not silently include human approval or reviewer
+acceptance unless those are declared inputs/evidence for the gate.
+
 ## Gate
 
 - Name:
@@ -15,17 +25,32 @@
 - Diff/artifact:
 - Impact map:
 - Selected profile:
+- Selected risk surfaces:
+- Failure Path Matrix:
+- Material change id:
 
 ## Checks Executed
 
-| Check | Required | Result | Evidence |
-|---|---:|---|---|
-| contract_lint | yes |  |  |
-| gherkin_lint | yes |  |  |
-| boundary_check | yes |  |  |
-| impact_map_check | yes |  |  |
-| evidence_validate | yes |  |  |
-| workflow_required_tests | yes |  |  |
+| Check | Risk surface | Path class | Required | Result | Evidence |
+|---|---|---|---:|---|---|
+| contract_lint |  |  | yes |  |  |
+| gherkin_lint |  |  | yes |  |  |
+| boundary_check | `filesystem_access` | `forbidden_path` | yes |  |  |
+| impact_map_check |  |  | yes |  |  |
+| evidence_validate |  |  | yes |  |  |
+| workflow_required_tests |  |  | yes |  |  |
+
+## Structured Command Evidence
+
+| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |
+|---|---:|---|---|---|---|
+|  |  | pass/fail/skip/blocked |  |  | optional |
+
+## Failure Path Matrix Coverage
+
+| FPM ID | Risk surface | Path class | Covered by | Result | Notes |
+|---|---|---|---|---|---|
+|  |  |  | check/evidence/approved deferral | pass/fail/skip/deferred |  |
 
 ## Skipped Checks
 

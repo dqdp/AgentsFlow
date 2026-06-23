@@ -1,0 +1,46 @@
+{
+  "reviewer": {
+    "id": "adversarial-codex",
+    "provider": "internal-agent",
+    "role": "adversarial",
+    "model": "codex"
+  },
+  "summary": "I found one candidate P1 blocker. The current run artifacts correctly avoid claiming final merge readiness, keep the mock Claude wrapper smoke distinct from live review, and leave human merge acceptance for a later phase. However, the material change's claimed fix for failed external-review invocation evidence is incomplete for the real nonzero-provider-exit path: that path writes invocation metadata without failure_stage and without normalized_output_hash, which violates the updated reviewer-invocation schema and contradicts the rerun evidence claim that failed invocation metadata is now schema-valid evidence.",
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-rerun",
+    "material_change_id": "8a2c197",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/review-packets/adversarial-codex.json",
+    "reviewer_instance_id": "adversarial-codex"
+  },
+  "findings": [
+    {
+      "id": "ADV-AUTH-001",
+      "severity": "P1",
+      "category": "adversarial_authority",
+      "title": "Nonzero external-provider failures still produce schema-invalid invocation metadata despite the run claiming that failure evidence is fixed",
+      "evidence": [
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/evidence-report.md:41 says failed external reviewer invocation metadata is now schema-valid evidence and is not counted as completed external review evidence.",
+        "schemas/reviewer-invocation.schema.json:217-227 requires normalized_output_hash unless failure_stage is present; when failure_stage is present it requires failure_message instead.",
+        "scripts/reviewers/run_external_reviewer.py:937-953 handles exit_code != 0 by writing invocation metadata and raising, but it does not add failure_stage, failure_message, or normalized_output_hash.",
+        "scripts/reviewers/run_external_reviewer.py:1003-1014 only adds failure_stage/failure_message when invocation_path does not already exist, so the exit_code != 0 metadata written at lines 941-951 is not enriched by the exception handler.",
+        "tests/test_scripts_smoke.py:5013-5050 validates schema-valid failure metadata only for provider_output_processing failures after a zero-exit mock response with non-JSON reviewer content; I did not find a corresponding test for claude_code.invoke returning a nonzero provider exit."
+      ],
+      "blocker_path": "pr-merge-readiness rerun evidence and material change 8a2c197 claim failed external reviewer invocation metadata is schema-valid -> actual live provider nonzero-exit failure path omits the schema discriminator failure_stage and omits normalized_output_hash -> failed external invocation evidence cannot validate as the claimed durable failure evidence.",
+      "acceptance_impact": "Accepting the branch as PR-ready would preserve the same authority/evidence gap this rerun says it fixed: a live Claude provider failure can still leave failed invocation evidence that is not schema-valid, so the orchestrator cannot reliably distinguish and store failed external review evidence without treating the prior blocker as unresolved.",
+      "mandatory_evidence_gap": true,
+      "recommendation": "Set failure_stage and failure_message before writing invocation metadata in the exit_code != 0 branch, or allow that branch to fall through one failure writer, then add a regression test that simulates claude_code.invoke returning a nonzero exit and validates the resulting reviewer-invocation metadata against schemas/reviewer-invocation.schema.json without normalized_output_hash.",
+      "calibration_reason": "This is P1 because it directly contradicts the rerun's fix evidence for the previous external-review failure path and affects mandatory gate evidence handling. It is not merely a documentation issue because the code path writes metadata that the updated schema rejects.",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQ-ADV-001",
+      "request": "After fixing the nonzero-provider-exit branch, add or run a targeted wrapper regression that exercises claude_code.invoke returning exit_code != 0 and validates the invocation JSON against schemas/reviewer-invocation.schema.json."
+    }
+  ],
+  "self_declared_limitations": [
+    "Read-only review only: I did not run tests, execute scripts, modify files, create patches, or update evidence.",
+    "I inspected the assigned packet, referenced run artifacts, workflow/docs, external reviewer wrapper, review-set/evaluator paths, schema, targeted tests, and the material commit diff. I did not exhaustively audit all 337 changed files outside the adversarial-authority focus."
+  ]
+}

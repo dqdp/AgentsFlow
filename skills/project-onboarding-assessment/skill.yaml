@@ -8,15 +8,24 @@ inputs:
   - selected_docs
   - human_context
 outputs:
-  - project_assessment
+  - project-assessment.architecture.json
+  - project-assessment.verification.json
+  - project-assessment.adversarial.json
+  - project-assessment.prompt-engineering.json when prompt-sensitive
+  - project-assessment.json
   - workflow_recommendations
   - gate_recommendations
 depends_on: []
 compatible_workflows:
   - project-initialization
 quality_bar:
+  - Role reports are strict JSON conforming to schemas/project-assessment.schema.json.
+  - Synthesis happens only after all required role reports are schema-valid.
+  - Candidate findings remain candidate-unvalidated until main-agent relevance validation.
   - Observed facts and inferred judgments are separated.
   - Non-trivial inferred fields include evidence, confidence and human-confirmation markers.
 anti_patterns:
+  - Treating Markdown or prose-only role output as authoritative workflow evidence.
+  - Synthesizing project-assessment.json before role-report schema validation.
   - Treating model inferences as deterministic facts.
   - Ignoring project documentation or Markdown implementation history.

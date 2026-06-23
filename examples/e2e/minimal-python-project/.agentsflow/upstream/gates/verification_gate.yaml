@@ -1,0 +1,35 @@
+id: verification_gate
+name: Verification Gate
+kind: gate
+purpose: Run workflow-defined verification instruments and produce structured evidence.
+runner: scripts/gates/run_gate.py
+inputs:
+  - task contract
+  - workflow plan
+  - behavior bindings
+instruments:
+  - id: required_tests
+    type: tests
+    required: true
+  - id: behavior_binding_check
+    type: deterministic_script
+    required: true
+outputs:
+  - verification gate report
+  - evidence report
+result_states:
+  - pass
+  - fail
+  - inconclusive
+pass_policy:
+  required_instruments:
+    - required_tests
+    - behavior_binding_check
+  fail_on:
+    - failed_required_instrument
+    - missing_required_instrument
+  inconclusive_on:
+    - missing_evidence
+binding_level: upstream_gate_contract
+requires_project_binding: true
+project_binding_required_for_real_run: true
