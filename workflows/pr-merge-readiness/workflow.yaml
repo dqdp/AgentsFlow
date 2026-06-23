@@ -285,6 +285,10 @@ phases:
     target: pull_request
     tool: gh
     action: pr comment
+    execution:
+      sandbox_mode: require_escalated
+      reason: GitHub CLI authentication may depend on the local keychain/token
+        context; default sandbox execution can produce false 401/403 evidence.
     body_artifact: github-publication.md
     result_artifact: github-publication-result.json
     source_of_truth: local_run_artifacts

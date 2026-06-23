@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from .behavior_bindings import validate_behavior_binding, validate_behavior_binding_gate_refs
@@ -75,6 +78,60 @@ def _tracked_files(root: Path) -> set[Path]:
     if result.returncode != 0:
         return set()
     return {(root / line).resolve() for line in result.stdout.splitlines() if line}
+
+
+def _tracked_file_refs(root: Path) -> tuple[list[Path], list[str]]:
+    if not (root / ".git").exists():
+        return [], ["tracked-only validation requires a git worktree"]
+    result = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=root,
+        text=False,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        return [], [f"git ls-files failed: {stderr or result.returncode}"]
+    refs = [
+        Path(raw.decode("utf-8"))
+        for raw in result.stdout.split(b"\0")
+        if raw
+    ]
+    return refs, []
+
+
+def _copy_tracked_snapshot(root: Path, target: Path, refs: list[Path]) -> list[str]:
+    errors: list[str] = []
+    for rel in refs:
+        if rel.is_absolute() or ".." in rel.parts:
+            errors.append(f"invalid tracked path: {rel}")
+            continue
+        src = root / rel
+        dst = target / rel
+        if not src.exists() and not src.is_symlink():
+            errors.append(f"tracked file missing from working tree: {rel.as_posix()}")
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if src.is_symlink():
+            os.symlink(os.readlink(src), dst)
+        else:
+            shutil.copy2(src, dst)
+    return errors
+
+
+def validate_tracked_repository(root: Path) -> list[str]:
+    root = root.resolve()
+    refs, errors = _tracked_file_refs(root)
+    if errors:
+        return errors
+    with tempfile.TemporaryDirectory(prefix="agentsflow-tracked-validation-") as tmp:
+        snapshot = Path(tmp) / "repo"
+        snapshot.mkdir()
+        copy_errors = _copy_tracked_snapshot(root, snapshot, refs)
+        if copy_errors:
+            return copy_errors
+        return validate_repository(snapshot)
 
 
 def _tracked_or_all(paths: set[Path], tracked_files: set[Path]) -> set[Path]:
@@ -303,8 +360,14 @@ def validate_repository(root: Path) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--root', default='.', help='repository root')
+    ap.add_argument(
+        '--tracked-only',
+        action='store_true',
+        help='validate a temporary snapshot containing only files listed by git ls-files',
+    )
     args = ap.parse_args()
-    errors = validate_repository(Path(args.root))
+    root = Path(args.root)
+    errors = validate_tracked_repository(root) if args.tracked_only else validate_repository(root)
     if errors:
         print('Repository validation failed:')
         for err in errors:

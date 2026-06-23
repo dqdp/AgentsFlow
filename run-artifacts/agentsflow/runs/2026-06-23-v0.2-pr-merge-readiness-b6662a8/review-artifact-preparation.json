@@ -6,7 +6,7 @@
   "prepared_at": "2026-06-23T13:19:23.067142+00:00",
   "review_prompt_contract": {
     "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompt-contract.yaml",
-    "hash": "sha256:e3c5f788c67709518ba4e8c85b4aacc7e42bf9dcb83eda8b94605049b999f2bb"
+    "hash": "sha256:62efc2e05bbd2b7aee5f228614f4ac300cb4cbdf4559fa8d593280cd2816f243"
   },
   "source_context": {
     "dirty_policy": "fail-closed",
@@ -330,7 +330,7 @@
     {
       "path": "workflows/pr-merge-readiness/workflow.yaml",
       "kind": "declared_input",
-      "hash": "sha256:e934641f60fee5cee2c5e209b728ef606275633024fed9162bc1bf0a9a44bb52",
+      "hash": "sha256:8f27b0a1d808f20a72559c26ec02122b1155d56b6a15fa62a2fc7f4e70efc781",
       "required_by": [
         "explicit_include"
       ]
@@ -346,7 +346,7 @@
     {
       "path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-invocation-set.json",
       "kind": "declared_input",
-      "hash": "sha256:1db8a30f74b0cf9d140d01984d6844824d77dccf226bab0aac86d61fbd5e2643",
+      "hash": "sha256:9b76fddb7d6d115795bdad87e85d85222d2d6a374dc038c4e49b86ceba19882e",
       "required_by": [
         "explicit_include"
       ]
@@ -460,7 +460,7 @@
       "model_family": "opus",
       "requested_model": "opus",
       "requested_effort": "max",
-      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "provider_config": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
       "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-claude.json",
       "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.verification-claude.json",
       "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/raw/verification-claude.raw.json",
@@ -479,7 +479,7 @@
       "model_family": "opus",
       "requested_model": "opus",
       "requested_effort": "max",
-      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "provider_config": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
       "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-claude.json",
       "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.architecture-claude.json",
       "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/raw/architecture-claude.raw.json",
@@ -498,7 +498,7 @@
       "model_family": "opus",
       "requested_model": "opus",
       "requested_effort": "max",
-      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "provider_config": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
       "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-claude.json",
       "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.adversarial-claude.json",
       "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/raw/adversarial-claude.raw.json",

@@ -32,7 +32,7 @@
   "timeout_seconds": 900,
   "input_hash": "sha256:534007ac23197776982f8d28302a810fe3b91928623e571738ea34adf032f419",
   "prompt_hash": "sha256:23fea0279f9b5b810b786f62bbfe6fbc177cf78fa3eb74a1d06e2429a035ae99",
-  "review_prompt_contract_hash": "sha256:e3c5f788c67709518ba4e8c85b4aacc7e42bf9dcb83eda8b94605049b999f2bb",
+  "review_prompt_contract_hash": "sha256:62efc2e05bbd2b7aee5f228614f4ac300cb4cbdf4559fa8d593280cd2816f243",
   "role_contract_hash": "sha256:f84eaababb550c5b14f9a6c98b015d3f94379e5813b4fb63ed466d0ef3debf1f",
   "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
   "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",

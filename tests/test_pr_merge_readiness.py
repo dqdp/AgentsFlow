@@ -2506,6 +2506,7 @@ def test_pr_merge_readiness_workflow_manifest_declares_utility_policy() -> None:
     assert phases["optional_github_publication"]["required_for_merge_readiness"] is False
     assert phases["optional_github_publication"]["mode"] == "automated"
     assert phases["optional_github_publication"]["runs_after"] == ["final_readiness_gate"]
+    assert phases["optional_github_publication"]["default_publication"]["execution"]["sandbox_mode"] == "require_escalated"
     assert phases["readiness_report"]["runs_after"] == ["finding_validation"]
     assert phases["final_human_merge_decision"]["name"] == "final-human-merge-decision"
     assert phases["final_human_merge_decision"]["runs_after"] == ["readiness_report"]

@@ -638,7 +638,7 @@
     {
       "path": "tests/test_pr_merge_readiness.py",
       "kind": "declared_input",
-      "hash": "sha256:d90e0608f465579383df9f1539da67cacb71e3c7531613c902460596e52cb47a",
+      "hash": "sha256:8d7041c5dacaac0faac102a1ca443d21a2b9fb397b7e03b009d1d44914c3d5dc",
       "required_by": [
         "explicit_include"
       ]
@@ -646,7 +646,7 @@
     {
       "path": "workflows/pr-merge-readiness/workflow.yaml",
       "kind": "declared_input",
-      "hash": "sha256:e934641f60fee5cee2c5e209b728ef606275633024fed9162bc1bf0a9a44bb52",
+      "hash": "sha256:8f27b0a1d808f20a72559c26ec02122b1155d56b6a15fa62a2fc7f4e70efc781",
       "required_by": [
         "explicit_include"
       ]

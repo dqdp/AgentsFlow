@@ -3896,6 +3896,26 @@ def test_repo_validation_rejects_duplicate_yaml_keys(tmp_path) -> None:
     assert "duplicate YAML key" in (result.stdout + result.stderr)
 
 
+def test_validate_repo_tracked_only_ignores_untracked_files(tmp_path) -> None:
+    import shutil
+
+    root = tmp_path / "repo"
+    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
+
+    untracked = root / ".agentsflow" / "untracked.yaml"
+    untracked.parent.mkdir(parents=True, exist_ok=True)
+    untracked.write_text("duplicate: one\nduplicate: two\n", encoding="utf-8")
+
+    default_result = run("scripts/validate_repo.py", "--root", str(root))
+    assert default_result.returncode != 0
+    assert "duplicate YAML key" in (default_result.stdout + default_result.stderr)
+
+    tracked_result = run("scripts/validate_repo.py", "--root", str(root), "--tracked-only")
+    assert tracked_result.returncode == 0, tracked_result.stdout + tracked_result.stderr
+
+
 def test_v02_review_control_requires_required_gate_order() -> None:
     import copy
     import sys
