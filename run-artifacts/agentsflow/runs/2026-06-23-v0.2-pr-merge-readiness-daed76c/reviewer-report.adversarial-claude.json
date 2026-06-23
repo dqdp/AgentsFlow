@@ -1,0 +1,97 @@
+{
+  "reviewer": {
+    "id": "adversarial-claude",
+    "provider": "claude-code",
+    "role": "adversarial"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-daed76c",
+    "material_change_id": "daed76c",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/adversarial-claude.json",
+    "reviewer_instance_id": "adversarial-claude"
+  },
+  "summary": "Adversarial review of v0.2-prehandoff-design @ daed76c for pr-merge-readiness, based on packet metadata only: the contents of the referenced artifacts were not inlined, and per forbidden_actions/context_policy I did not access the repo, run tests, execute scripts, or validate evidence outputs. No confirmable P0 and no current false merge_ready claim: merge_ready_not_claimed_yet=true, human_merge_decision_required=true, and human-decisions.yaml (FPM-AUTH-001) is correctly absent at this pre-readiness_report phase, so the authority boundary is intact right now. One candidate P1: the external Claude reviewer feature, a central v0.2 theme that explicitly claims 'provider failure evidence hardening', is backed in evidence_summary only by a single success-path mock smoke that self-describes as not replacing live Claude review, with no live-provider and no failure/malformed-output evidence; if readiness_report treats this mock as verification, that is an ungrounded completion claim. Two candidate P2s: review scope (~9 artifacts) versus a 370-file/53,272-insertion change with no source-vs-generated breakdown (coverage adequacy unestablished), and self-application circularity (the pr-merge-readiness workflow is simultaneously the artifact under review and the process producing this run's gating signals; bounded by the human decision but its inputs may be optimistically biased). I could neither escalate nor clear WARN-WORKFLOW-COMPOSITION-001 because the duplicated policy blocks were not provided. Residual uncertainty is high because I reviewed packet assertions rather than artifact contents; see requests_for_additional_verification and self_declared_limitations.",
+  "findings": [
+    {
+      "id": "ADV-EXT-REVIEWER-EVIDENCE-001",
+      "severity": "P1",
+      "category": "external-review",
+      "title": "External Claude reviewer feature verified only by a success-path mock; no live-provider and no provider-failure evidence despite 'provider failure evidence hardening' claim",
+      "evidence": [
+        "evidence_summary.external_reviewer_smoke.limitation states: 'Mock smoke proves wrapper/provider normalization path only. It does not replace live Claude review.'",
+        "The smoke command uses --mock-response examples/external-reviewers/claude-code/mock-raw-output.json, i.e. a single pre-canned payload; no truncated, non-JSON, schema-divergent, or failing provider output is exercised in any cited evidence.",
+        "pr_change_summary.major_areas lists 'external Claude reviewer provider wrapper and review-set integration', 'Claude output normalization and provider failure evidence hardening', and 'provider failure evidence hardening', yet evidence_summary contains no live-provider artifact and no failure-path artifact for these areas.",
+        "Counterexample: a wrapper that correctly normalizes the one canned success mock can still mishandle a real Claude response that is truncated, non-JSON, or schema-divergent; the cited mock evidence cannot distinguish these cases, so the exact 'failure evidence hardening' behavior the PR claims is unproven.",
+        "Blocker path: verification_evidence mandatory-evidence requirement plus FPM-AUTH-001 (false_merge_ready_claim risk). If the readiness_report treats this mock success as verification of the external-reviewer and failure-hardening features, that is an ungrounded claim of completion. Acceptance consequence: a core v0.2 capability, and specifically the provider-failure path it asserts to harden, would be merged without evidence of the behavior it claims. Remedy is either a live + failure-path artifact for daed76c, or an explicit readiness_report scoping that the external reviewer is mock-normalization-only and not live-verified."
+      ],
+      "why_it_matters": "",
+      "recommendation": "",
+      "status": "candidate-unvalidated"
+    },
+    {
+      "id": "ADV-REVIEW-SCOPE-COVERAGE-001",
+      "severity": "P2",
+      "category": "external-review",
+      "title": "Review scope (~9 artifacts) is a small fraction of the 370-file / 53,272-insertion change; behavior-bearing-change coverage cannot be established from the packet",
+      "evidence": [
+        "pr_change_summary.diff_stat_summary: '370 files changed, 53272 insertions, 992 deletions in main..daed76c.'",
+        "reviewed_artifacts lists only 9 paths; commit_range.commit_count is 32.",
+        "The packet provides no breakdown of how many of the 370 changed files are behavior-bearing (scripts, schemas, workflow/profile YAML) versus generated run-artifacts/evidence. major_areas references 'workflow phase guard and self-application run artifacts' and 'blocked run evidence discipline', which may account for much of the 53k insertions but is not quantified.",
+        "Adversarial scope concern: focused provider-mirrored topic-pair reviewers cannot meaningfully cover 53k insertions; without a source-vs-generated split and a mapping of which changed executable/contract surfaces were reviewed, the packet cannot show that the behavior-bearing surface was actually examined. This is an ambiguous-requirements/scope-creep risk, not a confirmed defect; orchestrator should validate against the actual file breakdown."
+      ],
+      "why_it_matters": "",
+      "recommendation": "",
+      "status": "candidate-unvalidated"
+    },
+    {
+      "id": "ADV-SELF-APPLICATION-CIRCULARITY-001",
+      "severity": "P2",
+      "category": "external-review",
+      "title": "pr-merge-readiness workflow is both the artifact under review and the process producing this run's gating signals (self-application circularity)",
+      "evidence": [
+        "reviewed_artifacts includes workflows/pr-merge-readiness/workflow.yaml (kind workflow_definition); the run_id and workflow fields show this same workflow is generating the readiness run for daed76c.",
+        "pr_change_summary.major_areas includes 'pr-merge-readiness utility workflow' and 'workflow phase guard and self-application run artifacts'; FPM-ARCH-001 path_class is 'methodology_boundary_or_self_application_confusion'.",
+        "Counterexample mechanism: a defect in the workflow that yields false-ready signals would not be self-detected, because the same potentially-defective process is judging its own readiness; reviewer-level and verification-gate signals consumed downstream can therefore be optimistically biased.",
+        "Mitigation present: human_merge_decision_required=true and final_report_forbidden_until_phase=readiness_report bound the final decision to a human. Assumption that must be verified for acceptance: that the workflow's pass/gate logic was validated by something other than this self-run, otherwise the human's inputs may already be affected by the same defect."
+      ],
+      "why_it_matters": "",
+      "recommendation": "",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Provide a live (non-mock) external Claude reviewer run artifact for daed76c plus at least one provider-failure/malformed-output normalization artifact to substantiate the external-reviewer and 'provider failure evidence hardening' areas; alternatively, have readiness_report explicitly scope the external-reviewer claim to mock-normalization-only, not live-verified."
+    },
+    {
+      "id": "REQUEST-002",
+      "request": "Provide output hashes (or an equivalent integrity binding) for repo_validation, pytest, and range_diff_check; currently only external_reviewer_smoke carries an output_hash (sha256:c19739de...), so staleness or tampering of the other three asserted-'passed' outputs cannot be detected from the packet."
+    },
+    {
+      "id": "REQUEST-003",
+      "request": "Provide the repeated review_control_rules / review_cycle policy blocks (subject of WARN-WORKFLOW-COMPOSITION-001) across the workflow YAML files so a concrete contradiction/divergence check can be performed; from packet metadata alone neither a contradiction nor byte-equivalence can be confirmed, so the warning can be neither escalated nor cleared."
+    },
+    {
+      "id": "REQUEST-004",
+      "request": "Provide a source-vs-generated-artifact breakdown of the 370 changed files and which of them were reviewed, so review adequacy against behavior-bearing changes can be assessed."
+    },
+    {
+      "id": "REQUEST-005",
+      "request": "Confirm that at the readiness_report phase the gate enforces existence of human-decisions.yaml before any merge_ready claim (FPM-AUTH-001); the packet correctly does not claim merge_ready now, but the enforcement of this gate is not demonstrable from packet metadata."
+    }
+  ],
+  "self_declared_limitations": [
+    "I reviewed only the packet. The contents of the referenced artifacts (readiness-intake.md, evidence-report.md, command-evidence.json, verification-gate-report.md, workflow.yaml, run_external_reviewer.py, run_review_set.py, and the two docs) were not inlined, so I could not independently verify their claims; my findings reason about packet assertions, not the underlying files.",
+    "I did not run tests, execute scripts, access the repository, or validate evidence outputs, per forbidden_actions and context_policy. Results reported as 'passed' (repo_validation, pytest 228 passed, range_diff_check) are taken as asserted, not verified.",
+    "I started from zero prior context and did not use or assume any forked orchestrator context. All findings are candidate-unvalidated; severities reflect plausible acceptance risk for orchestrator validation, not confirmed defects, and Failure Path Matrix / risk-surface membership was not used as a substitute for severity.",
+    "I could not confirm or refute the workflow-composition contradiction question (WARN-WORKFLOW-COMPOSITION-001) because the duplicated policy blocks were not provided; from my position the warning remains neither a demonstrated blocker nor a cleared item."
+  ],
+  "normalization": {
+    "method": "deterministic-extraction",
+    "source_path": "",
+    "source_hash": "sha256:918e9da0eeb33240b63afc5bcd906d63b1181dd0400c2a2fee29f15752c0a0c4",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py"
+  }
+}

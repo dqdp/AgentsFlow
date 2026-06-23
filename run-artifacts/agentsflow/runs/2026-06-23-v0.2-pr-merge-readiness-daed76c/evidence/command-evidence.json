@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "artifact_kind": "command_evidence",
+  "run_id": "2026-06-23-v0.2-pr-merge-readiness-daed76c",
+  "workflow": "pr-merge-readiness",
+  "material_change_id": "daed76c",
+  "commands": [
+    {
+      "id": "repo-validation",
+      "command": ".venv/bin/python scripts/validate_repo.py --root .",
+      "exit_code": 0,
+      "result": "pass",
+      "output_path": "evidence/command-outputs/validate-repo.txt",
+      "output_hash": "sha256:4dba091ad34351df5a47ab88351937a7c08b8d04df4e59834546b6babf1479b0"
+    },
+    {
+      "id": "pytest",
+      "command": ".venv/bin/python -m pytest -q",
+      "exit_code": 0,
+      "result": "pass",
+      "summary": "228 passed in 21.93s",
+      "output_path": "evidence/command-outputs/pytest.txt",
+      "output_hash": "sha256:6ddd0210f46aeafc9e0f0b857647c80a29531f96ae62c7dcfff6345f06cc1906"
+    },
+    {
+      "id": "range-diff-check",
+      "command": "git diff --check main..HEAD",
+      "exit_code": 0,
+      "result": "pass",
+      "summary": "No whitespace errors for the reviewed PR range.",
+      "output_path": "evidence/command-outputs/diff-check-main-head.txt",
+      "output_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "external-reviewer-wrapper-mock-smoke",
+      "command": ".venv/bin/python scripts/reviewers/run_external_reviewer.py --provider claude-code --config examples/external-reviewers/claude-code/claude-code.yaml --input examples/external-reviewers/claude-code/review-packet.architecture.json --mock-response examples/external-reviewers/claude-code/mock-raw-output.json --output run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/command-outputs/mock-claude-reviewer-report.json",
+      "exit_code": 0,
+      "result": "pass",
+      "summary": "Mock wrapper/provider normalization path passed; this is not a substitute for live Claude review.",
+      "normalized_output_path": "evidence/command-outputs/mock-claude-reviewer-report.json",
+      "normalized_output_hash": "sha256:c19739de0ad9e7b1de97fe9b28e9302f6c35d7d9b1660c3fc91ff8795a8f8cc7",
+      "invocation_metadata_path": "evidence/command-outputs/mock-claude-reviewer-report.invocation.json",
+      "invocation_metadata_hash": "sha256:f2858150adeef7b4d2a81523c3dc0fb5535070c3e9a201443781a32b80afc15d",
+      "raw_output_path": "evidence/command-outputs/mock-claude-reviewer-report.raw.json",
+      "raw_output_hash": "sha256:a1906934184145b8fa5bec68fe848a01f26aec00089a5561229354f37d486fe8"
+    }
+  ]
+}

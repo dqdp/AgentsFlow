@@ -3,9 +3,11 @@
 `pr-merge-readiness` is a v0.2 utility workflow for deciding whether a branch is
 ready to open, accept or merge as a pull request.
 
-It is not a release platform and does not mutate Git hosts. It composes existing
-AgentsFlow evidence, review, fusion, finding-validation and human-decision
-artifacts into a branch-scoped readiness report.
+It is not a release platform and does not merge branches or change branch state.
+It composes existing AgentsFlow evidence, review, fusion, finding-validation and
+human-decision artifacts into a branch-scoped readiness report. When explicitly
+requested by the human, it may publish the readiness summary as a GitHub PR
+comment and record that publication evidence.
 
 ## Scope
 
@@ -19,7 +21,8 @@ The workflow records:
 - finding validation and collision-control evidence for rejected or downgraded
   plausible blocker-path candidate findings;
 - stale review detection when material changes postdate review packets;
-- human merge decision status.
+- human merge decision status;
+- optional GitHub PR publication intent and evidence.
 
 Accepted merge-ready status requires a recorded human decision. Green checks and
 review evidence alone produce `awaiting_human_decision`, not acceptance.
@@ -28,6 +31,20 @@ matching `run_id`, `decision_id`, `answered_by: human`, `status: confirmed` and
 accepted answer. For `merge.acceptance`, the decision record must also bind the
 accepted artifact by `material_change_id` and the exact readiness report
 `report_hash`. An in-band `{status: accepted}` field is not sufficient.
+
+The readiness intake asks whether the readiness summary should be published back
+to the GitHub PR after final acceptance. This publication is optional: a human
+`skip` or `defer` answer does not block merge readiness. A human `publish`
+answer authorizes an automated post-acceptance publication step, but publication
+failure does not change local merge readiness.
+
+Because the final report hash is only known near the end of the run,
+`pr-merge-readiness` separates the intake publication policy from final
+acceptance. Intake records `github.publication`. After review and finding
+validation, the run produces the readiness report, records the final
+`merge.acceptance` decision with the exact `report_hash`, runs the final
+readiness validation, and only then performs optional GitHub publication when
+previously authorized.
 
 The readiness evaluator treats these surfaces as blocking:
 
@@ -61,6 +78,8 @@ The readiness evaluator treats these surfaces as blocking:
   pointer persistence;
 - redacted, summary or pointer raw-output evidence without a concrete artifact
   path and hash;
+- missing GitHub publication decision, or claimed published GitHub publication
+  without recorded publication result evidence and URL;
 - self-application reports that claim the bootstrap run proves itself.
 
 ## Review Model
@@ -90,10 +109,69 @@ templates/pr-merge-readiness-report.json
 The deterministic repository validator checks example readiness reports through
 `scripts/repo_validation/pr_merge_readiness.py`.
 
-The human merge decision is content-bound, not only path-bound. The
-`human-decisions.yaml#merge.acceptance` record must reference the evaluated
-readiness report, the current `material_change_id` and the report's SHA-256 hash
-using `report_hash: sha256:<64-hex-digest>`.
+The final human merge decision is content-bound, not only path-bound. The
+`human-decisions.yaml#merge.acceptance` record must use
+`phase_id: final_human_merge_decision` and reference the evaluated readiness
+report, the current `material_change_id` and the report's SHA-256 hash using
+`report_hash: sha256:<64-hex-digest>`. Non-binding preliminary discussion is not
+sufficient for accepted merge-ready status. A report may have been generated
+before that decision was recorded; the evaluator computes the final state from
+the report plus the external hash-bound human decision record.
+
+The same `human-decisions.yaml` artifact also records the intake
+`github.publication` policy. This record must be human-authored and confirmed.
+Valid answers are:
+
+- `publish`: publish a summary or review comment to GitHub after final
+  acceptance and record evidence;
+- `skip`: do not publish; this is non-blocking;
+- `defer`: leave publication to a later out-of-band step; this is non-blocking.
+
+The default publication mode is a single PR summary comment:
+
+```yaml
+publication_mode: summary_comment
+target: pull_request
+tool: gh
+action: pr comment
+body_path: github-publication.md
+result_path: github-publication-result.json
+```
+
+`github-publication.md` contains the exact comment body. It should summarize:
+
+- AgentsFlow PR readiness status;
+- material change / commit SHA;
+- deterministic verification evidence;
+- review topology and provider/model evidence;
+- validated P0/P1 count;
+- short P2/residual-risk summary;
+- human decision and publication mode;
+- note that local run artifacts remain the source of truth.
+
+It must not include raw Claude output, full reviewer reports, long command logs,
+private reasoning details or unnecessary absolute local paths.
+
+If publication runs, `github-publication-result.json` records the publication
+result:
+
+```json
+{
+  "provider": "github",
+  "tool": "gh",
+  "action": "pr comment",
+  "status": "published",
+  "pr": 123,
+  "url": "https://github.com/org/repo/pull/123#issuecomment-...",
+  "body_path": "github-publication.md"
+}
+```
+
+When the report claims `github_publication.status: published`, the readiness
+evaluator requires this default evidence shape. A `github.publication: publish`
+intake decision with `github_publication.status: requested` means publication is
+authorized but not yet performed; it does not block merge readiness. `skip` and
+`defer` also do not block merge readiness.
 
 Each review packet must be anchored to the evaluated readiness report: packet
 `run_id` must match report `run_id`, and packet `material_change_id` must match

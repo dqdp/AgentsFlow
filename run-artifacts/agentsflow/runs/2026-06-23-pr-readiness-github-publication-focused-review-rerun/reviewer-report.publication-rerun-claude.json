@@ -1,0 +1,61 @@
+{
+  "reviewer": {
+    "id": "publication-rerun-claude",
+    "provider": "claude-code",
+    "role": "generalist"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-pr-readiness-github-publication-focused-review-rerun",
+    "material_change_id": "github-publication-result-url-boundary-0d705e5055e2",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-claude.json",
+    "reviewer_instance_id": "publication-rerun-claude"
+  },
+  "summary": "The accepted P1 fix is correctly implemented in the diff. _validate_github_publication_result now derives the required URL solely from the result artifact: result_url = result.get('url') must be a non-empty string or github_publication_evidence_missing is appended; the report-level github_publication.url is only a cross-check (if present, must equal result_url, else github_publication_evidence_invalid) and can never substitute for a missing result-artifact URL. This is exercised directly by test_published_github_publication_requires_result_artifact_url (report url present, result url absent => blocked_missing_evidence + github_publication_evidence_missing), test_requested_github_publication_with_evidence_can_pass (matching urls => accepted, no blockers), and test_requested_github_publication_requires_default_result_shape. The two human checkpoints are consistent across all six changed surfaces: readiness_intake owns github.publication (phase_id readiness_intake, question_ref github.publication, classification nonblocking-follow-up) and final_human_merge_decision owns merge.acceptance (phase_id final_human_merge_decision, classification blocking-material, hash-bound to report_hash) in the evaluator (_matching_github_publication_answer, _has_matching_human_decision), schema (github_publication.decision_id const), docs, example human-decisions.yaml, template, and workflow.yaml; the manifest test asserts the same ordering. Phase ordering matches expected_design: readiness_report runs_after finding_validation, final_human_merge_decision runs_after readiness_report, final_readiness_gate runs_after final_human_merge_decision, optional_github_publication runs_after final_readiness_gate with condition publish and required_for_merge_readiness false. State classification cannot yield a false acceptance from github logic: github blockers only add, github_publication_evidence_ forces blocked_missing_evidence, an all-github-decision-blocker set forces awaiting_human_decision, and a publish answer with status requested/failed/unavailable is non-blocking and never validates evidence. Acceptance is now computed from the external hash-bound record (human_record_valid) rather than self-asserted report status, and validate_pr_merge_readiness_report only relaxes the declared-status check in the conservative direction (awaiting_human_decision allowed when computed state is accepted_merge_ready). No P0/P1 blocker was identified in the source diff. One low-severity doc/evaluator gap is noted. Residual uncertainty is confined to artifacts outside the packet and is captured as verification requests.",
+  "findings": [
+    {
+      "id": "GEN-PUB-BODY-001",
+      "severity": "P3",
+      "category": "external-review",
+      "title": "github-publication.md content redaction policy is documented as mandatory but not enforced by the deterministic evaluator",
+      "evidence": [
+        "docs/pr-merge-readiness.md states for github-publication.md: 'It must not include raw Claude output, full reviewer reports, long command logs, private reasoning details or unnecessary absolute local paths.' (mandatory 'must not' language).",
+        "scripts/repo_validation/pr_merge_readiness.py:_validate_github_publication_result only verifies body_path file existence and the result JSON shape (provider==github, tool==gh, action=='pr comment', status==published, result.body_path==report body_ref, non-empty result.url); it never inspects github-publication.md content, unlike _validate_live_raw_output_persistence which exists for raw-output evidence.",
+        "Self-mitigating and non-blocking: docs require the github.publication record to be 'human-authored and confirmed', and publication is optional and strictly post-acceptance (required_for_merge_readiness: false; optional_github_publication runs_after final_readiness_gate), so an unredacted body cannot change accepted_merge_ready. Flagged only as a documented-but-unenforced constraint for the orchestrator to triage."
+      ],
+      "why_it_matters": "",
+      "recommendation": "",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Confirm schemas/human-decisions schema (not included in the packet) permits the new github.publication decision shape used by the example fixture and tests (classification 'nonblocking-follow-up', phase_id 'readiness_intake', question_ref 'github.publication', no material_change_id and no report_hash). _matching_github_publication_answer validates the ENTIRE human-decisions.yaml via validate_against_schema(resolved, data, _human_decisions_schema(root)); if the schema rejects this decision (e.g., requires material_change_id/report_hash or constrains classification/phase_id enums), it returns False => github_publication_decision_invalid, and the 'complete' example would compute awaiting_human_decision instead of accepted_merge_ready."
+    },
+    {
+      "id": "REQUEST-002",
+      "request": "Confirm the updated example report_hash sha256:6807d190380ce5fc8158219a92cd380beb12140bbde9e321aed1a67fba0bd32c matches the actual byte content of examples/pr-merge-readiness/complete/pr-merge-readiness-report.json after the github_publication block was added. The merge.acceptance decision binds this exact hash; a mismatch yields human_decision_record_invalid => rejected. SHA-256 cannot be recomputed in this read-only review."
+    },
+    {
+      "id": "REQUEST-003",
+      "request": "Confirm no other report examples or test fixtures outside changed_files lack the now schema-required and evaluator-required top-level github_publication field; any such report would fail schema validation and trip the evaluator github_publication_missing blocker."
+    },
+    {
+      "id": "REQUEST-004",
+      "request": "Confirm the referenced run-artifacts verification-gate-report.md (asserted green via evidence_freshness) corresponds to material_change_id github-publication-result-url-boundary-0d705e5055e2 and to the diffed source; the gate report content was not included in the packet and could not be cross-checked."
+    }
+  ],
+  "self_declared_limitations": [
+    "Review was performed on the provided unified diff plus packet only. Full bodies of scripts/repo_validation/pr_merge_readiness.py (including _has_matching_human_decision, the head of _classify_state, _safe_relative, parse_json/parse_yaml, validate_against_schema, _human_decisions_schema, and the derivation of result['accepted']), the complete JSON schemas, and the full example report were not supplied; cross-function interactions were inferred from the visible diff and conventions.",
+    "Did not run tests, execute scripts, modify files, create patches, or update evidence, per the role contract and forbidden_actions. Test pass/fail status is taken only from the asserted green gate, not independently verified.",
+    "Could not compute SHA-256 digests or validate documents against JSON schemas in a read-only review, so report_hash correctness and human-decisions schema compatibility are assumed from the green gate rather than verified.",
+    "All findings are candidate-unvalidated; relevance and severity are subject to main/orchestrating-agent validation before affecting workflow decisions."
+  ],
+  "normalization": {
+    "method": "deterministic-extraction",
+    "source_path": "",
+    "source_hash": "sha256:a4dc1b71f3ea3b68de2b8c880a414e29bcd873d4f46224f328630fee065eb95c",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py"
+  }
+}

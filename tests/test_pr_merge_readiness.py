@@ -241,6 +241,20 @@ def complete_report() -> dict:
             "decision_id": "merge.acceptance",
             "path": "human-decisions.yaml",
         },
+        "github_publication": {
+            "decision_required": True,
+            "decision_id": "github.publication",
+            "decision_path": "human-decisions.yaml",
+            "status": "skipped",
+            "required_for_merge_readiness": False,
+            "publication_mode": "summary_comment",
+            "target": "pull_request",
+            "tool": "gh",
+            "action": "pr comment",
+            "body_path": "github-publication.md",
+            "result_path": "github-publication-result.json",
+            "reason": "Human selected no GitHub PR publication for this fixture.",
+        },
         "self_application": {
             "enabled": True,
             "application_mode": "self_application_bootstrap",
@@ -341,12 +355,22 @@ def prepare_complete_evidence(root: Path) -> None:
                 "decisions": [
                     {
                         "decision_id": "merge.acceptance",
-                        "phase_id": "human_merge_decision",
+                        "phase_id": "final_human_merge_decision",
                         "question_ref": "merge.acceptance",
                         "answer": "accepted",
                         "status": "confirmed",
                         "answered_by": "human",
                         "classification": "blocking-material",
+                        "affected_artifacts": ["pr-merge-readiness-report.json"],
+                    },
+                    {
+                        "decision_id": "github.publication",
+                        "phase_id": "readiness_intake",
+                        "question_ref": "github.publication",
+                        "answer": "skip",
+                        "status": "confirmed",
+                        "answered_by": "human",
+                        "classification": "nonblocking-follow-up",
                         "affected_artifacts": ["pr-merge-readiness-report.json"],
                     }
                 ],
@@ -532,6 +556,220 @@ def test_green_evidence_without_human_decision_is_not_accepted(tmp_path: Path) -
     assert result["accepted"] is False
     assert "human_decision_missing" in result["warnings"]
     assert "accepted_merge_ready" not in result.get("allowed_statuses", [])
+
+
+def test_hash_bound_human_decision_accepts_candidate_report_without_self_status(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["status"] = "awaiting_human_decision"
+    report["human_decision"] = {
+        "status": "missing",
+        "decision_id": "merge.acceptance",
+        "path": "human-decisions.yaml",
+    }
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "accepted_merge_ready"
+    assert result["accepted"] is True
+    assert result["human_decision"]["status"] == "accepted"
+
+
+def test_github_publication_decision_is_required_but_publication_is_optional(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    prepare_complete_evidence(tmp_path)
+    human_decisions_path = tmp_path / "human-decisions.yaml"
+    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
+    human_decisions["decisions"] = [
+        item
+        for item in human_decisions["decisions"]
+        if item["decision_id"] != "github.publication"
+    ]
+    human_decisions_path.write_text(
+        yaml.safe_dump(human_decisions, sort_keys=False),
+        encoding="utf-8",
+    )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "awaiting_human_decision"
+    assert result["accepted"] is False
+    assert "github_publication_decision_invalid" in result["blockers"]
+
+
+def test_requested_github_publication_is_nonblocking_before_publication(tmp_path: Path) -> None:
+    report = complete_report()
+    report["github_publication"]["status"] = "requested"
+    prepare_complete_evidence(tmp_path)
+    human_decisions_path = tmp_path / "human-decisions.yaml"
+    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
+    for item in human_decisions["decisions"]:
+        if item["decision_id"] == "github.publication":
+            item["answer"] = "publish"
+    human_decisions_path.write_text(
+        yaml.safe_dump(human_decisions, sort_keys=False),
+        encoding="utf-8",
+    )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "accepted_merge_ready"
+    assert result["accepted"] is True
+    assert "github_publication_evidence_missing" not in result["blockers"]
+
+
+def test_requested_github_publication_with_evidence_can_pass(tmp_path: Path) -> None:
+    report = complete_report()
+    report["github_publication"] = {
+        "decision_required": True,
+        "decision_id": "github.publication",
+        "decision_path": "human-decisions.yaml",
+        "status": "published",
+        "required_for_merge_readiness": False,
+        "publication_mode": "summary_comment",
+        "target": "pull_request",
+        "tool": "gh",
+        "action": "pr comment",
+        "body_path": "github-publication.md",
+        "result_path": "github-publication-result.json",
+        "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+    }
+    prepare_complete_evidence(tmp_path)
+    write_evidence(tmp_path, "github-publication.md")
+    (tmp_path / "github-publication-result.json").write_text(
+        json.dumps(
+            {
+                "provider": "github",
+                "tool": "gh",
+                "action": "pr comment",
+                "status": "published",
+                "pr": 1,
+                "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+                "body_path": "github-publication.md",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    human_decisions_path = tmp_path / "human-decisions.yaml"
+    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
+    for item in human_decisions["decisions"]:
+        if item["decision_id"] == "github.publication":
+            item["answer"] = "publish"
+    human_decisions_path.write_text(
+        yaml.safe_dump(human_decisions, sort_keys=False),
+        encoding="utf-8",
+    )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "accepted_merge_ready"
+    assert result["accepted"] is True
+    assert result["blockers"] == []
+
+
+def test_published_github_publication_requires_result_artifact_url(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    report["github_publication"] = {
+        "decision_required": True,
+        "decision_id": "github.publication",
+        "decision_path": "human-decisions.yaml",
+        "status": "published",
+        "required_for_merge_readiness": False,
+        "publication_mode": "summary_comment",
+        "target": "pull_request",
+        "tool": "gh",
+        "action": "pr comment",
+        "body_path": "github-publication.md",
+        "result_path": "github-publication-result.json",
+        "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+    }
+    prepare_complete_evidence(tmp_path)
+    write_evidence(tmp_path, "github-publication.md")
+    (tmp_path / "github-publication-result.json").write_text(
+        json.dumps(
+            {
+                "provider": "github",
+                "tool": "gh",
+                "action": "pr comment",
+                "status": "published",
+                "pr": 1,
+                "body_path": "github-publication.md",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    human_decisions_path = tmp_path / "human-decisions.yaml"
+    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
+    for item in human_decisions["decisions"]:
+        if item["decision_id"] == "github.publication":
+            item["answer"] = "publish"
+    human_decisions_path.write_text(
+        yaml.safe_dump(human_decisions, sort_keys=False),
+        encoding="utf-8",
+    )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_missing" in result["blockers"]
+
+
+def test_requested_github_publication_requires_default_result_shape(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    report["github_publication"] = {
+        "decision_required": True,
+        "decision_id": "github.publication",
+        "decision_path": "human-decisions.yaml",
+        "status": "published",
+        "required_for_merge_readiness": False,
+        "publication_mode": "summary_comment",
+        "target": "pull_request",
+        "tool": "gh",
+        "action": "pr comment",
+        "body_path": "github-publication.md",
+        "result_path": "github-publication-result.json",
+        "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+    }
+    prepare_complete_evidence(tmp_path)
+    write_evidence(tmp_path, "github-publication.md")
+    (tmp_path / "github-publication-result.json").write_text(
+        '{"provider":"github","tool":"gh","action":"pr review","status":"published"}\n',
+        encoding="utf-8",
+    )
+    human_decisions_path = tmp_path / "human-decisions.yaml"
+    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
+    for item in human_decisions["decisions"]:
+        if item["decision_id"] == "github.publication":
+            item["answer"] = "publish"
+    human_decisions_path.write_text(
+        yaml.safe_dump(human_decisions, sort_keys=False),
+        encoding="utf-8",
+    )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
 
 
 def test_missing_required_evidence_blocks_readiness(tmp_path: Path) -> None:
@@ -2112,6 +2350,29 @@ def test_accepted_human_decision_rejects_unrelated_confirmed_decision(tmp_path: 
     assert "human_decision_record_invalid" in result["blockers"]
 
 
+def test_accepted_human_decision_rejects_preliminary_merge_decision_phase(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["status"] = "awaiting_human_decision"
+    prepare_complete_evidence(tmp_path)
+    human_decisions_path = tmp_path / "human-decisions.yaml"
+    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
+    decision = human_decisions["decisions"][0]
+    decision["phase_id"] = "human_merge_decision"
+    human_decisions_path.write_text(
+        yaml.safe_dump(human_decisions, sort_keys=False),
+        encoding="utf-8",
+    )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "rejected"
+    assert result["accepted"] is False
+    assert "human_decision_record_invalid" in result["blockers"]
+
+
 def test_accepted_human_decision_must_target_exact_report_artifact(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "awaiting_human_decision"
@@ -2124,7 +2385,7 @@ def test_accepted_human_decision_must_target_exact_report_artifact(tmp_path: Pat
                 "decisions": [
                     {
                         "decision_id": "merge.acceptance",
-                        "phase_id": "human_merge_decision",
+                        "phase_id": "final_human_merge_decision",
                         "question_ref": "merge.acceptance",
                         "answer": "accepted",
                         "status": "confirmed",
@@ -2159,7 +2420,7 @@ def test_duplicate_merge_human_decisions_block_acceptance(tmp_path: Path) -> Non
                 "decisions": [
                     {
                         "decision_id": "merge.acceptance",
-                        "phase_id": "human_merge_decision",
+                        "phase_id": "final_human_merge_decision",
                         "question_ref": "merge.acceptance",
                         "answer": "accepted",
                         "status": "confirmed",
@@ -2169,7 +2430,7 @@ def test_duplicate_merge_human_decisions_block_acceptance(tmp_path: Path) -> Non
                     },
                     {
                         "decision_id": "merge.acceptance",
-                        "phase_id": "human_merge_decision",
+                        "phase_id": "final_human_merge_decision",
                         "question_ref": "merge.acceptance",
                         "answer": "rejected",
                         "status": "rejected",
@@ -2238,6 +2499,17 @@ def test_pr_merge_readiness_workflow_manifest_declares_utility_policy() -> None:
     assert "project-initialization" not in workflow.get("outputs", [])
     assert workflow["review"]["topology"] == "heterogeneous-variable"
     assert workflow["review"]["provider_strategy"] == "provider-mirrored-topic-pairs"
+    phases = {item["id"]: item for item in workflow["phases"]}
+    assert phases["readiness_intake"]["human_interaction"]["required_decisions"] == [
+        "github.publication",
+    ]
+    assert phases["optional_github_publication"]["required_for_merge_readiness"] is False
+    assert phases["optional_github_publication"]["mode"] == "automated"
+    assert phases["optional_github_publication"]["runs_after"] == ["final_readiness_gate"]
+    assert phases["readiness_report"]["runs_after"] == ["finding_validation"]
+    assert phases["final_human_merge_decision"]["name"] == "final-human-merge-decision"
+    assert phases["final_human_merge_decision"]["runs_after"] == ["readiness_report"]
+    assert phases["final_readiness_gate"]["runs_after"] == ["final_human_merge_decision"]
     topic_pairs = workflow["review"]["topic_pairs"]
     assert {item["topic"] for item in topic_pairs} == {
         "verification-evidence",

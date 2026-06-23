@@ -443,7 +443,7 @@ def _has_matching_human_decision(
         item.get("status") == "confirmed"
         and item.get("answered_by") == "human"
         and item.get("classification") == "blocking-material"
-        and item.get("phase_id") == "human_merge_decision"
+        and item.get("phase_id") == "final_human_merge_decision"
         and item.get("question_ref") == "merge.acceptance"
         and item.get("material_change_id") == report_material_change_id
         and item.get("report_hash") == report_hash
@@ -455,6 +455,114 @@ def _has_matching_human_decision(
         )
         and answer_accepted
     )
+
+
+def _matching_github_publication_answer(
+    root: Path,
+    report_path: Path,
+    report_run_id: object,
+    publication: dict[str, Any],
+) -> str | bool | None:
+    resolved = _safe_relative(report_path, root, publication.get("decision_path"))
+    if not resolved or not resolved.is_file():
+        return None
+    try:
+        data = parse_yaml(resolved)
+    except ValueError:
+        return False
+    if not isinstance(data, dict):
+        return False
+    schema_errors = validate_against_schema(resolved, data, _human_decisions_schema(root))
+    if schema_errors:
+        return False
+    if data.get("run_id") != report_run_id:
+        return False
+    decisions = data.get("decisions")
+    if not isinstance(decisions, list):
+        return False
+    matching: list[dict[str, Any]] = []
+    for item in decisions:
+        if not isinstance(item, dict) or item.get("decision_id") != "github.publication":
+            continue
+        if not _affected_artifacts_target_report(
+            item.get("affected_artifacts"),
+            resolved,
+            root,
+            report_path,
+        ):
+            continue
+        matching.append(item)
+    if not matching:
+        return False
+    if len(matching) != 1:
+        return False
+    item = matching[0]
+    answer = str(item.get("answer", "")).strip()
+    if answer not in {"publish", "skip", "defer"}:
+        return False
+    if (
+        item.get("status") != "confirmed"
+        or item.get("answered_by") != "human"
+        or item.get("classification") != "nonblocking-follow-up"
+        or item.get("phase_id") != "readiness_intake"
+        or item.get("question_ref") != "github.publication"
+    ):
+        return False
+    return answer
+
+
+def _validate_github_publication_result(
+    root: Path,
+    report_path: Path,
+    publication: dict[str, Any],
+    blockers: list[str],
+    missing_evidence: list[str],
+) -> None:
+    if publication.get("publication_mode") != "summary_comment":
+        blockers.append("github_publication_evidence_invalid")
+    if publication.get("target") != "pull_request":
+        blockers.append("github_publication_evidence_invalid")
+    if publication.get("tool") != "gh":
+        blockers.append("github_publication_evidence_invalid")
+    if publication.get("action") != "pr comment":
+        blockers.append("github_publication_evidence_invalid")
+
+    body_ref = publication.get("body_path")
+    result_ref = publication.get("result_path") or publication.get("evidence_path")
+    body_path = _safe_relative(report_path, root, body_ref)
+    result_path = _safe_relative(report_path, root, result_ref)
+    if not body_path or not body_path.is_file():
+        missing_evidence.append(str(body_ref or "github_publication.body_path"))
+        blockers.append("github_publication_evidence_missing")
+    if not result_path or not result_path.is_file():
+        missing_evidence.append(str(result_ref or "github_publication.result_path"))
+        blockers.append("github_publication_evidence_missing")
+        return
+
+    try:
+        result = parse_json(result_path)
+    except ValueError:
+        blockers.append("github_publication_evidence_invalid")
+        return
+    if not isinstance(result, dict):
+        blockers.append("github_publication_evidence_invalid")
+        return
+    if result.get("provider") != "github":
+        blockers.append("github_publication_evidence_invalid")
+    if result.get("tool") != "gh":
+        blockers.append("github_publication_evidence_invalid")
+    if result.get("action") != "pr comment":
+        blockers.append("github_publication_evidence_invalid")
+    if result.get("status") != "published":
+        blockers.append("github_publication_evidence_missing")
+    if result.get("body_path") != body_ref:
+        blockers.append("github_publication_evidence_invalid")
+    result_url = result.get("url")
+    if not isinstance(result_url, str) or not result_url.strip():
+        blockers.append("github_publication_evidence_missing")
+    report_url = publication.get("url")
+    if isinstance(report_url, str) and report_url.strip() and result_url != report_url:
+        blockers.append("github_publication_evidence_invalid")
 
 
 def _affected_artifacts_target_report(
@@ -654,7 +762,6 @@ def _validate_live_raw_output_persistence(
 def _classify_state(
     blockers: list[str],
     stale_reviews: list[str],
-    human_status: str,
     human_record_valid: bool,
     is_non_real_fixture: bool,
 ) -> str:
@@ -687,6 +794,8 @@ def _classify_state(
         return "blocked_sensitive_raw_evidence"
     if any(blocker.startswith("collision_control_") for blocker in blockers):
         return "blocked_collision_control"
+    if any(blocker.startswith("github_publication_evidence_") for blocker in blockers):
+        return "blocked_missing_evidence"
     if stale_reviews:
         return "blocked_stale_review"
     if any(blocker.startswith("failed_check:") or blocker.startswith("failed_review:") for blocker in blockers):
@@ -697,9 +806,16 @@ def _classify_state(
         return "rejected"
     if any(blocker.startswith("unhandled_source_blocking_finding:") for blocker in blockers):
         return "rejected"
+    github_decision_blockers = {
+        "github_publication_missing",
+        "github_publication_decision_missing",
+        "github_publication_decision_invalid",
+    }
+    if blockers and all(blocker in github_decision_blockers for blocker in blockers):
+        return "awaiting_human_decision"
     if blockers:
         return "rejected"
-    if human_status != "accepted" or not human_record_valid:
+    if not human_record_valid:
         return "awaiting_human_decision"
     return "accepted_merge_ready"
 
@@ -1255,7 +1371,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
         "required": True,
         "status": str(human_decision.get("status", "missing")),
     }
-    if human_summary["status"] == "accepted":
+    if human_decision.get("path") or human_decision.get("decision_id"):
         if not human_decision.get("path") or not human_decision.get("decision_id"):
             missing_evidence.append("human_decision.path")
             blockers.append("human_decision_record_missing")
@@ -1271,12 +1387,62 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             )
             if match is True:
                 human_record_valid = True
+                human_summary["status"] = "accepted"
             elif match is None:
                 blockers.append("human_decision_record_missing")
             else:
                 blockers.append("human_decision_record_invalid")
     else:
         warnings.append("human_decision_missing")
+
+    github_publication = data.get("github_publication")
+    github_publication_summary: dict[str, Any] = {
+        "decision_required": True,
+        "status": "missing",
+    }
+    if not isinstance(github_publication, dict):
+        blockers.append("github_publication_missing")
+    else:
+        status = str(github_publication.get("status", "missing"))
+        github_publication_summary = {
+            "decision_required": github_publication.get("decision_required") is True,
+            "status": status,
+            "required_for_merge_readiness": github_publication.get("required_for_merge_readiness") is True,
+        }
+        if github_publication.get("decision_required") is not True:
+            blockers.append("github_publication_decision_missing")
+        if github_publication.get("decision_id") != "github.publication":
+            blockers.append("github_publication_decision_invalid")
+        if not github_publication.get("decision_path"):
+            blockers.append("github_publication_decision_missing")
+        else:
+            publication_answer = _matching_github_publication_answer(
+                root,
+                report_path,
+                data.get("run_id"),
+                github_publication,
+            )
+            if publication_answer is None:
+                blockers.append("github_publication_decision_missing")
+            elif publication_answer is False:
+                blockers.append("github_publication_decision_invalid")
+            else:
+                github_publication_summary["decision_answer"] = publication_answer
+                if publication_answer == "publish":
+                    if status == "published":
+                        _validate_github_publication_result(
+                            root,
+                            report_path,
+                            github_publication,
+                            blockers,
+                            missing_evidence,
+                        )
+                    elif status not in {"requested", "failed", "unavailable"}:
+                        blockers.append("github_publication_decision_invalid")
+                elif publication_answer == "skip" and status != "skipped":
+                    blockers.append("github_publication_decision_invalid")
+                elif publication_answer == "defer" and status != "deferred":
+                    blockers.append("github_publication_decision_invalid")
 
     self_application = data.get("self_application")
     if isinstance(self_application, dict) and self_application.get("enabled") is True:
@@ -1294,7 +1460,6 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
     state = _classify_state(
         blockers,
         stale_reviews,
-        human_summary["status"],
         human_record_valid,
         is_non_real_fixture,
     )
@@ -1308,6 +1473,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
         "stale_reviews": stale_reviews,
         "external_review": external_review,
         "human_decision": human_summary,
+        "github_publication": github_publication_summary,
         "allowed_statuses": ["accepted_merge_ready"] if state == "accepted_merge_ready" else [state],
     }
 
@@ -1322,7 +1488,10 @@ def validate_pr_merge_readiness_report(root: Path, report_path: Path) -> list[st
         return errors
     result = evaluate_pr_merge_readiness_report(root, report_path)
     declared = data.get("status")
-    if declared != result["state"]:
+    allowed_declared_statuses = [result["state"]]
+    if result["state"] == "accepted_merge_ready":
+        allowed_declared_statuses.append("awaiting_human_decision")
+    if declared not in allowed_declared_statuses:
         errors.append(
             f"{report_path}: status {declared} does not match computed state {result['state']}"
         )

@@ -18,6 +18,7 @@
     "external_review_evidence",
     "candidate_findings",
     "human_decision",
+    "github_publication",
     "self_application",
     "residual_limitations"
   ],
@@ -209,6 +210,42 @@
         "status": {"enum": ["accepted", "rejected", "deferred", "missing"]},
         "decision_id": {"type": "string"},
         "path": {"type": "string"}
+      }
+    },
+    "github_publication": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "decision_required",
+        "decision_id",
+        "decision_path",
+        "status",
+        "required_for_merge_readiness"
+      ],
+      "properties": {
+        "decision_required": {"type": "boolean"},
+        "decision_id": {"type": "string", "const": "github.publication"},
+        "decision_path": {"type": "string"},
+        "status": {
+          "enum": [
+            "requested",
+            "published",
+            "skipped",
+            "deferred",
+            "failed",
+            "unavailable"
+          ]
+        },
+        "required_for_merge_readiness": {"type": "boolean"},
+        "evidence_path": {"type": "string"},
+        "publication_mode": {"type": "string", "enum": ["summary_comment"]},
+        "target": {"type": "string", "enum": ["pull_request"]},
+        "tool": {"type": "string", "enum": ["gh"]},
+        "action": {"type": "string", "enum": ["pr comment"]},
+        "body_path": {"type": "string"},
+        "result_path": {"type": "string"},
+        "url": {"type": "string"},
+        "reason": {"type": "string"}
       }
     },
     "self_application": {

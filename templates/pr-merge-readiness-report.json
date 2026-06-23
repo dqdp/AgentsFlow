@@ -101,6 +101,20 @@
   "human_decision": {
     "status": "missing"
   },
+  "github_publication": {
+    "decision_required": true,
+    "decision_id": "github.publication",
+    "decision_path": "human-decisions.yaml",
+    "status": "skipped",
+    "required_for_merge_readiness": false,
+    "publication_mode": "summary_comment",
+    "target": "pull_request",
+    "tool": "gh",
+    "action": "pr comment",
+    "body_path": "github-publication.md",
+    "result_path": "github-publication-result.json",
+    "reason": "Human selected no GitHub PR publication for this readiness run."
+  },
   "self_application": {
     "enabled": false,
     "proof_claim": "not_self_application"

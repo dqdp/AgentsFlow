@@ -1,0 +1,21 @@
+{
+  "reviewer": {
+    "id": "publication-rerun-codex",
+    "provider": "internal-agent",
+    "role": "generalist",
+    "model": "codex"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-pr-readiness-github-publication-focused-review-rerun",
+    "material_change_id": "github-publication-result-url-boundary-0d705e5055e2",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-codex.json",
+    "reviewer_instance_id": "publication-rerun-codex"
+  },
+  "summary": "No P0/P1 candidate findings. The accepted publication-evidence fix is reflected in the evaluator: published GitHub publication claims require a result artifact with provider github, tool gh, action pr comment, status published, matching body_path and a non-empty result url; a report-level github_publication.url is only checked for equality and cannot substitute for a missing result-artifact url. The docs, schema, template, example fixture, evaluator, tests and workflow agree on the two human checkpoints: readiness_intake for github.publication and final_human_merge_decision for hash-bound merge.acceptance. Workflow ordering keeps optional GitHub publication after final_readiness_gate, and the provided verification gate report is for material_change_id github-publication-result-url-boundary-0d705e5055e2 with passing validation evidence.",
+  "findings": [],
+  "requests_for_additional_verification": [],
+  "self_declared_limitations": [
+    "Reviewed only the provided packet and referenced in-scope artifacts. Did not run tests, execute scripts, modify files, create patches or update evidence, per review instructions.",
+    "Relied on the provided verification-gate-report.md for test and validation command results rather than independently executing them."
+  ]
+}

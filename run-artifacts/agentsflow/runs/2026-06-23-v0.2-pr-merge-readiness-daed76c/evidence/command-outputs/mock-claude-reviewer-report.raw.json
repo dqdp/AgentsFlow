@@ -1,0 +1,25 @@
+{
+  "reviewer": {
+    "id": "claude-architecture-reviewer",
+    "provider": "claude-code",
+    "role": "architecture",
+    "model": "opus"
+  },
+  "summary": "No blocking architecture findings in the sample packet.",
+  "findings": [
+    {
+      "id": "CR-001",
+      "severity": "P3",
+      "category": "sample",
+      "title": "Sample review packet uses placeholder summaries",
+      "evidence": ["review-packet.architecture.json contains placeholder summary fields"],
+      "why_it_matters": "A real workflow run should provide concrete contract, plan and evidence summaries.",
+      "recommendation": "Populate the review packet from actual workflow-run artifacts before invoking external review.",
+      "status": "candidate-unvalidated"
+    }
+  ],
+  "requests_for_additional_verification": [],
+  "self_declared_limitations": [
+    "Sample output only; no repository was inspected."
+  ]
+}
