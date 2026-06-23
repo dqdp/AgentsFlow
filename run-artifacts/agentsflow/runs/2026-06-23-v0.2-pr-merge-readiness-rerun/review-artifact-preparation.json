@@ -6,7 +6,7 @@
   "prepared_at": "2026-06-23T08:16:20.521493+00:00",
   "review_prompt_contract": {
     "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/review-prompt-contract.yaml",
-    "hash": "sha256:419c2b58746d59a5d8072d1e447ad28cb4f76e5076d6bd82484668317b621807"
+    "hash": "sha256:0c8546e45932327539499bffb404afb4a6e11961ed969573cdd77ec7b3f4b671"
   },
   "source_context": {
     "dirty_policy": "fail-closed",
@@ -366,7 +366,7 @@
       "model_family": "opus",
       "requested_model": "opus",
       "requested_effort": "max",
-      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "provider_config": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
       "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/review-packets/verification-claude.json",
       "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/reviewer-report.verification-claude.json",
       "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/evidence/raw/verification-claude.raw.json",
@@ -385,7 +385,7 @@
       "model_family": "opus",
       "requested_model": "opus",
       "requested_effort": "max",
-      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "provider_config": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
       "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/review-packets/architecture-claude.json",
       "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/reviewer-report.architecture-claude.json",
       "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/evidence/raw/architecture-claude.raw.json",
@@ -404,7 +404,7 @@
       "model_family": "opus",
       "requested_model": "opus",
       "requested_effort": "max",
-      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "provider_config": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
       "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/review-packets/adversarial-claude.json",
       "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/reviewer-report.adversarial-claude.json",
       "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-rerun/evidence/raw/adversarial-claude.raw.json",

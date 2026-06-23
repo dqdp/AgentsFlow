@@ -6,7 +6,7 @@
   "prepared_at": "2026-06-23T12:48:06.177378+00:00",
   "review_prompt_contract": {
     "path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-prompt-contract.yaml",
-    "hash": "sha256:3c69af1d91b99ceff12b6238568c94acf7469cf4599503b37a0a12f1f2a3d9ec"
+    "hash": "sha256:fbd707b80a2c2df940f5a95072cf197b2255cc396828c515548571cdffe283fd"
   },
   "source_context": {
     "dirty_policy": "fail-closed",
@@ -710,7 +710,7 @@
       "model_family": "opus",
       "requested_model": "opus",
       "requested_effort": "max",
-      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "provider_config": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
       "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-claude.json",
       "report_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-claude.json",
       "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/evidence/raw/publication-rerun-claude.raw.json",

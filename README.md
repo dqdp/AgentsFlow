@@ -6,6 +6,7 @@
 
 <br>
 
+<a href="https://github.com/dqdp/AgentsFlow/actions/workflows/validate.yml"><img alt="CI validation" src="https://github.com/dqdp/AgentsFlow/actions/workflows/validate.yml/badge.svg"></a>
 <a href="docs/mvp-ready-workflow-standard.md"><img alt="version v0.2.0" src="https://img.shields.io/badge/version-v0.2.0-blue"></a>
 <a href="docs/mvp-ready-workflow-standard.md"><img alt="MVP ready" src="https://img.shields.io/badge/status-MVP_ready-2ea44f"></a>
 <a href="docs/enforcement-boundary.md"><img alt="repo validation passing" src="https://img.shields.io/badge/repo_validation-passing-2ea44f"></a>

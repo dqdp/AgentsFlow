@@ -5,7 +5,7 @@
   "status": "manual-focused-review-preparation",
   "review_prompt_contract": {
     "path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/review-prompt-contract.yaml",
-    "hash": "sha256:538ade73fbd996652e238f18daf4a82daa0a4ee4e49ab73555c7c5116d71a405"
+    "hash": "sha256:3ed33bcb4868a4c7ee1e1abc3d673d02ae144cd0dfd979b782d9f0b3faf8cda8"
   },
   "generated_artifacts": {
     "shared_packet_content": {

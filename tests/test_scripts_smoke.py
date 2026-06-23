@@ -2275,6 +2275,7 @@ def test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_source
     undeclared_command = copy.deepcopy(report)
     undeclared_command["commands_run"][0]["instrument_id"] = "not-declared"
     temp_report = ROOT / ".pytest_cache/evidence-probe-report.invalid.json"
+    temp_report.parent.mkdir(parents=True, exist_ok=True)
     temp_report.write_text(json.dumps(undeclared_command), encoding="utf-8")
     try:
         errors = validate_repo.validate_evidence_probe_report_artifact(ROOT, temp_report)

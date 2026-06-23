@@ -138,7 +138,7 @@ reviewer_assignments:
   model_family: opus
   requested_model: opus
   requested_effort: max
-  provider_config: .agentsflow/external-reviewers/claude-code.yaml
+  provider_config: run-artifacts/agentsflow/provider-configs/claude-code.yaml
   packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/verification-claude.json
   report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.verification-claude.json
   raw_output_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/raw/verification-claude.raw.json
@@ -153,7 +153,7 @@ reviewer_assignments:
   model_family: opus
   requested_model: opus
   requested_effort: max
-  provider_config: .agentsflow/external-reviewers/claude-code.yaml
+  provider_config: run-artifacts/agentsflow/provider-configs/claude-code.yaml
   packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/architecture-claude.json
   report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.architecture-claude.json
   raw_output_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/raw/architecture-claude.raw.json
@@ -168,7 +168,7 @@ reviewer_assignments:
   model_family: opus
   requested_model: opus
   requested_effort: max
-  provider_config: .agentsflow/external-reviewers/claude-code.yaml
+  provider_config: run-artifacts/agentsflow/provider-configs/claude-code.yaml
   packet_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/review-packets/adversarial-claude.json
   report_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.adversarial-claude.json
   raw_output_path: run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/evidence/raw/adversarial-claude.raw.json

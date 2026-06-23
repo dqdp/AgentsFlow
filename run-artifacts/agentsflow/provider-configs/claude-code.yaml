@@ -1,0 +1,55 @@
+provider: claude-code
+kind: external_reviewer_provider
+version: 1
+
+billing:
+  expected_mode: subscription-local
+  forbid_api_key_usage: true
+  fail_if_env_present:
+    - ANTHROPIC_API_KEY
+    - ANTHROPIC_AUTH_TOKEN
+    - ANTHROPIC_BASE_URL
+    - CLAUDE_CODE_USE_BEDROCK
+    - CLAUDE_CODE_USE_VERTEX
+
+execution:
+  command: claude
+  mode: non_interactive_print
+  sandbox_mode: require_escalated
+  output_format: json
+  permission_mode: default
+  prompt_transport: stdin
+  tools: ""
+  model: opus
+  effort: max
+  timeout_seconds: 900
+  max_turns: 3
+  use_bare_mode: false
+  no_session_persistence: true
+
+context_policy:
+  start_mode: fresh_context
+  fork_conversation_context: false
+  session_persistence: false
+  input_mode: review_packet
+
+permissions:
+  read_packet_only: true
+  write_files: false
+  run_tests: false
+  run_verification_instruments: false
+  run_tools: false
+  may_request_additional_verification: true
+
+inputs:
+  review_packet_schema: schemas/review-packet.schema.json
+
+outputs:
+  reviewer_report_schema: schemas/reviewer-report.schema.json
+  invocation_metadata_schema: schemas/reviewer-invocation.schema.json
+
+normalization:
+  force_finding_status: candidate-unvalidated
+  require_schema_validation: true
+  preserve_raw_output: false
+  record_trace: true

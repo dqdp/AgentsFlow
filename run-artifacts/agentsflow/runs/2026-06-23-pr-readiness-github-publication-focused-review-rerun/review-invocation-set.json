@@ -14,8 +14,8 @@
       "reviewer": "publication-rerun-codex",
       "provider": "internal-agent",
       "model_family": "codex",
-      "packet_path": "/Users/alex/AgentsFlow/run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-codex.json",
-      "report_path": "/Users/alex/AgentsFlow/run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-codex.json",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-codex.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-codex.json",
       "checked_at": "2026-06-23T12:53:08.209633+00:00",
       "status": "report-present",
       "evidence_model_family": "codex"
@@ -24,15 +24,15 @@
       "reviewer": "publication-rerun-claude",
       "provider": "claude-code",
       "model_family": "opus",
-      "packet_path": "/Users/alex/AgentsFlow/run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-claude.json",
-      "report_path": "/Users/alex/AgentsFlow/run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-claude.json",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-packets/publication-rerun-claude.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-claude.json",
       "raw_output_path": "",
-      "invocation_metadata_path": "/Users/alex/AgentsFlow/run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-invocation.publication-rerun-claude.json",
+      "invocation_metadata_path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-invocation.publication-rerun-claude.json",
       "status": "invoked",
       "dispatch_started_at": "2026-06-23T12:48:44.405003+00:00",
       "last_progress_at": "2026-06-23T12:55:39.052543+00:00",
       "dispatch_finished_at": "2026-06-23T12:55:50.325970+00:00",
-      "stdout": "External reviewer report written to /Users/alex/AgentsFlow/run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-claude.json\n",
+      "stdout": "External reviewer report written to run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/reviewer-report.publication-rerun-claude.json\n",
       "stderr": "",
       "exit_code": 0,
       "requested_model": "opus",
@@ -51,5 +51,5 @@
     }
   ],
   "artifact_preparation_report": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-artifact-preparation.json",
-  "artifact_preparation_report_hash": "sha256:91c93781488dc62d66e48ca889b8b069e9dc858baea9d4b72ebba0b3ce7ccc54"
+  "artifact_preparation_report_hash": "sha256:0ff8fd70fd80356e43ccb8f4f364a1548de3682dd980673c4d0516d3b5f8e367"
 }

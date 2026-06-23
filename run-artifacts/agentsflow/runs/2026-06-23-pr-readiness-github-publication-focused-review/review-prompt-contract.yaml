@@ -65,7 +65,7 @@ reviewer_assignments:
   model_family: opus
   requested_model: opus
   requested_effort: max
-  provider_config: .agentsflow/external-reviewers/claude-code.yaml
+  provider_config: run-artifacts/agentsflow/provider-configs/claude-code.yaml
   packet_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/review-packets/publication-claude.json
   report_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/reviewer-report.publication-claude.json
   raw_output_path: run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review/evidence/raw/publication-claude.raw.json

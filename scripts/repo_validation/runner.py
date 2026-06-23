@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 from pathlib import Path
 
 from .behavior_bindings import validate_behavior_binding, validate_behavior_binding_gate_refs
@@ -30,6 +31,7 @@ from .project_initialization import (
     validate_project_onboarding_assessment_skill_contract,
 )
 from .project_overlay import validate_project_overlay_example
+from .portable_paths import validate_portable_structured_paths
 from .pr_merge_readiness import validate_pr_merge_readiness_report
 from .required_files import REQUIRED_FILES
 from .review import (
@@ -60,9 +62,31 @@ from .workflows import (
 )
 
 
+def _tracked_files(root: Path) -> set[Path]:
+    if not (root / '.git').exists():
+        return set()
+    result = subprocess.run(
+        ['git', 'ls-files'],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return set()
+    return {(root / line).resolve() for line in result.stdout.splitlines() if line}
+
+
+def _tracked_or_all(paths: set[Path], tracked_files: set[Path]) -> set[Path]:
+    if not tracked_files:
+        return paths
+    return {path for path in paths if path.resolve() in tracked_files}
+
+
 def validate_repository(root: Path) -> list[str]:
     root = root.resolve()
     errors: list[str] = []
+    tracked_files = _tracked_files(root)
 
     for p in root.rglob('*.yaml'):
         errors.extend(validate_no_duplicate_yaml_keys(p))
@@ -81,6 +105,7 @@ def validate_repository(root: Path) -> list[str]:
             parse_json(p)
         except ValueError as exc:
             errors.append(str(exc))
+    errors.extend(validate_portable_structured_paths(root))
 
     skills = collect_names(root, 'skills', 'skill.yaml')
     skill_manifests = {
@@ -131,7 +156,7 @@ def validate_repository(root: Path) -> list[str]:
         *root.glob('run-artifacts/agentsflow/runs/**/project-documentation-disposition.yaml'),
         *root.glob('examples/**/Docs/agentsflow/runs/**/project-documentation-disposition.yaml'),
     }
-    for documentation_disposition in sorted(documentation_disposition_paths):
+    for documentation_disposition in sorted(_tracked_or_all(documentation_disposition_paths, tracked_files)):
         errors.extend(validate_project_documentation_disposition_artifact(root, documentation_disposition))
     errors.extend(validate_project_onboarding_assessment_skill_contract(root))
     errors.extend(
@@ -145,22 +170,22 @@ def validate_repository(root: Path) -> list[str]:
         'run-artifacts/agentsflow/runs/*/run.yaml',
         'examples/**/Docs/agentsflow/runs/*/run.yaml',
     ]
-    for run_artifact in {
+    for run_artifact in _tracked_or_all({
         path
         for pattern in run_artifact_patterns
         for path in root.glob(pattern)
-    }:
+    }, tracked_files):
         errors.extend(validate_workflow_run_artifact(root, run_artifact))
     review_prompt_contract_patterns = [
         'Docs/agentsflow/runs/*/review-prompt-contract.yaml',
         'run-artifacts/agentsflow/runs/*/review-prompt-contract.yaml',
         'examples/**/Docs/agentsflow/runs/*/review-prompt-contract.yaml',
     ]
-    for prompt_contract in sorted({
+    for prompt_contract in sorted(_tracked_or_all({
         path
         for pattern in review_prompt_contract_patterns
         for path in root.glob(pattern)
-    }):
+    }, tracked_files)):
         schema = parse_json(root / 'schemas' / 'review-prompt-contract.schema.json')
         data = parse_yaml(prompt_contract) or {}
         if not isinstance(data, dict):
@@ -174,11 +199,11 @@ def validate_repository(root: Path) -> list[str]:
         'run-artifacts/agentsflow/runs/*/review-packets/*.json',
         'examples/**/Docs/agentsflow/runs/*/review-packets/*.json',
     ]
-    for review_packet in sorted({
+    for review_packet in sorted(_tracked_or_all({
         path
         for pattern in review_packet_patterns
         for path in root.glob(pattern)
-    }):
+    }, tracked_files)):
         if review_packet.name in {'shared-content.json', 'shared-source.json'}:
             continue
         errors.extend(validate_review_packet_artifact(root, review_packet, True))

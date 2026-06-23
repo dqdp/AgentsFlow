@@ -18,7 +18,7 @@
   ],
   "command": "claude -p <stdin> --output-format json --permission-mode default --tools  --model opus --effort max --max-turns 3 --no-session-persistence",
   "wrapper": "scripts/reviewers/run_external_reviewer.py",
-  "provider_config_path": "/Users/alex/AgentsFlow/.agentsflow/external-reviewers/claude-code.yaml",
+  "provider_config_path": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
   "provider_config_hash": "sha256:f3bab281d7d9c3dfe0bdd1cc8dc4c60f90e1888ba99f7a6993ce9eb1a65522a0",
   "execution_mode": "real",
   "permission_mode": "default",
@@ -32,7 +32,7 @@
   "timeout_seconds": 900,
   "input_hash": "sha256:aab2b15191f6c23961b6d97ff6a2ea895cd0716deeb47ed7dff7369d4aaa9e07",
   "prompt_hash": "sha256:7ab8a958c5371a0bf5872b176e4b90ddea98e21dba8cac9420db7c6960b1e817",
-  "review_prompt_contract_hash": "sha256:f977327cca4156ea8ce583c2ae7b219e97d1f9b28586b69ff591311dc233b981",
+  "review_prompt_contract_hash": "sha256:cf6c8032da387331c9103f08383fbef6559197b0f41dd4110a877cb658daafed",
   "role_contract_hash": "sha256:f84eaababb550c5b14f9a6c98b015d3f94379e5813b4fb63ed466d0ef3debf1f",
   "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
   "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
@@ -41,7 +41,7 @@
   "raw_output_path": "",
   "raw_output_hash": "sha256:12d50b4bcc4eeb2e388fb2be6278933e50ac4e4bbb07dfd4666275e83db83067",
   "stderr_path": "",
-  "normalized_output_path": "/Users/alex/AgentsFlow/run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.verification-claude.json",
+  "normalized_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.verification-claude.json",
   "finished_at": "2026-06-23T10:18:10.914002+00:00",
   "normalized_output_hash": "sha256:992b48c59227a46b83da8aabf062e6f16947e01c4bb5df9e6dc37e879106b6e4",
   "normalization": {
@@ -50,7 +50,7 @@
     "source_hash": "sha256:12d50b4bcc4eeb2e388fb2be6278933e50ac4e4bbb07dfd4666275e83db83067",
     "schema_validation": "passed",
     "normalized_by": "scripts/reviewers/run_external_reviewer.py",
-    "output_path": "/Users/alex/AgentsFlow/run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.verification-claude.json",
+    "output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-daed76c/reviewer-report.verification-claude.json",
     "output_hash": "sha256:992b48c59227a46b83da8aabf062e6f16947e01c4bb5df9e6dc37e879106b6e4"
   },
   "provider_model_usage": {
