@@ -1,0 +1,45 @@
+version: 1
+run_id: 2026-06-23-v0.2-pr-merge-readiness-b6662a8
+artifact_role: run_question_packet
+questions:
+- decision_id: github.publication
+  phase_id: readiness_intake
+  status: answered
+  classification: nonblocking-follow-up
+  grouping: pr-merge-readiness
+  question: Should the accepted PR readiness summary be published to the GitHub PR
+    after final local acceptance?
+  answer_recorded: publish
+  basis:
+    observed:
+    - User explicitly confirmed optional_github_publication is required for the continued
+      PR workflow.
+  options:
+  - id: publish
+    label: Publish GitHub PR summary
+    impact: Run optional_github_publication after final_readiness_gate; failure does
+      not change local merge readiness.
+  - id: skip
+    label: Skip publication
+    impact: Do not publish a GitHub PR comment.
+  - id: defer
+    label: Defer publication
+    impact: Leave publication to a later out-of-band step.
+  answer_required: true
+  affected_artifacts:
+  - human-decisions.yaml
+  - pr-merge-readiness-report.json
+  - github-publication.md
+  - github-publication-result.json
+- decision_id: merge.acceptance
+  phase_id: final_human_merge_decision
+  status: open
+  classification: blocking-material
+  grouping: pr-merge-readiness
+  question: Should material change b6662a8 on branch v0.2-prehandoff-design be accepted
+    as PR merge-ready after the refreshed evidence, provider-mirrored review, fusion
+    and finding validation?
+  answer_required: true
+  affected_artifacts:
+  - human-decisions.yaml
+  - pr-merge-readiness-report.json

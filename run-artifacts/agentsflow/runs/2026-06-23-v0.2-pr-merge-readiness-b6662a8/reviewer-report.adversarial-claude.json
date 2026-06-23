@@ -1,0 +1,49 @@
+{
+  "reviewer": {
+    "id": "adversarial-claude",
+    "provider": "claude-code",
+    "role": "adversarial"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-b6662a8",
+    "material_change_id": "b6662a8",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-claude.json",
+    "reviewer_instance_id": "adversarial-claude"
+  },
+  "summary": "Adversarial review of material change b6662a8 (pr-merge-readiness) from the packet only. No concretely-substantiated P0/P1 acceptance blocker was identified. b6662a8 is presented as a tested hardening of the PR-readiness publication gate (the prior P1 'github publication result URL not bound' is now red/green covered by test_published_github_publication_requires_result_artifact_url), with asserted green gates (235 passed; repo_validation and diff_check passed), refreshed structured command-evidence, a clear human authority boundary (github.publication confirmed=publish; final_human_merge_decision correctly still open), and empty known_blockers. The packet makes no accepted_merge_ready claim, no merge-accepted claim, and no publication-success claim, so the false_merge_ready_claim_without_human_decision, mock_or_placeholder_review_claimed_live, and publication_claim_without_live_evidence path classes are not triggered by any assertion present. gh_pr_view HTTP 401 is correctly scoped to optional post-acceptance publication, not local readiness. Residual risk is verification-limited rather than a demonstrated defect: the b6662a8 diff scope, the repeated review_control_rules/review_cycle block contents, the provider-mirror reviews' presence/liveness, and the raw green-gate artifacts cannot be inspected from the packet. These are routed to requests_for_additional_verification. If the b6662a8 diff scope exceeds the described publication-gate hardening plus review-evidence recording, the reliance on the prior github-publication-focused review as provenance and the fresh four-surface coverage should be re-checked before acceptance.",
+  "findings": [],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Confirm the b6662a8 diff scope is limited to the described publication-gate hardening and review-evidence recording. diff_check is reported as passed but the packet does not include the diff; if b6662a8 modifies workflow or gate logic beyond the description, reliance on the prior github-publication-focused review as provenance for b6662a8 could under-cover the change and let a regression pass on mismatched coverage."
+    },
+    {
+      "id": "REQUEST-002",
+      "request": "Provide the contents of the repeated review_control_rules and review_cycle policy blocks across the workflow YAML files. The packet's own workflow_composition_integrity review_question is left open; without the block contents I can neither confirm a semantic contradiction (which would be a P1 gate-semantics risk) nor clear the duplication, so this surface cannot be fully discharged from the packet alone."
+    },
+    {
+      "id": "REQUEST-003",
+      "request": "Confirm presence — and, for any claude-code assignment, live external evidence — of all provider-mirrored topic-pair reviews for b6662a8, including the adversarial mirror counterpart. The packet asserts provider_mirrored_topic_pairs and a fresh provider-mirrored review but includes no in-packet artifact demonstrating the mirror reviews exist for this HEAD; codex-side report-present status is acceptable per calibration but its actual presence is not shown."
+    },
+    {
+      "id": "REQUEST-004",
+      "request": "Provide the underlying gate artifacts (the pytest run output behind '235 passed', evidence/command-evidence.json, and verification-gate-report.md) so the asserted green gates and the refreshed structured command-evidence fields (cwd, started_at, finished_at, exit_code, result, output_summary, artifact_paths, raw_log_path) can be independently confirmed rather than accepted as summarized."
+    },
+    {
+      "id": "REQUEST-005",
+      "request": "Confirm the readiness_intake human confirmation of github.publication=publish is recorded in a decision artifact (e.g., human-decisions.yaml or readiness-intake.md) and that final_human_merge_decision with report_hash remains unrecorded — i.e., that no accepted_merge_ready state has been asserted ahead of the final human merge decision."
+    }
+  ],
+  "self_declared_limitations": [
+    "Review was conducted from the review packet only; repository access, artifact file contents, and the raw diff were not available and were not requested per the run constraints. Green gates (235 passed, repo_validation passed, diff_check passed), the command-evidence.json structure, and workflow YAML policy contents are therefore accepted as asserted and were not independently reproduced.",
+    "Per forbidden_actions I did not run tests, execute scripts, modify files, or produce patches; conclusions about the absence of P0/P1 blockers are conditional on the accuracy of the packet's evidence_summary and evidence_freshness claims.",
+    "Standard adversarial-authority objections (missing final_human_merge_decision, gh_pr_view HTTP 401, codex-side report-present mirror reviews, and prior-run focused-review provenance) were assessed against the packet's calibration guidance; none is falsifiable from the packet into a concrete contradiction, false readiness claim, or publication-success claim, so none is filed as a finding. This reflects non-falsifiability from the available evidence, not positive confirmation that each underlying claim is correct."
+  ],
+  "normalization": {
+    "method": "deterministic-extraction",
+    "source_path": "",
+    "source_hash": "sha256:61b51ff3a12005389c7b5fa9706f0cfc2c6295a4bb84c9cb870f1a479a5032ec",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py"
+  }
+}

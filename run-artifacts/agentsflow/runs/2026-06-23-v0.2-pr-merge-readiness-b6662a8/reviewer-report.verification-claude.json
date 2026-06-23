@@ -1,0 +1,54 @@
+{
+  "reviewer": {
+    "id": "verification-claude",
+    "provider": "claude-code",
+    "role": "verification"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-b6662a8",
+    "material_change_id": "b6662a8",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-claude.json",
+    "reviewer_instance_id": "verification-claude"
+  },
+  "summary": "Verification-role review of pr-merge-readiness run 2026-06-23-v0.2-pr-merge-readiness-b6662a8 at target content head b6662a8 (b6662a8c052448bacd4b1312d457f8a75a424a97). Working only from the review packet (no repository access, no artifact-content access, no test or script execution per forbidden_actions), the packet presents an internally consistent green state: repo_validation passed, pytest 235 passed, diff_check passed, structured command-evidence refreshed after the prior ARCH-P1-002 candidate (now recording cwd/started_at/finished_at/exit_code/result/output_summary/artifact_paths/raw_log_path), and a red-then-green record for the publication-gate P1 (tests/test_pr_merge_readiness.py::test_published_github_publication_requires_result_artifact_url red-captured, now passing). The scoped non-blockers are consistent with the packet's calibration guidance and are not asserted as readiness: gh_pr_view HTTP 401 affects only optional post-acceptance publication; final_human_merge_decision is correctly deferred (human_authority_boundary states final merge acceptance is still open); and repeated review_control_rules/review_cycle policy blocks are accepted as v0.2 duplication absent a concrete contradiction. From packet evidence I cannot substantiate any new P0/P1 acceptance blocker, so findings is empty. The unresolved verification uncertainty is that I received only the packet's evidence_summary and red_green_evidence assertions, not the contents of the referenced artifacts, so the deterministic-result claims, the committed traceability of the red-capture, the absence of any premature published or accepted_merge_ready claim, and live-evidence for claude-code-assigned reviews remain self-reported and must be confirmed by the validating agent against the actual artifacts; these are recorded in requests_for_additional_verification and self_declared_limitations.",
+  "findings": [],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Confirm the referenced artifacts (verification-gate-report.md, evidence/command-evidence.json, evidence-report.md, readiness-intake.md) actually contain the claimed structured fields and bind to target content head b6662a8c052448bacd4b1312d457f8a75a424a97; this reviewer received only the packet evidence_summary, not the artifact contents, and could not independently verify the pytest '235 passed', repo_validation 'passed' or diff_check 'passed' claims."
+    },
+    {
+      "id": "REQUEST-002",
+      "request": "Confirm the publication-gate red-capture (tests/test_pr_merge_readiness.py::test_published_github_publication_requires_result_artifact_url) is committed and traceable as a recorded red-then-green artifact rather than only narrated in the packet, and that the red capture was taken against pre-fix state with b6662a8 producing the green."
+    },
+    {
+      "id": "REQUEST-003",
+      "request": "Confirm that b6662a8 ('harden PR readiness publication gate') introduces no gate-behavior change beyond the single red-captured publication-gate test; if it changes additional gate semantics, confirm each new behavior has its own red-capture rather than green-only verification (235-passed alone does not demonstrate per-change red-capture)."
+    },
+    {
+      "id": "REQUEST-004",
+      "request": "Confirm no run artifact records github.publication as executed/published given gh_pr_view HTTP 401 (gh not authenticated); a recorded 'published' state with an unobtained result-artifact URL would be a publication_claim_without_live_evidence / false-readiness risk and would directly exercise the hardened gate."
+    },
+    {
+      "id": "REQUEST-005",
+      "request": "Confirm no run artifact asserts accepted_merge_ready before final_human_merge_decision (human-decisions.yaml with report_hash) exists; the packet states final merge acceptance is still open, and that state must remain reflected consistently across all gate and readiness artifacts (FPM-AUTH-001)."
+    },
+    {
+      "id": "REQUEST-006",
+      "request": "Confirm any claude-code-assigned review in review-invocation-set.json carries live external evidence and that no mock or placeholder review is claimed live; internal-agent reports with reviewer.model=codex are acceptable as report-present per the packet calibration."
+    }
+  ],
+  "self_declared_limitations": [
+    "Review is bounded to the provided packet; per instructions I did not access the repository and was not given the contents of the referenced artifacts, so all deterministic-result claims (pytest 235 passed, repo_validation passed, diff_check passed, structured command-evidence fields, evidence freshness/binding) are packet-self-reported and were not independently verified.",
+    "Forbidden from running tests or scripts, so I could not re-execute pytest, repo validation, or the gate-supporting commands to confirm green status or to reproduce the red-capture for b6662a8.",
+    "I could not inspect the workflow YAML files, so I can neither confirm nor refute whether the repeated review_control_rules/review_cycle policy blocks create a concrete semantic contradiction; the accepted_non_blocking_position is unvalidated from my vantage.",
+    "Absence of findings reflects packet-only visibility and that no concrete P0/P1 acceptance blocker is substantiable from the packet evidence; it is not an independent confirmation of merge-readiness, which depends on the validating agent verifying the requests above against the actual artifacts."
+  ],
+  "normalization": {
+    "method": "deterministic-extraction",
+    "source_path": "",
+    "source_hash": "sha256:1402e0e6e989e6efa568501c3c55d8f7836fceb76d4f53f0d29ea8db61a7e34e",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py"
+  }
+}

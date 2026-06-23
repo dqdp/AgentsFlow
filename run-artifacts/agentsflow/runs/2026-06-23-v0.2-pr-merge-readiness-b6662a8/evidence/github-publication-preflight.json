@@ -1,0 +1,66 @@
+{
+  "artifact_type": "github_publication_preflight",
+  "schema_version": 1,
+  "generated_at": "2026-06-23T13:31:22Z",
+  "scope": "post_review_optional_github_publication",
+  "branch": "v0.2-prehandoff-design",
+  "checks": [
+    {
+      "id": "gh_auth_status_sandbox",
+      "command": "gh auth status",
+      "sandbox": "default",
+      "exit_code": 1,
+      "result": "failed",
+      "summary": "The default sandbox reported the GitHub token for account dqdp as invalid."
+    },
+    {
+      "id": "gh_auth_status_escalated",
+      "command": "gh auth status",
+      "sandbox": "escalated",
+      "exit_code": 0,
+      "result": "passed",
+      "summary": "The escalated process accessed the macOS keyring token and authenticated as account dqdp with repo scope."
+    },
+    {
+      "id": "gh_pr_view_escalated",
+      "command": "gh pr view --json number,title,url,headRefName,baseRefName,headRefOid,baseRefOid,state,isDraft",
+      "sandbox": "escalated",
+      "exit_code": 1,
+      "result": "failed",
+      "summary": "GitHub CLI authentication worked, but no pull request was found for branch v0.2-prehandoff-design."
+    },
+    {
+      "id": "gh_pr_view_escalated_after_pr_creation",
+      "command": "gh pr view --json number,title,url,headRefName,baseRefName,headRefOid,baseRefOid,state,isDraft",
+      "sandbox": "escalated",
+      "exit_code": 0,
+      "result": "passed",
+      "summary": "GitHub PR target exists for branch v0.2-prehandoff-design.",
+      "pull_request": {
+        "number": 1,
+        "title": "V0.2 prehandoff design",
+        "url": "https://github.com/dqdp/AgentsFlow/pull/1",
+        "headRefName": "v0.2-prehandoff-design",
+        "baseRefName": "main",
+        "headRefOid": "b6662a8c052448bacd4b1312d457f8a75a424a97",
+        "baseRefOid": "aa4374a8e4da32dfa2f0e27c2d968202ee12d951",
+        "state": "OPEN",
+        "isDraft": false
+      }
+    }
+  ],
+  "conclusion": {
+    "sandbox_auth_artifact": true,
+    "publication_target_available": true,
+    "blocking_for_local_merge_readiness": false,
+    "blocking_for_github_publication": false,
+    "blocker": null,
+    "pull_request_url": "https://github.com/dqdp/AgentsFlow/pull/1"
+  },
+  "notes": [
+    "The earlier HTTP 401 evidence is superseded for auth diagnosis by the escalated gh auth status check.",
+    "GitHub publication can continue only after a PR exists or the human approves creating one.",
+    "After the human created the PR, escalated gh pr view found PR #1 for the branch."
+  ],
+  "updated_at": "2026-06-23T13:39:42.741687Z"
+}

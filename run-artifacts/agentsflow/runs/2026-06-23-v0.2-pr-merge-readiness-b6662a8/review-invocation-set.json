@@ -1,0 +1,130 @@
+{
+  "artifact_kind": "review_invocation_set",
+  "review_prompt_contract": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompt-contract.yaml",
+  "status": "completed",
+  "started_at": "2026-06-23T13:19:54.630742+00:00",
+  "finished_at": "2026-06-23T13:27:17.801887+00:00",
+  "runner_scheduling": "external-first-async",
+  "provider_model_families": [
+    "claude-code/opus",
+    "internal-agent/codex"
+  ],
+  "reviewers": [
+    {
+      "reviewer": "verification-codex",
+      "provider": "internal-agent",
+      "model_family": "codex",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-codex.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.verification-codex.json",
+      "checked_at": "2026-06-23T13:27:17.542285+00:00",
+      "status": "report-present",
+      "evidence_model_family": "codex"
+    },
+    {
+      "reviewer": "verification-claude",
+      "provider": "claude-code",
+      "model_family": "opus",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-claude.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.verification-claude.json",
+      "raw_output_path": "",
+      "invocation_metadata_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-invocation.verification-claude.json",
+      "status": "invoked",
+      "dispatch_started_at": "2026-06-23T13:19:54.662744+00:00",
+      "dispatch_finished_at": "2026-06-23T13:27:17.800441+00:00",
+      "stdout": "External reviewer report written to run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.verification-claude.json\n",
+      "stderr": "",
+      "exit_code": 0,
+      "requested_model": "opus",
+      "requested_effort": "max",
+      "execution_mode": "real",
+      "provider_models_used": [
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-8"
+      ],
+      "provider_total_cost_usd": 0.45928800000000003,
+      "provider_service_tier": "standard",
+      "provider_speed": "standard",
+      "raw_output_hash": "sha256:1402e0e6e989e6efa568501c3c55d8f7836fceb76d4f53f0d29ea8db61a7e34e",
+      "normalized_output_hash": "sha256:373814ea34c91b3f39a4d31a8a6c7839dfcc916cbe01e226709a6105fc3fc44f",
+      "evidence_model_family": "opus"
+    },
+    {
+      "reviewer": "architecture-codex",
+      "provider": "internal-agent",
+      "model_family": "codex",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-codex.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.architecture-codex.json",
+      "checked_at": "2026-06-23T13:27:17.798813+00:00",
+      "status": "report-present",
+      "evidence_model_family": "codex"
+    },
+    {
+      "reviewer": "architecture-claude",
+      "provider": "claude-code",
+      "model_family": "opus",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-claude.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.architecture-claude.json",
+      "raw_output_path": "",
+      "invocation_metadata_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-invocation.architecture-claude.json",
+      "status": "invoked",
+      "dispatch_started_at": "2026-06-23T13:19:54.663919+00:00",
+      "dispatch_finished_at": "2026-06-23T13:27:17.801017+00:00",
+      "stdout": "External reviewer report written to run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.architecture-claude.json\n",
+      "stderr": "",
+      "exit_code": 0,
+      "requested_model": "opus",
+      "requested_effort": "max",
+      "execution_mode": "real",
+      "provider_models_used": [
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-8"
+      ],
+      "provider_total_cost_usd": 0.46819500000000003,
+      "provider_service_tier": "standard",
+      "provider_speed": "standard",
+      "raw_output_hash": "sha256:098c1b967b4f62360fa238d2a877a883eb9a10a68cc940b50be0fcc0366e8695",
+      "normalized_output_hash": "sha256:8a794a9beeaa7dd5f1e2704b13586391f03e3b607291b1b37cb7e1d492dc37f5",
+      "evidence_model_family": "opus"
+    },
+    {
+      "reviewer": "adversarial-codex",
+      "provider": "internal-agent",
+      "model_family": "codex",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-codex.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.adversarial-codex.json",
+      "checked_at": "2026-06-23T13:27:17.799771+00:00",
+      "evidence_model_family": "codex",
+      "status": "report-present"
+    },
+    {
+      "reviewer": "adversarial-claude",
+      "provider": "claude-code",
+      "model_family": "opus",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-claude.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.adversarial-claude.json",
+      "raw_output_path": "",
+      "invocation_metadata_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-invocation.adversarial-claude.json",
+      "status": "invoked",
+      "dispatch_started_at": "2026-06-23T13:19:54.664967+00:00",
+      "dispatch_finished_at": "2026-06-23T13:27:17.801471+00:00",
+      "stdout": "External reviewer report written to run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.adversarial-claude.json\n",
+      "stderr": "",
+      "exit_code": 0,
+      "requested_model": "opus",
+      "requested_effort": "max",
+      "execution_mode": "real",
+      "provider_models_used": [
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-8"
+      ],
+      "provider_total_cost_usd": 0.623681,
+      "provider_service_tier": "standard",
+      "provider_speed": "standard",
+      "raw_output_hash": "sha256:61b51ff3a12005389c7b5fa9706f0cfc2c6295a4bb84c9cb870f1a479a5032ec",
+      "normalized_output_hash": "sha256:6685ec3ac39743f894040d7a1f9cf2c65da8e7cfaf070f677c197a983be07bc5",
+      "evidence_model_family": "opus"
+    }
+  ],
+  "artifact_preparation_report": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-artifact-preparation.json",
+  "artifact_preparation_report_hash": "sha256:efec9dbcbeac65846038112621043d574c0c8a30aa043cf2dccf2961bc542690"
+}

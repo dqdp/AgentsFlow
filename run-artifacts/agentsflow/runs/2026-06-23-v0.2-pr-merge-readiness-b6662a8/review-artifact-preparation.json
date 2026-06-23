@@ -1,0 +1,513 @@
+{
+  "version": 1,
+  "artifact_kind": "review_artifact_preparation",
+  "artifact_scope": "run",
+  "status": "completed",
+  "prepared_at": "2026-06-23T13:19:23.067142+00:00",
+  "review_prompt_contract": {
+    "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompt-contract.yaml",
+    "hash": "sha256:e3c5f788c67709518ba4e8c85b4aacc7e42bf9dcb83eda8b94605049b999f2bb"
+  },
+  "source_context": {
+    "dirty_policy": "fail-closed",
+    "worktree": {
+      "status_command": "git status --porcelain=v1 --untracked-files=all",
+      "status_entries": [
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence-report.md",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-evidence.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/diff-check-main-head.txt",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/gh-pr-view.txt",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/pytest.txt",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/validate-repo.txt",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/human-decisions.yaml",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/human-questions.yaml",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/readiness-intake.md",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-artifact-preparation.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-claude.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-codex.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-claude.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-codex.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/shared-source.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-claude.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-codex.json",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompt-contract.yaml",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/adversarial-claude.md",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/adversarial-codex.md",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/architecture-claude.md",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/architecture-codex.md",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/verification-claude.md",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/verification-codex.md",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/run.yaml",
+          "status": "??"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/verification-gate-report.md",
+          "status": "??"
+        }
+      ],
+      "included_dirty_paths": [
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence-report.md",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-evidence.json",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/diff-check-main-head.txt",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/gh-pr-view.txt",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/pytest.txt",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/validate-repo.txt",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/human-decisions.yaml",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/human-questions.yaml",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/readiness-intake.md",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/run.yaml",
+        "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/verification-gate-report.md"
+      ],
+      "excluded_dirty_paths": [
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-artifact-preparation.json",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-claude.json",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-codex.json",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-claude.json",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-codex.json",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/shared-source.json",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-claude.json",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-codex.json",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompt-contract.yaml",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/adversarial-claude.md",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/adversarial-codex.md",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/architecture-claude.md",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/architecture-codex.md",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/verification-claude.md",
+          "reason": "generated_review_artifact"
+        },
+        {
+          "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/verification-codex.md",
+          "reason": "generated_review_artifact"
+        }
+      ]
+    },
+    "material_change_id": "b6662a8"
+  },
+  "input_artifacts": [
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/shared-source.json",
+      "kind": "shared_review_packet_source",
+      "hash": "sha256:8b0ed3e9bd991c9cabdbd07f34ebce0940d33baa483798209edcc66d78b34b47",
+      "required_by": [
+        "review_packet_generation"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/verification-gate-report.md",
+      "kind": "verification_gate_report",
+      "hash": "sha256:b14215a1473c860abfc83f33a6f5d83c92643564d2515423c2ace1081c06f18a",
+      "required_by": [
+        "review_context"
+      ]
+    },
+    {
+      "path": "schemas/review-packet.schema.json",
+      "kind": "schema",
+      "hash": "sha256:04c774fa41ad5b366127f0c035f9b73836315f17bc40a6a95b4ec591ae6081f9",
+      "required_by": [
+        "review_packet_generation"
+      ]
+    },
+    {
+      "path": "schemas/reviewer-report.schema.json",
+      "kind": "schema",
+      "hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
+      "required_by": [
+        "reviewer_output"
+      ]
+    },
+    {
+      "path": "AGENTS.md",
+      "kind": "agent_instructions",
+      "hash": "sha256:ab2fae93378c75abf307ecaae75695e800d882156eb64666e17fe89812350270",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/run.yaml",
+      "kind": "declared_input",
+      "hash": "sha256:7883af599c23a391c55e6d3ec982869fef9c867d1489ef80cb17c684d1f33d62",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/readiness-intake.md",
+      "kind": "declared_input",
+      "hash": "sha256:8b59fd04d9481b8174e21bdd726710871f864a5078ee99fd628504aefe488178",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/human-questions.yaml",
+      "kind": "declared_input",
+      "hash": "sha256:9b79bafc5250a4b250549dcc86a4cd98094dd11a5f0a3bb7966991d4da0c9844",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/human-decisions.review-input.yaml",
+      "kind": "declared_input_snapshot",
+      "hash": "sha256:6aed1c4a0a9d5760b20cc41cf3f7bf2a1a068b981e9fe548b6787717aafaee47",
+      "required_by": [
+        "explicit_include"
+      ],
+      "snapshot_of": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/human-decisions.yaml",
+      "snapshot_reason": "Pre-review human decision state; final merge.acceptance is recorded later in human-decisions.yaml."
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence-report.md",
+      "kind": "declared_input",
+      "hash": "sha256:4d84eacb9d49b74e6d8f4ee506cbd25e3a424ee11bcc2174b8fcda53a10f771c",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-evidence.json",
+      "kind": "declared_input",
+      "hash": "sha256:98aa0a5f5813d71ad4b850688f4b78e3d4d7d7f4ab71bd154580a9771e52c7c8",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/validate-repo.txt",
+      "kind": "declared_input",
+      "hash": "sha256:4dba091ad34351df5a47ab88351937a7c08b8d04df4e59834546b6babf1479b0",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/pytest.txt",
+      "kind": "declared_input",
+      "hash": "sha256:5c1a40d3911dbb77c2d432ae7193e426705988e2983f70c468e42a2cdee779c7",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/diff-check-main-head.txt",
+      "kind": "declared_input",
+      "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/command-outputs/gh-pr-view.txt",
+      "kind": "declared_input",
+      "hash": "sha256:8dde3b84e9301f29df5a502dd032a0c94fc8f51bf7b8d48ffad0f1d17a6c8f31",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "docs/pr-merge-readiness.md",
+      "kind": "declared_input",
+      "hash": "sha256:bada3c0288a1604320c615dfd39f4c0559abe2516e1ab1ca7ab6f99a35af0b55",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "workflows/pr-merge-readiness/workflow.yaml",
+      "kind": "declared_input",
+      "hash": "sha256:e934641f60fee5cee2c5e209b728ef606275633024fed9162bc1bf0a9a44bb52",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "scripts/repo_validation/pr_merge_readiness.py",
+      "kind": "declared_input",
+      "hash": "sha256:568b3c9ca3924fdfdb995b294d7dab058f52b252f6fb7321dedac9e8fce26210",
+      "required_by": [
+        "explicit_include"
+      ]
+    },
+    {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-pr-readiness-github-publication-focused-review-rerun/review-invocation-set.json",
+      "kind": "declared_input",
+      "hash": "sha256:1db8a30f74b0cf9d140d01984d6844824d77dccf226bab0aac86d61fbd5e2643",
+      "required_by": [
+        "explicit_include"
+      ]
+    }
+  ],
+  "generated_artifacts": {
+    "review_packets": [
+      {
+        "reviewer": "verification-codex",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-codex.json",
+        "hash": "sha256:2f13fdddf4172573a75d537eba5d4ba4de9ccdc368aa6bbf6917998eb1234482"
+      },
+      {
+        "reviewer": "verification-claude",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-claude.json",
+        "hash": "sha256:534007ac23197776982f8d28302a810fe3b91928623e571738ea34adf032f419"
+      },
+      {
+        "reviewer": "architecture-codex",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-codex.json",
+        "hash": "sha256:ce74d5192c704ef313f827cd2935fc53666fee7d1e03d945af51c76c039e82db"
+      },
+      {
+        "reviewer": "architecture-claude",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-claude.json",
+        "hash": "sha256:1c2de3d7fb4d96d76b043d61a85ba4e7da6f90bbba01de39fd3f736eae8a4067"
+      },
+      {
+        "reviewer": "adversarial-codex",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-codex.json",
+        "hash": "sha256:b93190c54f298055f77133b14b14fc2509b236455e5f18036b718e3c4e2ee4c3"
+      },
+      {
+        "reviewer": "adversarial-claude",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-claude.json",
+        "hash": "sha256:6fcf4f99f5830a9984d5088a0638e7e6f5708e3298d38fecd94da7f62164b19f"
+      }
+    ],
+    "rendered_prompts": [
+      {
+        "reviewer": "verification-codex",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/verification-codex.md",
+        "hash": "sha256:dc8c1ecf595e8a75e0f7a62f8cc7368441555f358ac3077c4aa175d26ec521df",
+        "packet_hash": "sha256:2f13fdddf4172573a75d537eba5d4ba4de9ccdc368aa6bbf6917998eb1234482",
+        "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
+        "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
+        "role_contract_hash": "sha256:f84eaababb550c5b14f9a6c98b015d3f94379e5813b4fb63ed466d0ef3debf1f"
+      },
+      {
+        "reviewer": "verification-claude",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/verification-claude.md",
+        "hash": "sha256:23fea0279f9b5b810b786f62bbfe6fbc177cf78fa3eb74a1d06e2429a035ae99",
+        "packet_hash": "sha256:534007ac23197776982f8d28302a810fe3b91928623e571738ea34adf032f419",
+        "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
+        "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
+        "role_contract_hash": "sha256:f84eaababb550c5b14f9a6c98b015d3f94379e5813b4fb63ed466d0ef3debf1f"
+      },
+      {
+        "reviewer": "architecture-codex",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/architecture-codex.md",
+        "hash": "sha256:4a97811dafcc41bfba3c949e6e807b089c8fd8a234fea8d248dcb673117aa52c",
+        "packet_hash": "sha256:ce74d5192c704ef313f827cd2935fc53666fee7d1e03d945af51c76c039e82db",
+        "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
+        "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
+        "role_contract_hash": "sha256:a866516c5cbcb62caf987046bf82432d5bcfbfba2bcc132a0ab99db9ad7bace0"
+      },
+      {
+        "reviewer": "architecture-claude",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/architecture-claude.md",
+        "hash": "sha256:9f95ba0f1b03b43f2802fc142c7d9851b9f481b2dc2017110e19e5c758d43d71",
+        "packet_hash": "sha256:1c2de3d7fb4d96d76b043d61a85ba4e7da6f90bbba01de39fd3f736eae8a4067",
+        "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
+        "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
+        "role_contract_hash": "sha256:a866516c5cbcb62caf987046bf82432d5bcfbfba2bcc132a0ab99db9ad7bace0"
+      },
+      {
+        "reviewer": "adversarial-codex",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/adversarial-codex.md",
+        "hash": "sha256:d2aa5294fbee367ceaef133bb5991347da077292780c61eef166902793a0d5ac",
+        "packet_hash": "sha256:b93190c54f298055f77133b14b14fc2509b236455e5f18036b718e3c4e2ee4c3",
+        "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
+        "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
+        "role_contract_hash": "sha256:41bf3c0c70efe7369cdf57e2c201bbb2bcdbb198c703207de2ff5b5e39148e47"
+      },
+      {
+        "reviewer": "adversarial-claude",
+        "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-prompts/adversarial-claude.md",
+        "hash": "sha256:2df164528e87318a68b136d00c96f38f6c3484b6a5370b4490572a75bcbdbd5e",
+        "packet_hash": "sha256:6fcf4f99f5830a9984d5088a0638e7e6f5708e3298d38fecd94da7f62164b19f",
+        "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
+        "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
+        "role_contract_hash": "sha256:41bf3c0c70efe7369cdf57e2c201bbb2bcdbb198c703207de2ff5b5e39148e47"
+      }
+    ],
+    "review_invocation_set": {
+      "path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-invocation-set.json",
+      "status": "predeclared"
+    }
+  },
+  "reviewer_assignments": [
+    {
+      "reviewer": "verification-codex",
+      "provider": "internal-agent",
+      "model_family": "codex",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-codex.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.verification-codex.json"
+    },
+    {
+      "reviewer": "verification-claude",
+      "provider": "claude-code",
+      "model_family": "opus",
+      "requested_model": "opus",
+      "requested_effort": "max",
+      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/verification-claude.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.verification-claude.json",
+      "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/raw/verification-claude.raw.json",
+      "invocation_metadata_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-invocation.verification-claude.json"
+    },
+    {
+      "reviewer": "architecture-codex",
+      "provider": "internal-agent",
+      "model_family": "codex",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-codex.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.architecture-codex.json"
+    },
+    {
+      "reviewer": "architecture-claude",
+      "provider": "claude-code",
+      "model_family": "opus",
+      "requested_model": "opus",
+      "requested_effort": "max",
+      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-claude.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.architecture-claude.json",
+      "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/raw/architecture-claude.raw.json",
+      "invocation_metadata_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-invocation.architecture-claude.json"
+    },
+    {
+      "reviewer": "adversarial-codex",
+      "provider": "internal-agent",
+      "model_family": "codex",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-codex.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.adversarial-codex.json"
+    },
+    {
+      "reviewer": "adversarial-claude",
+      "provider": "claude-code",
+      "model_family": "opus",
+      "requested_model": "opus",
+      "requested_effort": "max",
+      "provider_config": ".agentsflow/external-reviewers/claude-code.yaml",
+      "packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/adversarial-claude.json",
+      "report_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.adversarial-claude.json",
+      "raw_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/evidence/raw/adversarial-claude.raw.json",
+      "invocation_metadata_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-invocation.adversarial-claude.json"
+    }
+  ],
+  "validation": {
+    "schema": "schemas/review-artifact-preparation.schema.json",
+    "deterministic_script": "scripts/reviewers/prepare_review_set_artifacts.py",
+    "script_contract": "scripts/contracts/prepare_review_set_artifacts.yaml"
+  }
+}

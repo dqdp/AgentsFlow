@@ -1,0 +1,49 @@
+{
+  "reviewer": {
+    "id": "architecture-claude",
+    "provider": "claude-code",
+    "role": "architecture"
+  },
+  "review_context": {
+    "run_id": "2026-06-23-v0.2-pr-merge-readiness-b6662a8",
+    "material_change_id": "b6662a8",
+    "review_packet_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/review-packets/architecture-claude.json",
+    "reviewer_instance_id": "architecture-claude"
+  },
+  "summary": "Architecture review of b6662a8 against the pr-merge-readiness workflow, scoped to workflow boundary, methodology consistency, self-application artifact separation and workflow composition integrity. Working strictly from the review packet (no artifact file contents were embedded and I did not access the repository), I find no concrete P0/P1 architecture blocker that the packet itself substantiates. The packet presents an internally coherent, green readiness state: repo_validation passed, pytest 235 passed, diff_check passed, evidence freshness bound to b6662a8 with the packet generated after the latest green gate and stale evidence excluded, and structured command-evidence reportedly refreshed after the prior ARCH-P1-002 candidate (cwd, started_at, finished_at, exit_code, result, output_summary, artifact_paths, raw_log_path). The one open architecture concern in my focus — repeated review_control_rules/review_cycle policy blocks across workflow YAML — is, per the accepted non-blocking position, a blocker only if a reviewer identifies a concrete contradiction, broken validator behavior or false readiness claim; I cannot identify any such contradiction from the packet because the workflow YAML contents are not included, and risk-surface/FPM membership alone is not severity. The self-application boundary (run artifacts vs. source) and the codex-internal vs. claude-code-external evidence distinction appear correctly stated in the packet but are not independently verifiable without file access. Missing final_human_merge_decision and the gh_pr_view HTTP 401 are an expected-later phase and an optional-publication-only blocker respectively per calibration guidance, and the prior publication P1 (result URL not bound) is reported red-green-fixed; none are local acceptance blockers. Residual uncertainty is recorded in requests_for_additional_verification and self_declared_limitations for the orchestrator, which has artifact access, to close before final acceptance.",
+  "findings": [],
+  "requests_for_additional_verification": [
+    {
+      "id": "REQUEST-001",
+      "request": "Confirm whether the repeated review_control_rules and review_cycle policy blocks across the pr-merge-readiness workflow YAML and any sibling workflow YAML are semantically identical or have diverged. Divergent duplicated policy blocks would convert workflow_composition_integrity path_class repeated_policy_block_conflict from warning to a candidate P1 (inconsistent/contradictory gate semantics across workflows). The packet asserts all declared references resolve but does not include the YAML contents needed to rule out divergence."
+    },
+    {
+      "id": "REQUEST-002",
+      "request": "Confirm that evidence/command-evidence.json contains the full structured field set (cwd, started_at, finished_at, exit_code, result, output_summary, artifact_paths, raw_log_path) for every gate-supporting command rather than a subset, since the unstructured_gate_command_evidence path_class and the prior ARCH-P1-002 candidate depend on completeness across all gate commands, not just representative ones."
+    },
+    {
+      "id": "REQUEST-003",
+      "request": "Confirm self-application separation: that none of this run's own uncommitted run artifacts are cited as source evidence in evidence-report.md or verification-gate-report.md, consistent with the calibration claim that committed prior-material-change focused-review evidence is the provenance for b6662a8 while this run rechecks b6662a8 with fresh provider-mirrored review."
+    },
+    {
+      "id": "REQUEST-004",
+      "request": "Confirm the provider-mirrored architecture topic pair is complete in review-invocation-set.json: both the claude-code (external/live) and codex (internal/report-present) architecture reviews are present and correctly classified, so that no internal-agent report is asserted as live external evidence (adversarial_authority path_class mock_or_placeholder_review_claimed_live)."
+    },
+    {
+      "id": "REQUEST-005",
+      "request": "Confirm that the readiness state does not assert accepted_merge_ready anywhere before final_human_merge_decision with report_hash is recorded; the packet's stated authority boundary keeps final merge open, but this should be verified directly against readiness-intake.md and verification-gate-report.md text since those contents were not in the packet."
+    }
+  ],
+  "self_declared_limitations": [
+    "I reviewed only the provided review packet. The raw contents of the reviewed_artifacts (workflow.yaml, scripts/repo_validation/pr_merge_readiness.py, evidence/command-evidence.json, evidence-report.md, verification-gate-report.md, docs/pr-merge-readiness.md, review-invocation-set.json, readiness-intake.md) were not embedded in the packet and I did not access the repository, so all file-level conclusions rely on the packet's summaries and assertions and cannot be independently confirmed.",
+    "Per forbidden_actions I did not run tests or scripts; 'pytest 235 passed', 'repo_validation passed' and 'diff_check passed' are taken from evidence_summary, not independently verified.",
+    "Because I cannot inspect the workflow YAML, I can neither confirm nor refute the existence of a concrete contradiction in the duplicated review_control_rules/review_cycle policy blocks; my 'no concrete architecture blocker' conclusion for the workflow_composition_integrity and architecture_process surfaces is bounded by that lack of file access and should be treated as packet-level only."
+  ],
+  "normalization": {
+    "method": "deterministic-extraction",
+    "source_path": "",
+    "source_hash": "sha256:098c1b967b4f62360fa238d2a877a883eb9a10a68cc940b50be0fcc0366e8695",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "artifact_type": "github_publication_result",
+  "version": 1,
+  "provider": "github",
+  "tool": "gh",
+  "action": "pr comment",
+  "status": "published",
+  "published_at": "2026-06-23T13:42:42Z",
+  "pull_request": {
+    "number": 1,
+    "url": "https://github.com/dqdp/AgentsFlow/pull/1",
+    "head": "v0.2-prehandoff-design",
+    "base": "main"
+  },
+  "body_path": "github-publication.md",
+  "url": "https://github.com/dqdp/AgentsFlow/pull/1#issuecomment-4779856259"
+}

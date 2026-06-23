@@ -1,0 +1,85 @@
+{
+  "provider": "claude-code",
+  "reviewer_role": "adversarial",
+  "billing_mode": "subscription-local",
+  "api_key_usage_forbidden": true,
+  "context_policy": {
+    "start_mode": "fresh_context",
+    "fork_conversation_context": false,
+    "session_persistence": false,
+    "input_mode": "review_packet"
+  },
+  "forbidden_env_checked": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX"
+  ],
+  "command": "claude -p <stdin> --output-format json --permission-mode default --tools  --model opus --effort max --max-turns 3 --no-session-persistence",
+  "wrapper": "scripts/reviewers/run_external_reviewer.py",
+  "provider_config_path": "run-artifacts/agentsflow/provider-configs/claude-code.yaml",
+  "provider_config_hash": "sha256:f3bab281d7d9c3dfe0bdd1cc8dc4c60f90e1888ba99f7a6993ce9eb1a65522a0",
+  "execution_mode": "real",
+  "permission_mode": "default",
+  "prompt_transport": "stdin",
+  "sandbox_mode": "require_escalated",
+  "tools": "",
+  "output_format": "json",
+  "requested_model": "opus",
+  "requested_effort": "max",
+  "max_turns": 3,
+  "timeout_seconds": 900,
+  "input_hash": "sha256:6fcf4f99f5830a9984d5088a0638e7e6f5708e3298d38fecd94da7f62164b19f",
+  "prompt_hash": "sha256:2df164528e87318a68b136d00c96f38f6c3484b6a5370b4490572a75bcbdbd5e",
+  "review_prompt_contract_hash": "sha256:e3c5f788c67709518ba4e8c85b4aacc7e42bf9dcb83eda8b94605049b999f2bb",
+  "role_contract_hash": "sha256:41bf3c0c70efe7369cdf57e2c201bbb2bcdbb198c703207de2ff5b5e39148e47",
+  "rubric_hash": "sha256:853a622cdf4757e51337af0c58b91e35f57f35882288206fac7b1d39601c9cb7",
+  "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
+  "started_at": "2026-06-23T13:19:54.709262+00:00",
+  "exit_code": 0,
+  "raw_output_path": "",
+  "raw_output_hash": "sha256:61b51ff3a12005389c7b5fa9706f0cfc2c6295a4bb84c9cb870f1a479a5032ec",
+  "stderr_path": "",
+  "normalized_output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.adversarial-claude.json",
+  "finished_at": "2026-06-23T13:24:13.171554+00:00",
+  "normalized_output_hash": "sha256:6685ec3ac39743f894040d7a1f9cf2c65da8e7cfaf070f677c197a983be07bc5",
+  "normalization": {
+    "method": "deterministic-extraction",
+    "source_path": "",
+    "source_hash": "sha256:61b51ff3a12005389c7b5fa9706f0cfc2c6295a4bb84c9cb870f1a479a5032ec",
+    "schema_validation": "passed",
+    "normalized_by": "scripts/reviewers/run_external_reviewer.py",
+    "output_path": "run-artifacts/agentsflow/runs/2026-06-23-v0.2-pr-merge-readiness-b6662a8/reviewer-report.adversarial-claude.json",
+    "output_hash": "sha256:6685ec3ac39743f894040d7a1f9cf2c65da8e7cfaf070f677c197a983be07bc5"
+  },
+  "provider_model_usage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 4716,
+      "outputTokens": 27,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.004850999999999999,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000
+    },
+    "claude-opus-4-8": {
+      "inputTokens": 2,
+      "outputTokens": 21524,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 8072,
+      "webSearchRequests": 0,
+      "costUSD": 0.61883,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000
+    }
+  },
+  "provider_models_used": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-4-8"
+  ],
+  "provider_total_cost_usd": 0.623681,
+  "provider_service_tier": "standard",
+  "provider_speed": "standard"
+}
