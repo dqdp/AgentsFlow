@@ -352,12 +352,23 @@ problem framing -> target system spec -> enabling system spec -> term map
 
 Repository docs are primarily English for portability across coding agents and future users. Russian handoff prompts are allowed outside the repository or in clearly marked handoff artifacts.
 
-Workflow run artifacts live under:
+For ordinary target projects, workflow run artifacts live under:
 
 ```text
 Docs/agentsflow/runs/
 ```
 
-Reports and summaries are committed to the repository. Heavy raw logs are optional and may be gitignored.
+AgentsFlow self-application runs live under:
+
+```text
+run-artifacts/agentsflow/runs/
+```
+
+This avoids a case-insensitive filesystem collision between the repository's
+methodology source directory `docs/` and the project-style `Docs/` run-history
+root.
+
+Reports and summaries are committed to the repository when they are useful and
+non-sensitive. Heavy raw logs are optional and may be gitignored.
 
 Schemas are strict for core artifacts and more permissive for exploratory assessments.

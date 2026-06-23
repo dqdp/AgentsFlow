@@ -83,7 +83,13 @@ artifact.
 
 ### C. Workflow run
 
-Frequent. A feature, bugfix, review, or project specification task creates a run directory under `Docs/agentsflow/runs/`.
+Frequent. A feature, bugfix, review, or project specification task creates a
+run directory under `Docs/agentsflow/runs/` in ordinary target projects.
+
+When AgentsFlow applies itself to this repository, self-application run history
+uses `run-artifacts/agentsflow/runs/` instead. The repository's lowercase
+`docs/` directory is methodology source; using `run-artifacts/` avoids ambiguity
+and case-insensitive filesystem collisions with project-style `Docs/` history.
 
 Workflow-run human interaction uses `human-questions.yaml` and
 `human-decisions.yaml` as run artifacts. They are not long-lived policy files by
