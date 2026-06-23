@@ -31,11 +31,11 @@ The wrapper:
 - stores raw output and invocation metadata, including requested model/effort,
   provider-reported model usage and normalization trace when available.
 
-Reviewer prompts prioritize substantive review quality over native JSON
-serialization. A successful gate still requires a normalized
-`reviewer-report.json`: if a provider returns clear Markdown/text that the
-wrapper cannot auto-normalize, the raw output is evidence for explicit
-orchestrator normalization or a rerun, not completed gate evidence.
+Reviewer prompts require one schema-valid reviewer-report JSON object. A
+successful gate requires a normalized `reviewer-report.json`: if a provider
+returns Markdown/text that the wrapper cannot auto-normalize, the raw output is
+evidence for explicit orchestrator normalization or a rerun, not completed gate
+evidence.
 The reviewer report records the normalization source path/hash. The normalized
 report output hash is stored in invocation metadata, not inside the report.
 

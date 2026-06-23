@@ -34,8 +34,7 @@
     "exit_code",
     "raw_output_path",
     "raw_output_hash",
-    "normalized_output_path",
-    "normalized_output_hash"
+    "normalized_output_path"
   ],
   "properties": {
     "provider": {
@@ -176,6 +175,12 @@
     "normalized_output_hash": {
       "type": "string"
     },
+    "failure_stage": {
+      "type": "string"
+    },
+    "failure_message": {
+      "type": "string"
+    },
     "normalization": {
       "type": "object",
       "additionalProperties": true,
@@ -210,6 +215,17 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "required": ["failure_stage"]
+      },
+      "then": {
+        "required": ["failure_message"]
+      },
+      "else": {
+        "required": ["normalized_output_hash"]
+      }
+    },
     {
       "if": {
         "properties": {

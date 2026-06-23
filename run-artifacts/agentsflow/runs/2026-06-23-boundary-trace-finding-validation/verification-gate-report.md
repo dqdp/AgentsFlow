@@ -22,4 +22,3 @@ Status: `passed`
 
 - This is template/protocol coverage, not a new deterministic Boundary Trace parser.
 - Live Claude review was intentionally out of scope for this lightweight slice.
-

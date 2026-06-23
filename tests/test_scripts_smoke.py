@@ -2163,15 +2163,15 @@ def test_primary_e2e_markdown_reviewer_summaries_are_sidecars_not_gate_reports()
     assert all(path.endswith(".md") for path in review_evidence["reviewer_report_summaries"])
 
 
-def test_reviewer_prompts_prioritize_substance_over_json_only_output() -> None:
+def test_reviewer_prompts_require_schema_json_without_losing_substance() -> None:
     import json
     import sys
 
     import yaml
 
     base_prompt = (ROOT / "templates/review-prompts/base.md").read_text(encoding="utf-8")
-    assert "Return JSON only" not in base_prompt
-    assert "Prioritize substantive review quality" in base_prompt
+    assert "Return exactly one schema-valid reviewer-report JSON object" in base_prompt
+    assert "self_declared_limitations" in base_prompt
 
     sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
     from prompt_rendering import render_review_prompt  # noqa: PLC0415
@@ -2184,8 +2184,8 @@ def test_reviewer_prompts_prioritize_substance_over_json_only_output() -> None:
     role_contract = yaml.safe_load((ROOT / "profiles/reviewer_roles/architecture.yaml").read_text(encoding="utf-8"))
     rendered = render_review_prompt(packet, role_contract)
 
-    assert "Return JSON only" not in rendered
-    assert "Prioritize substantive findings over output serialization" in rendered
+    assert "Return exactly one schema-valid reviewer-report JSON object" in rendered
+    assert "If there are no findings, return an empty findings array" in rendered
 
 
 def test_external_wrapper_rejects_assignments_without_review_invocation_set() -> None:
@@ -5013,6 +5013,8 @@ def test_external_reviewer_wrapper_can_skip_raw_output_persistence(tmp_path) -> 
 def test_external_reviewer_wrapper_rejects_non_json_claude_code_envelope(tmp_path) -> None:
     import json
 
+    import jsonschema
+
     raw_path = tmp_path / "claude-envelope.json"
     raw_path.write_text(
         json.dumps(
@@ -5039,6 +5041,13 @@ def test_external_reviewer_wrapper_rejects_non_json_claude_code_envelope(tmp_pat
     )
     assert result.returncode != 0
     assert "result must contain reviewer-report JSON" in (result.stdout + result.stderr)
+    invocation_path = out.with_suffix(".invocation.json")
+    invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "schemas" / "reviewer-invocation.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(invocation)
+    assert invocation["failure_stage"] == "provider_output_processing"
+    assert "reviewer-report JSON" in invocation["failure_message"]
+    assert "normalized_output_hash" not in invocation
 
 
 def test_external_reviewer_wrapper_rejects_empty_or_unrelated_json_envelope(tmp_path) -> None:

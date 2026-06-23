@@ -59,4 +59,3 @@ no_validated_blocking_findings
 
 No validated blockers or mandatory evidence gaps remain. GB-001 is non-blocking
 P3 backlog and does not require another review cycle.
-

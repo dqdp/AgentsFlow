@@ -1144,11 +1144,13 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 invocation_data = parse_json(invocation_metadata_path)
                 errors.extend(validate_against_schema(invocation_metadata_path, invocation_data, reviewer_invocation_schema))
                 if isinstance(invocation_data, dict):
-                    if str(invocation_data.get("execution_mode") or "") != "real":
+                    invocation_failed = bool(invocation_data.get("failure_stage"))
+                    completed_external_evidence = require_completed_assignment_outputs or not invocation_failed
+                    if completed_external_evidence and str(invocation_data.get("execution_mode") or "") != "real":
                         errors.append(
                             f"{invocation_metadata_path}: execution_mode must be real for completed external evidence"
                         )
-                    if invocation_data.get("exit_code") != 0:
+                    if completed_external_evidence and invocation_data.get("exit_code") != 0:
                         errors.append(f"{invocation_metadata_path}: exit_code must be 0 for completed external evidence")
                     if packet_path:
                         require_invocation_hash(
@@ -1215,20 +1217,21 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                             sha256_file(raw_output_path_ref),
                             reviewer,
                         )
-                    normalized_output_path_ref = resolve_invocation_set_ref(
-                        invocation_data.get("normalized_output_path"), f"{invocation_metadata_path}.normalized_output_path"
-                    )
-                    if report_path and normalized_output_path_ref and normalized_output_path_ref.resolve() != report_path.resolve():
-                        errors.append(f"{invocation_metadata_path}: normalized_output_path must match assignment for {reviewer}")
-                    if report_path:
-                        require_invocation_hash(
-                            invocation_metadata_path,
-                            invocation_data,
-                            "normalized_output_hash",
-                            sha256_file(report_path),
-                            reviewer,
+                    if completed_external_evidence:
+                        normalized_output_path_ref = resolve_invocation_set_ref(
+                            invocation_data.get("normalized_output_path"), f"{invocation_metadata_path}.normalized_output_path"
                         )
-                    if provider_policy.get("require_model_diversity") is True:
+                        if report_path and normalized_output_path_ref and normalized_output_path_ref.resolve() != report_path.resolve():
+                            errors.append(f"{invocation_metadata_path}: normalized_output_path must match assignment for {reviewer}")
+                        if report_path:
+                            require_invocation_hash(
+                                invocation_metadata_path,
+                                invocation_data,
+                                "normalized_output_hash",
+                                sha256_file(report_path),
+                                reviewer,
+                            )
+                    if completed_external_evidence and provider_policy.get("require_model_diversity") is True:
                         requested_model = str(invocation_data.get("requested_model") or "")
                         if not requested_model:
                             errors.append(

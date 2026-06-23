@@ -38,4 +38,3 @@ passed with no output
 - `docs/contracts/agentsflow-v0.2-mvp.contract.md`
 - `docs/contracts/agentsflow-v0.2-mvp.bindings.yaml`
 - `tests/test_scripts_smoke.py`
-

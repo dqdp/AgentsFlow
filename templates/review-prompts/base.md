@@ -24,7 +24,7 @@ external normalization, artifact storage, evaluator consumption, contract
 evidence, generated artifacts or human-decision recording. Boundary impact is
 not severity; the main/orchestrating agent owns Boundary Trace validation.
 
-Prioritize substantive review quality over output serialization. Return
-schema-valid reviewer-report JSON when you can do so without losing clarity;
-otherwise return clear structured findings that the main/orchestrating agent can
-normalize into `schemas/reviewer-report.schema.json` before gate use.
+Return exactly one schema-valid reviewer-report JSON object and no markdown
+fence. Do not return prose outside JSON. If there are no findings, return an
+empty `findings` array and put residual uncertainty in `summary` or
+`self_declared_limitations`.
