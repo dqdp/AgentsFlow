@@ -6,7 +6,7 @@
   "prepared_at": "2026-06-22T20:16:23.694623+00:00",
   "review_prompt_contract": {
     "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompt-contract.yaml",
-    "hash": "sha256:f73f85330660a5ed6901dfe99df7d7266d11d8c5827c377ad2d1f76b30f800c2"
+    "hash": "sha256:bd566f6287ae03475a3fcabb2337cb3b96b44d423b4b32ea686bb9620d626188"
   },
   "source_context": {
     "dirty_policy": "fail-closed",
@@ -2228,7 +2228,7 @@
       {
         "reviewer": "hygiene-codex-generalist-a",
         "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompts/hygiene-codex-generalist-a.md",
-        "hash": "sha256:8ef6dd56377ca0ada37c51983b56fde319ef945b16500ef0cb1b01ab2621bfce",
+        "hash": "sha256:6129aeaef840a5655028dff1a8f9f33d22ab0a0af6090e690652f534d72acf4b",
         "packet_hash": "sha256:1037d97d0dcdcd15f0d75d268d37601a0f178e39a79bf34f59ab2f6fb940d7b6",
         "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
         "rubric_hash": "sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843",
@@ -2237,7 +2237,7 @@
       {
         "reviewer": "hygiene-codex-generalist-b",
         "path": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompts/hygiene-codex-generalist-b.md",
-        "hash": "sha256:035527b4f8b4ee2a1898afc656ffc74131685a100e0cd6ee67237d5971e039ee",
+        "hash": "sha256:ec80696a14448822b96b62beea2fdf60916ce7da6662d03d3506831ad29ef5e4",
         "packet_hash": "sha256:bb00c0408406e473dd52ae1ff5b3cda2f4fca39c65e54617a6faee8824a73ed6",
         "schema_hash": "sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513",
         "rubric_hash": "sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843",

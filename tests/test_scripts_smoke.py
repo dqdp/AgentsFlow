@@ -2171,6 +2171,7 @@ def test_reviewer_prompts_require_schema_json_without_losing_substance() -> None
 
     base_prompt = (ROOT / "templates/review-prompts/base.md").read_text(encoding="utf-8")
     assert "Return exactly one schema-valid reviewer-report JSON object" in base_prompt
+    assert '"reviewer_instance_id": "<reviewer_instance_id>"' in base_prompt
     assert "self_declared_limitations" in base_prompt
 
     sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
@@ -2186,6 +2187,7 @@ def test_reviewer_prompts_require_schema_json_without_losing_substance() -> None
 
     assert "Return exactly one schema-valid reviewer-report JSON object" in rendered
     assert "If there are no findings, return an empty findings array" in rendered
+    assert '"reviewer":{"id":"<reviewer_instance_id>"' in rendered
 
 
 def test_external_wrapper_rejects_assignments_without_review_invocation_set() -> None:
@@ -4957,6 +4959,67 @@ def test_external_reviewer_wrapper_normalizes_claude_code_envelope(tmp_path) -> 
     assert invocation["provider_speed"] == "standard"
 
 
+def test_external_reviewer_wrapper_normalizes_schema_adjacent_claude_code_result(tmp_path) -> None:
+    import json
+
+    schema_adjacent_report = {
+        "review_context": {
+            "run_id": "example-external-reviewer",
+            "material_change_id": "example",
+            "review_packet_path": "examples/external-reviewers/claude-code/review-packet.architecture.json",
+            "reviewer_instance_id": "architecture",
+        },
+        "reviewer_role": "architecture",
+        "provider": "claude-code",
+        "summary": "Schema-adjacent summary",
+        "findings": [
+            {
+                "id": "ARCH-ADJ",
+                "severity": "P2",
+                "risk_surface": "external_reviewer_normalization",
+                "title": "Schema-adjacent finding",
+                "evidence": ["raw.result"],
+                "description": "Claude returned useful structured evidence without a reviewer object.",
+                "suggested_action": "Normalize the structured report from packet context.",
+            }
+        ],
+        "self_declared_limitations": [],
+    }
+    raw = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": json.dumps(schema_adjacent_report),
+    }
+    raw_path = tmp_path / "claude-schema-adjacent.json"
+    raw_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+    out = tmp_path / "reviewer-report.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", str(raw_path),
+        "--output", str(out),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    normalized = json.loads(out.read_text(encoding="utf-8"))
+    assert normalized["reviewer"]["provider"] == "claude-code"
+    assert normalized["reviewer"]["role"] == "architecture"
+    assert normalized["summary"] == "Schema-adjacent summary"
+    assert normalized["findings"][0]["category"] == "external_reviewer_normalization"
+    assert normalized["findings"][0]["why_it_matters"] == (
+        "Claude returned useful structured evidence without a reviewer object."
+    )
+    assert normalized["findings"][0]["recommendation"] == (
+        "Normalize the structured report from packet context."
+    )
+    assert normalized["normalization"]["schema_validation"] == "passed"
+
+
 def test_external_reviewer_wrapper_can_skip_raw_output_persistence(tmp_path) -> None:
     import json
 
@@ -5047,6 +5110,80 @@ def test_external_reviewer_wrapper_rejects_non_json_claude_code_envelope(tmp_pat
     jsonschema.Draft202012Validator(schema).validate(invocation)
     assert invocation["failure_stage"] == "provider_output_processing"
     assert "reviewer-report JSON" in invocation["failure_message"]
+    assert "normalized_output_hash" not in invocation
+
+
+def test_external_reviewer_wrapper_records_schema_valid_nonzero_provider_exit(tmp_path, monkeypatch) -> None:
+    import json
+    import sys
+
+    import jsonschema
+
+    for name in FORBIDDEN_CLAUDE_ENV:
+        monkeypatch.delenv(name, raising=False)
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+    from providers import claude_code  # noqa: PLC0415
+
+    prompt = "fake prompt"
+    hash_value = run_external_reviewer.sha256_text(prompt)
+    concrete_hash = "sha256:" + "1" * 64
+
+    def fake_validate_review_packet(packet, root, packet_path, packet_schema_path):
+        return {
+            "input_hash": concrete_hash,
+            "review_prompt_contract_hash": concrete_hash,
+            "role_contract_hash": concrete_hash,
+            "rubric_hash": concrete_hash,
+            "schema_hash": concrete_hash,
+            "artifact_scope": "run",
+            "selected_prompt": {"prompt_hash": hash_value},
+            "role_contract": {"kind": "reviewer_role", "name": packet["reviewer_role"]},
+        }
+
+    def fake_invoke(config, prompt_text, cwd=None):
+        return claude_code.ProviderResult(
+            stdout=json.dumps(
+                {
+                    "type": "result",
+                    "subtype": "error",
+                    "is_error": True,
+                    "result": "provider boom",
+                }
+            ),
+            stderr="provider stderr",
+            exit_code=1,
+            command_display="claude -p <stdin>",
+        )
+
+    out = tmp_path / "reviewer-report.json"
+    monkeypatch.setattr(run_external_reviewer, "validate_review_packet", fake_validate_review_packet)
+    monkeypatch.setattr(run_external_reviewer, "render_prompt", lambda packet, role_contract: prompt)
+    monkeypatch.setattr(claude_code, "invoke", fake_invoke)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_external_reviewer.py",
+            "--provider",
+            "claude-code",
+            "--config",
+            "examples/external-reviewers/claude-code/claude-code.yaml",
+            "--input",
+            "examples/external-reviewers/claude-code/review-packet.architecture.json",
+            "--output",
+            str(out),
+        ],
+    )
+
+    assert run_external_reviewer.main() == 2
+    invocation = json.loads(out.with_suffix(".invocation.json").read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "schemas" / "reviewer-invocation.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(invocation)
+    assert invocation["failure_stage"] == "provider_execution"
+    assert "exit code 1" in invocation["failure_message"]
+    assert "provider stderr" in invocation["failure_message"]
     assert "normalized_output_hash" not in invocation
 
 

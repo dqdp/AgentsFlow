@@ -2,7 +2,7 @@
   "artifact_kind": "review_invocation_set",
   "review_prompt_contract": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompt-contract.yaml",
   "artifact_preparation_report": "run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-artifact-preparation.json",
-  "artifact_preparation_report_hash": "sha256:108fc38092498a9de711ec631b518520f97854fc2cc4f20642c605a782aef531",
+  "artifact_preparation_report_hash": "sha256:5b286181c1bfca54152e4031e00dfe6c1185fe9042d08a87ea37f66ecde84f1c",
   "status": "predeclared",
   "provider_model_families": [
     "internal-agent/codex"

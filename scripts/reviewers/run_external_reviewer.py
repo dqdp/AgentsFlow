@@ -76,7 +76,7 @@ def strip_json_markdown_fence(value: str) -> str:
                 parsed, end = decoder.raw_decode(candidate[idx:])
             except json.JSONDecodeError:
                 continue
-            if isinstance(parsed, dict) and {"reviewer", "summary", "findings"}.issubset(parsed):
+            if is_reviewer_report_like(parsed):
                 return candidate[idx : idx + end].strip()
         return None
 
@@ -108,6 +108,28 @@ def strip_json_markdown_fence(value: str) -> str:
     if extracted:
         return extracted
     return text
+
+
+def is_reviewer_report_like(raw: object) -> bool:
+    if not isinstance(raw, dict):
+        return False
+    if not isinstance(raw.get("summary"), str):
+        return False
+    if not isinstance(raw.get("findings"), list):
+        return False
+    reviewer = raw.get("reviewer")
+    if isinstance(reviewer, dict):
+        return True
+    # Claude Code may return a schema-adjacent structured report with reviewer
+    # identity in review_context/top-level provider fields. The deterministic
+    # normalizer can fill the canonical reviewer object from the packet.
+    return any(
+        [
+            isinstance(raw.get("review_context"), dict),
+            bool(raw.get("reviewer_role")),
+            bool(raw.get("provider")),
+        ]
+    )
 
 
 def validate_provider_config(config: dict[str, Any], requested_provider: str) -> None:
@@ -693,6 +715,13 @@ def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str)
     findings = raw.get("findings", []) or []
     if not isinstance(findings, list):
         raise ValueError("reviewer report findings must be a list")
+    def normalize_text(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False, sort_keys=True)
+        return str(value)
+
     optional_finding_fields = [
         "validated_severity",
         "blocker_path",
@@ -716,22 +745,33 @@ def normalize_report(raw: dict[str, Any], packet: dict[str, Any], provider: str)
         normalized_finding = {
             "id": str(finding.get("id") or f"F-{idx:03d}"),
             "severity": severity,
-            "category": str(finding.get("category") or finding.get("focus_area") or "external-review"),
-            "title": str(finding.get("title") or finding.get("claim") or "Untitled finding"),
+            "category": str(
+                finding.get("category")
+                or finding.get("focus_area")
+                or finding.get("risk_surface")
+                or "external-review"
+            ),
+            "title": normalize_text(finding.get("title") or finding.get("claim") or "Untitled finding"),
             "evidence": [str(item) for item in evidence],
-            "why_it_matters": str(finding.get("why_it_matters") or finding.get("rationale") or ""),
-            "recommendation": str(finding.get("recommendation", "")),
+            "why_it_matters": normalize_text(
+                finding.get("why_it_matters")
+                or finding.get("rationale")
+                or finding.get("description")
+                or ""
+            ),
+            "recommendation": normalize_text(finding.get("recommendation") or finding.get("suggested_action") or ""),
             "status": "candidate-unvalidated",
         }
         for field in optional_finding_fields:
             if field in finding:
-                normalized_finding[field] = finding[field]
+                value = finding[field]
+                normalized_finding[field] = normalize_text(value) if field != "mandatory_evidence_gap" else bool(value)
         report["findings"].append(normalized_finding)
     return report
 
 
 def require_reviewer_report_shape(raw: dict[str, Any], provider_name: str) -> None:
-    if not {"reviewer", "summary", "findings"}.issubset(raw):
+    if not is_reviewer_report_like(raw):
         raise ValueError(f"{provider_name} provider result must contain reviewer-report JSON")
 
 
@@ -936,12 +976,15 @@ def main() -> int:
 
         if exit_code != 0:
             finished = dt.datetime.now(dt.timezone.utc)
+            detail = provider_failure_detail(raw_text, stderr)
             stderr_path.parent.mkdir(parents=True, exist_ok=True)
             stderr_path.write_text(stderr, encoding="utf-8")
             invocation_path.parent.mkdir(parents=True, exist_ok=True)
             invocation = dict(failure_invocation)
             invocation["finished_at"] = finished.isoformat()
             invocation["stderr_path"] = str(stderr_path)
+            invocation["failure_stage"] = "provider_execution"
+            invocation["failure_message"] = f"external reviewer provider failed with exit code {exit_code}: {detail}"
             try:
                 failure_raw_json = json.loads(raw_text)
             except json.JSONDecodeError:
@@ -949,7 +992,6 @@ def main() -> int:
             if isinstance(failure_raw_json, dict):
                 invocation.update(provider_invocation_metadata(failure_raw_json))
             invocation_path.write_text(json.dumps(invocation, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            detail = provider_failure_detail(raw_text, stderr)
             raise RuntimeError(f"external reviewer provider failed with exit code {exit_code}: {detail}")
 
         raw_json = json.loads(raw_text)

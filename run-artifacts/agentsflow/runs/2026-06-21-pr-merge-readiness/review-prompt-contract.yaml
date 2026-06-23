@@ -102,10 +102,9 @@ risk_surface_profile:
   - persistence_consistency
   - audit_persistence
   review_topology_source: human_decision
-  escalation_reason: Development review uses mixed-provider generalists plus a focused
-    adversarial authority specialist because false-readiness, human merge authority,
-    live-vs-mock external evidence and collision-control bypass are material risk
-    surfaces for this slice.
+  escalation_reason: Development review uses mixed-provider generalists plus a focused adversarial authority
+    specialist because false-readiness, human merge authority, live-vs-mock external evidence and collision-control
+    bypass are material risk surfaces for this slice.
 failure_path_matrix:
   path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/task.contract.md
   rows:
@@ -183,21 +182,21 @@ known_blockers: []
 rendered_prompts:
 - reviewer: hygiene-codex-generalist-a
   prompt_path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompts/hygiene-codex-generalist-a.md
-  prompt_hash: sha256:0f934fd0a43023c64e4537871c5e9d7cc2aced0af60fe457132640c136f29962
+  prompt_hash: sha256:6129aeaef840a5655028dff1a8f9f33d22ab0a0af6090e690652f534d72acf4b
   packet_hash: sha256:1037d97d0dcdcd15f0d75d268d37601a0f178e39a79bf34f59ab2f6fb940d7b6
   schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
   rubric_hash: sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843
   role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
-  shared_prompt_content_hash: sha256:b71442a4b4b30bce3dd8f72d5e79c5b218b0b1501ac5a93fd3e73d7e0e5957ad
+  shared_prompt_content_hash: sha256:0810ecebd8753843233c009b097f1ef1d38acce0d75f831d0b346ecfb3cdd70d
   shared_packet_content_hash: sha256:c0dba222818d9646886be50bc212ec4ddef764ac2ad06ca6d388f044cad71d0e
 - reviewer: hygiene-codex-generalist-b
   prompt_path: run-artifacts/agentsflow/runs/2026-06-21-pr-merge-readiness/review-prompts/hygiene-codex-generalist-b.md
-  prompt_hash: sha256:3131bf2219c5ec1a2de469d0a3bc530d7b8b3acb2e7b5e3b601e85d22b492c09
+  prompt_hash: sha256:ec80696a14448822b96b62beea2fdf60916ce7da6662d03d3506831ad29ef5e4
   packet_hash: sha256:bb00c0408406e473dd52ae1ff5b3cda2f4fca39c65e54617a6faee8824a73ed6
   schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
   rubric_hash: sha256:f4e8810c22ef6b36f1f8811ec5d52fce4cf2b0df0f50324b660d2a77f33c6843
   role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
-  shared_prompt_content_hash: sha256:b71442a4b4b30bce3dd8f72d5e79c5b218b0b1501ac5a93fd3e73d7e0e5957ad
+  shared_prompt_content_hash: sha256:0810ecebd8753843233c009b097f1ef1d38acce0d75f831d0b346ecfb3cdd70d
   shared_packet_content_hash: sha256:c0dba222818d9646886be50bc212ec4ddef764ac2ad06ca6d388f044cad71d0e
 reviewer_assignments:
 - reviewer: hygiene-codex-generalist-a
@@ -215,7 +214,6 @@ validation:
   schema: schemas/review-prompt-contract.schema.json
   assembly_invariants:
   - homogeneous-dual uses exactly two independent generalist reviewers.
-  - both reviewers receive the same packet content, prompt content, rubric and output
-    schema.
+  - both reviewers receive the same packet content, prompt content, rubric and output schema.
   - reviewers start from fresh context and remain read-only.
   - every reviewer must report plausible P0/P1 blockers outside ordinary focus.

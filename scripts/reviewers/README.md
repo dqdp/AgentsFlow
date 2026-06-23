@@ -31,11 +31,16 @@ The wrapper:
 - stores raw output and invocation metadata, including requested model/effort,
   provider-reported model usage and normalization trace when available.
 
-Reviewer prompts require one schema-valid reviewer-report JSON object. A
-successful gate requires a normalized `reviewer-report.json`: if a provider
-returns Markdown/text that the wrapper cannot auto-normalize, the raw output is
-evidence for explicit orchestrator normalization or a rerun, not completed gate
-evidence.
+Reviewer prompts require one schema-valid reviewer-report JSON object. The
+wrapper may deterministically normalize schema-adjacent structured Claude output
+when it contains `summary`, a `findings` array and reviewer context or provider
+identity that can be reconciled with the review packet. A successful gate still
+requires a normalized `reviewer-report.json`: if a provider returns Markdown/text
+that the wrapper cannot auto-normalize, the raw output is evidence for explicit
+orchestrator normalization or a rerun, not completed gate evidence. Failed
+provider invocations are stored as schema-valid invocation metadata with a
+`failure_stage` and `failure_message`, but they never count as completed
+external review evidence.
 The reviewer report records the normalization source path/hash. The normalized
 report output hash is stored in invocation metadata, not inside the report.
 

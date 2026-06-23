@@ -66,8 +66,8 @@ prompt_policy:
 rendered_prompts:
 - reviewer: generalist-a
   prompt_path: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-a.md
-  prompt_hash: sha256:0331ca8f5595a2d03e60172254fdb0b2a1dae58241118f804d50d3590e55b75f
-  shared_prompt_content_hash: sha256:52e08f2c7dbbdd59ae85a1a34a6d7cb1985b1f1ad5c2e7c417228501ac3d59bd
+  prompt_hash: sha256:a7cc27709064b455168206195bce5b6b4d65410d7d16e7089c5c58acb6eaf170
+  shared_prompt_content_hash: sha256:84a4cf622dbfb9d1547ab3f415abd5173e742742cebdfbaf0a13d6761471414c
   packet_hash: sha256:81afd3f29a6371bb0fca0acdb05204754aba3eefcb4120b508fe9efffc06b80d
   shared_packet_content_hash: sha256:cb8cf203bce1c5fce6b5193cb57255124a42cb9ad5f9412bddbc07b8bc86f9db
   schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
@@ -75,8 +75,8 @@ rendered_prompts:
   role_contract_hash: sha256:c327563bf797ed3e6654502e5e76b9f0e7958637def4963efa37cc4042b1fdb0
 - reviewer: generalist-b
   prompt_path: examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-b.md
-  prompt_hash: sha256:04be1b60f70bb0877bd48f097d94736b44c6a3eb5002aecfa755525a5fae7a3c
-  shared_prompt_content_hash: sha256:52e08f2c7dbbdd59ae85a1a34a6d7cb1985b1f1ad5c2e7c417228501ac3d59bd
+  prompt_hash: sha256:ec7469cb0567a3b07c3934c4e9de31c7f0643bdfaf432826bc0a3529d6bfe2f0
+  shared_prompt_content_hash: sha256:84a4cf622dbfb9d1547ab3f415abd5173e742742cebdfbaf0a13d6761471414c
   packet_hash: sha256:1baded60140370cd404f326d46a0818961b205a9632d4ee272d6d363cc086a2d
   shared_packet_content_hash: sha256:cb8cf203bce1c5fce6b5193cb57255124a42cb9ad5f9412bddbc07b8bc86f9db
   schema_hash: sha256:6a50f1d05ea2c2b1c7b05eb9fd1a14868cb92ddaf4cac804707e338d7298b513
@@ -87,9 +87,8 @@ validation:
   schema: schemas/review-prompt-contract.schema.json
   assembly_invariants:
   - homogeneous-dual uses exactly two reviewers.
-  - homogeneous-dual reviewers share prompt content, packet content, rubric, role
-    contract and output schema hashes.
-  - per-reviewer prompt and packet envelope hashes may differ only because reviewer_instance_id
-    differs.
+  - homogeneous-dual reviewers share prompt content, packet content, rubric, role contract and output
+    schema hashes.
+  - per-reviewer prompt and packet envelope hashes may differ only because reviewer_instance_id differs.
   - reviewer role ids resolve to profiles/reviewer_roles/*.yaml.
   - reviewers start from fresh context and do not receive forked conversation context.

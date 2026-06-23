@@ -15,6 +15,14 @@ def render_review_prompt(packet: dict[str, Any], role_contract: dict[str, Any]) 
         "Return exactly one schema-valid reviewer-report JSON object and no markdown fence. "
         "Do not return prose outside JSON. If there are no findings, return an empty findings array "
         "and put residual uncertainty in summary or self_declared_limitations.\n\n"
+        "Use this top-level JSON shape exactly: "
+        '{"reviewer":{"id":"<reviewer_instance_id>","provider":"<provider>","role":"<reviewer_role>"},'
+        '"review_context":{"run_id":"<run_id>","material_change_id":"<material_change_id>",'
+        '"review_packet_path":"<review_packet_path>","reviewer_instance_id":"<reviewer_instance_id>"},'
+        '"summary":"<summary>","findings":[],"requests_for_additional_verification":[],'
+        '"self_declared_limitations":[]}. '
+        "Each finding must include id, severity, title, evidence as an array of strings, and status "
+        '"candidate-unvalidated".\n\n'
         "All findings must be candidate-unvalidated. Report missing mandatory evidence. "
         "Report plausible P0/P1 blockers even outside a focused role. "
         "When you mark a finding P0/P1, include the concrete blocker path: which contract, "
