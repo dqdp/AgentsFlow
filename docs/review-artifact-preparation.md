@@ -85,3 +85,10 @@ Embedded file snapshots are checked by the preparation script when a current
 review packet is materialized. Historical committed run artifacts are evidence
 for their recorded material change, not a claim that embedded snapshots match
 future repository HEAD.
+
+Declared input artifact hashes are historical provenance for the preparation
+time. Validators require concrete hashes, but they must not rewrite old
+`review_artifact_preparation` records to the current content hash of source
+files that legitimately changed later. Fresh review evidence for a later
+material change requires a new preparation/run artifact, not mutation of the old
+hashes.

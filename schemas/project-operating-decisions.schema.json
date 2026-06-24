@@ -292,6 +292,8 @@
         "control_reviewer_count",
         "control_review_trigger",
         "control_review_context_policy",
+        "rerun_review_on",
+        "rerun_scope",
         "materiality_classification"
       ],
       "additionalProperties": true,
@@ -333,11 +335,79 @@
         },
         "rerun_review_on": {
           "type": "array",
-          "items": {"type": "string"}
+          "items": {
+            "enum": [
+              "accepted_blocker_fixed",
+              "project_overlay_materially_changed",
+              "mandatory_evidence_added",
+              "human_requested"
+            ]
+          },
+          "allOf": [
+            {"contains": {"const": "accepted_blocker_fixed"}},
+            {"contains": {"const": "mandatory_evidence_added"}}
+          ],
+          "uniqueItems": true
         },
         "do_not_rerun_on": {
           "type": "array",
           "items": {"type": "string"}
+        },
+        "rerun_scope": {
+          "type": "object",
+          "required": [
+            "after_validated_blocker_or_mandatory_evidence_gap",
+            "full_scope_inputs",
+            "reviewer_instruction_must_include",
+            "closure_only_review_allowed",
+            "closure_only_review_counts_as_acceptance_gate"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "after_validated_blocker_or_mandatory_evidence_gap": {
+              "const": "full_scope_blocker_and_evidence_sweep"
+            },
+            "full_scope_inputs": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "latest_review_packet",
+                  "complete_current_diff",
+                  "latest_green_verification_evidence",
+                  "previous_validated_findings_and_fixes"
+                ]
+              },
+              "allOf": [
+                {"contains": {"const": "latest_review_packet"}},
+                {"contains": {"const": "complete_current_diff"}},
+                {"contains": {"const": "latest_green_verification_evidence"}},
+                {"contains": {"const": "previous_validated_findings_and_fixes"}}
+              ],
+              "uniqueItems": true
+            },
+            "reviewer_instruction_must_include": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "verify_closure_of_previous_validated_findings",
+                  "search_for_new_or_remaining_p0_p1_blockers_across_full_slice",
+                  "search_for_new_or_remaining_mandatory_evidence_gaps_across_full_slice"
+                ]
+              },
+              "allOf": [
+                {"contains": {"const": "verify_closure_of_previous_validated_findings"}},
+                {"contains": {"const": "search_for_new_or_remaining_p0_p1_blockers_across_full_slice"}},
+                {"contains": {"const": "search_for_new_or_remaining_mandatory_evidence_gaps_across_full_slice"}}
+              ],
+              "uniqueItems": true
+            },
+            "closure_only_review_allowed": {
+              "type": "boolean"
+            },
+            "closure_only_review_counts_as_acceptance_gate": {
+              "const": false
+            }
+          }
         },
         "materiality_classification": {
           "type": "object",

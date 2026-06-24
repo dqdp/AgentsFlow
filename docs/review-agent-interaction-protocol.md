@@ -227,6 +227,12 @@ are true:
 Non-blocking P2/P3/NOTE findings may be recorded as backlog, notes, or follow-up
 work without triggering another review cycle.
 
+When a validated P0/P1 blocker loop or mandatory-evidence-gap loop is already
+open, the main/orchestrating agent may also fix important P2/P3 findings in the
+same material area. The review-cycle or finding-validation report records the
+reason to fix now and the post-fix materiality classification. P2/P3-only fixes
+do not trigger a review rerun unless they materially change review inputs.
+
 ## Rerun policy
 
 Review agents should be rerun only when review input materially changes.
@@ -367,7 +373,7 @@ For each finding, the main agent must inspect the available relevant inputs:
 | Condition | Validation status | Blocking? | Default action |
 |---|---|---:|---|
 | Finding is supported by contract/evidence and has a grounded P0/P1 blocker path | accepted-relevant | Yes | Fix/revise, then rerun verification gate and relevant review cycle. |
-| Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | No | Record follow-up or fix if cheap; no review rerun by default. |
+| Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | No | Record follow-up, or fix during an open blocker loop with materiality classification; no review rerun by default. |
 | Finding is tagged P0/P1 but lacks a grounded blocker path | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | No by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
 | Finding may be valid but required evidence is missing | needs-more-evidence | Yes if mandatory evidence or grounded P0/P1 blocker path; otherwise workflow-defined | Run verification gate/checks; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | No | Record reason; no rerun. |

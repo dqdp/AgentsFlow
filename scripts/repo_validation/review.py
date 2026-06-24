@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
 
@@ -21,6 +22,11 @@ from .common import (
 
 ROLE_CONTRACT_PREFIXES = ('profiles/reviewer_roles/', '.agentsflow/profiles/reviewer_roles/')
 SUPPORTED_REVIEW_PROVIDERS = {"internal-agent", "claude-code"}
+ALLOWED_RAW_OUTPUT_CLASSIFICATIONS = {
+    "explicit_non_sensitive",
+    "explicit_non_sensitive_fixture",
+    "explicit_non_sensitive_for_this_run",
+}
 V0_2_SUPPORTED_TARGET_WORKFLOWS = {
     'big-feature-contract-first',
 }
@@ -43,6 +49,12 @@ RUN_ARTIFACT_MARKERS = (
     ("Docs", "agentsflow", "runs"),
     ("run-artifacts", "agentsflow", "runs"),
 )
+REVIEW_METRICS_PREFLIGHT_STATUSES = {
+    "provider_preflight_blocked",
+    "preflight_blocked",
+    "config_blocker",
+    "permission_blocker",
+}
 
 
 def _is_agentsflow_run_artifact_path(path: Path) -> bool:
@@ -71,6 +83,267 @@ def _is_within_path(path: Path, parent: Path) -> bool:
 
 def _is_run_scope_artifact(path: Path, data: dict) -> bool:
     return data.get("artifact_scope", "run") == "run" or _is_agentsflow_run_artifact_path(path)
+
+
+def _is_review_metrics_preflight_blocker(entry: dict) -> bool:
+    status = str(entry.get("status") or "").lower()
+    failure_stage = str(entry.get("failure_stage") or "").lower()
+    error = str(entry.get("error") or "").lower()
+    return (
+        status in REVIEW_METRICS_PREFLIGHT_STATUSES
+        or "preflight" in status
+        or ("config" in status and "block" in status)
+        or ("permission" in status and "block" in status)
+        or "preflight" in failure_stage
+        or ("config" in failure_stage and "provider" in failure_stage)
+        or "preflight" in error
+        or "provider_config" in error
+        or "provider config" in error
+        or "external reviewer preflight" in error
+        or ("permission" in error and "provider" in error)
+    )
+
+
+def _is_review_metrics_completed(status: object) -> bool:
+    return str(status or "").lower() in {"completed", "report-present", "invoked"}
+
+
+def _is_review_metrics_substantive_attempt(entry: dict, invocation_completed: bool) -> bool:
+    if _is_review_metrics_preflight_blocker(entry):
+        return False
+    status = str(entry.get("status") or "").lower()
+    if invocation_completed and _is_review_metrics_completed(status):
+        return True
+    if status in {"running", "failed", "timed-out", "timeout", "invocation_failed"}:
+        return bool(
+            entry.get("dispatch_started_at")
+            or entry.get("dispatch_finished_at")
+            or entry.get("invocation_metadata_path")
+            or entry.get("exit_code") is not None
+        )
+    if entry.get("dispatch_started_at") or entry.get("dispatch_finished_at"):
+        return True
+    if entry.get("invocation_metadata_path") or entry.get("exit_code") is not None:
+        return True
+    failure_stage = str(entry.get("failure_stage") or "").lower()
+    return bool(failure_stage and "preflight" not in failure_stage)
+
+
+def _review_metrics_parse_time(value: object) -> dt.datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = dt.datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed
+
+
+def _review_metrics_elapsed_ms(start: object, finish: object) -> int | None:
+    started = _review_metrics_parse_time(start)
+    finished = _review_metrics_parse_time(finish)
+    if not started or not finished:
+        return None
+    milliseconds = int((finished - started).total_seconds() * 1000)
+    return max(0, milliseconds)
+
+
+def _review_metrics_reviewer_elapsed_ms(entry: dict) -> int | None:
+    for started_key, finished_key in [
+        ("started_at", "finished_at"),
+        ("dispatch_started_at", "dispatch_finished_at"),
+    ]:
+        elapsed = _review_metrics_elapsed_ms(entry.get(started_key), entry.get(finished_key))
+        if elapsed is not None:
+            return elapsed
+    return None
+
+
+def _review_metrics_provider_runtime_ms(entry: dict) -> int | None:
+    value = entry.get("provider_runtime_ms")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 0:
+        return value
+    timing = entry.get("timing")
+    if isinstance(timing, dict):
+        nested = timing.get("provider_runtime_ms")
+        if isinstance(nested, bool):
+            return None
+        if isinstance(nested, int) and nested >= 0:
+            return nested
+    return None
+
+
+def _review_metrics_numeric(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _review_metrics_integer(value: object) -> int | None:
+    number = _review_metrics_numeric(value)
+    if number is None:
+        return None
+    return int(number)
+
+
+def _review_metrics_first_string(*values: object) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _review_metrics_exit_code(entry: dict, metadata: dict) -> int | None:
+    for source in (entry, metadata):
+        value = source.get("exit_code")
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def _review_metrics_retry_count(entry: dict, metadata: dict) -> int:
+    for source in (entry, metadata):
+        value = source.get("retry_count")
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int) and value >= 0:
+            return value
+    return 0
+
+
+def _review_metrics_normalization_status(entry: dict, metadata: dict, completed: bool) -> str:
+    for source in (entry, metadata):
+        normalization = source.get("normalization")
+        if isinstance(normalization, dict):
+            status = normalization.get("status")
+            if isinstance(status, str) and status:
+                return status
+        status = source.get("normalization_status")
+        if isinstance(status, str) and status:
+            return status
+    if completed and entry.get("report_path"):
+        return "passed"
+    if _is_review_metrics_preflight_blocker(entry):
+        return "not_applicable_preflight_blocker"
+    return "not_available"
+
+
+def _review_metrics_add_nested_usage(
+    usage: object,
+    token_totals: dict[str, int],
+    cost_totals: dict[str, object],
+) -> None:
+    if not isinstance(usage, dict):
+        return
+    tokens = usage.get("tokens")
+    if isinstance(tokens, dict) and tokens.get("available") is True:
+        input_tokens = _review_metrics_integer(tokens.get("input"))
+        output_tokens = _review_metrics_integer(tokens.get("output"))
+        total_tokens = _review_metrics_integer(tokens.get("total"))
+        if input_tokens is None or output_tokens is None or total_tokens is None:
+            return
+        token_totals["input"] += input_tokens
+        token_totals["output"] += output_tokens
+        token_totals["total"] += total_tokens
+        token_totals["available"] = 1
+    cost = usage.get("cost")
+    if isinstance(cost, dict) and cost.get("available") is True:
+        amount = _review_metrics_numeric(cost.get("amount"))
+        currency = cost.get("currency")
+        if amount is None or not isinstance(currency, str) or not currency:
+            return
+        cost_totals["amount"] = float(cost_totals["amount"]) + amount
+        cost_totals["currency"] = currency
+        cost_totals["available"] = True
+
+
+def _review_metrics_add_provider_model_usage(
+    model_usage: object,
+    token_totals: dict[str, int],
+) -> None:
+    if not isinstance(model_usage, dict):
+        return
+    saw_tokens = False
+    input_total = 0
+    output_total = 0
+    for payload in model_usage.values():
+        if not isinstance(payload, dict):
+            continue
+        input_tokens = _review_metrics_integer(payload.get("inputTokens")) or 0
+        cache_read = _review_metrics_integer(payload.get("cacheReadInputTokens")) or 0
+        cache_creation = _review_metrics_integer(payload.get("cacheCreationInputTokens")) or 0
+        output_tokens = _review_metrics_integer(payload.get("outputTokens")) or 0
+        if input_tokens or cache_read or cache_creation or output_tokens:
+            saw_tokens = True
+        input_total += input_tokens + cache_read + cache_creation
+        output_total += output_tokens
+    if saw_tokens:
+        token_totals["input"] += input_total
+        token_totals["output"] += output_total
+        token_totals["total"] += input_total + output_total
+        token_totals["available"] = 1
+
+
+def _review_metrics_add_provider_total_cost(source: dict, cost_totals: dict[str, object]) -> bool:
+    amount = _review_metrics_numeric(source.get("provider_total_cost_usd"))
+    if amount is None:
+        return False
+    cost_totals["amount"] = float(cost_totals["amount"]) + amount
+    cost_totals["currency"] = "USD"
+    cost_totals["available"] = True
+    return True
+
+
+def _review_metrics_collect_provider_usage(
+    reviewers: list[dict],
+    metadata_by_reviewer: dict[str, dict],
+) -> dict:
+    token_totals = {"input": 0, "output": 0, "total": 0, "available": 0}
+    cost_totals: dict[str, object] = {"amount": 0.0, "currency": None, "available": False}
+
+    for entry in reviewers:
+        reviewer = str(entry.get("reviewer") or "")
+        metadata = metadata_by_reviewer.get(reviewer, {})
+        _review_metrics_add_nested_usage(metadata.get("provider_usage"), token_totals, cost_totals)
+        _review_metrics_add_provider_total_cost(metadata, cost_totals)
+        _review_metrics_add_provider_model_usage(metadata.get("provider_model_usage"), token_totals)
+
+    if token_totals["available"]:
+        token_payload: dict[str, object] = {
+            "available": True,
+            "input": token_totals["input"],
+            "output": token_totals["output"],
+            "total": token_totals["total"] or token_totals["input"] + token_totals["output"],
+        }
+    else:
+        token_payload = {
+            "available": False,
+            "reason": "Provider did not report token usage.",
+        }
+
+    if cost_totals["available"]:
+        cost_payload: dict[str, object] = {
+            "available": True,
+            "amount": cost_totals["amount"],
+        }
+        if cost_totals["currency"]:
+            cost_payload["currency"] = cost_totals["currency"]
+    else:
+        cost_payload = {
+            "available": False,
+            "reason": "Provider did not report cost usage.",
+        }
+
+    return {"tokens": token_payload, "cost": cost_payload}
 
 
 def _strip_fragment(ref: object) -> str:
@@ -223,6 +496,78 @@ def _require_concrete_hash(path: Path, label: str, declared: object, actual: str
         return
     if declared != actual:
         errors.append(f"{path}: {label} hash mismatch: declared {declared}, computed {actual}")
+
+
+def _assignment_evidence_required(data: dict) -> bool:
+    try:
+        version = int(data.get("version", 1) or 1)
+    except (TypeError, ValueError):
+        version = 1
+    validation = data.get("validation", {}) or {}
+    return version >= 2 or validation.get("assignment_evidence_required") is True
+
+
+def _baseline_reviewer_ids(data: dict) -> list[str]:
+    reviewers = data.get("reviewer_set", []) or []
+    profile = (data.get("identity", {}) or {}).get("review_profile")
+    if profile == "homogeneous-dual":
+        return [
+            str(item.get("instance_id"))
+            for item in reviewers
+            if isinstance(item, dict) and item.get("instance_id")
+        ]
+    if profile == "homogeneous-plus-focused":
+        return [
+            str(item.get("instance_id"))
+            for item in reviewers
+            if isinstance(item, dict)
+            and item.get("instance_id")
+            and item.get("role_id") == "generalist"
+        ][:2]
+    return []
+
+
+def _validate_shared_baseline_hash_declarations(
+    *,
+    path: Path,
+    profile: object,
+    prompts: list,
+    review_packets: list,
+    baseline_ids: set[str],
+    run_scope_artifact: bool,
+    errors: list[str],
+) -> None:
+    baseline_prompts = [
+        item for item in prompts if isinstance(item, dict) and str(item.get("reviewer")) in baseline_ids
+    ]
+    for key in ["schema_hash", "rubric_hash", "role_contract_hash"]:
+        values = {str(item.get(key)) for item in baseline_prompts}
+        if len(values) != 1:
+            errors.append(f"{path}: {profile} baseline rendered_prompts must share {key}")
+    for key in ["shared_prompt_content_hash", "shared_packet_content_hash"]:
+        values = [item.get(key) for item in baseline_prompts]
+        if any(not value for value in values):
+            errors.append(f"{path}: {profile} baseline rendered_prompts must declare {key}")
+        elif len(set(str(value) for value in values)) != 1:
+            errors.append(f"{path}: {profile} baseline rendered_prompts must share {key}")
+        elif run_scope_artifact:
+            for value in values:
+                if not is_concrete_sha256(value):
+                    errors.append(f"{path}: run baseline rendered_prompts.{key} must be a concrete sha256")
+
+    packet_shared_values = {
+        item.get("shared_packet_content_hash")
+        for item in review_packets
+        if isinstance(item, dict) and str(item.get("reviewer")) in baseline_ids
+    }
+    if any(not value for value in packet_shared_values):
+        errors.append(f"{path}: {profile} baseline review_packets must declare shared_packet_content_hash")
+    elif len(set(str(value) for value in packet_shared_values)) != 1:
+        errors.append(f"{path}: {profile} baseline review_packets must share shared_packet_content_hash")
+    elif run_scope_artifact:
+        for value in packet_shared_values:
+            if not is_concrete_sha256(value):
+                errors.append(f"{path}: run baseline review_packets.shared_packet_content_hash must be a concrete sha256")
 
 
 def _validate_reviewer_report_normalization(root: Path, path: Path, data: dict, errors: list[str]) -> None:
@@ -426,6 +771,56 @@ def validate_upstream_review_cycle_policy(path: Path, data: dict) -> list[str]:
         )
     if review_cycle.get("max_review_cycles_absent_means") != "unlimited":
         errors.append(f"{path}: review_cycle.max_review_cycles_absent_means must be unlimited")
+    rerun_review_on = set(str(item) for item in review_cycle.get("rerun_review_on", []) or [])
+    required_rerun_triggers = {
+        "accepted_blocker_fixed",
+        "mandatory_evidence_added",
+    }
+    missing_rerun_triggers = sorted(required_rerun_triggers - rerun_review_on)
+    if missing_rerun_triggers:
+        errors.append(
+            f"{path}: review_cycle.rerun_review_on missing: {', '.join(missing_rerun_triggers)}"
+        )
+    rerun_scope = review_cycle.get("rerun_scope")
+    if not isinstance(rerun_scope, dict):
+        errors.append(f"{path}: review_cycle.rerun_scope is required")
+        return errors
+    if (
+        rerun_scope.get("after_validated_blocker_or_mandatory_evidence_gap")
+        != "full_scope_blocker_and_evidence_sweep"
+    ):
+        errors.append(
+            f"{path}: review_cycle.rerun_scope.after_validated_blocker_or_mandatory_evidence_gap "
+            "must be full_scope_blocker_and_evidence_sweep"
+        )
+    if rerun_scope.get("closure_only_review_counts_as_acceptance_gate") is not False:
+        errors.append(
+            f"{path}: review_cycle.rerun_scope.closure_only_review_counts_as_acceptance_gate must be false"
+        )
+    required_inputs = {
+        "latest_review_packet",
+        "complete_current_diff",
+        "latest_green_verification_evidence",
+        "previous_validated_findings_and_fixes",
+    }
+    inputs = set(str(item) for item in rerun_scope.get("full_scope_inputs", []) or [])
+    missing_inputs = sorted(required_inputs - inputs)
+    if missing_inputs:
+        errors.append(
+            f"{path}: review_cycle.rerun_scope.full_scope_inputs missing: {', '.join(missing_inputs)}"
+        )
+    required_instructions = {
+        "verify_closure_of_previous_validated_findings",
+        "search_for_new_or_remaining_p0_p1_blockers_across_full_slice",
+        "search_for_new_or_remaining_mandatory_evidence_gaps_across_full_slice",
+    }
+    instructions = set(str(item) for item in rerun_scope.get("reviewer_instruction_must_include", []) or [])
+    missing_instructions = sorted(required_instructions - instructions)
+    if missing_instructions:
+        errors.append(
+            f"{path}: review_cycle.rerun_scope.reviewer_instruction_must_include missing: "
+            f"{', '.join(missing_instructions)}"
+        )
     return errors
 
 
@@ -445,6 +840,9 @@ def validate_review_prompt_contract_invariants(
     prompt_policy = data.get("prompt_policy", {}) or {}
     provider_policy = data.get("provider_policy", {}) or {}
     assignments = data.get("reviewer_assignments", []) or []
+    inputs = data.get("inputs", {}) or {}
+    review_packets = inputs.get("review_packets", []) or []
+    assignment_evidence_required = _assignment_evidence_required(data)
     run_scope_artifact = _is_run_scope_artifact(path, data)
     reviewer_ids = [str(item.get("instance_id")) for item in reviewers if isinstance(item, dict)]
     prompt_ids = [str(item.get("reviewer")) for item in prompts if isinstance(item, dict)]
@@ -525,6 +923,14 @@ def validate_review_prompt_contract_invariants(
             minimum = int(provider_policy.get("min_distinct_provider_model_families", 2))
             if len(provider_model_families) < minimum:
                 errors.append(f"{path}: model diversity requirement is not satisfied by reviewer_assignments")
+        if assignment_evidence_required:
+            if not inputs.get("review_metrics"):
+                errors.append(f"{path}: assignment evidence requires inputs.review_metrics")
+            if any(
+                isinstance(assignment, dict) and assignment.get("provider") == "claude-code"
+                for assignment in assignments
+            ) and not inputs.get("external_reviewer_preflight"):
+                errors.append(f"{path}: claude-code assignment evidence requires inputs.external_reviewer_preflight")
     elif provider_policy.get("require_model_diversity") is True:
         errors.append(f"{path}: model diversity requires reviewer_assignments")
 
@@ -537,35 +943,15 @@ def validate_review_prompt_contract_invariants(
         for key in ["same_prompt", "same_packet", "same_rubric", "same_output_schema"]:
             if prompt_policy.get(key) is not True:
                 errors.append(f"{path}: homogeneous-dual prompt_policy.{key} must be true")
-        for key in ["schema_hash", "rubric_hash", "role_contract_hash"]:
-            values = {str(item.get(key)) for item in prompts if isinstance(item, dict)}
-            if len(values) != 1:
-                errors.append(f"{path}: homogeneous-dual rendered_prompts must share {key}")
-        for key in ["shared_prompt_content_hash", "shared_packet_content_hash"]:
-            values = [item.get(key) for item in prompts if isinstance(item, dict)]
-            if any(not value for value in values):
-                errors.append(f"{path}: homogeneous-dual rendered_prompts must declare {key}")
-            elif len(set(str(value) for value in values)) != 1:
-                errors.append(f"{path}: homogeneous-dual rendered_prompts must share {key}")
-            elif run_scope_artifact:
-                for value in values:
-                    digest = str(value).removeprefix("sha256:")
-                    if not str(value).startswith("sha256:") or len(digest) != 64 or not all(c in "0123456789abcdef" for c in digest):
-                        errors.append(f"{path}: run rendered_prompts.{key} must be a concrete sha256")
-        packet_shared_values = {
-            item.get("shared_packet_content_hash")
-            for item in ((data.get("inputs") or {}).get("review_packets") or [])
-            if isinstance(item, dict)
-        }
-        if any(not value for value in packet_shared_values):
-            errors.append(f"{path}: homogeneous-dual review_packets must declare shared_packet_content_hash")
-        elif len(set(str(value) for value in packet_shared_values)) != 1:
-            errors.append(f"{path}: homogeneous-dual review_packets must share shared_packet_content_hash")
-        elif run_scope_artifact:
-            for value in packet_shared_values:
-                digest = str(value).removeprefix("sha256:")
-                if not str(value).startswith("sha256:") or len(digest) != 64 or not all(c in "0123456789abcdef" for c in digest):
-                    errors.append(f"{path}: run review_packets.shared_packet_content_hash must be a concrete sha256")
+        _validate_shared_baseline_hash_declarations(
+            path=path,
+            profile=profile,
+            prompts=prompts,
+            review_packets=review_packets,
+            baseline_ids=set(_baseline_reviewer_ids(data)),
+            run_scope_artifact=run_scope_artifact,
+            errors=errors,
+        )
     elif profile == "homogeneous-plus-focused":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
             errors.append(f"{path}: homogeneous-plus-focused must use three to eight reviewers")
@@ -578,6 +964,10 @@ def validate_review_prompt_contract_invariants(
             errors.append(f"{path}: homogeneous-plus-focused requires at least two generalist baseline reviewers")
         for key in [
             "baseline_same_prompt",
+            "baseline_same_packet",
+            "baseline_same_rubric",
+            "baseline_same_output_schema",
+            "baseline_same_substantive_prompt_across_providers",
             "focused_reviewers_require_explicit_focus_zone",
             "focus_zones_may_overlap",
             "all_reviewers_must_report_p0_p1_outside_focus",
@@ -590,6 +980,15 @@ def validate_review_prompt_contract_invariants(
                 continue
             if reviewer.get("instance_id") not in baseline_ids and not reviewer.get("focus_zone"):
                 errors.append(f"{path}: focused reviewer {reviewer.get('instance_id')} must have focus_zone")
+        _validate_shared_baseline_hash_declarations(
+            path=path,
+            profile=profile,
+            prompts=prompts,
+            review_packets=review_packets,
+            baseline_ids=baseline_ids,
+            run_scope_artifact=run_scope_artifact,
+            errors=errors,
+        )
     elif profile == "heterogeneous-variable":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
             errors.append(f"{path}: heterogeneous-variable must use three to eight reviewers")
@@ -727,6 +1126,25 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             "inputs.review_invocation_set",
             file_required=True,
         )
+    external_preflight_path: Path | None = None
+    if inputs.get("external_reviewer_preflight"):
+        external_preflight_path = resolve_existing(
+            inputs.get("external_reviewer_preflight"),
+            "inputs.external_reviewer_preflight",
+            file_required=True,
+        )
+    review_metrics_ref = inputs.get("review_metrics")
+    review_metrics_path: Path | None = None
+    if review_metrics_ref:
+        ref_path = Path(str(review_metrics_ref))
+        if ref_path.is_absolute() or ".." in ref_path.parts:
+            errors.append(f"{path}: inputs.review_metrics must be relative and non-escaping: {review_metrics_ref}")
+        else:
+            candidate = root / ref_path
+            if candidate.exists() and not candidate.is_file():
+                errors.append(f"{path}: inputs.review_metrics must be a file artifact: {review_metrics_ref}")
+            elif candidate.is_file():
+                review_metrics_path = candidate
     if (
         evidence_report_path
         and review_invocation_set_path
@@ -795,9 +1213,17 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
         isinstance(item, dict) and item.get("provider") == "claude-code"
         for item in assignments
     )
+    assignment_evidence_required = _assignment_evidence_required(data)
+    if assignments and assignment_evidence_required:
+        if not review_metrics_ref:
+            errors.append(f"{path}: assignment evidence requires inputs.review_metrics")
+        if external_assignment_present and not inputs.get("external_reviewer_preflight"):
+            errors.append(f"{path}: claude-code assignment evidence requires inputs.external_reviewer_preflight")
     invocation_set: dict | None = None
     invocation_reviewers: dict[str, dict] = {}
     invocation_set_completed = False
+    invocation_set_terminal = False
+    invocation_has_preflight_blocker = False
     if assignments:
         if _is_run_scope_artifact(path, data) and not artifact_preparation_report_path:
             errors.append(f"{path}: reviewer_assignments require inputs.artifact_preparation_report")
@@ -812,7 +1238,9 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             else:
                 invocation_set = invocation_set_data
                 errors.extend(validate_against_schema(invocation_evidence_path, invocation_set, invocation_set_schema))
-                invocation_set_completed = invocation_set.get("status") == "completed"
+                invocation_set_status = str(invocation_set.get("status") or "")
+                invocation_set_completed = invocation_set_status == "completed"
+                invocation_set_terminal = invocation_set_status in {"completed", "failed"}
                 if external_assignment_present and invocation_set.get("runner_scheduling") != "external-first-async":
                     errors.append(
                         f"{invocation_evidence_path}: external reviewer assignments require "
@@ -823,6 +1251,10 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     for item in invocation_set.get("reviewers", []) or []
                     if isinstance(item, dict) and item.get("reviewer")
                 }
+                invocation_has_preflight_blocker = any(
+                    _is_review_metrics_preflight_blocker(item)
+                    for item in invocation_reviewers.values()
+                )
                 if sorted(invocation_reviewers) != sorted(reviewers):
                     errors.append(
                         f"{invocation_evidence_path}: review_invocation_set reviewers must cover reviewer_set exactly"
@@ -889,6 +1321,479 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 f"{invocation_path}: {key} must match current review artifact for {reviewer}: "
                 f"declared {declared}, computed {expected}"
             )
+
+    def resolve_config_ref(ref: object, config_path: Path) -> Path:
+        ref_path = Path(str(ref))
+        if ref_path.is_absolute():
+            return ref_path
+        root_path = root / ref_path
+        if root_path.exists():
+            return root_path
+        return config_path.parent / ref_path
+
+    def validate_raw_output_retention(
+        invocation_path: Path,
+        invocation_data: dict,
+        provider_config_path: Path | None,
+        packet_data: dict | None,
+        raw_output_path: Path,
+        reviewer: str,
+    ) -> None:
+        if provider_config_path is None or not provider_config_path.is_file():
+            errors.append(f"{invocation_path}: provider_config is required to classify raw output for {reviewer}")
+            return
+        provider_config = parse_yaml(provider_config_path)
+        if not isinstance(provider_config, dict):
+            errors.append(f"{provider_config_path}: provider config must be a YAML mapping")
+            return
+        normalization = provider_config.get("normalization", {}) or {}
+        if normalization.get("preserve_raw_output") is not True:
+            errors.append(f"{provider_config_path}: preserve_raw_output must be true when raw output is retained for {reviewer}")
+            return
+        config_classification = str(normalization.get("raw_output_classification") or "")
+        if config_classification not in ALLOWED_RAW_OUTPUT_CLASSIFICATIONS:
+            errors.append(
+                f"{provider_config_path}: normalization.raw_output_classification must explicitly declare non-sensitive retention"
+            )
+            return
+        if not packet_data or packet_data.get("artifact_scope", "run") != "run":
+            return
+        artifact_ref = normalization.get("raw_output_classification_artifact")
+        if not artifact_ref:
+            errors.append(
+                f"{provider_config_path}: run-scope raw output retention requires normalization.raw_output_classification_artifact"
+            )
+            return
+        artifact_path = resolve_config_ref(artifact_ref, provider_config_path)
+        if not artifact_path.is_file():
+            errors.append(f"{provider_config_path}: raw output classification artifact does not exist: {artifact_ref}")
+            return
+        artifact = parse_yaml(artifact_path)
+        if not isinstance(artifact, dict):
+            errors.append(f"{artifact_path}: raw output classification artifact must be a YAML mapping")
+            return
+        if artifact.get("artifact_kind") != "provider_raw_output_classification":
+            errors.append(f"{artifact_path}: artifact_kind must be provider_raw_output_classification")
+        if artifact.get("provider") != "claude-code":
+            errors.append(f"{artifact_path}: provider must be claude-code")
+        artifact_classification = str(artifact.get("classification") or "")
+        if artifact_classification not in ALLOWED_RAW_OUTPUT_CLASSIFICATIONS:
+            errors.append(f"{artifact_path}: classification must explicitly declare non-sensitive retention")
+        if str(artifact.get("run_id") or "") != str(packet_data.get("run_id") or ""):
+            errors.append(f"{artifact_path}: run_id must match review packet for {reviewer}")
+        if str(artifact.get("material_change_id") or "") != str(packet_data.get("material_change_id") or ""):
+            errors.append(f"{artifact_path}: material_change_id must match review packet for {reviewer}")
+        retention = artifact.get("retention", {}) or {}
+        if retention.get("preserve_raw_output") is not True:
+            errors.append(f"{artifact_path}: retention.preserve_raw_output must be true")
+        declared_raw_output = retention.get("raw_output_path")
+        if not declared_raw_output:
+            errors.append(f"{artifact_path}: retention.raw_output_path is required")
+        else:
+            declared_raw_path = Path(str(declared_raw_output))
+            if not declared_raw_path.is_absolute():
+                declared_raw_path = root / declared_raw_path
+            if declared_raw_path.resolve() != raw_output_path.resolve():
+                errors.append(f"{artifact_path}: retention.raw_output_path must match retained raw output for {reviewer}")
+        invocation_classification = str(invocation_data.get("raw_output_classification") or "")
+        if invocation_classification and invocation_classification != artifact_classification:
+            errors.append(f"{invocation_path}: raw_output_classification must match classification artifact for {reviewer}")
+        invocation_artifact = invocation_data.get("raw_output_classification_artifact")
+        if invocation_artifact:
+            invocation_artifact_path = resolve_config_ref(invocation_artifact, provider_config_path)
+            if invocation_artifact_path.resolve() != artifact_path.resolve():
+                errors.append(f"{invocation_path}: raw_output_classification_artifact must match provider config for {reviewer}")
+
+    def validate_external_assignment_fingerprints(
+        preflight_path: Path,
+        preflight_data: dict,
+    ) -> None:
+        forbidden_payload = preflight_data.get("forbidden_env", {}) or {}
+        forbidden_env_fingerprint = sha256_text(json.dumps(forbidden_payload, sort_keys=True))
+        declared_items = preflight_data.get("assignment_fingerprints")
+        expected_by_reviewer: dict[str, dict[str, str]] = {}
+        for assignment in assignments:
+            if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
+                continue
+            reviewer = str(assignment.get("reviewer") or "")
+            reviewer_def = reviewers.get(reviewer) or {}
+            rendered_prompt = rendered_by_reviewer.get(reviewer) or {}
+            role_ref = reviewer_def.get("role_contract")
+            provider_config_ref = assignment.get("provider_config")
+            if not role_ref or not provider_config_ref:
+                continue
+            role_path = root / str(role_ref)
+            provider_config_path = root / str(provider_config_ref)
+            wrapper_path = root / "scripts" / "reviewers" / "run_external_reviewer.py"
+            if not role_path.is_file() or not provider_config_path.is_file() or not wrapper_path.is_file():
+                continue
+            provider_config = parse_yaml(provider_config_path)
+            if not isinstance(provider_config, dict):
+                continue
+            execution = provider_config.get("execution", {}) or {}
+            expected_by_reviewer[reviewer] = {
+                "reviewer": reviewer,
+                "provider_config_hash": sha256_file(provider_config_path),
+                "wrapper_hash": sha256_file(wrapper_path),
+                "schema_hash": output_schema_hash,
+                "prompt_contract_hash": review_prompt_contract_hash,
+                "role_contract_hash": sha256_file(role_path),
+                "rubric_hash": str(rendered_prompt.get("rubric_hash") or rubric_hash),
+                "forbidden_env_fingerprint": forbidden_env_fingerprint,
+                "permission_mode": str(execution.get("permission_mode")),
+                "sandbox_mode": str(execution.get("sandbox_mode")),
+                "provider_transport_mode": str(execution.get("prompt_transport", "stdin")),
+            }
+        if not expected_by_reviewer:
+            return
+        if not isinstance(declared_items, list) or not declared_items:
+            errors.append(f"{preflight_path}: assignment_fingerprints are required for prepared claude-code assignments")
+            return
+        declared_by_reviewer = {
+            str(item.get("reviewer")): item
+            for item in declared_items
+            if isinstance(item, dict) and item.get("reviewer")
+        }
+        missing = sorted(set(expected_by_reviewer) - set(declared_by_reviewer))
+        if missing:
+            errors.append(
+                f"{preflight_path}: assignment_fingerprints missing reviewer(s): {', '.join(missing)}"
+            )
+        for reviewer, expected in expected_by_reviewer.items():
+            declared = declared_by_reviewer.get(reviewer)
+            if not isinstance(declared, dict):
+                continue
+            for key, expected_value in expected.items():
+                declared_value = declared.get(key)
+                if key.endswith("_hash") or key == "forbidden_env_fingerprint":
+                    if not is_concrete_sha256(declared_value):
+                        errors.append(
+                            f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must be concrete sha256"
+                        )
+                        continue
+                if declared_value != expected_value:
+                    errors.append(
+                        f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must match current review artifact"
+                    )
+
+    if external_assignment_present and invocation_set_terminal and (external_preflight_path or assignment_evidence_required):
+        if not external_preflight_path:
+            errors.append(f"{path}: terminal claude-code review_invocation_set requires inputs.external_reviewer_preflight artifact")
+        else:
+            preflight_schema = parse_json(root / "schemas" / "external-reviewer-preflight.schema.json")
+            preflight_data = parse_json(external_preflight_path)
+            if not isinstance(preflight_data, dict):
+                errors.append(f"{external_preflight_path}: external_reviewer_preflight evidence must be a JSON object")
+            else:
+                errors.extend(validate_against_schema(external_preflight_path, preflight_data, preflight_schema))
+                preflight_result = preflight_data.get("result")
+                if invocation_set_completed and preflight_result != "pass":
+                    errors.append(f"{external_preflight_path}: external_reviewer_preflight result must be pass")
+                if (
+                    not invocation_set_completed
+                    and preflight_result == "blocked"
+                    and not invocation_has_preflight_blocker
+                ):
+                    errors.append(
+                        f"{external_preflight_path}: blocked external_reviewer_preflight "
+                        "requires a provider_preflight_blocked review_invocation_set reviewer"
+                    )
+                fingerprint = preflight_data.get("fingerprint", {}) or {}
+                _require_concrete_hash(
+                    external_preflight_path,
+                    "external_reviewer_preflight.fingerprint.prompt_contract_hash",
+                    fingerprint.get("prompt_contract_hash"),
+                    review_prompt_contract_hash,
+                    errors,
+                )
+                wrapper_path = root / "scripts" / "reviewers" / "run_external_reviewer.py"
+                if wrapper_path.is_file():
+                    _require_concrete_hash(
+                        external_preflight_path,
+                        "external_reviewer_preflight.fingerprint.wrapper_hash",
+                        fingerprint.get("wrapper_hash"),
+                        sha256_file(wrapper_path),
+                        errors,
+                    )
+                _require_concrete_hash(
+                    external_preflight_path,
+                    "external_reviewer_preflight.fingerprint.schema_hash",
+                    fingerprint.get("schema_hash"),
+                    output_schema_hash,
+                    errors,
+                )
+                validate_external_assignment_fingerprints(external_preflight_path, preflight_data)
+            if invocation_set:
+                invocation_preflight_ref = resolve_invocation_set_ref(
+                    invocation_set.get("external_reviewer_preflight"),
+                    "review_invocation_set.external_reviewer_preflight",
+                )
+                if invocation_preflight_ref and invocation_preflight_ref.resolve() != external_preflight_path.resolve():
+                    errors.append(
+                        f"{path}: review_invocation_set external_reviewer_preflight must match inputs.external_reviewer_preflight"
+                    )
+                _require_concrete_hash(
+                    external_preflight_path,
+                    "review_invocation_set.external_reviewer_preflight_hash",
+                    invocation_set.get("external_reviewer_preflight_hash"),
+                    sha256_file(external_preflight_path),
+                    errors,
+                )
+
+    if assignments and invocation_set_terminal and (review_metrics_ref or assignment_evidence_required):
+        if not review_metrics_path:
+            if invocation_set_completed:
+                errors.append(f"{path}: completed review_invocation_set requires inputs.review_metrics artifact")
+            else:
+                errors.append(f"{path}: terminal review_invocation_set requires inputs.review_metrics artifact")
+        else:
+            metrics_schema = parse_json(root / "schemas" / "review-metrics.schema.json")
+            metrics_data = parse_json(review_metrics_path)
+            if not isinstance(metrics_data, dict):
+                errors.append(f"{review_metrics_path}: review_metrics evidence must be a JSON object")
+            else:
+                errors.extend(validate_against_schema(review_metrics_path, metrics_data, metrics_schema))
+                source_artifacts = metrics_data.get("source_artifacts", {}) or {}
+                invocation_reviewer_entries = [
+                    item
+                    for item in (invocation_set or {}).get("reviewers", []) or []
+                    if isinstance(item, dict)
+                ]
+
+                def compare_metrics_source_list(key: str, expected_values: list[str]) -> None:
+                    actual_values = source_artifacts.get(key)
+                    if actual_values is None:
+                        if expected_values:
+                            errors.append(f"{review_metrics_path}: source_artifacts.{key} must match review_invocation_set")
+                        return
+                    if not isinstance(actual_values, list):
+                        return
+                    normalized_actual = sorted(str(item) for item in actual_values if isinstance(item, str))
+                    if normalized_actual != expected_values:
+                        errors.append(f"{review_metrics_path}: source_artifacts.{key} must match review_invocation_set")
+
+                compare_metrics_source_list(
+                    "review_packets",
+                    sorted(
+                        {
+                            str(item.get("packet_path"))
+                            for item in invocation_reviewer_entries
+                            if isinstance(item.get("packet_path"), str) and item.get("packet_path")
+                        }
+                    ),
+                )
+                compare_metrics_source_list(
+                    "reviewer_reports",
+                    sorted(
+                        {
+                            str(item.get("report_path"))
+                            for item in invocation_reviewer_entries
+                            if _is_review_metrics_completed(item.get("status"))
+                            and isinstance(item.get("report_path"), str)
+                            and item.get("report_path")
+                        }
+                    ),
+                )
+                compare_metrics_source_list(
+                    "invocation_metadata",
+                    sorted(
+                        {
+                            str(item.get("invocation_metadata_path"))
+                            for item in invocation_reviewer_entries
+                            if isinstance(item.get("invocation_metadata_path"), str) and item.get("invocation_metadata_path")
+                        }
+                    ),
+                )
+                metrics_invocation_ref = resolve_invocation_set_ref(
+                    source_artifacts.get("review_invocation_set"),
+                    "review_metrics.source_artifacts.review_invocation_set",
+                )
+                if (
+                    metrics_invocation_ref
+                    and review_invocation_set_path
+                    and metrics_invocation_ref.resolve() != review_invocation_set_path.resolve()
+                ):
+                    errors.append(f"{review_metrics_path}: source_artifacts.review_invocation_set must match inputs.review_invocation_set")
+                metrics_contract_ref = resolve_invocation_set_ref(
+                    source_artifacts.get("review_prompt_contract"),
+                    "review_metrics.source_artifacts.review_prompt_contract",
+                )
+                if metrics_contract_ref and metrics_contract_ref.resolve() != path.resolve():
+                    errors.append(f"{review_metrics_path}: source_artifacts.review_prompt_contract must match current contract")
+                if external_assignment_present and (external_preflight_path or assignment_evidence_required):
+                    metrics_preflight_ref = resolve_invocation_set_ref(
+                        source_artifacts.get("external_reviewer_preflight"),
+                        "review_metrics.source_artifacts.external_reviewer_preflight",
+                    )
+                    if (
+                        metrics_preflight_ref
+                        and external_preflight_path
+                        and metrics_preflight_ref.resolve() != external_preflight_path.resolve()
+                    ):
+                        errors.append(
+                            f"{review_metrics_path}: source_artifacts.external_reviewer_preflight must match inputs.external_reviewer_preflight"
+                        )
+                completed_statuses = {"completed", "report-present", "invoked"}
+                expected_completed = sum(
+                    1
+                    for item in (invocation_set or {}).get("reviewers", []) or []
+                    if isinstance(item, dict) and str(item.get("status") or "").lower() in completed_statuses
+                )
+                expected_preflight_blockers = sum(
+                    1 for item in invocation_reviewer_entries if _is_review_metrics_preflight_blocker(item)
+                )
+                invocation_completed_for_metrics = bool(invocation_set and invocation_set.get("status") == "completed")
+                expected_substantive_cycles = 1 if any(
+                    _is_review_metrics_substantive_attempt(item, invocation_completed_for_metrics)
+                    for item in invocation_reviewer_entries
+                ) or invocation_completed_for_metrics else 0
+                if metrics_data.get("planned_reviewer_slots") != len(reviewers):
+                    errors.append(f"{review_metrics_path}: planned_reviewer_slots must match reviewer_set")
+                if metrics_data.get("completed_reviewer_invocations") != expected_completed:
+                    errors.append(f"{review_metrics_path}: completed_reviewer_invocations must match review_invocation_set")
+                if metrics_data.get("provider_preflight_blockers") != expected_preflight_blockers:
+                    errors.append(f"{review_metrics_path}: provider_preflight_blockers must match review_invocation_set")
+                if metrics_data.get("substantive_review_cycles") != expected_substantive_cycles:
+                    errors.append(f"{review_metrics_path}: substantive_review_cycles must match review_invocation_set")
+                metrics_reviewer_rows = metrics_data.get("reviewer_invocations")
+                if isinstance(metrics_reviewer_rows, list):
+                    metrics_rows_by_reviewer: dict[str, dict] = {}
+                    duplicate_metric_reviewers: set[str] = set()
+                    for item in metrics_reviewer_rows:
+                        if not isinstance(item, dict):
+                            continue
+                        reviewer = str(item.get("reviewer") or "")
+                        if not reviewer:
+                            continue
+                        if reviewer in metrics_rows_by_reviewer:
+                            duplicate_metric_reviewers.add(reviewer)
+                        metrics_rows_by_reviewer[reviewer] = item
+                    if duplicate_metric_reviewers:
+                        errors.append(
+                            f"{review_metrics_path}: reviewer_invocations reviewer rows must be unique: "
+                            + ", ".join(sorted(duplicate_metric_reviewers))
+                        )
+                    invocation_reviewers_by_id = {
+                        str(item.get("reviewer")): item
+                        for item in invocation_reviewer_entries
+                        if isinstance(item, dict) and item.get("reviewer")
+                    }
+                    invocation_metadata_by_reviewer: dict[str, dict] = {}
+                    if sorted(metrics_rows_by_reviewer) != sorted(invocation_reviewers_by_id):
+                        errors.append(
+                            f"{review_metrics_path}: reviewer_invocations must cover review_invocation_set reviewers exactly"
+                        )
+                    expected_summed_reviewer_elapsed_ms = 0
+                    expected_summed_provider_runtime_ms = 0
+                    for reviewer, invocation_entry in invocation_reviewers_by_id.items():
+                        metrics_row = metrics_rows_by_reviewer.get(reviewer)
+                        if not isinstance(metrics_row, dict):
+                            continue
+                        invocation_metadata: dict = {}
+                        invocation_metadata_ref = invocation_entry.get("invocation_metadata_path")
+                        if invocation_metadata_ref:
+                            invocation_metadata_path = resolve_invocation_set_ref(
+                                invocation_metadata_ref,
+                                f"review_invocation_set.reviewers[{reviewer}].invocation_metadata_path",
+                                required=False,
+                            )
+                            if invocation_metadata_path:
+                                invocation_metadata_data = parse_json(invocation_metadata_path)
+                                if isinstance(invocation_metadata_data, dict):
+                                    invocation_metadata = invocation_metadata_data
+                        invocation_metadata_by_reviewer[reviewer] = invocation_metadata
+                        expected_completed_row = _is_review_metrics_completed(invocation_entry.get("status"))
+                        expected_preflight_row = _is_review_metrics_preflight_blocker(invocation_entry)
+                        expected_exit_code = _review_metrics_exit_code(invocation_entry, invocation_metadata)
+                        expected_timed_out = (
+                            str(invocation_entry.get("status") or "").lower() == "timed-out"
+                            or "timed out" in str(invocation_entry.get("error") or "").lower()
+                        )
+                        expected_provider_runtime = None
+                        if invocation_metadata:
+                            expected_provider_runtime = _review_metrics_elapsed_ms(
+                                invocation_metadata.get("started_at"),
+                                invocation_metadata.get("finished_at"),
+                            )
+                        expected_reviewer_elapsed = _review_metrics_reviewer_elapsed_ms(invocation_entry)
+                        if expected_completed_row and expected_reviewer_elapsed is not None:
+                            expected_summed_reviewer_elapsed_ms += expected_reviewer_elapsed
+                        if expected_provider_runtime is not None:
+                            expected_summed_provider_runtime_ms += expected_provider_runtime
+                        reviewer_started_at = _review_metrics_first_string(
+                            invocation_entry.get("started_at"),
+                            invocation_entry.get("dispatch_started_at"),
+                            invocation_metadata.get("started_at"),
+                        )
+                        reviewer_finished_at = _review_metrics_first_string(
+                            invocation_entry.get("finished_at"),
+                            invocation_entry.get("dispatch_finished_at"),
+                            invocation_entry.get("checked_at"),
+                            invocation_metadata.get("finished_at"),
+                        )
+                        expected_normalization = _review_metrics_normalization_status(
+                            invocation_entry,
+                            invocation_metadata,
+                            expected_completed_row,
+                        )
+                        expected_row_values = {
+                            "provider": invocation_entry.get("provider"),
+                            "model_family": invocation_entry.get("model_family"),
+                            "status": invocation_entry.get("status"),
+                            "completed": expected_completed_row,
+                            "provider_preflight_blocker": expected_preflight_row,
+                            "review_packet_path": invocation_entry.get("packet_path"),
+                            "report_path": invocation_entry.get("report_path"),
+                            "invocation_metadata_path": invocation_entry.get("invocation_metadata_path"),
+                            "reviewer_started_at": reviewer_started_at,
+                            "reviewer_finished_at": reviewer_finished_at,
+                            "reviewer_elapsed_ms": expected_reviewer_elapsed,
+                            "provider_runtime_ms": expected_provider_runtime,
+                            "retry_count": _review_metrics_retry_count(invocation_entry, invocation_metadata),
+                            "timed_out": expected_timed_out,
+                            "nonzero_exit": expected_exit_code is not None and expected_exit_code != 0,
+                            "normalization_status": expected_normalization,
+                        }
+                        if "elapsed_ms" in metrics_row:
+                            expected_row_values["elapsed_ms"] = expected_reviewer_elapsed
+                        for key, expected_value in expected_row_values.items():
+                            if metrics_row.get(key) != expected_value:
+                                source_label = (
+                                    "invocation metadata"
+                                    if key == "provider_runtime_ms"
+                                    else "review_invocation_set"
+                                )
+                                errors.append(
+                                    f"{review_metrics_path}: reviewer_invocations[{reviewer}].{key} "
+                                    f"must match {source_label}"
+                                )
+                    metrics_timing = metrics_data.get("timing")
+                    if isinstance(metrics_timing, dict):
+                        expected_review_elapsed = _review_metrics_elapsed_ms(
+                            (invocation_set or {}).get("started_at"),
+                            (invocation_set or {}).get("finished_at"),
+                        )
+                        expected_timing_values = {
+                            "review_phase_started_at": (invocation_set or {}).get("started_at"),
+                            "review_phase_finished_at": (invocation_set or {}).get("finished_at"),
+                            "review_phase_elapsed_ms": expected_review_elapsed,
+                            "cycle_started_at": (invocation_set or {}).get("started_at"),
+                            "cycle_finished_at": (invocation_set or {}).get("finished_at"),
+                            "cycle_elapsed_ms": expected_review_elapsed,
+                            "summed_reviewer_elapsed_ms": expected_summed_reviewer_elapsed_ms,
+                            "summed_provider_runtime_ms": expected_summed_provider_runtime_ms,
+                        }
+                        for key, expected_value in expected_timing_values.items():
+                            if metrics_timing.get(key) != expected_value:
+                                errors.append(
+                                    f"{review_metrics_path}: timing.{key} must match review_invocation_set"
+                                )
+                    expected_provider_usage = _review_metrics_collect_provider_usage(
+                        invocation_reviewer_entries,
+                        invocation_metadata_by_reviewer,
+                    )
+                    if metrics_data.get("provider_usage") != expected_provider_usage:
+                        errors.append(f"{review_metrics_path}: provider_usage must match invocation metadata")
 
     require_completed_assignment_outputs = invocation_set is None or invocation_set_completed
     if assignments and artifact_preparation_report_path and require_completed_assignment_outputs:
@@ -1014,17 +1919,24 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     f"{artifact_preparation_report_path}.input_artifacts[{idx}].path",
                 )
                 if artifact_path:
-                    _require_concrete_hash(
-                        artifact_preparation_report_path,
-                        f"input_artifacts[{idx}].hash",
-                        artifact.get("hash"),
-                        sha256_file(artifact_path),
-                        errors,
-                    )
+                    # Declared input artifacts are provenance for the material
+                    # change captured when the review packet was prepared. The
+                    # current repository file may legitimately drift later, so
+                    # validation requires a concrete recorded hash but does not
+                    # rewrite historical evidence to future HEAD content.
+                    if not is_concrete_sha256(artifact.get("hash")):
+                        errors.append(
+                            f"{artifact_preparation_report_path}: input_artifacts[{idx}].hash must be a concrete sha256"
+                        )
 
     completed_provider_model_families: set[str] = set()
     assignment_report_paths: dict[Path, str] = {}
     invocation_report_paths: dict[Path, str] = {}
+    try:
+        contract_version_number = int(data.get("version") or 1)
+    except (TypeError, ValueError):
+        contract_version_number = 1
+    raw_retention_required = assignment_evidence_required or contract_version_number >= 2
     for idx, assignment in enumerate(assignments):
         if not isinstance(assignment, dict):
             continue
@@ -1111,6 +2023,19 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                                 errors,
                             )
         if provider == "claude-code":
+            provider_config_path = None
+            provider_config_ref = assignment.get("provider_config")
+            if provider_config_ref:
+                provider_ref = Path(str(provider_config_ref))
+                if not provider_ref.is_absolute() and ".." not in provider_ref.parts:
+                    candidate_provider_config = root / provider_ref
+                    if candidate_provider_config.is_file():
+                        provider_config_path = candidate_provider_config
+            packet_data_for_assignment: dict | None = None
+            if packet_path and packet_path.is_file():
+                packet_data = parse_json(packet_path)
+                if isinstance(packet_data, dict):
+                    packet_data_for_assignment = packet_data
             raw_output_path = None
             if require_completed_assignment_outputs:
                 raw_output_path = resolve_optional_assignment_output(
@@ -1217,6 +2142,15 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                             sha256_file(raw_output_path_ref),
                             reviewer,
                         )
+                        if completed_external_evidence and raw_retention_required:
+                            validate_raw_output_retention(
+                                invocation_metadata_path,
+                                invocation_data,
+                                provider_config_path,
+                                packet_data_for_assignment,
+                                raw_output_path_ref,
+                                reviewer,
+                            )
                     if completed_external_evidence:
                         normalized_output_path_ref = resolve_invocation_set_ref(
                             invocation_data.get("normalized_output_path"), f"{invocation_metadata_path}.normalized_output_path"
@@ -1299,18 +2233,25 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             )
 
     identity = data.get("identity", {}) or {}
-    if identity.get("review_profile") == "homogeneous-dual" and packet_paths:
-        for packet_path in packet_paths:
+    shared_baseline_ids = set(_baseline_reviewer_ids(data))
+    shared_baseline_packet_paths = [
+        packet_path
+        for reviewer, packet_path in packet_path_by_reviewer.items()
+        if reviewer in shared_baseline_ids
+    ]
+    if identity.get("review_profile") in {"homogeneous-dual", "homogeneous-plus-focused"} and shared_baseline_packet_paths:
+        profile = identity.get("review_profile")
+        for packet_path in shared_baseline_packet_paths:
             if not (packet_path.parent / "shared-content.json").exists():
-                errors.append(f"{path}: homogeneous-dual run review packet missing sibling shared-content.json: {packet_path}")
+                errors.append(f"{path}: {profile} run review packet missing sibling shared-content.json: {packet_path}")
         shared_content_paths = {
             packet_path.parent / "shared-content.json"
-            for packet_path in packet_paths
+            for packet_path in shared_baseline_packet_paths
             if (packet_path.parent / "shared-content.json").exists()
         }
         if len(shared_content_paths) != 1:
             errors.append(
-                f"{path}: homogeneous-dual run review packets must have exactly one sibling shared-content.json"
+                f"{path}: {profile} run review packets must have exactly one sibling shared-content.json"
             )
         else:
             shared_content_path = next(iter(shared_content_paths))
@@ -1338,7 +2279,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
 
             expected_shared_packet = shared_packet_payload(shared_content, sidecar=True)
             for idx, packet in enumerate(inputs.get("review_packets", []) or []):
-                if isinstance(packet, dict):
+                if isinstance(packet, dict) and str(packet.get("reviewer")) in shared_baseline_ids:
                     compare_hash(
                         path,
                         f"inputs.review_packets[{idx}].shared_packet_content_hash",
@@ -1358,7 +2299,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                                 f"{path}: inputs.review_packets[{idx}] content must match shared-content.json except excluded envelope fields"
                             )
             for idx, prompt in enumerate(data.get("rendered_prompts", []) or []):
-                if isinstance(prompt, dict):
+                if isinstance(prompt, dict) and str(prompt.get("reviewer")) in shared_baseline_ids:
                     compare_hash(
                         path,
                         f"rendered_prompts[{idx}].shared_packet_content_hash",
@@ -1366,6 +2307,25 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         shared_content_hash,
                         errors,
                     )
+                    reviewer = str(prompt.get("reviewer", ""))
+                    reviewer_def = reviewers.get(reviewer) or {}
+                    role_path = resolve_existing(
+                        reviewer_def.get("role_contract"),
+                        f"reviewer_set.{reviewer}.role_contract",
+                    )
+                    if role_path:
+                        role_data = parse_yaml(role_path)
+                        if isinstance(role_data, dict):
+                            expected_prompt_hash = sha256_text(
+                                _render_expected_review_prompt(expected_shared_packet, role_data)
+                            )
+                            compare_hash(
+                                path,
+                                f"rendered_prompts[{idx}].shared_prompt_content_hash",
+                                prompt.get("shared_prompt_content_hash"),
+                                expected_prompt_hash,
+                                errors,
+                            )
 
     for idx, prompt in enumerate(data.get("rendered_prompts", []) or []):
         if not isinstance(prompt, dict):

@@ -1,0 +1,20 @@
+name: generate_review_metrics
+kind: script_contract
+script: scripts/reviewers/generate_review_metrics.py
+deterministic: true
+purpose: >
+  Generate review-metrics.json from review invocation evidence without
+  estimating provider token or cost usage.
+inputs:
+  review_invocation_set: JSON artifact conforming to schemas/review-invocation-set.schema.json
+  run_id: concrete workflow run id
+  workflow: workflow name
+outputs:
+  review_metrics: JSON artifact conforming to schemas/review-metrics.schema.json
+guarantees:
+  - Separates provider preflight/config blockers from substantive review cycles.
+  - Distinguishes wall-clock elapsed time from summed reviewer/provider runtime.
+  - Records review-phase, cycle and per-reviewer timestamps when invocation evidence exposes them.
+  - Records retry counts, timeout status, nonzero exit status, normalization status and artifact links.
+  - Records token/cost usage only when provider-reported values are present.
+  - Does not call external providers or inspect live auth state.

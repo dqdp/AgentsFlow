@@ -138,6 +138,16 @@
           "minLength": 1,
           "pattern": "\\S"
         },
+        "review_metrics": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "external_reviewer_preflight": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
         "reviewed_artifact": {
           "type": "string"
         },
@@ -472,6 +482,9 @@
       "properties": {
         "schema": {
           "type": "string"
+        },
+        "assignment_evidence_required": {
+          "type": "boolean"
         },
         "assembly_invariants": {
           "type": "array",

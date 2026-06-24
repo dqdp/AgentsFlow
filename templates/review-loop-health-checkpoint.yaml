@@ -1,0 +1,79 @@
+version: 1
+artifact_kind: review_loop_health_checkpoint
+artifact_scope: run
+
+required: null
+required_when_no_trigger_fires: false
+required_when_any_trigger_fires: true
+trigger_policy: any
+counted_inputs_source: main_agent_validated_findings_and_mandatory_evidence_gaps_only
+
+triggers:
+  - id: three_consecutive_validated_blocking_cycles
+    fires_when: three consecutive review cycles have validated P0/P1 blockers or mandatory evidence gaps
+    count_raw_reviewer_candidates: false
+  - id: same_validated_risk_surface_repeats
+    fires_when: the same validated canonical risk_surface_id repeats in two cycles
+    count_raw_reviewer_candidates: false
+  - id: stale_or_false_green_evidence_repeats
+    fires_when: stale or false-green evidence blockers repeat
+    count_raw_reviewer_candidates: false
+
+trigger_evidence:
+  review_cycles_considered: []
+  validated_findings_counted: []
+  mandatory_evidence_gaps_counted: []
+  trigger_ids_fired: []
+
+risk_surface_policy:
+  use_canonical_risk_surface_ids: true
+  reviewer_wording_is_source_of_truth: false
+  selected_risk_surface_sources:
+    - risk_surface_profile.selected_risk_surfaces
+    - project_local_risk_surface_policy
+    - failure_path_matrix.rows.risk_surface
+  repeated_risk_surface_ids: []
+  unmapped_or_new_surface_candidates: []
+
+root_cause:
+  classification: none
+  allowed_classifications:
+    - contract_gap
+    - failure_path_matrix_gap
+    - verification_gap
+    - false_green_or_stale_evidence
+    - implementation_defect
+    - authority_boundary_gap
+    - scope_drift
+    - provider_or_environment_blocker
+    - main_agent_looping_on_local_patch
+    - unknown_requires_diagnostic_review
+    - none
+  rationale: null
+
+diagnostic_reviewers:
+  launch_by_default: false
+  used: false
+  reason: null
+  outputs_are_candidate_inputs: true
+  reports: []
+
+correction_obligations: []
+
+human_decision:
+  required: false
+  reason: null
+  decision_artifact: null
+
+closure:
+  required_before_next_substantive_review_gate: true
+  standalone_schema_required: false
+  closure_artifact_or_section: null
+  correction_obligations_completed: []
+  refreshed_evidence: []
+  material_changes: []
+  remaining_residual_risk_or_deferral: []
+
+next_review_packet:
+  include_checkpoint: true
+  include_closure_record: true

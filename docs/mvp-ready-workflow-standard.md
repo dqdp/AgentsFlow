@@ -290,6 +290,14 @@ implementation behavior invalidate prior evidence for the changed scope. The run
 records the material change and refreshes green verification and review according
 to the review-cycle policy.
 
+If the material change fixes a validated P0/P1 blocker or mandatory evidence
+gap, the refreshed review used for acceptance must be a full-scope
+blocker/evidence sweep. It must use the latest review packet, complete current
+diff, latest green verification evidence and previous validated findings/fixes,
+and it must instruct reviewers to look for new or remaining P0/P1 blockers and
+mandatory evidence gaps across the full slice. A closure-only material-fix review
+may be recorded as supplemental evidence, but it is not an acceptance gate.
+
 Supplemental human-requested review is allowed after green evidence, but its
 findings remain candidate findings. It reopens the fix loop only for
 main-agent-validated P0/P1 findings or mandatory evidence gaps; otherwise it is

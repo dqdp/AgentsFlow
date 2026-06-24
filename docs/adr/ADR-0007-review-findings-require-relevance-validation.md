@@ -35,6 +35,25 @@ A candidate finding may be classified as:
 P0/P1 candidate findings must not be silently discarded. Rejection or downgrading of
 a plausible blocker must include a recorded reason.
 
+Updated for review-gate hardening on 2026-06-24: review-loop and health-control
+decisions count validated findings and mandatory evidence gaps, not raw reviewer
+candidates. A candidate P0/P1 does not block acceptance or trigger a health
+checkpoint until the main/orchestrating agent records a grounded validation
+decision.
+
+Validated P0/P1 findings and mandatory evidence gaps block acceptance by
+default. Important P2/P3 findings may be fixed while a validated blocker loop is
+already open, but the main/orchestrating agent must record whether the fix is
+material to review inputs.
+
+P2/P3-only findings do not trigger a review rerun unless the fix materially
+changes contract, scope, schema, validator behavior, mandatory evidence,
+verification result, project overlay, workflow policy, review packet content or
+current evidence examples.
+
+The main/orchestrating agent records accepted, fixed, deferred and rejected
+P2/P3 rationale in the review-cycle or finding-validation report.
+
 ## Consequences
 
 - Review reports become structured inputs, not final truth.

@@ -45,6 +45,11 @@ The workflow keeps the homogeneous baseline pair and adds one or more focused
 reviewers. The baseline pair still receives the same packet, prompt and rubric.
 Focused reviewers receive explicit focus zones.
 
+The homogeneous baseline pair may use different providers, such as one internal
+Codex reviewer and one Claude Code external reviewer, but the two baseline
+generalists must receive the same substantive prompt, same substantive packet,
+same rubric and same output schema. Provider transport metadata may differ.
+
 Use this when a normal review is still useful, but a declared risk needs extra
 attention, such as architecture, product/spec, security, adversarial or domain
 risk.
@@ -104,7 +109,14 @@ prompt_policy:
   same_prompt: true
   same_packet: true
   same_rubric: true
+  same_output_schema: true
 ```
+
+For `homogeneous-plus-focused`, the homogeneous baseline pair has the same
+substantive equality rule even when providers differ. Focused reviewers receive
+the same full review packet and diff plus their explicit focus zone. Focus zones
+guide attention; they do not prevent reporting any plausible P0/P1 blocker
+outside the focus.
 
 The assembled prompt set is recorded in `review-prompt-contract.yaml`. That
 contract records reviewer instances, role contract paths, prompt component

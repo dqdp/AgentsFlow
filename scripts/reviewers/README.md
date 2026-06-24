@@ -85,9 +85,55 @@ Completed external evidence must also have `exit_code: 0` and invocation hashes
 that match the current review packet, rendered prompt, prompt contract, role
 contract, rubric, output schema, raw provider output and normalized reviewer
 report.
+For Claude assignments, `run_review_set.py` also requires
+`inputs.external_reviewer_preflight` before dispatch. The preflight must be a
+passing `external_reviewer_preflight` artifact for the current prompt contract
+and provider config; completed invocation-set evidence stores its path and hash.
 When model diversity is required, completed diversity is derived from evidence:
 internal reports must declare `reviewer.model`, and Claude assignments use
 `requested_model` plus provider-reported model usage from invocation metadata.
+
+## Review metrics generator
+
+`generate_review_metrics.py` writes the `review-metrics.json` artifact
+from review invocation evidence:
+
+```bash
+python3 scripts/reviewers/generate_review_metrics.py \
+  --run-id <run-id> \
+  --workflow <workflow> \
+  --review-invocation-set Docs/agentsflow/runs/<run-id>/review-invocation-set.json \
+  --output Docs/agentsflow/runs/<run-id>/review-metrics.json
+```
+
+The generator is deterministic. It does not call providers, inspect live auth
+state or estimate usage. Tokens and cost are recorded only when provider
+evidence reports them. The output records review-phase and cycle timing,
+per-reviewer timing, retry/timeout/nonzero-exit/normalization status, and links
+to packets, reports, invocation metadata and finding-validation artifacts when
+available.
+
+## External reviewer preflight generator
+
+`generate_external_reviewer_preflight.py` writes deterministic preflight
+evidence for the first external reviewer launch in a gate:
+
+```bash
+python3 scripts/reviewers/generate_external_reviewer_preflight.py \
+  --provider claude-code \
+  --config examples/external-reviewers/claude-code/claude-code.yaml \
+  --review-prompt-contract Docs/agentsflow/runs/<run-id>/review-prompt-contract.yaml \
+  --role-contract profiles/reviewer_roles/generalist.yaml \
+  --rubric-source docs/review-prompt-contract.md \
+  --output-schema schemas/reviewer-report.schema.json \
+  --output Docs/agentsflow/runs/<run-id>/external-reviewer-preflight.json
+```
+
+The generator records wrapper/config/schema hashes, prompt/rubric/role
+fingerprints, forbidden Claude API/proxy environment status and the declared
+permission/sandbox/transport mode. It does not call Claude. If forbidden
+Claude API/proxy environment variables are present, the preflight fails and the
+review gate is blocked before provider dispatch.
 
 Example mixed-provider smoke:
 

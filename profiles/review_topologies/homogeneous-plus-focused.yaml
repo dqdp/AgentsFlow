@@ -19,7 +19,11 @@ prompt_policy:
   baseline_same_prompt: true
   baseline_same_packet: true
   baseline_same_rubric: true
+  baseline_same_output_schema: true
+  baseline_same_substantive_prompt_across_providers: true
+  provider_transport_metadata_may_differ: true
   focused_reviewers_require_explicit_focus_zone: true
+  focused_reviewers_receive_full_packet: true
   focus_zones_may_overlap: true
   all_reviewers_must_report_p0_p1_outside_focus: true
 fusion:
@@ -34,4 +38,7 @@ blocking_policy:
 requirements:
   - baseline homogeneous pair
   - one or more explicit focused reviewers
+  - baseline generalists share the same substantive prompt, packet, rubric and output schema
+  - baseline generalists may use different providers
+  - focused reviewers receive the full packet plus their focus zone
   - focus zones may overlap

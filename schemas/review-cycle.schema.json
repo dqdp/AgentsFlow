@@ -59,6 +59,51 @@
         ]
       }
     },
+    "rerun_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after_validated_blocker_or_mandatory_evidence_gap",
+        "full_scope_inputs",
+        "reviewer_instruction_must_include",
+        "closure_only_review_allowed",
+        "closure_only_review_counts_as_acceptance_gate"
+      ],
+      "properties": {
+        "after_validated_blocker_or_mandatory_evidence_gap": {
+          "enum": [
+            "full_scope_blocker_and_evidence_sweep"
+          ]
+        },
+        "full_scope_inputs": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "latest_review_packet",
+              "complete_current_diff",
+              "latest_green_verification_evidence",
+              "previous_validated_findings_and_fixes"
+            ]
+          }
+        },
+        "reviewer_instruction_must_include": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "verify_closure_of_previous_validated_findings",
+              "search_for_new_or_remaining_p0_p1_blockers_across_full_slice",
+              "search_for_new_or_remaining_mandatory_evidence_gaps_across_full_slice"
+            ]
+          }
+        },
+        "closure_only_review_allowed": {
+          "type": "boolean"
+        },
+        "closure_only_review_counts_as_acceptance_gate": {
+          "const": false
+        }
+      }
+    },
     "blocking_default": {
       "type": "object",
       "additionalProperties": true,

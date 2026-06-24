@@ -97,13 +97,24 @@ provider-independent model proof.
 The v0.2 supported external provider is `claude-code`. Unsupported providers
 are configuration blockers.
 
-`reviewer_assignments` are a dispatch plan before the review gate runs. A
-run-scope assignment-enabled contract must predeclare two separate artifacts:
+`reviewer_assignments` are a dispatch plan before the review gate runs. New
+run-scope assignment-enabled contracts use `version: 2` and
+`validation.assignment_evidence_required: true`; legacy `version: 1` run
+snapshots remain historical evidence and are not retroactively upgraded.
+
+A version 2 run-scope assignment-enabled contract must predeclare separate
+artifacts:
 
 - `inputs.artifact_preparation_report`, the deterministic preparation evidence
   linking the contract, packets, rendered prompts, included context and hashes;
 - `inputs.review_invocation_set`, the invocation evidence that proves which
   assignments actually completed.
+- `inputs.review_metrics`, the post-invocation observability artifact for
+  completed review-enabled gates;
+- `inputs.external_reviewer_preflight`, required for external-provider
+  assignments before dispatch, proving the current prompt contract, provider
+  config and each prepared Claude assignment passed deterministic preflight
+  checks.
 
 `inputs.evidence_report` remains ordinary verification or project evidence. It
 is not the review invocation set.
@@ -120,6 +131,13 @@ prompt, review prompt contract, role contract, rubric, output schema, raw
 provider output and normalized reviewer report must match the current run
 artifacts. This prevents a stale external report from satisfying a later
 mixed-provider gate.
+The external reviewer preflight records `assignment_fingerprints[]` for
+prepared Claude assignments. Each entry binds a reviewer id to the provider
+config, wrapper, reviewer-report schema, prompt contract, role contract, rubric,
+forbidden-environment fingerprint and permission/sandbox/transport modes. A
+completed version 2 assignment-enabled gate must provide a metrics artifact
+whose source references resolve to the same invocation set, prompt contract and
+external preflight.
 Each reviewer assignment must write to a distinct reviewer-report artifact, and
 the report's `reviewer.id` must identify the assigned reviewer instance. A
 single report artifact cannot satisfy multiple primary-gate reviewer slots.
@@ -156,9 +174,21 @@ omits files present at review preparation time.
 
 - Keep the homogeneous baseline pair.
 - Add one or more focused reviewers.
+- The baseline pair resolves to generalist reviewer instances.
+- The baseline pair may use different providers.
+- The baseline pair must share the same substantive prompt content,
+  review-packet content, rubric and output schema.
+- Provider or transport metadata may differ.
 - Focused reviewers must have role contracts and explicit focus zones.
+- Focused reviewers receive the full review packet and diff plus their focus
+  zone.
 - Focus zones are not ownership boundaries.
 - Focused reviewers must report plausible P0/P1 blockers even outside focus.
+
+The contract records equality evidence for the baseline pair, including shared
+prompt-content, packet-content, rubric and output-schema hashes. Full rendered
+prompt hashes may differ only for technical identity, provider or transport
+fields.
 
 ### `heterogeneous-variable`
 

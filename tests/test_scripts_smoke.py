@@ -196,6 +196,155 @@ def write_minimal_review_preparation(path: Path, contract_path: Path, root: Path
     )
 
 
+def write_minimal_external_preflight(path: Path, contract_path: Path, root: Path | None = None) -> None:
+    import hashlib
+    import yaml
+
+    base = root.resolve() if root is not None else ROOT
+
+    def resolve_ref(ref: object) -> Path:
+        ref_path = Path(str(ref))
+        if ref_path.is_absolute():
+            return ref_path
+        return base / ref_path
+
+    def sha(ref_path: Path) -> str:
+        if not ref_path.exists():
+            return "sha256:" + "0" * 64
+        return "sha256:" + hashlib.sha256(ref_path.read_bytes()).hexdigest()
+
+    wrapper = resolve_ref("scripts/reviewers/run_external_reviewer.py")
+    schema = resolve_ref("schemas/reviewer-report.schema.json")
+    role_contract = resolve_ref("profiles/reviewer_roles/generalist.yaml")
+    rubric = resolve_ref("templates/review-prompts/base.md")
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    provider_config = resolve_ref("examples/external-reviewers/claude-code/claude-code.yaml")
+    for assignment in contract.get("reviewer_assignments", []) or []:
+        if isinstance(assignment, dict) and assignment.get("provider") == "claude-code" and assignment.get("provider_config"):
+            provider_config = resolve_ref(assignment.get("provider_config"))
+            break
+    reviewers = {
+        str(item.get("instance_id")): item
+        for item in contract.get("reviewer_set", []) or []
+        if isinstance(item, dict) and item.get("instance_id")
+    }
+    rendered_prompts = {
+        str(item.get("reviewer")): item
+        for item in contract.get("rendered_prompts", []) or []
+        if isinstance(item, dict) and item.get("reviewer")
+    }
+    forbidden_payload = {
+        "checked": FORBIDDEN_CLAUDE_ENV,
+        "present": [],
+    }
+    forbidden_hash = "sha256:" + hashlib.sha256(
+        json.dumps(forbidden_payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    assignment_fingerprints = []
+    for assignment in contract.get("reviewer_assignments", []) or []:
+        if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
+            continue
+        reviewer = str(assignment.get("reviewer") or "")
+        reviewer_def = reviewers.get(reviewer, {}) or {}
+        rendered_prompt = rendered_prompts.get(reviewer, {}) or {}
+        role_ref = reviewer_def.get("role_contract")
+        provider_config_ref = assignment.get("provider_config")
+        if not role_ref or not provider_config_ref:
+            continue
+        assignment_config = resolve_ref(provider_config_ref)
+        assignment_role = resolve_ref(role_ref)
+        config_data = yaml.safe_load(assignment_config.read_text(encoding="utf-8")) or {}
+        execution = config_data.get("execution", {}) or {}
+        if not all(execution.get(key) for key in ["permission_mode", "sandbox_mode"]):
+            continue
+        assignment_fingerprints.append(
+            {
+                "reviewer": reviewer,
+                "provider_config_hash": sha(assignment_config),
+                "wrapper_hash": sha(wrapper),
+                "schema_hash": sha(schema),
+                "prompt_contract_hash": sha(contract_path),
+                "role_contract_hash": sha(assignment_role),
+                "rubric_hash": str(rendered_prompt.get("rubric_hash") or sha(rubric)),
+                "forbidden_env_fingerprint": forbidden_hash,
+                "permission_mode": str(execution.get("permission_mode")),
+                "sandbox_mode": str(execution.get("sandbox_mode")),
+                "provider_transport_mode": str(execution.get("prompt_transport", "stdin")),
+            }
+        )
+    payload = {
+        "version": 1,
+        "artifact_kind": "external_reviewer_preflight",
+        "artifact_scope": "run",
+        "provider": "claude-code",
+        "mode": "full",
+        "result": "pass",
+        "generated_at": "2026-06-24T00:00:00+00:00",
+        "live_provider_call": False,
+        "fingerprint": {
+            "provider_config_hash": sha(provider_config),
+            "wrapper_hash": sha(wrapper),
+            "schema_hash": sha(schema),
+            "prompt_contract_hash": sha(contract_path),
+            "role_contract_hash": sha(role_contract),
+            "rubric_hash": sha(rubric),
+            "forbidden_env_fingerprint": forbidden_hash,
+            "permission_mode": "default",
+            "sandbox_mode": "require_escalated",
+            "provider_transport_mode": "stdin",
+        },
+        "forbidden_env": forbidden_payload,
+        "blockers": [],
+    }
+    if assignment_fingerprints:
+        payload["assignment_fingerprints"] = assignment_fingerprints
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_raw_output_classification_config(
+    config_path: Path,
+    classification_path: Path,
+    raw_output_path: Path,
+    *,
+    run_id: str = "2026-06-17-add-calculator",
+    material_change_id: str = "",
+) -> None:
+    import yaml
+
+    config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(encoding="utf-8")
+    )
+    config["normalization"]["raw_output_classification"] = "explicit_non_sensitive_for_this_run"
+    config["normalization"]["raw_output_classification_artifact"] = str(classification_path)
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    classification_path.write_text(
+        yaml.safe_dump(
+            {
+                "artifact_kind": "provider_raw_output_classification",
+                "artifact_scope": "run",
+                "run_id": run_id,
+                "material_change_id": material_change_id,
+                "provider": "claude-code",
+                "classification": "explicit_non_sensitive_for_this_run",
+                "classified_by": "test",
+                "classified_at": "2026-06-24T00:00:00+00:00",
+                "basis": ["test fixture contains only synthetic reviewer output"],
+                "retention": {
+                    "preserve_raw_output": True,
+                    "raw_output_path": str(raw_output_path),
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_example_contract_lint_passes() -> None:
     result = run("scripts/contract_lint.py", "--contract", "examples/memory-policy/Docs/contracts/memory-policy.contract.md")
     assert result.returncode == 0, result.stdout + result.stderr
@@ -670,6 +819,50 @@ def test_finding_validation_calibrates_blocker_severity() -> None:
     assert "membership alone is not severity" in rendered
 
 
+def test_review_loop_health_checkpoint_template_is_trigger_bound() -> None:
+    import yaml
+
+    template = yaml.safe_load((ROOT / "templates/review-loop-health-checkpoint.yaml").read_text(encoding="utf-8"))
+
+    assert template["artifact_kind"] == "review_loop_health_checkpoint"
+    assert template["required"] is None
+    assert template["trigger_policy"] == "any"
+    assert template["required_when_no_trigger_fires"] is False
+    assert template["required_when_any_trigger_fires"] is True
+    assert template["counted_inputs_source"] == "main_agent_validated_findings_and_mandatory_evidence_gaps_only"
+    assert template["diagnostic_reviewers"]["launch_by_default"] is False
+    assert template["diagnostic_reviewers"]["outputs_are_candidate_inputs"] is True
+    assert template["risk_surface_policy"]["use_canonical_risk_surface_ids"] is True
+    assert template["risk_surface_policy"]["reviewer_wording_is_source_of_truth"] is False
+    assert template["closure"]["required_before_next_substantive_review_gate"] is True
+    assert template["closure"]["standalone_schema_required"] is False
+
+    trigger_ids = {item["id"] for item in template["triggers"]}
+    assert trigger_ids == {
+        "three_consecutive_validated_blocking_cycles",
+        "same_validated_risk_surface_repeats",
+        "stale_or_false_green_evidence_repeats",
+    }
+
+
+def test_review_cycle_report_references_health_checkpoint_template() -> None:
+    review_cycle_template = (ROOT / "templates/review-cycle-report.md").read_text(encoding="utf-8").lower()
+
+    assert "templates/review-loop-health-checkpoint.yaml" in review_cycle_template
+    assert "```yaml\nhealth_checkpoint:" not in review_cycle_template
+    assert "do not copy this section as a checkpoint" in review_cycle_template
+    assert "required: <true|false>" not in review_cycle_template
+    assert "trigger_policy: any" in review_cycle_template
+    assert "required_when_any_trigger_fires: true" in review_cycle_template
+    assert "counted_inputs:" not in review_cycle_template
+    assert "`counted_inputs_source`" in review_cycle_template
+    assert "`trigger_evidence`" in review_cycle_template
+    assert "`root_cause`" in review_cycle_template
+    assert "`human_decision`" in review_cycle_template
+    assert "main_agent_validated_findings_and_mandatory_evidence_gaps_only" in review_cycle_template
+    assert "not a review gate, cycle cap or automatic reviewer launch" in review_cycle_template
+
+
 def test_finding_validation_boundary_trace_is_trigger_based() -> None:
     protocol = (ROOT / "docs/review-agent-interaction-protocol.md").read_text(
         encoding="utf-8"
@@ -1028,6 +1221,14 @@ def test_project_operating_decisions_schema_passes() -> None:
         material_triggers = set(
             data["review_cycle_policy"]["materiality_classification"]["material_if_changes"]
         )
+        rerun_triggers = set(data["review_cycle_policy"]["rerun_review_on"])
+        rerun_scope = data["review_cycle_policy"]["rerun_scope"]
+        assert {"accepted_blocker_fixed", "mandatory_evidence_added"}.issubset(rerun_triggers)
+        assert (
+            rerun_scope["after_validated_blocker_or_mandatory_evidence_gap"]
+            == "full_scope_blocker_and_evidence_sweep"
+        )
+        assert rerun_scope["closure_only_review_counts_as_acceptance_gate"] is False
         assert {
             "task_contract_or_scope",
             "selected_risk_surfaces_or_failure_path_matrix",
@@ -1051,6 +1252,28 @@ def test_project_operating_decisions_schema_passes() -> None:
     missing_context_sources = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
     missing_context_sources["review_cycle_policy"]["control_review_context_policy"].pop("allowed_context_sources")
     assert list(validator.iter_errors(missing_context_sources))
+
+    missing_accepted_blocker_trigger = yaml.safe_load(
+        (ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8")
+    )
+    missing_accepted_blocker_trigger["review_cycle_policy"]["rerun_review_on"].remove("accepted_blocker_fixed")
+    assert list(validator.iter_errors(missing_accepted_blocker_trigger))
+
+    missing_mandatory_evidence_trigger = yaml.safe_load(
+        (ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8")
+    )
+    missing_mandatory_evidence_trigger["review_cycle_policy"]["rerun_review_on"].remove("mandatory_evidence_added")
+    assert list(validator.iter_errors(missing_mandatory_evidence_trigger))
+
+    missing_rerun_scope = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    missing_rerun_scope["review_cycle_policy"].pop("rerun_scope")
+    assert list(validator.iter_errors(missing_rerun_scope))
+
+    closure_only_acceptance = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    closure_only_acceptance["review_cycle_policy"]["rerun_scope"][
+        "closure_only_review_counts_as_acceptance_gate"
+    ] = True
+    assert list(validator.iter_errors(closure_only_acceptance))
 
     missing_materiality = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
     missing_materiality["review_cycle_policy"].pop("materiality_classification")
@@ -2311,6 +2534,53 @@ def test_review_prompt_contract_rejects_missing_shared_hash() -> None:
         raise AssertionError("missing shared prompt hash was accepted")
 
 
+def test_review_prompt_contract_v2_requires_assignment_evidence() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+
+    path = ROOT / "templates/review-prompt-contract.yaml"
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    missing_metrics = copy.deepcopy(contract)
+    missing_metrics["inputs"].pop("review_metrics", None)
+    errors = validate_repo.validate_review_prompt_contract_invariants(ROOT, path, missing_metrics, False)
+    assert "assignment evidence requires inputs.review_metrics" in "\n".join(errors)
+    try:
+        run_external_reviewer.validate_prompt_contract_invariants(missing_metrics)
+    except ValueError as exc:
+        assert "inputs.review_metrics" in str(exc)
+    else:
+        raise AssertionError("version 2 assignment evidence without metrics was accepted")
+
+    missing_preflight = copy.deepcopy(contract)
+    missing_preflight["provider_policy"]["allow_external_reviewers"] = True
+    missing_preflight["reviewer_assignments"][1].update(
+        {
+            "provider": "claude-code",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "raw_output_path": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/reviewer-report.generalist-b.raw.json",
+            "invocation_metadata_path": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/reviewer-invocation.generalist-b.json",
+        }
+    )
+    missing_preflight["inputs"].pop("external_reviewer_preflight", None)
+    errors = validate_repo.validate_review_prompt_contract_invariants(ROOT, path, missing_preflight, False)
+    assert "claude-code assignment evidence requires inputs.external_reviewer_preflight" in "\n".join(errors)
+    try:
+        run_external_reviewer.validate_prompt_contract_invariants(missing_preflight)
+    except ValueError as exc:
+        assert "inputs.external_reviewer_preflight" in str(exc)
+    else:
+        raise AssertionError("version 2 Claude assignment evidence without preflight was accepted")
+
+
 def test_review_prompt_contract_rejects_run_artifact_drift(tmp_path) -> None:
     import copy
     import hashlib
@@ -2369,7 +2639,11 @@ def test_review_prompt_contract_rejects_run_artifact_drift(tmp_path) -> None:
     assert "prompt_path content must match current packet and role contract" in "\n".join(errors)
 
     root = tmp_path / "agentsflow-shared-packet-drift"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     copied_path = (
         root
         / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
@@ -3084,6 +3358,59 @@ def test_upstream_review_cycle_rejects_hardcoded_max_cycles() -> None:
     errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_source)
     assert errors
     assert "max_review_cycles_source must be project_policy_or_workflow_binding" in "\n".join(errors)
+
+    broken_missing_rerun_trigger = copy.deepcopy(workflow)
+    broken_missing_rerun_trigger["review_cycle"]["rerun_review_on"].remove("accepted_blocker_fixed")
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_missing_rerun_trigger)
+    assert errors
+    assert "review_cycle.rerun_review_on missing: accepted_blocker_fixed" in "\n".join(errors)
+
+    broken_scope = copy.deepcopy(workflow)
+    broken_scope["review_cycle"]["rerun_scope"]["closure_only_review_counts_as_acceptance_gate"] = True
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_scope)
+    assert errors
+    assert "closure_only_review_counts_as_acceptance_gate must be false" in "\n".join(errors)
+
+    broken_missing_full_slice_instruction = copy.deepcopy(workflow)
+    broken_missing_full_slice_instruction["review_cycle"]["rerun_scope"]["reviewer_instruction_must_include"].remove(
+        "search_for_new_or_remaining_p0_p1_blockers_across_full_slice"
+    )
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_missing_full_slice_instruction)
+    assert errors
+    assert "search_for_new_or_remaining_p0_p1_blockers_across_full_slice" in "\n".join(errors)
+
+
+def test_review_cycle_rerun_scope_requires_full_scope_sweep() -> None:
+    import yaml
+
+    workflow_paths = sorted((ROOT / "workflows").glob("*/workflow.yaml"))
+    assert workflow_paths
+    for path in workflow_paths:
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        review_cycle = workflow.get("review_cycle")
+        if not isinstance(review_cycle, dict):
+            continue
+        rerun_scope = review_cycle.get("rerun_scope")
+        assert rerun_scope, path
+        assert (
+            rerun_scope["after_validated_blocker_or_mandatory_evidence_gap"]
+            == "full_scope_blocker_and_evidence_sweep"
+        )
+        assert rerun_scope["closure_only_review_counts_as_acceptance_gate"] is False
+        assert {
+            "latest_review_packet",
+            "complete_current_diff",
+            "latest_green_verification_evidence",
+            "previous_validated_findings_and_fixes",
+        } <= set(rerun_scope["full_scope_inputs"])
+        assert {
+            "verify_closure_of_previous_validated_findings",
+            "search_for_new_or_remaining_p0_p1_blockers_across_full_slice",
+            "search_for_new_or_remaining_mandatory_evidence_gaps_across_full_slice",
+        } <= set(rerun_scope["reviewer_instruction_must_include"])
 
 
 def test_v02_review_control_fusion_requires_validation_after_fusion() -> None:
@@ -3900,7 +4227,11 @@ def test_validate_repo_tracked_only_ignores_untracked_files(tmp_path) -> None:
     import shutil
 
     root = tmp_path / "repo"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
     subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
 
@@ -4831,6 +5162,92 @@ def test_external_reviewer_wrapper_mock_passes(tmp_path) -> None:
     assert invocation["tools"] == ""
 
 
+def test_external_reviewer_wrapper_requires_raw_output_classification(tmp_path) -> None:
+    import yaml
+
+    config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(encoding="utf-8")
+    )
+    config["normalization"].pop("raw_output_classification", None)
+    config_path = tmp_path / "claude-code.yaml"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    out = tmp_path / "reviewer-report.claude-architecture.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", str(config_path),
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", "examples/external-reviewers/claude-code/mock-raw-output.json",
+        "--output", str(out),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "raw_output_classification" in (result.stdout + result.stderr)
+    assert not out.exists()
+
+
+def test_external_reviewer_wrapper_requires_run_raw_output_classification_artifact(tmp_path) -> None:
+    import pytest
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+
+    config = {
+        "normalization": {
+            "preserve_raw_output": True,
+            "raw_output_classification": "explicit_non_sensitive",
+        }
+    }
+
+    with pytest.raises(ValueError, match="raw_output_classification_artifact"):
+        run_external_reviewer.validate_raw_output_retention_policy(
+            config,
+            tmp_path / "claude-code.yaml",
+            "claude-code",
+            {"run_id": "run-1", "material_change_id": "change-1"},
+            {"artifact_scope": "run"},
+            tmp_path / "reviewer-report.raw.json",
+        )
+
+
+def test_external_reviewer_wrapper_live_preflight_requires_pass_artifact(tmp_path) -> None:
+    import pytest
+    import sys
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+
+    contract = {
+        "artifact_scope": "run",
+        "inputs": {},
+    }
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract), encoding="utf-8")
+    packet = {
+        "reviewer_instance_id": "generalist-b",
+        "review_prompt_contract": {"path": str(contract_path)},
+    }
+    packet_hashes = {
+        "artifact_scope": "run",
+        "review_prompt_contract_hash": "sha256:" + "1" * 64,
+        "schema_hash": "sha256:" + "2" * 64,
+        "role_contract_hash": "sha256:" + "3" * 64,
+        "rubric_hash": "sha256:" + "4" * 64,
+    }
+
+    with pytest.raises(ValueError, match="external_reviewer_preflight"):
+        run_external_reviewer.validate_live_external_reviewer_preflight(
+            ROOT / "examples/external-reviewers/claude-code/claude-code.yaml",
+            "claude-code",
+            packet,
+            packet_hashes,
+        )
+
+
 def test_claude_code_provider_command_defaults_model_and_effort() -> None:
     import sys
 
@@ -5179,7 +5596,16 @@ def test_external_reviewer_wrapper_records_schema_valid_nonzero_provider_exit(tm
         )
 
     out = tmp_path / "reviewer-report.json"
+    config_path = tmp_path / "claude-code.yaml"
+    write_raw_output_classification_config(
+        config_path,
+        tmp_path / "raw-output-classification.yaml",
+        out.with_suffix(".raw.json"),
+        run_id="YYYY-MM-DD-task-slug",
+        material_change_id="",
+    )
     monkeypatch.setattr(run_external_reviewer, "validate_review_packet", fake_validate_review_packet)
+    monkeypatch.setattr(run_external_reviewer, "validate_live_external_reviewer_preflight", lambda *args: None)
     monkeypatch.setattr(run_external_reviewer, "render_prompt", lambda packet, role_contract: prompt)
     monkeypatch.setattr(claude_code, "invoke", fake_invoke)
     monkeypatch.setattr(
@@ -5190,7 +5616,7 @@ def test_external_reviewer_wrapper_records_schema_valid_nonzero_provider_exit(tm
             "--provider",
             "claude-code",
             "--config",
-            "examples/external-reviewers/claude-code/claude-code.yaml",
+            str(config_path),
             "--input",
             "examples/external-reviewers/claude-code/review-packet.architecture.json",
             "--output",
@@ -5684,6 +6110,11 @@ def test_review_prompt_contract_model_diversity_requires_model_evidence(tmp_path
     root.mkdir()
     for rel in ["schemas", "profiles", "templates/review-prompts"]:
         shutil.copytree(ROOT / rel, root / rel)
+    (root / "scripts" / "reviewers").mkdir(parents=True)
+    shutil.copy(
+        ROOT / "scripts/reviewers/run_external_reviewer.py",
+        root / "scripts/reviewers/run_external_reviewer.py",
+    )
     run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
     shutil.copytree(ROOT / run_rel, root / run_rel)
     contract_path = root / run_rel / "review-prompt-contract.yaml"
@@ -5841,6 +6272,11 @@ def test_review_prompt_contract_rejects_mock_external_review_evidence(tmp_path) 
     root.mkdir()
     for rel in ["schemas", "profiles", "templates/review-prompts"]:
         shutil.copytree(ROOT / rel, root / rel)
+    (root / "scripts" / "reviewers").mkdir(parents=True)
+    shutil.copy(
+        ROOT / "scripts/reviewers/run_external_reviewer.py",
+        root / "scripts/reviewers/run_external_reviewer.py",
+    )
     run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
     shutil.copytree(ROOT / run_rel, root / run_rel)
     contract_path = root / run_rel / "review-prompt-contract.yaml"
@@ -5994,6 +6430,11 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     root.mkdir()
     for rel in ["schemas", "profiles", "templates/review-prompts"]:
         shutil.copytree(ROOT / rel, root / rel)
+    (root / "scripts" / "reviewers").mkdir(parents=True)
+    shutil.copy(
+        ROOT / "scripts/reviewers/run_external_reviewer.py",
+        root / "scripts/reviewers/run_external_reviewer.py",
+    )
     run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
     shutil.copytree(ROOT / run_rel, root / run_rel)
     (root / "examples/external-reviewers/claude-code").mkdir(parents=True, exist_ok=True)
@@ -6012,6 +6453,8 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     claude_invocation = reports_dir / "reviewer-invocation.claude-generalist-b.json"
     invocation_set = run_rel / "review-invocation-set.json"
     preparation_path = run_rel / "prepared-review-artifacts.json"
+    external_preflight = run_rel / "external-reviewer-preflight.json"
+    review_metrics = run_rel / "review-metrics.json"
 
     for report, provider, model in [
         (internal_report, "internal-agent", "codex"),
@@ -6050,6 +6493,8 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     }
     contract["inputs"]["artifact_preparation_report"] = str(preparation_path)
     contract["inputs"]["review_invocation_set"] = str(invocation_set)
+    contract["inputs"]["review_metrics"] = str(review_metrics)
+    contract["inputs"]["external_reviewer_preflight"] = str(external_preflight)
     contract["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -6091,6 +6536,8 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
             encoding="utf-8",
         )
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_external_preflight(root / external_preflight, contract_path, root)
+    external_preflight_hash = validate_repo.sha256_file(root / external_preflight)
 
     prompt_hash = next(
         item["prompt_hash"] for item in contract["rendered_prompts"] if item["reviewer"] == "generalist-b"
@@ -6233,7 +6680,11 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                 "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
                 "artifact_preparation_report": str(preparation_path),
                 "artifact_preparation_report_hash": preparation_hash,
+                "external_reviewer_preflight": str(external_preflight),
+                "external_reviewer_preflight_hash": external_preflight_hash,
                 "status": "completed",
+                "started_at": "2026-06-21T00:00:00+00:00",
+                "finished_at": "2026-06-21T00:00:02+00:00",
                 "runner_scheduling": "external-first-async",
                 "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
                 "reviewers": [
@@ -6245,6 +6696,8 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                         "packet_path": contract["inputs"]["review_packets"][0]["path"],
                         "report_path": str(internal_report),
                         "status": "report-present",
+                        "started_at": "2026-06-21T00:00:00+00:00",
+                        "finished_at": "2026-06-21T00:00:01+00:00",
                     },
                     {
                         "reviewer": "generalist-b",
@@ -6257,8 +6710,93 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                         "invocation_metadata_path": str(claude_invocation),
                         "execution_mode": "real",
                         "status": "invoked",
+                        "started_at": "2026-06-21T00:00:00+00:00",
+                        "finished_at": "2026-06-21T00:00:01+00:00",
                     },
                 ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (root / review_metrics).write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "artifact_kind": "review_metrics",
+                "artifact_scope": "run",
+                "run_id": "2026-06-17-add-calculator",
+                "workflow": "pr-merge-readiness",
+                "material_change_id": "test-material-change",
+                "generated_at": "2026-06-21T00:00:02+00:00",
+                "source_artifacts": {
+                    "review_invocation_set": str(invocation_set),
+                    "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                    "external_reviewer_preflight": str(external_preflight),
+                    "review_packets": [item["path"] for item in contract["inputs"]["review_packets"]],
+                    "reviewer_reports": [str(internal_report), str(claude_report)],
+                    "invocation_metadata": [str(claude_invocation)],
+                    "finding_validation_report": None,
+                    "review_cycle_report": None,
+                },
+                "planned_reviewer_slots": 2,
+                "completed_reviewer_invocations": 2,
+                "provider_preflight_blockers": 0,
+                "substantive_review_cycles": 1,
+                "timing": {
+                    "review_phase_started_at": "2026-06-21T00:00:00+00:00",
+                    "review_phase_finished_at": "2026-06-21T00:00:02+00:00",
+                    "review_phase_elapsed_ms": 2000,
+                    "cycle_started_at": "2026-06-21T00:00:00+00:00",
+                    "cycle_finished_at": "2026-06-21T00:00:02+00:00",
+                    "cycle_elapsed_ms": 2000,
+                    "summed_reviewer_elapsed_ms": 2000,
+                    "summed_provider_runtime_ms": 1000,
+                },
+                "reviewer_invocations": [
+                    {
+                        "reviewer": "generalist-a",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "status": "report-present",
+                        "completed": True,
+                        "provider_preflight_blocker": False,
+                        "review_packet_path": contract["inputs"]["review_packets"][0]["path"],
+                        "report_path": str(internal_report),
+                        "invocation_metadata_path": None,
+                        "reviewer_started_at": "2026-06-21T00:00:00+00:00",
+                        "reviewer_finished_at": "2026-06-21T00:00:01+00:00",
+                        "reviewer_elapsed_ms": 1000,
+                        "provider_runtime_ms": None,
+                        "retry_count": 0,
+                        "timed_out": False,
+                        "nonzero_exit": False,
+                        "normalization_status": "passed",
+                    },
+                    {
+                        "reviewer": "generalist-b",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "status": "invoked",
+                        "completed": True,
+                        "provider_preflight_blocker": False,
+                        "review_packet_path": contract["inputs"]["review_packets"][1]["path"],
+                        "report_path": str(claude_report),
+                        "invocation_metadata_path": str(claude_invocation),
+                        "reviewer_started_at": "2026-06-21T00:00:00+00:00",
+                        "reviewer_finished_at": "2026-06-21T00:00:01+00:00",
+                        "reviewer_elapsed_ms": 1000,
+                        "provider_runtime_ms": 1000,
+                        "retry_count": 0,
+                        "timed_out": False,
+                        "nonzero_exit": False,
+                        "normalization_status": "passed",
+                    },
+                ],
+                "provider_usage": {
+                    "tokens": {"available": False, "reason": "Provider did not report token usage."},
+                    "cost": {"available": False, "reason": "Provider did not report cost usage."},
+                },
             },
             indent=2,
         ),
@@ -6267,6 +6805,189 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
 
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert not errors
+
+    invocation_set_data = json.loads((root / invocation_set).read_text(encoding="utf-8"))
+    review_metrics_data = json.loads((root / review_metrics).read_text(encoding="utf-8"))
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["source_artifacts"]["review_packets"] = ["stale-review-packet.json"]
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "source_artifacts.review_packets must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["source_artifacts"]["reviewer_reports"] = ["stale-reviewer-report.json"]
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "source_artifacts.reviewer_reports must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["source_artifacts"]["invocation_metadata"] = ["stale-invocation-metadata.json"]
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "source_artifacts.invocation_metadata must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["provider_preflight_blockers"] = 1
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "provider_preflight_blockers must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["substantive_review_cycles"] = 0
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "substantive_review_cycles must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["timing"]["review_phase_elapsed_ms"] = 999
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "timing.review_phase_elapsed_ms must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["reviewer_invocations"][1]["provider_runtime_ms"] = 999
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer_invocations[generalist-b].provider_runtime_ms must match invocation metadata" in "\n".join(
+        errors
+    )
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+    stale_invocation_set = copy.deepcopy(invocation_set_data)
+    stale_invocation_set["reviewers"][1]["provider_runtime_ms"] = 999
+    (root / invocation_set).write_text(json.dumps(stale_invocation_set, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["provider_usage"]["tokens"] = {
+        "available": True,
+        "input": 1,
+        "output": 1,
+        "total": 2,
+    }
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "provider_usage must match invocation metadata" in "\n".join(errors)
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+    stale_invocation_set = copy.deepcopy(invocation_set_data)
+    stale_invocation_set["reviewers"][1]["provider_usage"] = {
+        "tokens": {"available": True, "input": 100, "output": 200, "total": 300}
+    }
+    stale_invocation_set["reviewers"][1]["provider_total_cost_usd"] = 999.0
+    (root / invocation_set).write_text(json.dumps(stale_invocation_set, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["source_artifacts"].pop("review_prompt_contract")
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_metrics.source_artifacts.review_prompt_contract is required" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["source_artifacts"].pop("external_reviewer_preflight")
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_metrics.source_artifacts.external_reviewer_preflight is required" in "\n".join(errors)
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["reviewer_invocations"] = []
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer_invocations must cover review_invocation_set reviewers exactly" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["reviewer_invocations"][1]["status"] = "report-present"
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer_invocations[generalist-b].status must match review_invocation_set" in "\n".join(errors)
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+
+    (root / review_metrics).unlink()
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "completed review_invocation_set requires inputs.review_metrics artifact" in "\n".join(errors)
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+
+    failed_invocation_set = copy.deepcopy(invocation_set_data)
+    failed_invocation_set["status"] = "failed"
+    failed_invocation_set["finished_at"] = "2026-06-21T00:00:03+00:00"
+    failed_invocation_set["error"] = "external reviewer failed after provider dispatch"
+    failed_invocation_set["reviewers"][1]["status"] = "failed"
+    failed_invocation_set["reviewers"][1]["dispatch_started_at"] = "2026-06-21T00:00:00+00:00"
+    failed_invocation_set["reviewers"][1]["dispatch_finished_at"] = "2026-06-21T00:00:03+00:00"
+    failed_invocation_set["reviewers"][1]["exit_code"] = 2
+    failed_invocation_set["reviewers"][1]["error"] = "external reviewer failed after provider dispatch"
+    failed_invocation_set["reviewers"][1].pop("evidence_model_family", None)
+    (root / invocation_set).write_text(json.dumps(failed_invocation_set, indent=2), encoding="utf-8")
+    failed_metrics = copy.deepcopy(review_metrics_data)
+    failed_metrics["completed_reviewer_invocations"] = 1
+    failed_metrics["substantive_review_cycles"] = 1
+    failed_metrics["timing"]["review_phase_finished_at"] = "2026-06-21T00:00:03+00:00"
+    failed_metrics["timing"]["cycle_finished_at"] = "2026-06-21T00:00:03+00:00"
+    failed_metrics["timing"]["review_phase_elapsed_ms"] = 3000
+    failed_metrics["timing"]["cycle_elapsed_ms"] = 3000
+    failed_metrics["timing"]["summed_reviewer_elapsed_ms"] = 1000
+    failed_metrics["source_artifacts"]["reviewer_reports"] = [str(internal_report)]
+    failed_metrics["reviewer_invocations"][1]["status"] = "failed"
+    failed_metrics["reviewer_invocations"][1]["completed"] = False
+    failed_metrics["reviewer_invocations"][1]["nonzero_exit"] = True
+    failed_metrics["reviewer_invocations"][1]["normalization_status"] = "not_available"
+    (root / review_metrics).write_text(json.dumps(failed_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+    stale_failed_invocation_set = copy.deepcopy(failed_invocation_set)
+    stale_failed_invocation_set.pop("external_reviewer_preflight_hash")
+    (root / invocation_set).write_text(json.dumps(stale_failed_invocation_set, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_invocation_set.external_reviewer_preflight_hash" in "\n".join(errors)
+    (root / invocation_set).write_text(json.dumps(failed_invocation_set, indent=2), encoding="utf-8")
+    stale_failed_metrics = copy.deepcopy(failed_metrics)
+    stale_failed_metrics["source_artifacts"].pop("external_reviewer_preflight")
+    (root / review_metrics).write_text(json.dumps(stale_failed_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_metrics.source_artifacts.external_reviewer_preflight is required" in "\n".join(errors)
+    stale_failed_metrics = copy.deepcopy(failed_metrics)
+    stale_failed_metrics["substantive_review_cycles"] = 0
+    (root / review_metrics).write_text(json.dumps(stale_failed_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "substantive_review_cycles must match review_invocation_set" in "\n".join(errors)
+    stale_failed_metrics = copy.deepcopy(failed_metrics)
+    stale_failed_metrics["reviewer_invocations"][1]["nonzero_exit"] = False
+    (root / review_metrics).write_text(json.dumps(stale_failed_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer_invocations[generalist-b].nonzero_exit must match review_invocation_set" in "\n".join(errors)
+    (root / review_metrics).unlink()
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "terminal review_invocation_set requires inputs.review_metrics artifact" in "\n".join(errors)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+
+    preflight_data = json.loads((root / external_preflight).read_text(encoding="utf-8"))
+    stale_assignment_fingerprint = copy.deepcopy(preflight_data)
+    stale_assignment_fingerprint["assignment_fingerprints"][0]["role_contract_hash"] = "sha256:" + "0" * 64
+    (root / external_preflight).write_text(json.dumps(stale_assignment_fingerprint, indent=2), encoding="utf-8")
+    invocation_set_data = json.loads((root / invocation_set).read_text(encoding="utf-8"))
+    invocation_set_data["external_reviewer_preflight_hash"] = validate_repo.sha256_file(root / external_preflight)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "assignment_fingerprints[generalist-b].role_contract_hash" in "\n".join(errors)
+    (root / external_preflight).write_text(json.dumps(preflight_data, indent=2) + "\n", encoding="utf-8")
+    invocation_set_data["external_reviewer_preflight_hash"] = validate_repo.sha256_file(root / external_preflight)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+
+    preflight_with_non_authoritative_top_level_config = copy.deepcopy(preflight_data)
+    preflight_with_non_authoritative_top_level_config["fingerprint"]["provider_config_hash"] = "sha256:" + "1" * 64
+    (root / external_preflight).write_text(
+        json.dumps(preflight_with_non_authoritative_top_level_config, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    invocation_set_data["external_reviewer_preflight_hash"] = validate_repo.sha256_file(root / external_preflight)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+    (root / external_preflight).write_text(json.dumps(preflight_data, indent=2) + "\n", encoding="utf-8")
+    invocation_set_data["external_reviewer_preflight_hash"] = validate_repo.sha256_file(root / external_preflight)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+
+    invocation_set_data = json.loads((root / invocation_set).read_text(encoding="utf-8"))
+    stale_preflight_binding = copy.deepcopy(invocation_set_data)
+    stale_preflight_binding["external_reviewer_preflight_hash"] = "sha256:" + "0" * 64
+    (root / invocation_set).write_text(json.dumps(stale_preflight_binding, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "external_reviewer_preflight_hash" in "\n".join(errors)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
 
     skip_raw_invocation = copy.deepcopy(valid_invocation)
     skip_raw_invocation["raw_output_path"] = ""
@@ -6421,6 +7142,15 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     external_invocation = tmp_path / "reviewer-invocation.claude-generalist-b.json"
     output = tmp_path / "review-invocation-set.json"
     preparation = tmp_path / "prepared-review-artifacts.json"
+    external_preflight = tmp_path / "external-reviewer-preflight.json"
+    provider_config = tmp_path / "claude-code.yaml"
+    write_raw_output_classification_config(
+        provider_config,
+        tmp_path / "raw-output-classification.yaml",
+        external_raw_output,
+        run_id="2026-06-17-add-calculator",
+        material_change_id="",
+    )
     contract["provider_policy"] = {
         "allow_external_reviewers": True,
         "require_model_diversity": True,
@@ -6428,6 +7158,7 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     }
     contract["inputs"]["artifact_preparation_report"] = str(preparation)
     contract["inputs"]["review_invocation_set"] = str(output)
+    contract["inputs"]["external_reviewer_preflight"] = str(external_preflight)
     contract["reviewer_assignments"] = [
         {
             "reviewer": "generalist-a",
@@ -6440,7 +7171,7 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
             "reviewer": "generalist-b",
             "provider": "claude-code",
             "model_family": "opus",
-            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "provider_config": str(provider_config),
             "packet_path": contract["inputs"]["review_packets"][1]["path"],
             "report_path": str(external_report),
             "raw_output_path": str(external_raw_output),
@@ -6450,6 +7181,7 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     contract_path = tmp_path / "review-prompt-contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
     write_minimal_review_preparation(preparation, contract_path)
+    write_minimal_external_preflight(external_preflight, contract_path)
 
     result = run(
         "scripts/reviewers/run_review_set.py",
@@ -6462,6 +7194,7 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     data = json.loads(output.read_text(encoding="utf-8"))
     assert data["status"] == "completed"
     assert data["artifact_preparation_report_hash"].startswith("sha256:")
+    assert data["external_reviewer_preflight_hash"].startswith("sha256:")
     assert data["provider_model_families"] == ["claude-code/opus", "internal-agent/codex"]
     internal_entry = next(item for item in data["reviewers"] if item["provider"] == "internal-agent")
     assert internal_entry["evidence_model_family"] == "codex"
@@ -6501,6 +7234,7 @@ def test_run_review_set_starts_external_reviewers_asynchronously(tmp_path) -> No
         "reviewer-report.schema.json",
         "review-invocation-set.schema.json",
         "review-artifact-preparation.schema.json",
+        "external-reviewer-preflight.schema.json",
     ]:
         (root / "schemas" / schema_name).write_text(
             (ROOT / "schemas" / schema_name).read_text(encoding="utf-8"),
@@ -6603,6 +7337,7 @@ invocation_path.write_text(json.dumps({
         "inputs": {
             "artifact_preparation_report": "Docs/agentsflow/runs/async-review-set/prepared-review-artifacts.json",
             "review_invocation_set": str(output.relative_to(root)),
+            "external_reviewer_preflight": "Docs/agentsflow/runs/async-review-set/external-reviewer-preflight.json",
         },
         "reviewer_assignments": [
             {
@@ -6637,6 +7372,7 @@ invocation_path.write_text(json.dumps({
     contract_path = run_dir / "review-prompt-contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
     write_minimal_review_preparation(run_dir / "prepared-review-artifacts.json", contract_path, root)
+    write_minimal_external_preflight(run_dir / "external-reviewer-preflight.json", contract_path, root)
     log_path = tmp_path / "async-starts.jsonl"
     env = clean_env()
     env["AF_ASYNC_REVIEW_LOG"] = str(log_path)
@@ -6679,6 +7415,7 @@ invocation_path.write_text(json.dumps({
     data = json.loads(output.read_text(encoding="utf-8"))
     assert data["runner_scheduling"] == "external-first-async"
     assert data["artifact_preparation_report_hash"].startswith("sha256:")
+    assert data["external_reviewer_preflight_hash"].startswith("sha256:")
     assert data["status"] == "completed"
 
 
@@ -6699,6 +7436,7 @@ def test_run_review_set_times_out_hung_external_without_losing_completed_peer(tm
         "reviewer-report.schema.json",
         "review-invocation-set.schema.json",
         "review-artifact-preparation.schema.json",
+        "external-reviewer-preflight.schema.json",
     ]:
         (root / "schemas" / schema_name).write_text(
             (ROOT / "schemas" / schema_name).read_text(encoding="utf-8"),
@@ -6774,6 +7512,7 @@ invocation_path.write_text(json.dumps({
         "inputs": {
             "artifact_preparation_report": "Docs/agentsflow/runs/timeout-review-set/prepared-review-artifacts.json",
             "review_invocation_set": str(output.relative_to(root)),
+            "external_reviewer_preflight": "Docs/agentsflow/runs/timeout-review-set/external-reviewer-preflight.json",
         },
         "reviewer_assignments": [
             {
@@ -6801,6 +7540,7 @@ invocation_path.write_text(json.dumps({
     contract_path = run_dir / "review-prompt-contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
     write_minimal_review_preparation(run_dir / "prepared-review-artifacts.json", contract_path, root)
+    write_minimal_external_preflight(run_dir / "external-reviewer-preflight.json", contract_path, root)
 
     started = time.monotonic()
     result = subprocess.run(
@@ -6992,6 +7732,165 @@ def test_run_review_set_rejects_unvalidated_artifact_preparation_report(tmp_path
     assert "preparation artifact schema validation failed" in (result.stdout + result.stderr)
 
 
+def test_run_review_set_requires_external_preflight_before_dispatch(tmp_path) -> None:
+    import json
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    output = tmp_path / "review-invocation-set.json"
+    preparation = tmp_path / "prepared-review-artifacts.json"
+    external_report = tmp_path / "reviewer-report.claude-generalist-b.json"
+    contract["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": False,
+    }
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(output)
+    contract["inputs"].pop("external_reviewer_preflight", None)
+    contract["reviewer_set"] = [contract["reviewer_set"][1]]
+    contract["inputs"]["review_packets"] = [contract["inputs"]["review_packets"][1]]
+    contract["rendered_prompts"] = [contract["rendered_prompts"][1]]
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-b",
+            "provider": "claude-code",
+            "model_family": "opus",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(external_report),
+            "raw_output_path": str(tmp_path / "reviewer-report.claude-generalist-b.raw.json"),
+            "invocation_metadata_path": str(tmp_path / "reviewer-invocation.claude-generalist-b.json"),
+        }
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(preparation, contract_path)
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(output),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "inputs.external_reviewer_preflight" in (result.stdout + result.stderr)
+    assert output.exists()
+    assert not external_report.exists()
+    invocation_set = json.loads(output.read_text(encoding="utf-8"))
+    assert invocation_set["status"] == "failed"
+    assert len(invocation_set["reviewers"]) == 1
+    assert invocation_set["reviewers"][0]["reviewer"] == "generalist-b"
+    assert invocation_set["reviewers"][0]["status"] == "provider_preflight_blocked"
+    metrics = tmp_path / "review-metrics.json"
+    metrics_result = run(
+        "scripts/reviewers/generate_review_metrics.py",
+        "--run-id",
+        "missing-preflight-test",
+        "--workflow",
+        "pr-merge-readiness",
+        "--review-invocation-set",
+        str(output),
+        "--output",
+        str(metrics),
+        env=clean_env(),
+    )
+    assert metrics_result.returncode == 0, metrics_result.stdout + metrics_result.stderr
+    metrics_data = json.loads(metrics.read_text(encoding="utf-8"))
+    assert metrics_data["planned_reviewer_slots"] == 1
+    assert metrics_data["completed_reviewer_invocations"] == 0
+    assert metrics_data["provider_preflight_blockers"] == 1
+
+
+def test_run_review_set_classifies_missing_provider_config_as_preflight_blocker(tmp_path) -> None:
+    import json
+    import yaml
+
+    source_contract_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
+    )
+    contract = yaml.safe_load(source_contract_path.read_text(encoding="utf-8"))
+    output = tmp_path / "review-invocation-set.json"
+    preparation = tmp_path / "prepared-review-artifacts.json"
+    external_preflight = tmp_path / "external-reviewer-preflight.json"
+    external_report = tmp_path / "reviewer-report.claude-generalist-b.json"
+    missing_provider_config = tmp_path / "missing-claude-code.yaml"
+    missing_provider_config.write_text(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    contract["provider_policy"] = {
+        "allow_external_reviewers": True,
+        "require_model_diversity": False,
+    }
+    contract["inputs"]["artifact_preparation_report"] = str(preparation)
+    contract["inputs"]["review_invocation_set"] = str(output)
+    contract["inputs"]["external_reviewer_preflight"] = str(external_preflight)
+    contract["reviewer_set"] = [contract["reviewer_set"][1]]
+    contract["inputs"]["review_packets"] = [contract["inputs"]["review_packets"][1]]
+    contract["rendered_prompts"] = [contract["rendered_prompts"][1]]
+    contract["reviewer_assignments"] = [
+        {
+            "reviewer": "generalist-b",
+            "provider": "claude-code",
+            "model_family": "opus",
+            "provider_config": str(missing_provider_config),
+            "packet_path": contract["inputs"]["review_packets"][0]["path"],
+            "report_path": str(external_report),
+            "raw_output_path": str(tmp_path / "reviewer-report.claude-generalist-b.raw.json"),
+            "invocation_metadata_path": str(tmp_path / "reviewer-invocation.claude-generalist-b.json"),
+        }
+    ]
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+    write_minimal_review_preparation(preparation, contract_path)
+    write_minimal_external_preflight(external_preflight, contract_path)
+    missing_provider_config.unlink()
+
+    result = run(
+        "scripts/reviewers/run_review_set.py",
+        "--contract",
+        str(contract_path),
+        "--output",
+        str(output),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "provider_config missing" in (result.stdout + result.stderr)
+    invocation_set = json.loads(output.read_text(encoding="utf-8"))
+    reviewer = invocation_set["reviewers"][0]
+    assert reviewer["status"] == "provider_preflight_blocked"
+    assert reviewer["failure_stage"] == "external_reviewer_preflight"
+    assert invocation_set["external_reviewer_preflight"] == str(external_preflight)
+    assert invocation_set["external_reviewer_preflight_hash"].startswith("sha256:")
+    metrics = tmp_path / "review-metrics.json"
+    metrics_result = run(
+        "scripts/reviewers/generate_review_metrics.py",
+        "--run-id",
+        "missing-provider-config-test",
+        "--workflow",
+        "pr-merge-readiness",
+        "--review-invocation-set",
+        str(output),
+        "--output",
+        str(metrics),
+        env=clean_env(),
+    )
+    assert metrics_result.returncode == 0, metrics_result.stdout + metrics_result.stderr
+    metrics_data = json.loads(metrics.read_text(encoding="utf-8"))
+    assert metrics_data["provider_preflight_blockers"] == 1
+    assert metrics_data["substantive_review_cycles"] == 0
+    assert metrics_data["source_artifacts"]["external_reviewer_preflight"] == str(external_preflight)
+
+
 def test_run_review_set_rejects_stale_preparation_packet_hash_before_dispatch(tmp_path) -> None:
     import json
 
@@ -7008,6 +7907,7 @@ def test_run_review_set_rejects_stale_preparation_packet_hash_before_dispatch(tm
     external_raw_output = tmp_path / "reviewer-report.claude-generalist-b.raw.json"
     external_invocation = tmp_path / "reviewer-invocation.claude-generalist-b.json"
     external_raw = tmp_path / "mock-claude-generalist-b.raw.json"
+    external_preflight = tmp_path / "external-reviewer-preflight.json"
     external_raw.write_text(
         json.dumps(
             {
@@ -7037,6 +7937,7 @@ def test_run_review_set_rejects_stale_preparation_packet_hash_before_dispatch(tm
     }
     contract["inputs"]["artifact_preparation_report"] = str(preparation)
     contract["inputs"]["review_invocation_set"] = str(output)
+    contract["inputs"]["external_reviewer_preflight"] = str(external_preflight)
     contract["reviewer_set"] = [contract["reviewer_set"][1]]
     contract["inputs"]["review_packets"] = [contract["inputs"]["review_packets"][1]]
     contract["rendered_prompts"] = [contract["rendered_prompts"][1]]
@@ -7055,6 +7956,7 @@ def test_run_review_set_rejects_stale_preparation_packet_hash_before_dispatch(tm
     contract_path = tmp_path / "review-prompt-contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
     write_minimal_review_preparation(preparation, contract_path)
+    write_minimal_external_preflight(external_preflight, contract_path)
     preparation_data = json.loads(preparation.read_text(encoding="utf-8"))
     preparation_data["generated_artifacts"]["review_packets"][0]["hash"] = "sha256:" + "0" * 64
     preparation.write_text(json.dumps(preparation_data, indent=2), encoding="utf-8")
@@ -7264,6 +8166,568 @@ def test_review_artifact_preparation_schema_passes() -> None:
     template = json.loads((ROOT / "templates/review-artifact-preparation.json").read_text(encoding="utf-8"))
 
     jsonschema.Draft202012Validator(schema).validate(template)
+
+
+def test_review_metrics_schema_template_passes() -> None:
+    import json
+
+    import jsonschema
+
+    schema = json.loads((ROOT / "schemas/review-metrics.schema.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "templates/review-metrics.json").read_text(encoding="utf-8"))
+
+    jsonschema.Draft202012Validator(schema).validate(template)
+
+
+def test_generate_review_metrics_minimal_from_invocation_set(tmp_path) -> None:
+    import json
+
+    import jsonschema
+
+    invocation_set = tmp_path / "review-invocation-set.json"
+    output = tmp_path / "review-metrics.json"
+    invocation_set.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": "Docs/agentsflow/runs/example/review-prompt-contract.yaml",
+                "artifact_preparation_report": "Docs/agentsflow/runs/example/review-artifact-preparation.json",
+                "artifact_preparation_report_hash": "sha256:" + "0" * 64,
+                "status": "failed",
+                "started_at": "2026-06-24T10:00:00+00:00",
+                "finished_at": "2026-06-24T10:00:05+00:00",
+                "runner_scheduling": "external-first-async",
+                "provider_model_families": ["internal-agent/codex", "claude-code/opus"],
+                "reviewers": [
+                    {
+                        "reviewer": "generalist-codex",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "packet_path": "review-packets/generalist-codex.json",
+                        "report_path": "reviewer-report.generalist-codex.json",
+                        "status": "completed",
+                        "started_at": "2026-06-24T10:00:01+00:00",
+                        "finished_at": "2026-06-24T10:00:03+00:00",
+                    },
+                    {
+                        "reviewer": "generalist-claude",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "packet_path": "review-packets/generalist-claude.json",
+                        "report_path": "reviewer-report.generalist-claude.json",
+                        "status": "provider_preflight_blocked",
+                        "error": "sandbox permission denied before provider invocation",
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = run(
+        "scripts/reviewers/generate_review_metrics.py",
+        "--run-id",
+        "example-run",
+        "--workflow",
+        "big-feature-contract-first",
+        "--review-invocation-set",
+        str(invocation_set),
+        "--output",
+        str(output),
+    )
+
+    assert result.returncode == 0, result.stderr
+    metrics = json.loads(output.read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "schemas/review-metrics.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(metrics)
+
+    assert metrics["artifact_kind"] == "review_metrics"
+    assert metrics["planned_reviewer_slots"] == 2
+    assert metrics["completed_reviewer_invocations"] == 1
+    assert metrics["provider_preflight_blockers"] == 1
+    assert metrics["substantive_review_cycles"] == 0
+    assert metrics["timing"]["review_phase_elapsed_ms"] == 5000
+    assert metrics["timing"]["summed_reviewer_elapsed_ms"] == 2000
+    assert metrics["provider_usage"]["tokens"]["available"] is False
+    assert metrics["provider_usage"]["cost"]["available"] is False
+    assert "estimated" not in json.dumps(metrics).lower()
+
+
+def test_generate_review_metrics_counts_failed_post_dispatch_cycle(tmp_path) -> None:
+    import json
+
+    invocation_set = tmp_path / "review-invocation-set.json"
+    output = tmp_path / "review-metrics.json"
+    invocation_set.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": "Docs/agentsflow/runs/example/review-prompt-contract.yaml",
+                "status": "failed",
+                "started_at": "2026-06-24T10:00:00+00:00",
+                "finished_at": "2026-06-24T10:05:00+00:00",
+                "runner_scheduling": "external-first-async",
+                "provider_model_families": ["claude-code/opus"],
+                "reviewers": [
+                    {
+                        "reviewer": "generalist-claude",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "packet_path": "review-packets/generalist-claude.json",
+                        "report_path": "reviewer-report.generalist-claude.json",
+                        "status": "timed-out",
+                        "dispatch_started_at": "2026-06-24T10:00:01+00:00",
+                        "dispatch_finished_at": "2026-06-24T10:05:00+00:00",
+                        "error": "external reviewer generalist-claude timed out after 300 seconds",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = run(
+        "scripts/reviewers/generate_review_metrics.py",
+        "--run-id",
+        "example-run",
+        "--workflow",
+        "big-feature-contract-first",
+        "--review-invocation-set",
+        str(invocation_set),
+        "--output",
+        str(output),
+    )
+
+    assert result.returncode == 0, result.stderr
+    metrics = json.loads(output.read_text(encoding="utf-8"))
+    assert metrics["provider_preflight_blockers"] == 0
+    assert metrics["completed_reviewer_invocations"] == 0
+    assert metrics["substantive_review_cycles"] == 1
+    assert metrics["reviewer_invocations"][0]["timed_out"] is True
+
+
+def test_generate_review_metrics_matches_review_set_runner_shape(tmp_path) -> None:
+    import json
+
+    import jsonschema
+
+    invocation_metadata = tmp_path / "reviewer-invocation.generalist-claude.json"
+    invocation_metadata.write_text(
+        json.dumps(
+            {
+                "started_at": "2026-06-24T10:00:03+00:00",
+                "finished_at": "2026-06-24T10:00:07+00:00",
+                "provider_model_usage": {
+                    "claude-opus-4-8": {
+                        "inputTokens": 3,
+                        "outputTokens": 4,
+                        "cacheReadInputTokens": 1,
+                        "cacheCreationInputTokens": 2,
+                        "costUSD": 1.23,
+                    }
+                },
+                "provider_total_cost_usd": 1.23,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    invocation_set = tmp_path / "review-invocation-set.json"
+    output = tmp_path / "review-metrics.json"
+    invocation_set.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": "Docs/agentsflow/runs/example/review-prompt-contract.yaml",
+                "artifact_preparation_report": "Docs/agentsflow/runs/example/review-artifact-preparation.json",
+                "artifact_preparation_report_hash": "sha256:" + "0" * 64,
+                "status": "completed",
+                "started_at": "2026-06-24T10:00:00+00:00",
+                "finished_at": "2026-06-24T10:00:10+00:00",
+                "runner_scheduling": "external-first-async",
+                "provider_model_families": ["internal-agent/codex", "claude-code/opus"],
+                "reviewers": [
+                    {
+                        "reviewer": "generalist-codex",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "packet_path": "review-packets/generalist-codex.json",
+                        "report_path": "reviewer-report.generalist-codex.json",
+                        "checked_at": "2026-06-24T10:00:02+00:00",
+                        "status": "report-present",
+                    },
+                    {
+                        "reviewer": "generalist-claude",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "packet_path": "review-packets/generalist-claude.json",
+                        "report_path": "reviewer-report.generalist-claude.json",
+                        "raw_output_path": "",
+                        "invocation_metadata_path": str(invocation_metadata),
+                        "status": "invoked",
+                        "dispatch_started_at": "2026-06-24T10:00:01+00:00",
+                        "dispatch_finished_at": "2026-06-24T10:00:08+00:00",
+                        "exit_code": 0,
+                        "provider_runtime_ms": 999,
+                        "provider_total_cost_usd": 999.0,
+                        "provider_usage": {
+                            "tokens": {
+                                "available": True,
+                                "input": 100,
+                                "output": 200,
+                                "total": 300,
+                            },
+                            "cost": {
+                                "available": True,
+                                "amount": 999.0,
+                                "currency": "USD",
+                            },
+                        },
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = run(
+        "scripts/reviewers/generate_review_metrics.py",
+        "--run-id",
+        "example-run",
+        "--workflow",
+        "big-feature-contract-first",
+        "--review-invocation-set",
+        str(invocation_set),
+        "--output",
+        str(output),
+    )
+
+    assert result.returncode == 0, result.stderr
+    metrics = json.loads(output.read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "schemas/review-metrics.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(metrics)
+
+    assert metrics["planned_reviewer_slots"] == 2
+    assert metrics["completed_reviewer_invocations"] == 2
+    assert metrics["substantive_review_cycles"] == 1
+    assert metrics["timing"]["review_phase_elapsed_ms"] == 10000
+    assert metrics["timing"]["summed_reviewer_elapsed_ms"] == 7000
+    assert metrics["timing"]["summed_provider_runtime_ms"] == 4000
+    assert metrics["reviewer_invocations"][0]["completed"] is True
+    assert metrics["reviewer_invocations"][0]["elapsed_ms"] is None
+    assert metrics["reviewer_invocations"][1]["completed"] is True
+    assert metrics["reviewer_invocations"][1]["elapsed_ms"] == 7000
+    assert metrics["provider_usage"]["tokens"] == {
+        "available": True,
+        "input": 6,
+        "output": 4,
+        "total": 10,
+    }
+    assert metrics["provider_usage"]["cost"] == {
+        "available": True,
+        "amount": 1.23,
+        "currency": "USD",
+    }
+
+    failed_invocation_set = json.loads(invocation_set.read_text(encoding="utf-8"))
+    failed_invocation_set["status"] = "failed"
+    failed_invocation_set["reviewers"][1]["status"] = "failed"
+    invocation_set.write_text(json.dumps(failed_invocation_set, indent=2), encoding="utf-8")
+    failed_output = tmp_path / "review-metrics.failed.json"
+    result = run(
+        "scripts/reviewers/generate_review_metrics.py",
+        "--run-id",
+        "example-run",
+        "--workflow",
+        "big-feature-contract-first",
+        "--review-invocation-set",
+        str(invocation_set),
+        "--output",
+        str(failed_output),
+    )
+
+    assert result.returncode == 0, result.stderr
+    failed_metrics = json.loads(failed_output.read_text(encoding="utf-8"))
+    assert failed_metrics["completed_reviewer_invocations"] == 1
+    assert failed_metrics["source_artifacts"]["reviewer_reports"] == ["reviewer-report.generalist-codex.json"]
+
+
+def test_review_metrics_schema_rejects_available_usage_without_values() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import pytest
+
+    schema = json.loads((ROOT / "schemas/review-metrics.schema.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "templates/review-metrics.json").read_text(encoding="utf-8"))
+
+    broken_tokens = copy.deepcopy(template)
+    broken_tokens["provider_usage"]["tokens"] = {"available": True}
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.Draft202012Validator(schema).validate(broken_tokens)
+
+    broken_cost = copy.deepcopy(template)
+    broken_cost["provider_usage"]["cost"] = {"available": True, "amount": 1.23}
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.Draft202012Validator(schema).validate(broken_cost)
+
+
+def test_external_reviewer_preflight_schema_template_passes() -> None:
+    import json
+
+    import jsonschema
+
+    schema = json.loads((ROOT / "schemas/external-reviewer-preflight.schema.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "templates/external-reviewer-preflight.json").read_text(encoding="utf-8"))
+
+    jsonschema.Draft202012Validator(schema).validate(template)
+
+
+def test_generate_external_reviewer_preflight_records_fingerprint(tmp_path) -> None:
+    import json
+
+    import jsonschema
+
+    output = tmp_path / "external-reviewer-preflight.json"
+    result = run(
+        "scripts/reviewers/generate_external_reviewer_preflight.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--review-prompt-contract",
+        "templates/review-prompt-contract.yaml",
+        "--role-contract",
+        "profiles/reviewer_roles/generalist.yaml",
+        "--rubric-source",
+        "templates/review-prompts/base.md",
+        "--output-schema",
+        "schemas/reviewer-report.schema.json",
+        "--output",
+        str(output),
+        "--mode",
+        "full",
+    )
+
+    assert result.returncode == 0, result.stderr
+    preflight = json.loads(output.read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "schemas/external-reviewer-preflight.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(preflight)
+
+    assert preflight["artifact_kind"] == "external_reviewer_preflight"
+    assert preflight["provider"] == "claude-code"
+    assert preflight["mode"] == "full"
+    assert preflight["live_provider_call"] is False
+    assert preflight["result"] == "pass"
+    assert preflight["fingerprint"]["provider_config_hash"].startswith("sha256:")
+    assert preflight["fingerprint"]["wrapper_hash"].startswith("sha256:")
+    assert preflight["fingerprint"]["schema_hash"].startswith("sha256:")
+    assert preflight["fingerprint"]["prompt_contract_hash"].startswith("sha256:")
+    assert preflight["fingerprint"]["role_contract_hash"].startswith("sha256:")
+    assert preflight["fingerprint"]["rubric_hash"].startswith("sha256:")
+    assert preflight["fingerprint"]["permission_mode"] == "default"
+    assert preflight["fingerprint"]["sandbox_mode"] == "require_escalated"
+    assert "ANTHROPIC_API_KEY" in preflight["forbidden_env"]["checked"]
+    assert preflight["forbidden_env"]["present"] == []
+
+
+def test_generate_external_reviewer_preflight_rejects_invalid_provider_config(tmp_path) -> None:
+    import yaml
+
+    config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(encoding="utf-8")
+    )
+    config["execution"]["sandbox_mode"] = "default"
+    config_path = tmp_path / "claude-code.invalid.yaml"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    output = tmp_path / "external-reviewer-preflight.json"
+
+    result = run(
+        "scripts/reviewers/generate_external_reviewer_preflight.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        str(config_path),
+        "--review-prompt-contract",
+        "templates/review-prompt-contract.yaml",
+        "--role-contract",
+        "profiles/reviewer_roles/generalist.yaml",
+        "--rubric-source",
+        "templates/review-prompts/base.md",
+        "--output-schema",
+        "schemas/reviewer-report.schema.json",
+        "--output",
+        str(output),
+        "--mode",
+        "full",
+    )
+
+    assert result.returncode != 0
+    assert "sandbox_mode" in (result.stdout + result.stderr)
+    assert not output.exists()
+
+
+def test_generate_external_reviewer_preflight_requires_run_raw_output_classification_artifact(
+    tmp_path,
+) -> None:
+    import yaml
+
+    config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(encoding="utf-8")
+    )
+    config_path = tmp_path / "claude-code.yaml"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    packet_path = tmp_path / "review-packet.json"
+    packet_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_packet",
+                "artifact_scope": "run",
+                "run_id": "2026-06-24-review-gate-hardening",
+                "material_change_id": "slice-a",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    raw_output_path = tmp_path / "raw-output.json"
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(
+        yaml.safe_dump(
+            {
+                "artifact_kind": "review_prompt_contract",
+                "reviewer_set": [
+                    {
+                        "instance_id": "generalist-claude",
+                        "role_id": "generalist",
+                        "role_contract": "profiles/reviewer_roles/generalist.yaml",
+                    }
+                ],
+                "rendered_prompts": [],
+                "reviewer_assignments": [
+                    {
+                        "reviewer": "generalist-claude",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "provider_config": str(config_path),
+                        "packet_path": str(packet_path),
+                        "report_path": str(tmp_path / "reviewer-report.generalist-claude.json"),
+                        "raw_output_path": str(raw_output_path),
+                        "invocation_metadata_path": str(tmp_path / "reviewer-invocation.generalist-claude.json"),
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "external-reviewer-preflight.json"
+
+    result = run(
+        "scripts/reviewers/generate_external_reviewer_preflight.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        str(config_path),
+        "--review-prompt-contract",
+        str(contract_path),
+        "--role-contract",
+        "profiles/reviewer_roles/generalist.yaml",
+        "--rubric-source",
+        "templates/review-prompts/base.md",
+        "--output-schema",
+        "schemas/reviewer-report.schema.json",
+        "--output",
+        str(output),
+        "--mode",
+        "full",
+    )
+
+    assert result.returncode != 0
+    assert "raw_output_classification_artifact" in (result.stdout + result.stderr)
+    assert not output.exists()
+
+    classification_path = tmp_path / "raw-output-classification.yaml"
+    write_raw_output_classification_config(
+        config_path,
+        classification_path,
+        raw_output_path,
+        run_id="2026-06-24-review-gate-hardening",
+        material_change_id="slice-a",
+    )
+    result = run(
+        "scripts/reviewers/generate_external_reviewer_preflight.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        str(config_path),
+        "--review-prompt-contract",
+        str(contract_path),
+        "--role-contract",
+        "profiles/reviewer_roles/generalist.yaml",
+        "--rubric-source",
+        "templates/review-prompts/base.md",
+        "--output-schema",
+        "schemas/reviewer-report.schema.json",
+        "--output",
+        str(output),
+        "--mode",
+        "full",
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_external_reviewer_preflight_schema_rejects_unsafe_pass_modes() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import pytest
+
+    schema = json.loads((ROOT / "schemas/external-reviewer-preflight.schema.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "templates/external-reviewer-preflight.json").read_text(encoding="utf-8"))
+
+    broken_sandbox = copy.deepcopy(template)
+    broken_sandbox["fingerprint"]["sandbox_mode"] = "default"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.Draft202012Validator(schema).validate(broken_sandbox)
+
+    broken_permission = copy.deepcopy(template)
+    broken_permission["fingerprint"]["permission_mode"] = "plan"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.Draft202012Validator(schema).validate(broken_permission)
+
+
+def test_external_reviewer_preflight_schema_rejects_malformed_pass_evidence() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import pytest
+
+    schema = json.loads((ROOT / "schemas/external-reviewer-preflight.schema.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "templates/external-reviewer-preflight.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+
+    broken_hash = copy.deepcopy(template)
+    broken_hash["fingerprint"]["provider_config_hash"] = "sha256:not-a-real-digest"
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(broken_hash)
+
+    missing_env = copy.deepcopy(template)
+    missing_env["forbidden_env"]["checked"].remove("ANTHROPIC_API_KEY")
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(missing_env)
+
+    missing_blockers = copy.deepcopy(template)
+    missing_blockers.pop("blockers")
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(missing_blockers)
 
 
 def test_review_prompt_contract_assignments_require_preparation_evidence() -> None:
@@ -7577,6 +9041,66 @@ def test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts(
     assert "review_artifact_preparation review packet hash" in "\n".join(errors)
 
 
+def test_review_artifact_preparation_declared_input_hashes_are_historical(tmp_path) -> None:
+    import copy
+    import json
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    contract_path, shared_packet_path, preparation_path, run_dir = _write_minimal_preparation_fixture(root)
+    _git_commit_all(root)
+    source_path = root / "src/new.py"
+    source_path.write_text("print('new')\n", encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/prepare_review_set_artifacts.py",
+        "--root",
+        str(root),
+        "--contract",
+        str(contract_path.relative_to(root)),
+        "--shared-packet",
+        str(shared_packet_path.relative_to(root)),
+        "--preparation-output",
+        str(preparation_path.relative_to(root)),
+        "--include",
+        "src/new.py",
+        "--include",
+        "AGENTS.md",
+        env=clean_env(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    preparation = json.loads(preparation_path.read_text(encoding="utf-8"))
+    invocation_set_path = run_dir / "review-invocation-set.json"
+    invocation_set = json.loads(invocation_set_path.read_text(encoding="utf-8"))
+    invocation_set["status"] = "completed"
+    invocation_set["artifact_preparation_report_hash"] = validate_repo.sha256_file(preparation_path)
+    invocation_set_path.write_text(json.dumps(invocation_set, indent=2), encoding="utf-8")
+
+    source_path.write_text(source_path.read_text(encoding="utf-8") + "\n# later drift\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not any("input_artifacts[0].hash hash mismatch" in error for error in errors)
+
+    broken = copy.deepcopy(preparation)
+    broken["input_artifacts"][0]["hash"] = "not-a-hash"
+    preparation_path.write_text(json.dumps(broken, indent=2), encoding="utf-8")
+    preparation_hash = validate_repo.sha256_file(preparation_path)
+    invocation_set = json.loads(invocation_set_path.read_text(encoding="utf-8"))
+    invocation_set["artifact_preparation_report_hash"] = preparation_hash
+    invocation_set_path.write_text(json.dumps(invocation_set, indent=2), encoding="utf-8")
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "input_artifacts[0].hash must be a concrete sha256" in "\n".join(errors)
+
+
 def _write_minimal_preparation_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
     import json
     import shutil
@@ -7592,6 +9116,7 @@ def _write_minimal_preparation_fixture(root: Path) -> tuple[Path, Path, Path, Pa
     (root / "src").mkdir()
     (root / "AGENTS.md").write_text("# Test Instructions\n", encoding="utf-8")
     (run_dir / "task.contract.md").write_text("# Task Contract\n", encoding="utf-8")
+    (run_dir / "evidence-report.md").write_text("# Evidence Report\n", encoding="utf-8")
     (run_dir / "verification-gate-report.json").write_text(
         json.dumps(
             {
@@ -7781,6 +9306,126 @@ def _git_commit_all(root: Path) -> None:
     subprocess.run(["git", "config", "user.name", "AgentsFlow Test"], cwd=root, check=True)
     subprocess.run(["git", "add", "."], cwd=root, check=True)
     subprocess.run(["git", "commit", "-m", "initial"], cwd=root, text=True, capture_output=True, check=True)
+
+
+def test_prepare_review_set_artifacts_generates_homogeneous_plus_focused_baseline_hashes(tmp_path) -> None:
+    import json
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    contract_path, shared_packet_path, preparation_path, run_dir = _write_minimal_preparation_fixture(root)
+
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    shared_packet = json.loads(shared_packet_path.read_text(encoding="utf-8"))
+    shared_packet["review_profile"] = "homogeneous-plus-focused"
+    shared_packet["composition"] = "homogeneous-plus-focused"
+    shared_packet["prompt_policy"] = {
+        "baseline_same_prompt": True,
+        "baseline_same_packet": True,
+        "baseline_same_rubric": True,
+        "baseline_same_output_schema": True,
+        "baseline_same_substantive_prompt_across_providers": True,
+        "provider_transport_metadata_may_differ": True,
+        "focused_reviewers_require_explicit_focus_zone": True,
+        "focused_reviewers_receive_full_packet": True,
+        "focus_zones_may_overlap": True,
+        "all_reviewers_must_report_p0_p1_outside_focus": True,
+    }
+    shared_packet_path.write_text(json.dumps(shared_packet, indent=2) + "\n", encoding="utf-8")
+
+    contract["identity"]["review_profile"] = "homogeneous-plus-focused"
+    contract["identity"]["topology"] = "homogeneous-plus-focused"
+    contract["identity"]["composition"] = "homogeneous-plus-focused"
+    contract["provider_policy"]["require_model_diversity"] = False
+    contract["prompt_policy"] = shared_packet["prompt_policy"]
+    contract["reviewer_set"].append(
+        {
+            "instance_id": "adversarial-codex",
+            "role_id": "adversarial",
+            "role_contract": "profiles/reviewer_roles/adversarial.yaml",
+            "independent": True,
+            "focus_zone": {"topic": "adversarial", "primary_focus": "evidence bypass"},
+        }
+    )
+    contract["inputs"]["review_packets"].append(
+        {
+            "reviewer": "adversarial-codex",
+            "path": "Docs/agentsflow/runs/2026-06-21-prep/review-packets/adversarial-codex.json",
+            "schema": "schemas/review-packet.schema.json",
+            "packet_hash": "sha256:<pending>",
+        }
+    )
+    contract["rendered_prompts"].append(
+        {
+            "reviewer": "adversarial-codex",
+            "prompt_path": "Docs/agentsflow/runs/2026-06-21-prep/review-prompts/adversarial-codex.md",
+            "prompt_hash": "sha256:<pending>",
+            "packet_hash": "sha256:<pending>",
+            "schema_hash": "sha256:<pending>",
+            "rubric_hash": "sha256:<pending>",
+            "role_contract_hash": "sha256:<pending>",
+        }
+    )
+    contract["reviewer_assignments"][1]["provider"] = "internal-agent"
+    contract["reviewer_assignments"][1].pop("provider_config", None)
+    contract["reviewer_assignments"][1].pop("raw_output_path", None)
+    contract["reviewer_assignments"][1].pop("invocation_metadata_path", None)
+    contract["reviewer_assignments"].append(
+        {
+            "reviewer": "adversarial-codex",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": "Docs/agentsflow/runs/2026-06-21-prep/review-packets/adversarial-codex.json",
+            "report_path": "Docs/agentsflow/runs/2026-06-21-prep/reports/reviewer-report.adversarial-codex.json",
+        }
+    )
+    contract["validation"]["assembly_invariants"] = [
+        "homogeneous-plus-focused uses two baseline generalists plus focused reviewers.",
+        "baseline generalists share substantive prompt and packet content hashes.",
+    ]
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    _git_commit_all(root)
+    result = run(
+        "scripts/reviewers/prepare_review_set_artifacts.py",
+        "--root",
+        str(root),
+        "--contract",
+        str(contract_path.relative_to(root)),
+        "--shared-packet",
+        str(shared_packet_path.relative_to(root)),
+        "--preparation-output",
+        str(preparation_path.relative_to(root)),
+        env=clean_env(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    prepared_contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    assert prepared_contract["version"] == 2
+    assert prepared_contract["validation"]["assignment_evidence_required"] is True
+    baseline_packet_hashes = {
+        item["reviewer"]: item.get("shared_packet_content_hash")
+        for item in prepared_contract["inputs"]["review_packets"]
+    }
+    baseline_prompt_hashes = {
+        item["reviewer"]: item.get("shared_prompt_content_hash")
+        for item in prepared_contract["rendered_prompts"]
+    }
+    assert baseline_packet_hashes["generalist-a"] == baseline_packet_hashes["generalist-b"]
+    assert baseline_prompt_hashes["generalist-a"] == baseline_prompt_hashes["generalist-b"]
+    assert baseline_packet_hashes["generalist-a"].startswith("sha256:")
+    assert baseline_packet_hashes["adversarial-codex"] is None
+    assert baseline_prompt_hashes["adversarial-codex"] is None
+
+    errors = validate_repo.validate_review_prompt_contract_invariants(root, contract_path, prepared_contract, True)
+    assert not errors
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, prepared_contract)
+    assert not errors
 
 
 def test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths(tmp_path) -> None:

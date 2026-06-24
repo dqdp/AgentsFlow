@@ -5,6 +5,10 @@ __pycache__/
 .env
 .DS_Store
 .agentsflow/
+# AgentsFlow self-application run history is local by default.
+# Commit curated evidence intentionally with `git add -f` and a separate
+# user-approved evidence commit.
+run-artifacts/agentsflow/runs/*
 run-artifacts/**/evidence/stale-review-reports/
 run-artifacts/**/evidence/raw/*.raw.json
 build/

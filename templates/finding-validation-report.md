@@ -104,7 +104,7 @@ Use this section when fusion grouped findings before validation.
 |---|---|---:|---|
 | Finding is supported by contract/evidence and has a grounded P0/P1 blocker path | accepted-relevant | yes | Fix/revise, then rerun verification gate and relevant review cycle. |
 | Finding is tagged P0/P1 but lacks a grounded blocker path | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | no by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
-| Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | no | Record follow-up; no review rerun by default. |
+| Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | no | Record follow-up, or fix during an open blocker loop with materiality classification; no review rerun by default. |
 | Finding may be valid but required evidence is missing | needs-more-evidence | yes if mandatory evidence or grounded P0/P1 blocker path | Produce evidence through the verification gate or a narrow evidence-probe objective; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | no | Record reason; no rerun. |
 | Finding is factually contradicted by contract/diff/evidence | rejected-irrelevant | no | Record contradiction; no rerun. |
@@ -153,12 +153,18 @@ Classify every fix made after review before deciding whether to rerun reviewers.
 
 | Fix ID | Finding IDs | Changed artifacts | Material? | Reason | Required next action |
 |---|---|---|---:|---|---|
-| fix-001 | F-001 | `schemas/...`, `docs/...` | yes/no | ... | rerun-verification / rerun-review / no-rerun |
+| fix-001 | F-001 | `schemas/...`, `docs/...` | yes/no | ... | rerun-verification / rerun-full-scope-review / no-rerun |
 
 A fix is material when it changes contracts, schemas, validators, workflow or
 gate policy, project bindings, mandatory evidence, verification output, reviewed
 behavior, or examples used as evidence. Editorial/report-only cleanup is
 non-material by default.
+
+When a fix closes a validated P0/P1 blocker or mandatory evidence gap, the next
+review used for acceptance must be a full-scope blocker/evidence sweep over the
+latest review packet, complete current diff, latest green verification evidence
+and previous validated findings/fixes. A closure-only review can be recorded as
+supplemental evidence, but it does not count as the acceptance review gate.
 
 ## Review Cycle Decision
 

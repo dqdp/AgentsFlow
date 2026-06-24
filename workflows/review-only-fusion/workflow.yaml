@@ -159,6 +159,19 @@ review_cycle:
   - duplicate_consolidation
   - irrelevant_findings_rejected_with_reason
   - fusion_rewording_only
+  rerun_scope:
+    after_validated_blocker_or_mandatory_evidence_gap: full_scope_blocker_and_evidence_sweep
+    full_scope_inputs:
+    - latest_review_packet
+    - complete_current_diff
+    - latest_green_verification_evidence
+    - previous_validated_findings_and_fixes
+    reviewer_instruction_must_include:
+    - verify_closure_of_previous_validated_findings
+    - search_for_new_or_remaining_p0_p1_blockers_across_full_slice
+    - search_for_new_or_remaining_mandatory_evidence_gaps_across_full_slice
+    closure_only_review_allowed: true
+    closure_only_review_counts_as_acceptance_gate: false
   materiality_classification:
     required_after_review_fixes: true
     material_triggers_take_precedence_over_do_not_rerun: true

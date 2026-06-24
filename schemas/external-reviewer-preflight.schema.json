@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/external-reviewer-preflight.schema.json",
+  "title": "External Reviewer Preflight",
+  "type": "object",
+  "required": [
+    "version",
+    "artifact_kind",
+    "provider",
+    "mode",
+    "result",
+    "generated_at",
+    "live_provider_call",
+    "fingerprint",
+    "forbidden_env"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "artifact_kind": {
+      "const": "external_reviewer_preflight"
+    },
+    "artifact_scope": {
+      "type": "string",
+      "enum": ["template", "example", "run"],
+      "default": "run"
+    },
+    "provider": {
+      "const": "claude-code"
+    },
+    "mode": {
+      "enum": ["full", "cached_fingerprint"]
+    },
+    "result": {
+      "enum": ["pass", "blocked"]
+    },
+    "generated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "live_provider_call": {
+      "const": false
+    },
+    "fingerprint": {
+      "type": "object",
+      "required": [
+        "provider_config_hash",
+        "wrapper_hash",
+        "schema_hash",
+        "prompt_contract_hash",
+        "role_contract_hash",
+        "rubric_hash",
+        "forbidden_env_fingerprint",
+        "permission_mode",
+        "sandbox_mode",
+        "provider_transport_mode"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "provider_config_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "wrapper_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "schema_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "prompt_contract_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "role_contract_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "rubric_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "forbidden_env_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "permission_mode": {
+          "const": "default"
+        },
+        "sandbox_mode": {
+          "const": "require_escalated"
+        },
+        "provider_transport_mode": {
+          "enum": ["stdin", "file"]
+        }
+      }
+    },
+    "assignment_fingerprints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "reviewer",
+          "provider_config_hash",
+          "wrapper_hash",
+          "schema_hash",
+          "prompt_contract_hash",
+          "role_contract_hash",
+          "rubric_hash",
+          "forbidden_env_fingerprint",
+          "permission_mode",
+          "sandbox_mode",
+          "provider_transport_mode"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "reviewer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider_config_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "wrapper_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "schema_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "prompt_contract_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "role_contract_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "rubric_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "forbidden_env_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "permission_mode": {
+            "const": "default"
+          },
+          "sandbox_mode": {
+            "const": "require_escalated"
+          },
+          "provider_transport_mode": {
+            "enum": ["stdin", "file"]
+          }
+        }
+      }
+    },
+    "forbidden_env": {
+      "type": "object",
+      "required": ["checked", "present"],
+      "additionalProperties": true,
+      "properties": {
+        "checked": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "present": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "result": {
+            "const": "pass"
+          }
+        },
+        "required": ["result"]
+      },
+      "then": {
+        "required": ["blockers"],
+        "properties": {
+          "forbidden_env": {
+            "properties": {
+              "checked": {
+                "allOf": [
+                  {
+                    "contains": {
+                      "const": "ANTHROPIC_API_KEY"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "ANTHROPIC_AUTH_TOKEN"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "ANTHROPIC_BASE_URL"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "CLAUDE_CODE_USE_BEDROCK"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "CLAUDE_CODE_USE_VERTEX"
+                    }
+                  }
+                ]
+              },
+              "present": {
+                "maxItems": 0
+              }
+            }
+          },
+          "blockers": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

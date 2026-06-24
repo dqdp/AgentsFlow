@@ -222,6 +222,28 @@ When completing a task, provide an acceptance proof:
 - known limitations;
 - unresolved design questions.
 
+## Commit hygiene for run artifacts
+
+Self-application run history under `run-artifacts/agentsflow/runs/` is local by
+default. Do not stage or commit new run directories as part of ordinary
+methodology, schema, script, template or test changes.
+
+If curated run evidence is intentionally needed in Git history:
+
+1. Get explicit user approval for the exact evidence scope.
+2. Keep it in a separate evidence commit unless the user explicitly asks for a
+   combined commit.
+3. Use `git add -f run-artifacts/agentsflow/runs/<run-id>/...`.
+4. Exclude raw provider output, stale reports and unrelated intermediate loops.
+5. Before committing, check:
+
+```bash
+git diff --cached --name-only | rg '^run-artifacts/agentsflow/runs/'
+```
+
+Any match must be intentionally approved evidence, not incidental output from
+`git add -A`.
+
 ## Non-goals for v0.2
 
 Do not introduce:

@@ -205,6 +205,23 @@ Repeated review agents are not rerun when all P0/P1 candidate findings have been
 validated and no validated blockers or mandatory evidence gaps remain. P2/P3/NOTE
 findings can become follow-up work without forcing another review cycle.
 
+Important P2/P3 findings may also be fixed while a validated blocker loop is
+already open. The main/orchestrating agent records why the fix is worth doing
+now and whether it materially changes review inputs. A P2/P3-only fix does not
+force another review cycle unless it materially changes contract, scope,
+selected risk surfaces, Failure Path Matrix, schema, validator behavior,
+mandatory evidence, verification output, project overlay, workflow policy,
+review packet content or current evidence examples.
+
+When a fix closes a validated P0/P1 blocker or mandatory evidence gap, the
+review rerun that supports acceptance is not a closure-only material-fix check.
+It must be a full-scope blocker/evidence sweep over the latest review packet,
+complete current diff, latest green verification evidence and previous validated
+findings/fixes. Reviewers must be asked both to verify closure and to search for
+new or remaining P0/P1 blockers and mandatory evidence gaps across the full
+slice. A closure-only review can be kept as supplemental evidence, but it does
+not satisfy the review gate for acceptance.
+
 ## Result states
 
 - `pass`

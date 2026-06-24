@@ -1,0 +1,365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/review-metrics.schema.json",
+  "title": "Review Metrics",
+  "type": "object",
+  "required": [
+    "version",
+    "artifact_kind",
+    "run_id",
+    "workflow",
+    "generated_at",
+    "source_artifacts",
+    "planned_reviewer_slots",
+    "completed_reviewer_invocations",
+    "provider_preflight_blockers",
+    "substantive_review_cycles",
+    "timing",
+    "reviewer_invocations",
+    "provider_usage"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "artifact_kind": {
+      "const": "review_metrics"
+    },
+    "artifact_scope": {
+      "type": "string",
+      "enum": ["template", "example", "run"],
+      "default": "run"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workflow": {
+      "type": "string",
+      "minLength": 1
+    },
+    "material_change_id": {
+      "type": ["string", "null"]
+    },
+    "generated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_artifacts": {
+      "type": "object",
+      "required": ["review_invocation_set", "review_prompt_contract", "review_packets", "reviewer_reports"],
+      "additionalProperties": true,
+      "properties": {
+        "review_invocation_set": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_prompt_contract": {
+          "type": ["string", "null"]
+        },
+        "external_reviewer_preflight": {
+          "type": ["string", "null"]
+        },
+        "review_packets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "reviewer_reports": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "invocation_metadata": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "finding_validation_report": {
+          "type": ["string", "null"]
+        },
+        "review_cycle_report": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "planned_reviewer_slots": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completed_reviewer_invocations": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "provider_preflight_blockers": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "substantive_review_cycles": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timing": {
+      "type": "object",
+      "required": [
+        "review_phase_started_at",
+        "review_phase_finished_at",
+        "review_phase_elapsed_ms",
+        "cycle_started_at",
+        "cycle_finished_at",
+        "cycle_elapsed_ms",
+        "summed_reviewer_elapsed_ms",
+        "summed_provider_runtime_ms"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "review_phase_started_at": {
+          "type": ["string", "null"]
+        },
+        "review_phase_finished_at": {
+          "type": ["string", "null"]
+        },
+        "review_phase_elapsed_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "cycle_started_at": {
+          "type": ["string", "null"]
+        },
+        "cycle_finished_at": {
+          "type": ["string", "null"]
+        },
+        "cycle_elapsed_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "summed_reviewer_elapsed_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "summed_provider_runtime_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reviewer_invocations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "reviewer",
+          "provider",
+          "model_family",
+          "status",
+          "completed",
+          "provider_preflight_blocker",
+          "review_packet_path",
+          "report_path",
+          "invocation_metadata_path",
+          "reviewer_started_at",
+          "reviewer_finished_at",
+          "reviewer_elapsed_ms",
+          "provider_runtime_ms",
+          "retry_count",
+          "timed_out",
+          "nonzero_exit",
+          "normalization_status"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "reviewer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_family": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "provider_preflight_blocker": {
+            "type": "boolean"
+          },
+          "review_packet_path": {
+            "type": ["string", "null"]
+          },
+          "started_at": {
+            "type": ["string", "null"]
+          },
+          "finished_at": {
+            "type": ["string", "null"]
+          },
+          "elapsed_ms": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "provider_runtime_ms": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "reviewer_started_at": {
+            "type": ["string", "null"]
+          },
+          "reviewer_finished_at": {
+            "type": ["string", "null"]
+          },
+          "reviewer_elapsed_ms": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "retry_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "nonzero_exit": {
+            "type": "boolean"
+          },
+          "normalization_status": {
+            "type": "string",
+            "minLength": 1
+          },
+          "report_path": {
+            "type": ["string", "null"]
+          },
+          "invocation_metadata_path": {
+            "type": ["string", "null"]
+          },
+          "error": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "provider_usage": {
+      "type": "object",
+      "required": ["tokens", "cost"],
+      "additionalProperties": true,
+      "properties": {
+        "tokens": {
+          "type": "object",
+          "required": ["available"],
+          "additionalProperties": true,
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "input": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "available": {
+                    "const": true
+                  }
+                },
+                "required": ["available"]
+              },
+              "then": {
+                "required": ["input", "output", "total"]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "available": {
+                    "const": false
+                  }
+                },
+                "required": ["available"]
+              },
+              "then": {
+                "required": ["reason"]
+              }
+            }
+          ]
+        },
+        "cost": {
+          "type": "object",
+          "required": ["available"],
+          "additionalProperties": true,
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "amount": {
+              "type": "number",
+              "minimum": 0
+            },
+            "currency": {
+              "type": "string"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "available": {
+                    "const": true
+                  }
+                },
+                "required": ["available"]
+              },
+              "then": {
+                "required": ["amount", "currency"]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "available": {
+                    "const": false
+                  }
+                },
+                "required": ["available"]
+              },
+              "then": {
+                "required": ["reason"]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

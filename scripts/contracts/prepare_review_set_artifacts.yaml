@@ -11,13 +11,16 @@ inputs:
   explicit_includes: Paths that must be hashed and recorded as input artifacts
   explicit_exclusions: Dirty worktree paths excluded with reasons
 outputs:
-  review_prompt_contract: Updated contract with packet, prompt, preparation and invocation-set paths/hashes
+  review_prompt_contract: Updated contract with packet, prompt, preparation, invocation-set and metrics paths/hashes
   review_packets: Per-reviewer packet JSON artifacts
   rendered_prompts: Per-reviewer prompt text artifacts
   review_artifact_preparation: JSON artifact conforming to schemas/review-artifact-preparation.schema.json
+  review_invocation_set: Predeclared invocation-set artifact
+  review_metrics: Predeclared post-invocation metrics artifact path in the updated contract
 guarantees:
   - Does not choose reviewer topology or provider assignments.
   - Does not decide which project files are semantically important.
   - Fails closed when dirty worktree paths are neither included nor explicitly excluded.
   - Uses the same reviewer prompt rendering function as external reviewer invocation.
   - Records hashes for generated packets, prompts, input artifacts and the updated review prompt contract.
+  - Predeclares review_metrics as a post-invocation required artifact for completed review-enabled gates.

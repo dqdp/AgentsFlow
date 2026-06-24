@@ -61,4 +61,5 @@ normalization:
   # false unless raw provider output has been explicitly classified as
   # non-sensitive.
   preserve_raw_output: true
+  raw_output_classification: explicit_non_sensitive_fixture
   record_trace: true
