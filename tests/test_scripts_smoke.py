@@ -6840,6 +6840,16 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert "provider_usage must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["source_artifacts"].pop("review_prompt_contract")
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_metrics.source_artifacts.review_prompt_contract is required" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["source_artifacts"].pop("external_reviewer_preflight")
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_metrics.source_artifacts.external_reviewer_preflight is required" in "\n".join(errors)
     (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
     stale_metrics = copy.deepcopy(review_metrics_data)
     stale_metrics["reviewer_invocations"] = []
@@ -6884,6 +6894,17 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     (root / review_metrics).write_text(json.dumps(failed_metrics, indent=2), encoding="utf-8")
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert not errors
+    stale_failed_invocation_set = copy.deepcopy(failed_invocation_set)
+    stale_failed_invocation_set.pop("external_reviewer_preflight_hash")
+    (root / invocation_set).write_text(json.dumps(stale_failed_invocation_set, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_invocation_set.external_reviewer_preflight_hash" in "\n".join(errors)
+    (root / invocation_set).write_text(json.dumps(failed_invocation_set, indent=2), encoding="utf-8")
+    stale_failed_metrics = copy.deepcopy(failed_metrics)
+    stale_failed_metrics["source_artifacts"].pop("external_reviewer_preflight")
+    (root / review_metrics).write_text(json.dumps(stale_failed_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "review_metrics.source_artifacts.external_reviewer_preflight is required" in "\n".join(errors)
     stale_failed_metrics = copy.deepcopy(failed_metrics)
     stale_failed_metrics["substantive_review_cycles"] = 0
     (root / review_metrics).write_text(json.dumps(stale_failed_metrics, indent=2), encoding="utf-8")
@@ -7801,6 +7822,8 @@ def test_run_review_set_classifies_missing_provider_config_as_preflight_blocker(
     reviewer = invocation_set["reviewers"][0]
     assert reviewer["status"] == "provider_preflight_blocked"
     assert reviewer["failure_stage"] == "external_reviewer_preflight"
+    assert invocation_set["external_reviewer_preflight"] == str(external_preflight)
+    assert invocation_set["external_reviewer_preflight_hash"].startswith("sha256:")
     metrics = tmp_path / "review-metrics.json"
     metrics_result = run(
         "scripts/reviewers/generate_review_metrics.py",
@@ -7818,6 +7841,7 @@ def test_run_review_set_classifies_missing_provider_config_as_preflight_blocker(
     metrics_data = json.loads(metrics.read_text(encoding="utf-8"))
     assert metrics_data["provider_preflight_blockers"] == 1
     assert metrics_data["substantive_review_cycles"] == 0
+    assert metrics_data["source_artifacts"]["external_reviewer_preflight"] == str(external_preflight)
 
 
 def test_run_review_set_rejects_stale_preparation_packet_hash_before_dispatch(tmp_path) -> None:

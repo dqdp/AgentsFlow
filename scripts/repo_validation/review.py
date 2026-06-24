@@ -1227,6 +1227,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     invocation_reviewers: dict[str, dict] = {}
     invocation_set_completed = False
     invocation_set_terminal = False
+    invocation_has_preflight_blocker = False
     if assignments:
         if _is_run_scope_artifact(path, data) and not artifact_preparation_report_path:
             errors.append(f"{path}: reviewer_assignments require inputs.artifact_preparation_report")
@@ -1254,6 +1255,10 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     for item in invocation_set.get("reviewers", []) or []
                     if isinstance(item, dict) and item.get("reviewer")
                 }
+                invocation_has_preflight_blocker = any(
+                    _is_review_metrics_preflight_blocker(item)
+                    for item in invocation_reviewers.values()
+                )
                 if sorted(invocation_reviewers) != sorted(reviewers):
                     errors.append(
                         f"{invocation_evidence_path}: review_invocation_set reviewers must cover reviewer_set exactly"
@@ -1475,9 +1480,9 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must match current review artifact"
                     )
 
-    if external_assignment_present and invocation_set_completed and (external_preflight_path or assignment_evidence_required):
+    if external_assignment_present and invocation_set_terminal and (external_preflight_path or assignment_evidence_required):
         if not external_preflight_path:
-            errors.append(f"{path}: completed claude-code review_invocation_set requires inputs.external_reviewer_preflight artifact")
+            errors.append(f"{path}: terminal claude-code review_invocation_set requires inputs.external_reviewer_preflight artifact")
         else:
             preflight_schema = parse_json(root / "schemas" / "external-reviewer-preflight.schema.json")
             preflight_data = parse_json(external_preflight_path)
@@ -1485,8 +1490,18 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 errors.append(f"{external_preflight_path}: external_reviewer_preflight evidence must be a JSON object")
             else:
                 errors.extend(validate_against_schema(external_preflight_path, preflight_data, preflight_schema))
-                if preflight_data.get("result") != "pass":
+                preflight_result = preflight_data.get("result")
+                if invocation_set_completed and preflight_result != "pass":
                     errors.append(f"{external_preflight_path}: external_reviewer_preflight result must be pass")
+                if (
+                    not invocation_set_completed
+                    and preflight_result == "blocked"
+                    and not invocation_has_preflight_blocker
+                ):
+                    errors.append(
+                        f"{external_preflight_path}: blocked external_reviewer_preflight "
+                        "requires a provider_preflight_blocked review_invocation_set reviewer"
+                    )
                 fingerprint = preflight_data.get("fingerprint", {}) or {}
                 _require_concrete_hash(
                     external_preflight_path,
@@ -1569,17 +1584,19 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 metrics_contract_ref = resolve_invocation_set_ref(
                     source_artifacts.get("review_prompt_contract"),
                     "review_metrics.source_artifacts.review_prompt_contract",
-                    required=False,
                 )
                 if metrics_contract_ref and metrics_contract_ref.resolve() != path.resolve():
                     errors.append(f"{review_metrics_path}: source_artifacts.review_prompt_contract must match current contract")
-                if external_preflight_path:
+                if external_assignment_present and (external_preflight_path or assignment_evidence_required):
                     metrics_preflight_ref = resolve_invocation_set_ref(
                         source_artifacts.get("external_reviewer_preflight"),
                         "review_metrics.source_artifacts.external_reviewer_preflight",
-                        required=False,
                     )
-                    if metrics_preflight_ref and metrics_preflight_ref.resolve() != external_preflight_path.resolve():
+                    if (
+                        metrics_preflight_ref
+                        and external_preflight_path
+                        and metrics_preflight_ref.resolve() != external_preflight_path.resolve()
+                    ):
                         errors.append(
                             f"{review_metrics_path}: source_artifacts.external_reviewer_preflight must match inputs.external_reviewer_preflight"
                         )

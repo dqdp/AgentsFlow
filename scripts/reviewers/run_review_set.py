@@ -792,6 +792,12 @@ def main() -> int:
         if not isinstance(assignments, list) or not assignments:
             raise ValueError("review prompt contract must declare reviewer_assignments")
         validate_assignments(assignments, contract)
+        preflight_ref = (contract.get("inputs", {}) or {}).get("external_reviewer_preflight")
+        if preflight_ref:
+            preflight_path = resolve_path(preflight_ref, root)
+            if preflight_path.is_file():
+                external_preflight_ref = str(preflight_ref)
+                external_preflight_hash = sha256_file(preflight_path)
         reviewer_entries = [
             (assignment, build_entry(assignment, root))
             for assignment in assignments
