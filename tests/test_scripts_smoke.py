@@ -6813,6 +6813,17 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert "substantive_review_cycles must match review_invocation_set" in "\n".join(errors)
     (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["reviewer_invocations"] = []
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer_invocations must cover review_invocation_set reviewers exactly" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["reviewer_invocations"][1]["status"] = "report-present"
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer_invocations[generalist-b].status must match review_invocation_set" in "\n".join(errors)
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
 
     (root / review_metrics).unlink()
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
@@ -6845,6 +6856,11 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     (root / review_metrics).write_text(json.dumps(stale_failed_metrics, indent=2), encoding="utf-8")
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert "substantive_review_cycles must match review_invocation_set" in "\n".join(errors)
+    stale_failed_metrics = copy.deepcopy(failed_metrics)
+    stale_failed_metrics["reviewer_invocations"][1]["nonzero_exit"] = False
+    (root / review_metrics).write_text(json.dumps(stale_failed_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer_invocations[generalist-b].nonzero_exit must match review_invocation_set" in "\n".join(errors)
     (root / review_metrics).unlink()
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert "terminal review_invocation_set requires inputs.review_metrics artifact" in "\n".join(errors)

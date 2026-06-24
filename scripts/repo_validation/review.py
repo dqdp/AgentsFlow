@@ -128,6 +128,43 @@ def _is_review_metrics_substantive_attempt(entry: dict, invocation_completed: bo
     return bool(failure_stage and "preflight" not in failure_stage)
 
 
+def _review_metrics_exit_code(entry: dict, metadata: dict) -> int | None:
+    for source in (entry, metadata):
+        value = source.get("exit_code")
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def _review_metrics_retry_count(entry: dict, metadata: dict) -> int:
+    for source in (entry, metadata):
+        value = source.get("retry_count")
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int) and value >= 0:
+            return value
+    return 0
+
+
+def _review_metrics_normalization_status(entry: dict, metadata: dict, completed: bool) -> str:
+    for source in (entry, metadata):
+        normalization = source.get("normalization")
+        if isinstance(normalization, dict):
+            status = normalization.get("status")
+            if isinstance(status, str) and status:
+                return status
+        status = source.get("normalization_status")
+        if isinstance(status, str) and status:
+            return status
+    if completed and entry.get("report_path"):
+        return "passed"
+    if _is_review_metrics_preflight_blocker(entry):
+        return "not_applicable_preflight_blocker"
+    return "not_available"
+
+
 def _strip_fragment(ref: object) -> str:
     return str(ref).split("#", 1)[0]
 
@@ -1388,6 +1425,81 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     errors.append(f"{review_metrics_path}: provider_preflight_blockers must match review_invocation_set")
                 if metrics_data.get("substantive_review_cycles") != expected_substantive_cycles:
                     errors.append(f"{review_metrics_path}: substantive_review_cycles must match review_invocation_set")
+                metrics_reviewer_rows = metrics_data.get("reviewer_invocations")
+                if isinstance(metrics_reviewer_rows, list):
+                    metrics_rows_by_reviewer: dict[str, dict] = {}
+                    duplicate_metric_reviewers: set[str] = set()
+                    for item in metrics_reviewer_rows:
+                        if not isinstance(item, dict):
+                            continue
+                        reviewer = str(item.get("reviewer") or "")
+                        if not reviewer:
+                            continue
+                        if reviewer in metrics_rows_by_reviewer:
+                            duplicate_metric_reviewers.add(reviewer)
+                        metrics_rows_by_reviewer[reviewer] = item
+                    if duplicate_metric_reviewers:
+                        errors.append(
+                            f"{review_metrics_path}: reviewer_invocations reviewer rows must be unique: "
+                            + ", ".join(sorted(duplicate_metric_reviewers))
+                        )
+                    invocation_reviewers_by_id = {
+                        str(item.get("reviewer")): item
+                        for item in invocation_reviewer_entries
+                        if isinstance(item, dict) and item.get("reviewer")
+                    }
+                    if sorted(metrics_rows_by_reviewer) != sorted(invocation_reviewers_by_id):
+                        errors.append(
+                            f"{review_metrics_path}: reviewer_invocations must cover review_invocation_set reviewers exactly"
+                        )
+                    for reviewer, invocation_entry in invocation_reviewers_by_id.items():
+                        metrics_row = metrics_rows_by_reviewer.get(reviewer)
+                        if not isinstance(metrics_row, dict):
+                            continue
+                        invocation_metadata: dict = {}
+                        invocation_metadata_ref = invocation_entry.get("invocation_metadata_path")
+                        if invocation_metadata_ref:
+                            invocation_metadata_path = resolve_invocation_set_ref(
+                                invocation_metadata_ref,
+                                f"review_invocation_set.reviewers[{reviewer}].invocation_metadata_path",
+                                required=False,
+                            )
+                            if invocation_metadata_path:
+                                invocation_metadata_data = parse_json(invocation_metadata_path)
+                                if isinstance(invocation_metadata_data, dict):
+                                    invocation_metadata = invocation_metadata_data
+                        expected_completed_row = _is_review_metrics_completed(invocation_entry.get("status"))
+                        expected_preflight_row = _is_review_metrics_preflight_blocker(invocation_entry)
+                        expected_exit_code = _review_metrics_exit_code(invocation_entry, invocation_metadata)
+                        expected_timed_out = (
+                            str(invocation_entry.get("status") or "").lower() == "timed-out"
+                            or "timed out" in str(invocation_entry.get("error") or "").lower()
+                        )
+                        expected_normalization = _review_metrics_normalization_status(
+                            invocation_entry,
+                            invocation_metadata,
+                            expected_completed_row,
+                        )
+                        expected_row_values = {
+                            "provider": invocation_entry.get("provider"),
+                            "model_family": invocation_entry.get("model_family"),
+                            "status": invocation_entry.get("status"),
+                            "completed": expected_completed_row,
+                            "provider_preflight_blocker": expected_preflight_row,
+                            "review_packet_path": invocation_entry.get("packet_path"),
+                            "report_path": invocation_entry.get("report_path"),
+                            "invocation_metadata_path": invocation_entry.get("invocation_metadata_path"),
+                            "retry_count": _review_metrics_retry_count(invocation_entry, invocation_metadata),
+                            "timed_out": expected_timed_out,
+                            "nonzero_exit": expected_exit_code is not None and expected_exit_code != 0,
+                            "normalization_status": expected_normalization,
+                        }
+                        for key, expected_value in expected_row_values.items():
+                            if metrics_row.get(key) != expected_value:
+                                errors.append(
+                                    f"{review_metrics_path}: reviewer_invocations[{reviewer}].{key} "
+                                    "must match review_invocation_set"
+                                )
 
     require_completed_assignment_outputs = invocation_set is None or invocation_set_completed
     if assignments and artifact_preparation_report_path and require_completed_assignment_outputs:
