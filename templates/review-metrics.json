@@ -8,6 +8,11 @@
   "generated_at": "2026-01-01T00:00:00+00:00",
   "source_artifacts": {
     "review_invocation_set": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-invocation-set.json",
+    "review_prompt_contract": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-prompt-contract.yaml",
+    "external_reviewer_preflight": null,
+    "review_packets": [],
+    "reviewer_reports": [],
+    "invocation_metadata": [],
     "finding_validation_report": null,
     "review_cycle_report": null
   },
@@ -19,6 +24,9 @@
     "review_phase_started_at": null,
     "review_phase_finished_at": null,
     "review_phase_elapsed_ms": null,
+    "cycle_started_at": null,
+    "cycle_finished_at": null,
+    "cycle_elapsed_ms": null,
     "summed_reviewer_elapsed_ms": 0,
     "summed_provider_runtime_ms": 0
   },

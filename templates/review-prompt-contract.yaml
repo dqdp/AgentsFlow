@@ -32,6 +32,7 @@ inputs:
   evidence_report: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/evidence-report.md
   artifact_preparation_report: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/prepared-review-artifacts.json
   review_invocation_set: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-invocation-set.json
+  external_reviewer_preflight: Docs/agentsflow/runs/YYYY-MM-DD-task-slug/external-reviewer-preflight.json
 
 reviewer_set:
   - instance_id: generalist-a

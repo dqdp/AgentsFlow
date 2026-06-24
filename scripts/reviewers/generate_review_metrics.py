@@ -135,6 +135,50 @@ def integer(value: object) -> int | None:
     return int(number)
 
 
+def first_string(*values: object) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def exit_code(entry: dict[str, Any], metadata: dict[str, Any]) -> int | None:
+    for source in [entry, metadata]:
+        value = source.get("exit_code")
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def retry_count(entry: dict[str, Any], metadata: dict[str, Any]) -> int:
+    for source in [entry, metadata]:
+        value = source.get("retry_count")
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int) and value >= 0:
+            return value
+    return 0
+
+
+def normalization_status(entry: dict[str, Any], metadata: dict[str, Any], completed: bool) -> str:
+    for source in [entry, metadata]:
+        normalization = source.get("normalization")
+        if isinstance(normalization, dict):
+            status = normalization.get("status")
+            if isinstance(status, str) and status:
+                return status
+        status = source.get("normalization_status")
+        if isinstance(status, str) and status:
+            return status
+    if completed and entry.get("report_path"):
+        return "passed"
+    if is_preflight_blocker(entry):
+        return "not_applicable_preflight_blocker"
+    return "not_available"
+
+
 def add_nested_usage(
     usage: object,
     token_totals: dict[str, int],
@@ -265,6 +309,9 @@ def generate_metrics(
         if isinstance(item, dict)
     ]
     reviewer_rows: list[dict[str, Any]] = []
+    review_packets: set[str] = set()
+    reviewer_reports: set[str] = set()
+    invocation_metadata_paths: set[str] = set()
     summed_elapsed = 0
     summed_provider_runtime = 0
     preflight_blockers = 0
@@ -287,6 +334,23 @@ def generate_metrics(
                 summed_elapsed += elapsed
         if provider_runtime is not None:
             summed_provider_runtime += provider_runtime
+        packet_path = first_string(entry.get("packet_path"))
+        report_path = first_string(entry.get("report_path"))
+        invocation_metadata_path = first_string(entry.get("invocation_metadata_path"))
+        if packet_path:
+            review_packets.add(packet_path)
+        if report_path:
+            reviewer_reports.add(report_path)
+        if invocation_metadata_path:
+            invocation_metadata_paths.add(invocation_metadata_path)
+        reviewer_started_at = first_string(entry.get("started_at"), entry.get("dispatch_started_at"), metadata.get("started_at"))
+        reviewer_finished_at = first_string(
+            entry.get("finished_at"),
+            entry.get("dispatch_finished_at"),
+            entry.get("checked_at"),
+            metadata.get("finished_at"),
+        )
+        code = exit_code(entry, metadata)
         reviewer_rows.append(
             {
                 "reviewer": str(entry.get("reviewer") or ""),
@@ -295,12 +359,20 @@ def generate_metrics(
                 "status": status,
                 "completed": is_completed(status),
                 "provider_preflight_blocker": preflight_blocker,
-                "started_at": entry.get("started_at") or entry.get("dispatch_started_at"),
-                "finished_at": entry.get("finished_at") or entry.get("dispatch_finished_at"),
+                "review_packet_path": packet_path,
+                "started_at": reviewer_started_at,
+                "finished_at": reviewer_finished_at,
                 "elapsed_ms": elapsed,
+                "reviewer_started_at": reviewer_started_at,
+                "reviewer_finished_at": reviewer_finished_at,
+                "reviewer_elapsed_ms": elapsed,
                 "provider_runtime_ms": provider_runtime,
-                "report_path": entry.get("report_path"),
-                "invocation_metadata_path": entry.get("invocation_metadata_path"),
+                "retry_count": retry_count(entry, metadata),
+                "timed_out": status.lower() == "timed-out" or "timed out" in str(entry.get("error") or "").lower(),
+                "nonzero_exit": code is not None and code != 0,
+                "normalization_status": normalization_status(entry, metadata, is_completed(status)),
+                "report_path": report_path,
+                "invocation_metadata_path": invocation_metadata_path,
                 "error": entry.get("error"),
             }
         )
@@ -317,6 +389,11 @@ def generate_metrics(
         "generated_at": now_utc(),
         "source_artifacts": {
             "review_invocation_set": str(invocation_set_path),
+            "review_prompt_contract": invocation_set.get("review_prompt_contract"),
+            "external_reviewer_preflight": invocation_set.get("external_reviewer_preflight"),
+            "review_packets": sorted(review_packets),
+            "reviewer_reports": sorted(reviewer_reports),
+            "invocation_metadata": sorted(invocation_metadata_paths),
             "finding_validation_report": None,
             "review_cycle_report": None,
         },
@@ -328,6 +405,9 @@ def generate_metrics(
             "review_phase_started_at": invocation_set.get("started_at"),
             "review_phase_finished_at": invocation_set.get("finished_at"),
             "review_phase_elapsed_ms": review_elapsed,
+            "cycle_started_at": invocation_set.get("started_at"),
+            "cycle_finished_at": invocation_set.get("finished_at"),
+            "cycle_elapsed_ms": review_elapsed,
             "summed_reviewer_elapsed_ms": summed_elapsed,
             "summed_provider_runtime_ms": summed_provider_runtime,
         },

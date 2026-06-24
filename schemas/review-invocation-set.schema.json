@@ -27,6 +27,14 @@
       "type": "string",
       "minLength": 1
     },
+    "external_reviewer_preflight": {
+      "type": "string",
+      "minLength": 1
+    },
+    "external_reviewer_preflight_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
     "status": {
       "enum": ["predeclared", "completed", "failed"]
     },

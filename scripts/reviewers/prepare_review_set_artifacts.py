@@ -329,6 +329,11 @@ def prepare_artifacts(
 
     inputs["artifact_preparation_report"] = rel_ref(root, preparation_path)
     inputs.setdefault("review_invocation_set", rel_ref(root, contract_path.parent / "review-invocation-set.json"))
+    if any(item.get("provider") == "claude-code" for item in assignments.values()):
+        inputs.setdefault(
+            "external_reviewer_preflight",
+            rel_ref(root, contract_path.parent / "external-reviewer-preflight.json"),
+        )
     contract_ref = rel_ref(root, contract_path)
     status_entries = collect_worktree_status(root)
 

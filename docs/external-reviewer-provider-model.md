@@ -131,6 +131,10 @@ For v0.2 this binding is intentionally small:
   reviewer evidence is preserved.
 - completed runs store `review_invocation_set` evidence linking assignments to
   normalized reports, raw external output and invocation metadata.
+- completed external runs bind the passing external reviewer preflight by path
+  and hash in `review_invocation_set`; new runner-generated external gates fail
+  before dispatch when the declared preflight is missing, blocked, stale or for
+  another provider config.
 - run-scope provider-assigned gates store `review_artifact_preparation`
   evidence before invocation, so packets and prompts are tied to explicit input
   artifacts and worktree status.

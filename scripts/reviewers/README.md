@@ -85,13 +85,17 @@ Completed external evidence must also have `exit_code: 0` and invocation hashes
 that match the current review packet, rendered prompt, prompt contract, role
 contract, rubric, output schema, raw provider output and normalized reviewer
 report.
+For Claude assignments, `run_review_set.py` also requires
+`inputs.external_reviewer_preflight` before dispatch. The preflight must be a
+passing `external_reviewer_preflight` artifact for the current prompt contract
+and provider config; completed invocation-set evidence stores its path and hash.
 When model diversity is required, completed diversity is derived from evidence:
 internal reports must declare `reviewer.model`, and Claude assignments use
 `requested_model` plus provider-reported model usage from invocation metadata.
 
 ## Review metrics generator
 
-`generate_review_metrics.py` writes the minimal `review-metrics.json` artifact
+`generate_review_metrics.py` writes the `review-metrics.json` artifact
 from review invocation evidence:
 
 ```bash
@@ -104,7 +108,10 @@ python3 scripts/reviewers/generate_review_metrics.py \
 
 The generator is deterministic. It does not call providers, inspect live auth
 state or estimate usage. Tokens and cost are recorded only when provider
-evidence reports them.
+evidence reports them. The output records review-phase and cycle timing,
+per-reviewer timing, retry/timeout/nonzero-exit/normalization status, and links
+to packets, reports, invocation metadata and finding-validation artifacts when
+available.
 
 ## External reviewer preflight generator
 

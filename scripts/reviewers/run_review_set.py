@@ -185,6 +185,49 @@ def validate_invocation_set_output_path(contract: dict[str, Any], output_path: P
     return artifact_preparation_report
 
 
+def validate_external_reviewer_preflight(
+    contract: dict[str, Any],
+    contract_path: Path,
+    root: Path,
+    assignments: list[dict[str, Any]],
+) -> tuple[str | None, str | None]:
+    external_assignments = [item for item in assignments if item.get("provider") == "claude-code"]
+    if not external_assignments:
+        return None, None
+    inputs = contract.get("inputs", {}) or {}
+    preflight_ref = inputs.get("external_reviewer_preflight")
+    if not preflight_ref:
+        raise ValueError("claude-code reviewer assignments require inputs.external_reviewer_preflight")
+    preflight_path = resolve_path(preflight_ref, root)
+    if not preflight_path.is_file():
+        raise ValueError(f"inputs.external_reviewer_preflight must be an existing file: {preflight_ref}")
+    try:
+        import jsonschema
+    except ImportError as exc:
+        raise RuntimeError("jsonschema is required for external reviewer preflight validation") from exc
+    preflight = load_json(preflight_path)
+    schema = load_json(root / "schemas" / "external-reviewer-preflight.schema.json")
+    errors = sorted(jsonschema.Draft202012Validator(schema).iter_errors(preflight), key=lambda err: list(err.path))
+    if errors:
+        first = errors[0]
+        location = ".".join(str(part) for part in first.path) or "<root>"
+        raise ValueError(f"{preflight_path}: external reviewer preflight schema validation failed at {location}: {first.message}")
+    if preflight.get("result") != "pass":
+        blockers = preflight.get("blockers") or []
+        raise ValueError(f"{preflight_path}: external reviewer preflight must pass before dispatch: {blockers}")
+    fingerprint = preflight.get("fingerprint", {}) or {}
+    contract_hash = sha256_file(resolve_path(contract_path, root))
+    if fingerprint.get("prompt_contract_hash") != contract_hash:
+        raise ValueError(f"{preflight_path}: prompt_contract_hash must match current review prompt contract")
+    declared_config_hash = fingerprint.get("provider_config_hash")
+    for assignment in external_assignments:
+        config_path = resolve_path(assignment.get("provider_config"), root)
+        if declared_config_hash != sha256_file(config_path):
+            reviewer = assignment.get("reviewer")
+            raise ValueError(f"{preflight_path}: provider_config_hash must match assignment provider_config for {reviewer}")
+    return str(preflight_ref), sha256_file(preflight_path)
+
+
 def require_hash_match(path: Path, label: str, declared: object, artifact_path: Path) -> None:
     if not isinstance(declared, str) or not declared.startswith("sha256:"):
         raise ValueError(f"{path}: {label} hash is required")
@@ -617,6 +660,8 @@ def main() -> int:
     mock_responses = parse_mock_responses(args.mock_response)
     reviewers: list[dict[str, Any]] = []
     external_runs: list[dict[str, Any]] = []
+    external_preflight_ref: str | None = None
+    external_preflight_hash: str | None = None
     status = "completed"
 
     try:
@@ -626,6 +671,12 @@ def main() -> int:
             raise ValueError("review prompt contract must declare reviewer_assignments")
         validate_assignments(assignments, contract)
         artifact_preparation_report = validate_invocation_set_output_path(contract, output_path, root)
+        external_preflight_ref, external_preflight_hash = validate_external_reviewer_preflight(
+            contract,
+            contract_path,
+            root,
+            assignments,
+        )
         artifact_preparation_report_hash: str | None = None
         if artifact_preparation_report:
             artifact_preparation_report_hash = validate_preparation_artifact(
@@ -705,6 +756,10 @@ def main() -> int:
             failed_output["artifact_preparation_report"] = str(artifact_preparation_report)
         if "artifact_preparation_report_hash" in locals() and artifact_preparation_report_hash:
             failed_output["artifact_preparation_report_hash"] = artifact_preparation_report_hash
+        if external_preflight_ref:
+            failed_output["external_reviewer_preflight"] = external_preflight_ref
+        if external_preflight_hash:
+            failed_output["external_reviewer_preflight_hash"] = external_preflight_hash
         output_path.write_text(
             json.dumps(failed_output, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
@@ -735,6 +790,10 @@ def main() -> int:
         completed_output["artifact_preparation_report"] = str(artifact_preparation_report)
     if "artifact_preparation_report_hash" in locals() and artifact_preparation_report_hash:
         completed_output["artifact_preparation_report_hash"] = artifact_preparation_report_hash
+    if external_preflight_ref:
+        completed_output["external_reviewer_preflight"] = external_preflight_ref
+    if external_preflight_hash:
+        completed_output["external_reviewer_preflight_hash"] = external_preflight_hash
     output_path.write_text(
         json.dumps(completed_output, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

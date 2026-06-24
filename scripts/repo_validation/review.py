@@ -777,6 +777,13 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             "inputs.review_invocation_set",
             file_required=True,
         )
+    external_preflight_path: Path | None = None
+    if inputs.get("external_reviewer_preflight"):
+        external_preflight_path = resolve_existing(
+            inputs.get("external_reviewer_preflight"),
+            "inputs.external_reviewer_preflight",
+            file_required=True,
+        )
     if (
         evidence_report_path
         and review_invocation_set_path
@@ -938,6 +945,53 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             errors.append(
                 f"{invocation_path}: {key} must match current review artifact for {reviewer}: "
                 f"declared {declared}, computed {expected}"
+            )
+
+    if external_assignment_present and invocation_set_completed and external_preflight_path:
+        preflight_schema = parse_json(root / "schemas" / "external-reviewer-preflight.schema.json")
+        preflight_data = parse_json(external_preflight_path)
+        if not isinstance(preflight_data, dict):
+            errors.append(f"{external_preflight_path}: external_reviewer_preflight evidence must be a JSON object")
+        else:
+            errors.extend(validate_against_schema(external_preflight_path, preflight_data, preflight_schema))
+            if preflight_data.get("result") != "pass":
+                errors.append(f"{external_preflight_path}: external_reviewer_preflight result must be pass")
+            fingerprint = preflight_data.get("fingerprint", {}) or {}
+            _require_concrete_hash(
+                external_preflight_path,
+                "external_reviewer_preflight.fingerprint.prompt_contract_hash",
+                fingerprint.get("prompt_contract_hash"),
+                review_prompt_contract_hash,
+                errors,
+            )
+            for idx, assignment in enumerate(assignments):
+                if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
+                    continue
+                provider_config_ref = assignment.get("provider_config")
+                provider_config_path = root / str(provider_config_ref)
+                if provider_config_ref and provider_config_path.is_file():
+                    _require_concrete_hash(
+                        external_preflight_path,
+                        f"external_reviewer_preflight.fingerprint.provider_config_hash for assignment {idx}",
+                        fingerprint.get("provider_config_hash"),
+                        sha256_file(provider_config_path),
+                        errors,
+                    )
+        if invocation_set:
+            invocation_preflight_ref = resolve_invocation_set_ref(
+                invocation_set.get("external_reviewer_preflight"),
+                "review_invocation_set.external_reviewer_preflight",
+            )
+            if invocation_preflight_ref and invocation_preflight_ref.resolve() != external_preflight_path.resolve():
+                errors.append(
+                    f"{path}: review_invocation_set external_reviewer_preflight must match inputs.external_reviewer_preflight"
+                )
+            _require_concrete_hash(
+                external_preflight_path,
+                "review_invocation_set.external_reviewer_preflight_hash",
+                invocation_set.get("external_reviewer_preflight_hash"),
+                sha256_file(external_preflight_path),
+                errors,
             )
 
     require_completed_assignment_outputs = invocation_set is None or invocation_set_completed

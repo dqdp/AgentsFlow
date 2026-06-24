@@ -98,12 +98,15 @@ The v0.2 supported external provider is `claude-code`. Unsupported providers
 are configuration blockers.
 
 `reviewer_assignments` are a dispatch plan before the review gate runs. A
-run-scope assignment-enabled contract must predeclare two separate artifacts:
+run-scope assignment-enabled contract must predeclare separate artifacts:
 
 - `inputs.artifact_preparation_report`, the deterministic preparation evidence
   linking the contract, packets, rendered prompts, included context and hashes;
 - `inputs.review_invocation_set`, the invocation evidence that proves which
   assignments actually completed.
+- `inputs.external_reviewer_preflight`, required for external-provider
+  assignments before dispatch, proving the current prompt contract and provider
+  config passed deterministic preflight checks.
 
 `inputs.evidence_report` remains ordinary verification or project evidence. It
 is not the review invocation set.
