@@ -198,6 +198,7 @@ def write_minimal_review_preparation(path: Path, contract_path: Path, root: Path
 
 def write_minimal_external_preflight(path: Path, contract_path: Path, root: Path | None = None) -> None:
     import hashlib
+    import yaml
 
     base = root.resolve() if root is not None else ROOT
 
@@ -217,38 +218,85 @@ def write_minimal_external_preflight(path: Path, contract_path: Path, root: Path
     schema = resolve_ref("schemas/reviewer-report.schema.json")
     role_contract = resolve_ref("profiles/reviewer_roles/generalist.yaml")
     rubric = resolve_ref("templates/review-prompts/base.md")
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    reviewers = {
+        str(item.get("instance_id")): item
+        for item in contract.get("reviewer_set", []) or []
+        if isinstance(item, dict) and item.get("instance_id")
+    }
+    rendered_prompts = {
+        str(item.get("reviewer")): item
+        for item in contract.get("rendered_prompts", []) or []
+        if isinstance(item, dict) and item.get("reviewer")
+    }
+    forbidden_payload = {
+        "checked": FORBIDDEN_CLAUDE_ENV,
+        "present": [],
+    }
+    forbidden_hash = "sha256:" + hashlib.sha256(
+        json.dumps(forbidden_payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    assignment_fingerprints = []
+    for assignment in contract.get("reviewer_assignments", []) or []:
+        if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
+            continue
+        reviewer = str(assignment.get("reviewer") or "")
+        reviewer_def = reviewers.get(reviewer, {}) or {}
+        rendered_prompt = rendered_prompts.get(reviewer, {}) or {}
+        role_ref = reviewer_def.get("role_contract")
+        provider_config_ref = assignment.get("provider_config")
+        if not role_ref or not provider_config_ref:
+            continue
+        assignment_config = resolve_ref(provider_config_ref)
+        assignment_role = resolve_ref(role_ref)
+        config_data = yaml.safe_load(assignment_config.read_text(encoding="utf-8")) or {}
+        execution = config_data.get("execution", {}) or {}
+        if not all(execution.get(key) for key in ["permission_mode", "sandbox_mode"]):
+            continue
+        assignment_fingerprints.append(
+            {
+                "reviewer": reviewer,
+                "provider_config_hash": sha(assignment_config),
+                "wrapper_hash": sha(wrapper),
+                "schema_hash": sha(schema),
+                "prompt_contract_hash": sha(contract_path),
+                "role_contract_hash": sha(assignment_role),
+                "rubric_hash": str(rendered_prompt.get("rubric_hash") or sha(rubric)),
+                "forbidden_env_fingerprint": forbidden_hash,
+                "permission_mode": str(execution.get("permission_mode")),
+                "sandbox_mode": str(execution.get("sandbox_mode")),
+                "provider_transport_mode": str(execution.get("prompt_transport", "stdin")),
+            }
+        )
+    payload = {
+        "version": 1,
+        "artifact_kind": "external_reviewer_preflight",
+        "artifact_scope": "run",
+        "provider": "claude-code",
+        "mode": "full",
+        "result": "pass",
+        "generated_at": "2026-06-24T00:00:00+00:00",
+        "live_provider_call": False,
+        "fingerprint": {
+            "provider_config_hash": sha(provider_config),
+            "wrapper_hash": sha(wrapper),
+            "schema_hash": sha(schema),
+            "prompt_contract_hash": sha(contract_path),
+            "role_contract_hash": sha(role_contract),
+            "rubric_hash": sha(rubric),
+            "forbidden_env_fingerprint": forbidden_hash,
+            "permission_mode": "default",
+            "sandbox_mode": "require_escalated",
+            "provider_transport_mode": "stdin",
+        },
+        "forbidden_env": forbidden_payload,
+        "blockers": [],
+    }
+    if assignment_fingerprints:
+        payload["assignment_fingerprints"] = assignment_fingerprints
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "artifact_kind": "external_reviewer_preflight",
-                "artifact_scope": "run",
-                "provider": "claude-code",
-                "mode": "full",
-                "result": "pass",
-                "generated_at": "2026-06-24T00:00:00+00:00",
-                "live_provider_call": False,
-                "fingerprint": {
-                    "provider_config_hash": sha(provider_config),
-                    "wrapper_hash": sha(wrapper),
-                    "schema_hash": sha(schema),
-                    "prompt_contract_hash": sha(contract_path),
-                    "role_contract_hash": sha(role_contract),
-                    "rubric_hash": sha(rubric),
-                    "forbidden_env_fingerprint": "sha256:" + "1" * 64,
-                    "permission_mode": "default",
-                    "sandbox_mode": "require_escalated",
-                    "provider_transport_mode": "stdin",
-                },
-                "forbidden_env": {
-                    "checked": FORBIDDEN_CLAUDE_ENV,
-                    "present": [],
-                },
-                "blockers": [],
-            },
-            indent=2,
-        )
+        json.dumps(payload, indent=2)
         + "\n",
         encoding="utf-8",
     )
@@ -5877,6 +5925,11 @@ def test_review_prompt_contract_model_diversity_requires_model_evidence(tmp_path
     root.mkdir()
     for rel in ["schemas", "profiles", "templates/review-prompts"]:
         shutil.copytree(ROOT / rel, root / rel)
+    (root / "scripts" / "reviewers").mkdir(parents=True)
+    shutil.copy(
+        ROOT / "scripts/reviewers/run_external_reviewer.py",
+        root / "scripts/reviewers/run_external_reviewer.py",
+    )
     run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
     shutil.copytree(ROOT / run_rel, root / run_rel)
     contract_path = root / run_rel / "review-prompt-contract.yaml"
@@ -6034,6 +6087,11 @@ def test_review_prompt_contract_rejects_mock_external_review_evidence(tmp_path) 
     root.mkdir()
     for rel in ["schemas", "profiles", "templates/review-prompts"]:
         shutil.copytree(ROOT / rel, root / rel)
+    (root / "scripts" / "reviewers").mkdir(parents=True)
+    shutil.copy(
+        ROOT / "scripts/reviewers/run_external_reviewer.py",
+        root / "scripts/reviewers/run_external_reviewer.py",
+    )
     run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
     shutil.copytree(ROOT / run_rel, root / run_rel)
     contract_path = root / run_rel / "review-prompt-contract.yaml"
@@ -6187,6 +6245,11 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     root.mkdir()
     for rel in ["schemas", "profiles", "templates/review-prompts"]:
         shutil.copytree(ROOT / rel, root / rel)
+    (root / "scripts" / "reviewers").mkdir(parents=True)
+    shutil.copy(
+        ROOT / "scripts/reviewers/run_external_reviewer.py",
+        root / "scripts/reviewers/run_external_reviewer.py",
+    )
     run_rel = Path("examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator")
     shutil.copytree(ROOT / run_rel, root / run_rel)
     (root / "examples/external-reviewers/claude-code").mkdir(parents=True, exist_ok=True)
@@ -6206,6 +6269,7 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     invocation_set = run_rel / "review-invocation-set.json"
     preparation_path = run_rel / "prepared-review-artifacts.json"
     external_preflight = run_rel / "external-reviewer-preflight.json"
+    review_metrics = run_rel / "review-metrics.json"
 
     for report, provider, model in [
         (internal_report, "internal-agent", "codex"),
@@ -6244,6 +6308,7 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     }
     contract["inputs"]["artifact_preparation_report"] = str(preparation_path)
     contract["inputs"]["review_invocation_set"] = str(invocation_set)
+    contract["inputs"]["review_metrics"] = str(review_metrics)
     contract["inputs"]["external_reviewer_preflight"] = str(external_preflight)
     contract["reviewer_assignments"] = [
         {
@@ -6463,9 +6528,111 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
         ),
         encoding="utf-8",
     )
+    (root / review_metrics).write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "artifact_kind": "review_metrics",
+                "artifact_scope": "run",
+                "run_id": "2026-06-17-add-calculator",
+                "workflow": "pr-merge-readiness",
+                "material_change_id": "test-material-change",
+                "generated_at": "2026-06-21T00:00:02+00:00",
+                "source_artifacts": {
+                    "review_invocation_set": str(invocation_set),
+                    "review_prompt_contract": str(run_rel / "review-prompt-contract.yaml"),
+                    "external_reviewer_preflight": str(external_preflight),
+                    "review_packets": [item["path"] for item in contract["inputs"]["review_packets"]],
+                    "reviewer_reports": [str(internal_report), str(claude_report)],
+                    "invocation_metadata": [str(claude_invocation)],
+                    "finding_validation_report": None,
+                    "review_cycle_report": None,
+                },
+                "planned_reviewer_slots": 2,
+                "completed_reviewer_invocations": 2,
+                "provider_preflight_blockers": 0,
+                "substantive_review_cycles": 1,
+                "timing": {
+                    "review_phase_started_at": "2026-06-21T00:00:00+00:00",
+                    "review_phase_finished_at": "2026-06-21T00:00:02+00:00",
+                    "review_phase_elapsed_ms": 2000,
+                    "cycle_started_at": "2026-06-21T00:00:00+00:00",
+                    "cycle_finished_at": "2026-06-21T00:00:02+00:00",
+                    "cycle_elapsed_ms": 2000,
+                    "summed_reviewer_elapsed_ms": 1000,
+                    "summed_provider_runtime_ms": 1000,
+                },
+                "reviewer_invocations": [
+                    {
+                        "reviewer": "generalist-a",
+                        "provider": "internal-agent",
+                        "model_family": "codex",
+                        "status": "report-present",
+                        "completed": True,
+                        "provider_preflight_blocker": False,
+                        "review_packet_path": contract["inputs"]["review_packets"][0]["path"],
+                        "report_path": str(internal_report),
+                        "invocation_metadata_path": None,
+                        "reviewer_started_at": "2026-06-21T00:00:00+00:00",
+                        "reviewer_finished_at": "2026-06-21T00:00:01+00:00",
+                        "reviewer_elapsed_ms": 1000,
+                        "provider_runtime_ms": None,
+                        "retry_count": 0,
+                        "timed_out": False,
+                        "nonzero_exit": False,
+                        "normalization_status": "passed",
+                    },
+                    {
+                        "reviewer": "generalist-b",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "status": "invoked",
+                        "completed": True,
+                        "provider_preflight_blocker": False,
+                        "review_packet_path": contract["inputs"]["review_packets"][1]["path"],
+                        "report_path": str(claude_report),
+                        "invocation_metadata_path": str(claude_invocation),
+                        "reviewer_started_at": "2026-06-21T00:00:00+00:00",
+                        "reviewer_finished_at": "2026-06-21T00:00:01+00:00",
+                        "reviewer_elapsed_ms": 1000,
+                        "provider_runtime_ms": 1000,
+                        "retry_count": 0,
+                        "timed_out": False,
+                        "nonzero_exit": False,
+                        "normalization_status": "passed",
+                    },
+                ],
+                "provider_usage": {
+                    "tokens": {"available": False, "reason": "Provider did not report token usage."},
+                    "cost": {"available": False, "reason": "Provider did not report cost usage."},
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert not errors
+
+    review_metrics_data = json.loads((root / review_metrics).read_text(encoding="utf-8"))
+    (root / review_metrics).unlink()
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "completed review_invocation_set requires inputs.review_metrics artifact" in "\n".join(errors)
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+
+    preflight_data = json.loads((root / external_preflight).read_text(encoding="utf-8"))
+    stale_assignment_fingerprint = copy.deepcopy(preflight_data)
+    stale_assignment_fingerprint["assignment_fingerprints"][0]["role_contract_hash"] = "sha256:" + "0" * 64
+    (root / external_preflight).write_text(json.dumps(stale_assignment_fingerprint, indent=2), encoding="utf-8")
+    invocation_set_data = json.loads((root / invocation_set).read_text(encoding="utf-8"))
+    invocation_set_data["external_reviewer_preflight_hash"] = validate_repo.sha256_file(root / external_preflight)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "assignment_fingerprints[generalist-b].role_contract_hash" in "\n".join(errors)
+    (root / external_preflight).write_text(json.dumps(preflight_data, indent=2) + "\n", encoding="utf-8")
+    invocation_set_data["external_reviewer_preflight_hash"] = validate_repo.sha256_file(root / external_preflight)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
 
     invocation_set_data = json.loads((root / invocation_set).read_text(encoding="utf-8"))
     stale_preflight_binding = copy.deepcopy(invocation_set_data)

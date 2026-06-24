@@ -104,9 +104,12 @@ run-scope assignment-enabled contract must predeclare separate artifacts:
   linking the contract, packets, rendered prompts, included context and hashes;
 - `inputs.review_invocation_set`, the invocation evidence that proves which
   assignments actually completed.
+- `inputs.review_metrics`, the post-invocation observability artifact for
+  completed review-enabled gates;
 - `inputs.external_reviewer_preflight`, required for external-provider
-  assignments before dispatch, proving the current prompt contract and provider
-  config passed deterministic preflight checks.
+  assignments before dispatch, proving the current prompt contract, provider
+  config and each prepared Claude assignment passed deterministic preflight
+  checks.
 
 `inputs.evidence_report` remains ordinary verification or project evidence. It
 is not the review invocation set.
@@ -123,6 +126,13 @@ prompt, review prompt contract, role contract, rubric, output schema, raw
 provider output and normalized reviewer report must match the current run
 artifacts. This prevents a stale external report from satisfying a later
 mixed-provider gate.
+The external reviewer preflight records `assignment_fingerprints[]` for
+prepared Claude assignments. Each entry binds a reviewer id to the provider
+config, wrapper, reviewer-report schema, prompt contract, role contract, rubric,
+forbidden-environment fingerprint and permission/sandbox/transport modes. A
+completed gate that declares `inputs.review_metrics` must provide a metrics
+artifact whose source references resolve to the same invocation set, prompt
+contract and external preflight.
 Each reviewer assignment must write to a distinct reviewer-report artifact, and
 the report's `reviewer.id` must identify the assigned reviewer instance. A
 single report artifact cannot satisfy multiple primary-gate reviewer slots.

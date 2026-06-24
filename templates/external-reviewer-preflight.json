@@ -19,6 +19,21 @@
     "sandbox_mode": "require_escalated",
     "provider_transport_mode": "stdin"
   },
+  "assignment_fingerprints": [
+    {
+      "reviewer": "generalist-claude",
+      "provider_config_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "wrapper_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "schema_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "prompt_contract_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "role_contract_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "rubric_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "forbidden_env_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "permission_mode": "default",
+      "sandbox_mode": "require_escalated",
+      "provider_transport_mode": "stdin"
+    }
+  ],
   "forbidden_env": {
     "checked": [
       "ANTHROPIC_API_KEY",

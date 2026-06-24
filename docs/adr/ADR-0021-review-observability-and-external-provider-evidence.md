@@ -6,8 +6,9 @@ Accepted.
 
 Date: 2026-06-24
 
-Accepted by human-mediated Slice A decision gate in
-`run-artifacts/agentsflow/runs/2026-06-24-review-gate-hardening-slice-a/human-decisions.yaml`.
+Decision provenance: accepted by the human-mediated Slice A planning and
+decision discussion on 2026-06-24. Local run artifacts may record a normalized
+decision log, but this ADR is the repository authority for the accepted rule.
 
 ## Context
 
@@ -112,6 +113,14 @@ The preflight fingerprint includes at least:
 - forbidden-environment fingerprint;
 - permission/sandbox mode;
 - provider transport mode.
+
+For prepared external review gates, the preflight also records
+`assignment_fingerprints[]`. Each Claude assignment fingerprint binds the
+specific reviewer id to the provider config, wrapper, reviewer-report schema,
+prompt contract, role contract, rubric, forbidden-environment fingerprint and
+permission/sandbox/transport modes used by that assignment. A single generic
+provider fingerprint is not enough evidence for a completed mixed-provider
+gate.
 
 A provider preflight/config failure is a config or evidence blocker. It is not:
 

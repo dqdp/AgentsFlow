@@ -15,6 +15,7 @@ outputs:
   external_reviewer_preflight: JSON artifact conforming to schemas/external-reviewer-preflight.schema.json
 guarantees:
   - Records provider config, wrapper, schema, prompt, role and rubric hashes.
+  - Records per-assignment fingerprints for prepared Claude reviewer assignments when the review prompt contract declares them.
   - Records permission/sandbox/transport mode.
   - Fails if forbidden Claude API/proxy environment variables are present.
   - Does not call Claude or any other external provider.

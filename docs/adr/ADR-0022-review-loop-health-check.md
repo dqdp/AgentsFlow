@@ -6,8 +6,9 @@ Accepted.
 
 Date: 2026-06-24
 
-Accepted by human-mediated Slice A decision gate in
-`run-artifacts/agentsflow/runs/2026-06-24-review-gate-hardening-slice-a/human-decisions.yaml`.
+Decision provenance: accepted by the human-mediated Slice A planning and
+decision discussion on 2026-06-24. Local run artifacts may record a normalized
+decision log, but this ADR is the repository authority for the accepted rule.
 
 ## Context
 

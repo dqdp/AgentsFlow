@@ -135,6 +135,11 @@ For v0.2 this binding is intentionally small:
   and hash in `review_invocation_set`; new runner-generated external gates fail
   before dispatch when the declared preflight is missing, blocked, stale or for
   another provider config.
+- prepared Claude assignments are also bound by per-reviewer
+  `assignment_fingerprints[]`; each fingerprint ties the reviewer id to the
+  provider config, wrapper, reviewer-report schema, prompt contract, role
+  contract, rubric, forbidden environment, permission/sandbox mode and
+  transport mode used for that assignment.
 - run-scope provider-assigned gates store `review_artifact_preparation`
   evidence before invocation, so packets and prompts are tied to explicit input
   artifacts and worktree status.
@@ -175,7 +180,10 @@ every review cycle.
 The preflight fingerprint records provider config hash, wrapper hash,
 reviewer-report schema hash, prompt-contract hash, role/rubric hash,
 forbidden-environment fingerprint, permission/sandbox mode and provider
-transport mode.
+transport mode. For prepared gates, `assignment_fingerprints[]` repeats those
+bindings per Claude reviewer assignment, so a stale role, rubric or provider
+config for one external reviewer cannot be hidden by a generic provider
+fingerprint.
 
 When launched from Codex for live Claude Code review, the project-bound wrapper
 must use the host-approved escalated/unsandboxed permission mode required for

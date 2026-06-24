@@ -98,6 +98,70 @@
         }
       }
     },
+    "assignment_fingerprints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "reviewer",
+          "provider_config_hash",
+          "wrapper_hash",
+          "schema_hash",
+          "prompt_contract_hash",
+          "role_contract_hash",
+          "rubric_hash",
+          "forbidden_env_fingerprint",
+          "permission_mode",
+          "sandbox_mode",
+          "provider_transport_mode"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "reviewer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider_config_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "wrapper_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "schema_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "prompt_contract_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "role_contract_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "rubric_hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "forbidden_env_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "permission_mode": {
+            "const": "default"
+          },
+          "sandbox_mode": {
+            "const": "require_escalated"
+          },
+          "provider_transport_mode": {
+            "enum": ["stdin", "file"]
+          }
+        }
+      }
+    },
     "forbidden_env": {
       "type": "object",
       "required": ["checked", "present"],

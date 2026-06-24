@@ -784,6 +784,18 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             "inputs.external_reviewer_preflight",
             file_required=True,
         )
+    review_metrics_ref = inputs.get("review_metrics")
+    review_metrics_path: Path | None = None
+    if review_metrics_ref:
+        ref_path = Path(str(review_metrics_ref))
+        if ref_path.is_absolute() or ".." in ref_path.parts:
+            errors.append(f"{path}: inputs.review_metrics must be relative and non-escaping: {review_metrics_ref}")
+        else:
+            candidate = root / ref_path
+            if candidate.exists() and not candidate.is_file():
+                errors.append(f"{path}: inputs.review_metrics must be a file artifact: {review_metrics_ref}")
+            elif candidate.is_file():
+                review_metrics_path = candidate
     if (
         evidence_report_path
         and review_invocation_set_path
@@ -947,6 +959,78 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 f"declared {declared}, computed {expected}"
             )
 
+    def validate_external_assignment_fingerprints(
+        preflight_path: Path,
+        preflight_data: dict,
+    ) -> None:
+        forbidden_payload = preflight_data.get("forbidden_env", {}) or {}
+        forbidden_env_fingerprint = sha256_text(json.dumps(forbidden_payload, sort_keys=True))
+        declared_items = preflight_data.get("assignment_fingerprints")
+        expected_by_reviewer: dict[str, dict[str, str]] = {}
+        for assignment in assignments:
+            if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
+                continue
+            reviewer = str(assignment.get("reviewer") or "")
+            reviewer_def = reviewers.get(reviewer) or {}
+            rendered_prompt = rendered_by_reviewer.get(reviewer) or {}
+            role_ref = reviewer_def.get("role_contract")
+            provider_config_ref = assignment.get("provider_config")
+            if not role_ref or not provider_config_ref:
+                continue
+            role_path = root / str(role_ref)
+            provider_config_path = root / str(provider_config_ref)
+            wrapper_path = root / "scripts" / "reviewers" / "run_external_reviewer.py"
+            if not role_path.is_file() or not provider_config_path.is_file() or not wrapper_path.is_file():
+                continue
+            provider_config = parse_yaml(provider_config_path)
+            if not isinstance(provider_config, dict):
+                continue
+            execution = provider_config.get("execution", {}) or {}
+            expected_by_reviewer[reviewer] = {
+                "reviewer": reviewer,
+                "provider_config_hash": sha256_file(provider_config_path),
+                "wrapper_hash": sha256_file(wrapper_path),
+                "schema_hash": output_schema_hash,
+                "prompt_contract_hash": review_prompt_contract_hash,
+                "role_contract_hash": sha256_file(role_path),
+                "rubric_hash": str(rendered_prompt.get("rubric_hash") or rubric_hash),
+                "forbidden_env_fingerprint": forbidden_env_fingerprint,
+                "permission_mode": str(execution.get("permission_mode")),
+                "sandbox_mode": str(execution.get("sandbox_mode")),
+                "provider_transport_mode": str(execution.get("prompt_transport", "stdin")),
+            }
+        if not expected_by_reviewer:
+            return
+        if not isinstance(declared_items, list) or not declared_items:
+            errors.append(f"{preflight_path}: assignment_fingerprints are required for prepared claude-code assignments")
+            return
+        declared_by_reviewer = {
+            str(item.get("reviewer")): item
+            for item in declared_items
+            if isinstance(item, dict) and item.get("reviewer")
+        }
+        missing = sorted(set(expected_by_reviewer) - set(declared_by_reviewer))
+        if missing:
+            errors.append(
+                f"{preflight_path}: assignment_fingerprints missing reviewer(s): {', '.join(missing)}"
+            )
+        for reviewer, expected in expected_by_reviewer.items():
+            declared = declared_by_reviewer.get(reviewer)
+            if not isinstance(declared, dict):
+                continue
+            for key, expected_value in expected.items():
+                declared_value = declared.get(key)
+                if key.endswith("_hash") or key == "forbidden_env_fingerprint":
+                    if not is_concrete_sha256(declared_value):
+                        errors.append(
+                            f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must be concrete sha256"
+                        )
+                        continue
+                if declared_value != expected_value:
+                    errors.append(
+                        f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must match current review artifact"
+                    )
+
     if external_assignment_present and invocation_set_completed and external_preflight_path:
         preflight_schema = parse_json(root / "schemas" / "external-reviewer-preflight.schema.json")
         preflight_data = parse_json(external_preflight_path)
@@ -964,6 +1048,22 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 review_prompt_contract_hash,
                 errors,
             )
+            wrapper_path = root / "scripts" / "reviewers" / "run_external_reviewer.py"
+            if wrapper_path.is_file():
+                _require_concrete_hash(
+                    external_preflight_path,
+                    "external_reviewer_preflight.fingerprint.wrapper_hash",
+                    fingerprint.get("wrapper_hash"),
+                    sha256_file(wrapper_path),
+                    errors,
+                )
+            _require_concrete_hash(
+                external_preflight_path,
+                "external_reviewer_preflight.fingerprint.schema_hash",
+                fingerprint.get("schema_hash"),
+                output_schema_hash,
+                errors,
+            )
             for idx, assignment in enumerate(assignments):
                 if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
                     continue
@@ -977,6 +1077,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         sha256_file(provider_config_path),
                         errors,
                     )
+            validate_external_assignment_fingerprints(external_preflight_path, preflight_data)
         if invocation_set:
             invocation_preflight_ref = resolve_invocation_set_ref(
                 invocation_set.get("external_reviewer_preflight"),
@@ -993,6 +1094,55 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 sha256_file(external_preflight_path),
                 errors,
             )
+
+    if assignments and invocation_set_completed and review_metrics_ref:
+        if not review_metrics_path:
+            errors.append(f"{path}: completed review_invocation_set requires inputs.review_metrics artifact")
+        else:
+            metrics_schema = parse_json(root / "schemas" / "review-metrics.schema.json")
+            metrics_data = parse_json(review_metrics_path)
+            if not isinstance(metrics_data, dict):
+                errors.append(f"{review_metrics_path}: review_metrics evidence must be a JSON object")
+            else:
+                errors.extend(validate_against_schema(review_metrics_path, metrics_data, metrics_schema))
+                source_artifacts = metrics_data.get("source_artifacts", {}) or {}
+                metrics_invocation_ref = resolve_invocation_set_ref(
+                    source_artifacts.get("review_invocation_set"),
+                    "review_metrics.source_artifacts.review_invocation_set",
+                )
+                if (
+                    metrics_invocation_ref
+                    and review_invocation_set_path
+                    and metrics_invocation_ref.resolve() != review_invocation_set_path.resolve()
+                ):
+                    errors.append(f"{review_metrics_path}: source_artifacts.review_invocation_set must match inputs.review_invocation_set")
+                metrics_contract_ref = resolve_invocation_set_ref(
+                    source_artifacts.get("review_prompt_contract"),
+                    "review_metrics.source_artifacts.review_prompt_contract",
+                    required=False,
+                )
+                if metrics_contract_ref and metrics_contract_ref.resolve() != path.resolve():
+                    errors.append(f"{review_metrics_path}: source_artifacts.review_prompt_contract must match current contract")
+                if external_preflight_path:
+                    metrics_preflight_ref = resolve_invocation_set_ref(
+                        source_artifacts.get("external_reviewer_preflight"),
+                        "review_metrics.source_artifacts.external_reviewer_preflight",
+                        required=False,
+                    )
+                    if metrics_preflight_ref and metrics_preflight_ref.resolve() != external_preflight_path.resolve():
+                        errors.append(
+                            f"{review_metrics_path}: source_artifacts.external_reviewer_preflight must match inputs.external_reviewer_preflight"
+                        )
+                completed_statuses = {"completed", "report-present", "invoked"}
+                expected_completed = sum(
+                    1
+                    for item in (invocation_set or {}).get("reviewers", []) or []
+                    if isinstance(item, dict) and str(item.get("status") or "").lower() in completed_statuses
+                )
+                if metrics_data.get("planned_reviewer_slots") != len(reviewers):
+                    errors.append(f"{review_metrics_path}: planned_reviewer_slots must match reviewer_set")
+                if metrics_data.get("completed_reviewer_invocations") != expected_completed:
+                    errors.append(f"{review_metrics_path}: completed_reviewer_invocations must match review_invocation_set")
 
     require_completed_assignment_outputs = invocation_set is None or invocation_set_completed
     if assignments and artifact_preparation_report_path and require_completed_assignment_outputs:

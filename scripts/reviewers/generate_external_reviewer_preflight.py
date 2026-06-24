@@ -67,6 +67,72 @@ def forbidden_env_from_config(config: dict[str, Any]) -> list[str]:
     return values
 
 
+def resolve_ref(ref: object, root: Path) -> Path:
+    path = Path(str(ref))
+    if path.is_absolute():
+        return path
+    return root / path
+
+
+def concrete_hash(value: object) -> bool:
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        return False
+    digest = value.removeprefix("sha256:")
+    return len(digest) == 64 and all(char in "0123456789abcdef" for char in digest)
+
+
+def assignment_fingerprints(
+    contract: dict[str, Any],
+    root: Path,
+    config_path: Path,
+    role_contract_path: Path,
+    rubric_source_path: Path,
+    output_schema_path: Path,
+    review_prompt_contract_path: Path,
+    wrapper_path: Path,
+    forbidden_env_fingerprint: str,
+    execution: dict[str, Any],
+) -> list[dict[str, Any]]:
+    reviewers = {
+        str(item.get("instance_id")): item
+        for item in contract.get("reviewer_set", []) or []
+        if isinstance(item, dict) and item.get("instance_id")
+    }
+    rendered_prompts = {
+        str(item.get("reviewer")): item
+        for item in contract.get("rendered_prompts", []) or []
+        if isinstance(item, dict) and item.get("reviewer")
+    }
+    entries: list[dict[str, Any]] = []
+    for assignment in contract.get("reviewer_assignments", []) or []:
+        if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
+            continue
+        reviewer = str(assignment.get("reviewer") or "")
+        reviewer_def = reviewers.get(reviewer, {}) or {}
+        rendered_prompt = rendered_prompts.get(reviewer, {}) or {}
+        assignment_config = resolve_ref(assignment.get("provider_config") or config_path, root)
+        assignment_role = resolve_ref(reviewer_def.get("role_contract") or role_contract_path, root)
+        rubric_hash = rendered_prompt.get("rubric_hash")
+        if not concrete_hash(rubric_hash):
+            rubric_hash = sha256_file(rubric_source_path)
+        entries.append(
+            {
+                "reviewer": reviewer,
+                "provider_config_hash": sha256_file(assignment_config),
+                "wrapper_hash": sha256_file(wrapper_path),
+                "schema_hash": sha256_file(output_schema_path),
+                "prompt_contract_hash": sha256_file(review_prompt_contract_path),
+                "role_contract_hash": sha256_file(assignment_role),
+                "rubric_hash": str(rubric_hash),
+                "forbidden_env_fingerprint": forbidden_env_fingerprint,
+                "permission_mode": str(execution["permission_mode"]),
+                "sandbox_mode": str(execution["sandbox_mode"]),
+                "provider_transport_mode": str(execution.get("prompt_transport", "stdin")),
+            }
+        )
+    return entries
+
+
 def generate_preflight(
     provider: str,
     config_path: Path,
@@ -94,6 +160,7 @@ def generate_preflight(
         "checked": sorted(set(forbidden)),
         "present": [],
     }
+    forbidden_env_fingerprint = sha256_text(json.dumps(forbidden_payload, sort_keys=True))
     fingerprint = {
         "provider_config_hash": sha256_file(config_path),
         "wrapper_hash": sha256_file(wrapper_path),
@@ -101,12 +168,12 @@ def generate_preflight(
         "prompt_contract_hash": sha256_file(review_prompt_contract_path),
         "role_contract_hash": sha256_file(role_contract_path),
         "rubric_hash": sha256_file(rubric_source_path),
-        "forbidden_env_fingerprint": sha256_text(json.dumps(forbidden_payload, sort_keys=True)),
+        "forbidden_env_fingerprint": forbidden_env_fingerprint,
         "permission_mode": str(execution["permission_mode"]),
         "sandbox_mode": str(execution["sandbox_mode"]),
         "provider_transport_mode": str(execution.get("prompt_transport", "stdin")),
     }
-    return {
+    preflight = {
         "version": 1,
         "artifact_kind": "external_reviewer_preflight",
         "artifact_scope": "run",
@@ -119,6 +186,22 @@ def generate_preflight(
         "forbidden_env": forbidden_payload,
         "blockers": [],
     }
+    contract = load_yaml(review_prompt_contract_path)
+    fingerprints = assignment_fingerprints(
+        contract,
+        Path.cwd(),
+        config_path,
+        role_contract_path,
+        rubric_source_path,
+        output_schema_path,
+        review_prompt_contract_path,
+        wrapper_path,
+        forbidden_env_fingerprint,
+        execution,
+    )
+    if fingerprints:
+        preflight["assignment_fingerprints"] = fingerprints
+    return preflight
 
 
 def main() -> int:

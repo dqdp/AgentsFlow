@@ -32,6 +32,10 @@ def sha256_file(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def sha256_text(value: str) -> str:
+    return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
 def provider_models_include_family(provider_models: object, model_family: str) -> bool:
     family = str(model_family).lower()
     if not family or not isinstance(provider_models, list):
@@ -58,6 +62,13 @@ def resolve_path(ref: object, root: Path) -> Path:
     if path.is_absolute():
         return path
     return root / path
+
+
+def concrete_hash(value: object) -> bool:
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        return False
+    digest = value.removeprefix("sha256:")
+    return len(digest) == 64 and all(char in "0123456789abcdef" for char in digest)
 
 
 def validate_report(path: Path, root: Path) -> dict[str, Any]:
@@ -185,6 +196,100 @@ def validate_invocation_set_output_path(contract: dict[str, Any], output_path: P
     return artifact_preparation_report
 
 
+def expected_assignment_fingerprint(
+    contract: dict[str, Any],
+    assignment: dict[str, Any],
+    contract_path: Path,
+    root: Path,
+    forbidden_env_fingerprint: str,
+) -> dict[str, str] | None:
+    reviewer = str(assignment.get("reviewer") or "")
+    reviewers = {
+        str(item.get("instance_id")): item
+        for item in contract.get("reviewer_set", []) or []
+        if isinstance(item, dict) and item.get("instance_id")
+    }
+    rendered_prompts = {
+        str(item.get("reviewer")): item
+        for item in contract.get("rendered_prompts", []) or []
+        if isinstance(item, dict) and item.get("reviewer")
+    }
+    reviewer_def = reviewers.get(reviewer, {}) or {}
+    rendered_prompt = rendered_prompts.get(reviewer, {}) or {}
+    role_ref = reviewer_def.get("role_contract")
+    if not role_ref or not assignment.get("provider_config"):
+        return None
+    config_path = resolve_path(assignment.get("provider_config"), root)
+    role_path = resolve_path(role_ref, root)
+    config = load_yaml(config_path)
+    execution = config.get("execution", {}) or {}
+    rubric_hash = rendered_prompt.get("rubric_hash")
+    if not concrete_hash(rubric_hash):
+        rubric_hash = sha256_text(json.dumps(contract.get("prompt_policy", {}) or {}, sort_keys=True))
+    return {
+        "reviewer": reviewer,
+        "provider_config_hash": sha256_file(config_path),
+        "wrapper_hash": sha256_file(root / "scripts" / "reviewers" / "run_external_reviewer.py"),
+        "schema_hash": sha256_file(root / "schemas" / "reviewer-report.schema.json"),
+        "prompt_contract_hash": sha256_file(resolve_path(contract_path, root)),
+        "role_contract_hash": sha256_file(role_path),
+        "rubric_hash": str(rubric_hash),
+        "forbidden_env_fingerprint": forbidden_env_fingerprint,
+        "permission_mode": str(execution.get("permission_mode")),
+        "sandbox_mode": str(execution.get("sandbox_mode")),
+        "provider_transport_mode": str(execution.get("prompt_transport", "stdin")),
+    }
+
+
+def validate_assignment_fingerprints(
+    preflight: dict[str, Any],
+    contract: dict[str, Any],
+    contract_path: Path,
+    root: Path,
+    external_assignments: list[dict[str, Any]],
+    preflight_path: Path,
+) -> None:
+    forbidden_payload = preflight.get("forbidden_env", {}) or {}
+    forbidden_env_fingerprint = sha256_text(json.dumps(forbidden_payload, sort_keys=True))
+    expected_by_reviewer: dict[str, dict[str, str]] = {}
+    for assignment in external_assignments:
+        expected = expected_assignment_fingerprint(
+            contract,
+            assignment,
+            contract_path,
+            root,
+            forbidden_env_fingerprint,
+        )
+        if expected:
+            expected_by_reviewer[expected["reviewer"]] = expected
+    if not expected_by_reviewer:
+        return
+    declared_items = preflight.get("assignment_fingerprints")
+    if not isinstance(declared_items, list) or not declared_items:
+        raise ValueError(f"{preflight_path}: assignment_fingerprints are required for prepared claude-code assignments")
+    declared_by_reviewer = {
+        str(item.get("reviewer")): item
+        for item in declared_items
+        if isinstance(item, dict) and item.get("reviewer")
+    }
+    missing = sorted(set(expected_by_reviewer) - set(declared_by_reviewer))
+    if missing:
+        raise ValueError(
+            f"{preflight_path}: assignment_fingerprints missing reviewer(s): {', '.join(missing)}"
+        )
+    for reviewer, expected in expected_by_reviewer.items():
+        declared = declared_by_reviewer[reviewer]
+        for key, expected_value in expected.items():
+            declared_value = declared.get(key)
+            if key.endswith("_hash") or key == "forbidden_env_fingerprint":
+                if not concrete_hash(declared_value):
+                    raise ValueError(f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must be concrete sha256")
+            if declared_value != expected_value:
+                raise ValueError(
+                    f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must match current review artifact"
+                )
+
+
 def validate_external_reviewer_preflight(
     contract: dict[str, Any],
     contract_path: Path,
@@ -219,12 +324,26 @@ def validate_external_reviewer_preflight(
     contract_hash = sha256_file(resolve_path(contract_path, root))
     if fingerprint.get("prompt_contract_hash") != contract_hash:
         raise ValueError(f"{preflight_path}: prompt_contract_hash must match current review prompt contract")
+    wrapper_path = root / "scripts" / "reviewers" / "run_external_reviewer.py"
+    if wrapper_path.is_file() and fingerprint.get("wrapper_hash") != sha256_file(wrapper_path):
+        raise ValueError(f"{preflight_path}: wrapper_hash must match current external reviewer wrapper")
+    schema_path = root / "schemas" / "reviewer-report.schema.json"
+    if schema_path.is_file() and fingerprint.get("schema_hash") != sha256_file(schema_path):
+        raise ValueError(f"{preflight_path}: schema_hash must match current reviewer report schema")
     declared_config_hash = fingerprint.get("provider_config_hash")
     for assignment in external_assignments:
         config_path = resolve_path(assignment.get("provider_config"), root)
         if declared_config_hash != sha256_file(config_path):
             reviewer = assignment.get("reviewer")
             raise ValueError(f"{preflight_path}: provider_config_hash must match assignment provider_config for {reviewer}")
+    validate_assignment_fingerprints(
+        preflight,
+        contract,
+        contract_path,
+        root,
+        external_assignments,
+        preflight_path,
+    )
     return str(preflight_ref), sha256_file(preflight_path)
 
 
