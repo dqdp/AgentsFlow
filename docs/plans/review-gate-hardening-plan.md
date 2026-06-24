@@ -377,6 +377,18 @@ Recommended run structure:
 - larger behavior-changing slices such as review metrics, external preflight
   and health-check validation should use their own BFCF implementation runs.
 
+Scope interpretation rule:
+
+- A branch name or initial slice label is not the final PR scope authority.
+- If the human explicitly continues from Slice A into later implementation
+  slices in the same branch/PR, the PR is a combined review-gate hardening track,
+  not a Slice-A-only change.
+- The combined PR review packet must then declare the expanded scope and include
+  per-slice evidence for every behavior-changing slice: task contract,
+  red-capture evidence, green-verification evidence and final evidence report.
+- Documentation-only Slice A still does not require red capture by itself, but
+  behavior-changing slices in the same PR do.
+
 Slice A scope:
 
 - add the two new ADRs described above;
