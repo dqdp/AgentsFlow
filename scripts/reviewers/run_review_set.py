@@ -333,6 +333,9 @@ def validate_external_reviewer_preflight(
     declared_config_hash = fingerprint.get("provider_config_hash")
     for assignment in external_assignments:
         config_path = resolve_path(assignment.get("provider_config"), root)
+        if not config_path.is_file():
+            reviewer = assignment.get("reviewer")
+            raise ValueError(f"{preflight_path}: provider_config missing for {reviewer}: {config_path}")
         if declared_config_hash != sha256_file(config_path):
             reviewer = assignment.get("reviewer")
             raise ValueError(f"{preflight_path}: provider_config_hash must match assignment provider_config for {reviewer}")
@@ -858,7 +861,12 @@ def main() -> int:
             if collection_errors:
                 exc = RuntimeError(f"{exc}; external collection errors: {'; '.join(collection_errors)}")
         failure_message = str(exc)
-        preflight_failure = "preflight" in failure_message.lower()
+        lowered_failure = failure_message.lower()
+        preflight_failure = (
+            "preflight" in lowered_failure
+            or "provider_config" in lowered_failure
+            or "provider config" in lowered_failure
+        )
         for entry in reviewers:
             if not entry.get("status"):
                 if preflight_failure and entry.get("provider") == "claude-code":

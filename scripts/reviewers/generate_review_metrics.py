@@ -93,6 +93,11 @@ def is_preflight_blocker(entry: dict[str, Any]) -> bool:
         or "config" in status and "block" in status
         or "permission" in status and "block" in status
         or "preflight" in failure_stage
+        or "config" in failure_stage and "provider" in failure_stage
+        or "preflight" in error
+        or "provider_config" in error
+        or "provider config" in error
+        or "external reviewer preflight" in error
         or "permission" in error and "provider" in error
     )
 

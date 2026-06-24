@@ -48,6 +48,12 @@ RUN_ARTIFACT_MARKERS = (
     ("Docs", "agentsflow", "runs"),
     ("run-artifacts", "agentsflow", "runs"),
 )
+REVIEW_METRICS_PREFLIGHT_STATUSES = {
+    "provider_preflight_blocked",
+    "preflight_blocked",
+    "config_blocker",
+    "permission_blocker",
+}
 
 
 def _is_agentsflow_run_artifact_path(path: Path) -> bool:
@@ -76,6 +82,50 @@ def _is_within_path(path: Path, parent: Path) -> bool:
 
 def _is_run_scope_artifact(path: Path, data: dict) -> bool:
     return data.get("artifact_scope", "run") == "run" or _is_agentsflow_run_artifact_path(path)
+
+
+def _is_review_metrics_preflight_blocker(entry: dict) -> bool:
+    status = str(entry.get("status") or "").lower()
+    failure_stage = str(entry.get("failure_stage") or "").lower()
+    error = str(entry.get("error") or "").lower()
+    return (
+        status in REVIEW_METRICS_PREFLIGHT_STATUSES
+        or "preflight" in status
+        or ("config" in status and "block" in status)
+        or ("permission" in status and "block" in status)
+        or "preflight" in failure_stage
+        or ("config" in failure_stage and "provider" in failure_stage)
+        or "preflight" in error
+        or "provider_config" in error
+        or "provider config" in error
+        or "external reviewer preflight" in error
+        or ("permission" in error and "provider" in error)
+    )
+
+
+def _is_review_metrics_completed(status: object) -> bool:
+    return str(status or "").lower() in {"completed", "report-present", "invoked"}
+
+
+def _is_review_metrics_substantive_attempt(entry: dict, invocation_completed: bool) -> bool:
+    if _is_review_metrics_preflight_blocker(entry):
+        return False
+    status = str(entry.get("status") or "").lower()
+    if invocation_completed and _is_review_metrics_completed(status):
+        return True
+    if status in {"running", "failed", "timed-out", "timeout", "invocation_failed"}:
+        return bool(
+            entry.get("dispatch_started_at")
+            or entry.get("dispatch_finished_at")
+            or entry.get("invocation_metadata_path")
+            or entry.get("exit_code") is not None
+        )
+    if entry.get("dispatch_started_at") or entry.get("dispatch_finished_at"):
+        return True
+    if entry.get("invocation_metadata_path") or entry.get("exit_code") is not None:
+        return True
+    failure_stage = str(entry.get("failure_stage") or "").lower()
+    return bool(failure_stage and "preflight" not in failure_stage)
 
 
 def _strip_fragment(ref: object) -> str:
@@ -1311,10 +1361,27 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     for item in (invocation_set or {}).get("reviewers", []) or []
                     if isinstance(item, dict) and str(item.get("status") or "").lower() in completed_statuses
                 )
+                invocation_reviewer_entries = [
+                    item
+                    for item in (invocation_set or {}).get("reviewers", []) or []
+                    if isinstance(item, dict)
+                ]
+                expected_preflight_blockers = sum(
+                    1 for item in invocation_reviewer_entries if _is_review_metrics_preflight_blocker(item)
+                )
+                invocation_completed_for_metrics = bool(invocation_set and invocation_set.get("status") == "completed")
+                expected_substantive_cycles = 1 if any(
+                    _is_review_metrics_substantive_attempt(item, invocation_completed_for_metrics)
+                    for item in invocation_reviewer_entries
+                ) or invocation_completed_for_metrics else 0
                 if metrics_data.get("planned_reviewer_slots") != len(reviewers):
                     errors.append(f"{review_metrics_path}: planned_reviewer_slots must match reviewer_set")
                 if metrics_data.get("completed_reviewer_invocations") != expected_completed:
                     errors.append(f"{review_metrics_path}: completed_reviewer_invocations must match review_invocation_set")
+                if metrics_data.get("provider_preflight_blockers") != expected_preflight_blockers:
+                    errors.append(f"{review_metrics_path}: provider_preflight_blockers must match review_invocation_set")
+                if metrics_data.get("substantive_review_cycles") != expected_substantive_cycles:
+                    errors.append(f"{review_metrics_path}: substantive_review_cycles must match review_invocation_set")
 
     require_completed_assignment_outputs = invocation_set is None or invocation_set_completed
     if assignments and artifact_preparation_report_path and require_completed_assignment_outputs:
