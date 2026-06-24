@@ -213,12 +213,16 @@ def write_minimal_external_preflight(path: Path, contract_path: Path, root: Path
             return "sha256:" + "0" * 64
         return "sha256:" + hashlib.sha256(ref_path.read_bytes()).hexdigest()
 
-    provider_config = resolve_ref("examples/external-reviewers/claude-code/claude-code.yaml")
     wrapper = resolve_ref("scripts/reviewers/run_external_reviewer.py")
     schema = resolve_ref("schemas/reviewer-report.schema.json")
     role_contract = resolve_ref("profiles/reviewer_roles/generalist.yaml")
     rubric = resolve_ref("templates/review-prompts/base.md")
     contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    provider_config = resolve_ref("examples/external-reviewers/claude-code/claude-code.yaml")
+    for assignment in contract.get("reviewer_assignments", []) or []:
+        if isinstance(assignment, dict) and assignment.get("provider") == "claude-code" and assignment.get("provider_config"):
+            provider_config = resolve_ref(assignment.get("provider_config"))
+            break
     reviewers = {
         str(item.get("instance_id")): item
         for item in contract.get("reviewer_set", []) or []
@@ -298,6 +302,45 @@ def write_minimal_external_preflight(path: Path, contract_path: Path, root: Path
     path.write_text(
         json.dumps(payload, indent=2)
         + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_raw_output_classification_config(
+    config_path: Path,
+    classification_path: Path,
+    raw_output_path: Path,
+    *,
+    run_id: str = "2026-06-17-add-calculator",
+    material_change_id: str = "",
+) -> None:
+    import yaml
+
+    config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(encoding="utf-8")
+    )
+    config["normalization"]["raw_output_classification"] = "explicit_non_sensitive_for_this_run"
+    config["normalization"]["raw_output_classification_artifact"] = str(classification_path)
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    classification_path.write_text(
+        yaml.safe_dump(
+            {
+                "artifact_kind": "provider_raw_output_classification",
+                "artifact_scope": "run",
+                "run_id": run_id,
+                "material_change_id": material_change_id,
+                "provider": "claude-code",
+                "classification": "explicit_non_sensitive_for_this_run",
+                "classified_by": "test",
+                "classified_at": "2026-06-24T00:00:00+00:00",
+                "basis": ["test fixture contains only synthetic reviewer output"],
+                "retention": {
+                    "preserve_raw_output": True,
+                    "raw_output_path": str(raw_output_path),
+                },
+            },
+            sort_keys=False,
+        ),
         encoding="utf-8",
     )
 
@@ -5119,6 +5162,57 @@ def test_external_reviewer_wrapper_mock_passes(tmp_path) -> None:
     assert invocation["tools"] == ""
 
 
+def test_external_reviewer_wrapper_requires_raw_output_classification(tmp_path) -> None:
+    import yaml
+
+    config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(encoding="utf-8")
+    )
+    config["normalization"].pop("raw_output_classification", None)
+    config_path = tmp_path / "claude-code.yaml"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    out = tmp_path / "reviewer-report.claude-architecture.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", str(config_path),
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", "examples/external-reviewers/claude-code/mock-raw-output.json",
+        "--output", str(out),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "raw_output_classification" in (result.stdout + result.stderr)
+    assert not out.exists()
+
+
+def test_external_reviewer_wrapper_requires_run_raw_output_classification_artifact(tmp_path) -> None:
+    import pytest
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+
+    config = {
+        "normalization": {
+            "preserve_raw_output": True,
+            "raw_output_classification": "explicit_non_sensitive",
+        }
+    }
+
+    with pytest.raises(ValueError, match="raw_output_classification_artifact"):
+        run_external_reviewer.validate_raw_output_retention_policy(
+            config,
+            tmp_path / "claude-code.yaml",
+            "claude-code",
+            {"run_id": "run-1", "material_change_id": "change-1"},
+            {"artifact_scope": "run"},
+            tmp_path / "reviewer-report.raw.json",
+        )
+
+
 def test_claude_code_provider_command_defaults_model_and_effort() -> None:
     import sys
 
@@ -5467,6 +5561,14 @@ def test_external_reviewer_wrapper_records_schema_valid_nonzero_provider_exit(tm
         )
 
     out = tmp_path / "reviewer-report.json"
+    config_path = tmp_path / "claude-code.yaml"
+    write_raw_output_classification_config(
+        config_path,
+        tmp_path / "raw-output-classification.yaml",
+        out.with_suffix(".raw.json"),
+        run_id="YYYY-MM-DD-task-slug",
+        material_change_id="",
+    )
     monkeypatch.setattr(run_external_reviewer, "validate_review_packet", fake_validate_review_packet)
     monkeypatch.setattr(run_external_reviewer, "render_prompt", lambda packet, role_contract: prompt)
     monkeypatch.setattr(claude_code, "invoke", fake_invoke)
@@ -5478,7 +5580,7 @@ def test_external_reviewer_wrapper_records_schema_valid_nonzero_provider_exit(tm
             "--provider",
             "claude-code",
             "--config",
-            "examples/external-reviewers/claude-code/claude-code.yaml",
+            str(config_path),
             "--input",
             "examples/external-reviewers/claude-code/review-packet.architecture.json",
             "--output",
@@ -6843,6 +6945,14 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
     output = tmp_path / "review-invocation-set.json"
     preparation = tmp_path / "prepared-review-artifacts.json"
     external_preflight = tmp_path / "external-reviewer-preflight.json"
+    provider_config = tmp_path / "claude-code.yaml"
+    write_raw_output_classification_config(
+        provider_config,
+        tmp_path / "raw-output-classification.yaml",
+        external_raw_output,
+        run_id="2026-06-17-add-calculator",
+        material_change_id="",
+    )
     contract["provider_policy"] = {
         "allow_external_reviewers": True,
         "require_model_diversity": True,
@@ -6863,7 +6973,7 @@ def test_run_review_set_mixed_internal_and_claude_mock(tmp_path) -> None:
             "reviewer": "generalist-b",
             "provider": "claude-code",
             "model_family": "opus",
-            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "provider_config": str(provider_config),
             "packet_path": contract["inputs"]["review_packets"][1]["path"],
             "report_path": str(external_report),
             "raw_output_path": str(external_raw_output),
@@ -7425,6 +7535,7 @@ def test_run_review_set_rejects_unvalidated_artifact_preparation_report(tmp_path
 
 
 def test_run_review_set_requires_external_preflight_before_dispatch(tmp_path) -> None:
+    import json
     import yaml
 
     source_contract_path = (
@@ -7474,6 +7585,29 @@ def test_run_review_set_requires_external_preflight_before_dispatch(tmp_path) ->
     assert "inputs.external_reviewer_preflight" in (result.stdout + result.stderr)
     assert output.exists()
     assert not external_report.exists()
+    invocation_set = json.loads(output.read_text(encoding="utf-8"))
+    assert invocation_set["status"] == "failed"
+    assert len(invocation_set["reviewers"]) == 1
+    assert invocation_set["reviewers"][0]["reviewer"] == "generalist-b"
+    assert invocation_set["reviewers"][0]["status"] == "provider_preflight_blocked"
+    metrics = tmp_path / "review-metrics.json"
+    metrics_result = run(
+        "scripts/reviewers/generate_review_metrics.py",
+        "--run-id",
+        "missing-preflight-test",
+        "--workflow",
+        "pr-merge-readiness",
+        "--review-invocation-set",
+        str(output),
+        "--output",
+        str(metrics),
+        env=clean_env(),
+    )
+    assert metrics_result.returncode == 0, metrics_result.stdout + metrics_result.stderr
+    metrics_data = json.loads(metrics.read_text(encoding="utf-8"))
+    assert metrics_data["planned_reviewer_slots"] == 1
+    assert metrics_data["completed_reviewer_invocations"] == 0
+    assert metrics_data["provider_preflight_blockers"] == 1
 
 
 def test_run_review_set_rejects_stale_preparation_packet_hash_before_dispatch(tmp_path) -> None:

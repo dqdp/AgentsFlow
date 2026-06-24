@@ -5,6 +5,25 @@ from pathlib import Path
 from .common import parse_yaml
 
 
+ALLOWED_RAW_OUTPUT_CLASSIFICATIONS = {
+    "explicit_non_sensitive",
+    "explicit_non_sensitive_fixture",
+    "explicit_non_sensitive_for_this_run",
+}
+RUN_ARTIFACT_MARKERS = (
+    ("Docs", "agentsflow", "runs"),
+    ("run-artifacts", "agentsflow", "runs"),
+)
+
+
+def is_agentsflow_run_artifact_path(path: Path) -> bool:
+    parts = path.parts
+    return any(
+        parts[index : index + 3] in RUN_ARTIFACT_MARKERS
+        for index in range(len(parts) - 2)
+    )
+
+
 def validate_external_review_provider(path: Path) -> list[str]:
     errors: list[str] = []
     data = parse_yaml(path) or {}
@@ -40,6 +59,12 @@ def validate_external_review_provider(path: Path) -> list[str]:
         errors.append(f"{path}: claude-code normalization.require_schema_validation must be true")
     if not isinstance(normalization.get("preserve_raw_output"), bool):
         errors.append(f"{path}: claude-code normalization.preserve_raw_output must be explicitly true or false")
+    if normalization.get("preserve_raw_output") is True and not is_agentsflow_run_artifact_path(path):
+        classification = str(normalization.get("raw_output_classification") or "")
+        if classification not in ALLOWED_RAW_OUTPUT_CLASSIFICATIONS:
+            errors.append(
+                f"{path}: claude-code normalization.raw_output_classification must explicitly declare non-sensitive retention"
+            )
     execution = data.get("execution", {}) or {}
     if execution.get("command") != "claude":
         errors.append(f"{path}: claude-code execution.command must be claude")

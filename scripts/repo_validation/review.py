@@ -21,6 +21,11 @@ from .common import (
 
 ROLE_CONTRACT_PREFIXES = ('profiles/reviewer_roles/', '.agentsflow/profiles/reviewer_roles/')
 SUPPORTED_REVIEW_PROVIDERS = {"internal-agent", "claude-code"}
+ALLOWED_RAW_OUTPUT_CLASSIFICATIONS = {
+    "explicit_non_sensitive",
+    "explicit_non_sensitive_fixture",
+    "explicit_non_sensitive_for_this_run",
+}
 V0_2_SUPPORTED_TARGET_WORKFLOWS = {
     'big-feature-contract-first',
 }
@@ -1041,6 +1046,88 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                 f"declared {declared}, computed {expected}"
             )
 
+    def resolve_config_ref(ref: object, config_path: Path) -> Path:
+        ref_path = Path(str(ref))
+        if ref_path.is_absolute():
+            return ref_path
+        root_path = root / ref_path
+        if root_path.exists():
+            return root_path
+        return config_path.parent / ref_path
+
+    def validate_raw_output_retention(
+        invocation_path: Path,
+        invocation_data: dict,
+        provider_config_path: Path | None,
+        packet_data: dict | None,
+        raw_output_path: Path,
+        reviewer: str,
+    ) -> None:
+        if provider_config_path is None or not provider_config_path.is_file():
+            errors.append(f"{invocation_path}: provider_config is required to classify raw output for {reviewer}")
+            return
+        provider_config = parse_yaml(provider_config_path)
+        if not isinstance(provider_config, dict):
+            errors.append(f"{provider_config_path}: provider config must be a YAML mapping")
+            return
+        normalization = provider_config.get("normalization", {}) or {}
+        if normalization.get("preserve_raw_output") is not True:
+            errors.append(f"{provider_config_path}: preserve_raw_output must be true when raw output is retained for {reviewer}")
+            return
+        config_classification = str(normalization.get("raw_output_classification") or "")
+        if config_classification not in ALLOWED_RAW_OUTPUT_CLASSIFICATIONS:
+            errors.append(
+                f"{provider_config_path}: normalization.raw_output_classification must explicitly declare non-sensitive retention"
+            )
+            return
+        if not packet_data or packet_data.get("artifact_scope", "run") != "run":
+            return
+        artifact_ref = normalization.get("raw_output_classification_artifact")
+        if not artifact_ref:
+            errors.append(
+                f"{provider_config_path}: run-scope raw output retention requires normalization.raw_output_classification_artifact"
+            )
+            return
+        artifact_path = resolve_config_ref(artifact_ref, provider_config_path)
+        if not artifact_path.is_file():
+            errors.append(f"{provider_config_path}: raw output classification artifact does not exist: {artifact_ref}")
+            return
+        artifact = parse_yaml(artifact_path)
+        if not isinstance(artifact, dict):
+            errors.append(f"{artifact_path}: raw output classification artifact must be a YAML mapping")
+            return
+        if artifact.get("artifact_kind") != "provider_raw_output_classification":
+            errors.append(f"{artifact_path}: artifact_kind must be provider_raw_output_classification")
+        if artifact.get("provider") != "claude-code":
+            errors.append(f"{artifact_path}: provider must be claude-code")
+        artifact_classification = str(artifact.get("classification") or "")
+        if artifact_classification not in ALLOWED_RAW_OUTPUT_CLASSIFICATIONS:
+            errors.append(f"{artifact_path}: classification must explicitly declare non-sensitive retention")
+        if str(artifact.get("run_id") or "") != str(packet_data.get("run_id") or ""):
+            errors.append(f"{artifact_path}: run_id must match review packet for {reviewer}")
+        if str(artifact.get("material_change_id") or "") != str(packet_data.get("material_change_id") or ""):
+            errors.append(f"{artifact_path}: material_change_id must match review packet for {reviewer}")
+        retention = artifact.get("retention", {}) or {}
+        if retention.get("preserve_raw_output") is not True:
+            errors.append(f"{artifact_path}: retention.preserve_raw_output must be true")
+        declared_raw_output = retention.get("raw_output_path")
+        if not declared_raw_output:
+            errors.append(f"{artifact_path}: retention.raw_output_path is required")
+        else:
+            declared_raw_path = Path(str(declared_raw_output))
+            if not declared_raw_path.is_absolute():
+                declared_raw_path = root / declared_raw_path
+            if declared_raw_path.resolve() != raw_output_path.resolve():
+                errors.append(f"{artifact_path}: retention.raw_output_path must match retained raw output for {reviewer}")
+        invocation_classification = str(invocation_data.get("raw_output_classification") or "")
+        if invocation_classification and invocation_classification != artifact_classification:
+            errors.append(f"{invocation_path}: raw_output_classification must match classification artifact for {reviewer}")
+        invocation_artifact = invocation_data.get("raw_output_classification_artifact")
+        if invocation_artifact:
+            invocation_artifact_path = resolve_config_ref(invocation_artifact, provider_config_path)
+            if invocation_artifact_path.resolve() != artifact_path.resolve():
+                errors.append(f"{invocation_path}: raw_output_classification_artifact must match provider config for {reviewer}")
+
     def validate_external_assignment_fingerprints(
         preflight_path: Path,
         preflight_data: dict,
@@ -1366,6 +1453,11 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     completed_provider_model_families: set[str] = set()
     assignment_report_paths: dict[Path, str] = {}
     invocation_report_paths: dict[Path, str] = {}
+    try:
+        contract_version_number = int(data.get("version") or 1)
+    except (TypeError, ValueError):
+        contract_version_number = 1
+    raw_retention_required = assignment_evidence_required or contract_version_number >= 2
     for idx, assignment in enumerate(assignments):
         if not isinstance(assignment, dict):
             continue
@@ -1452,6 +1544,19 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                                 errors,
                             )
         if provider == "claude-code":
+            provider_config_path = None
+            provider_config_ref = assignment.get("provider_config")
+            if provider_config_ref:
+                provider_ref = Path(str(provider_config_ref))
+                if not provider_ref.is_absolute() and ".." not in provider_ref.parts:
+                    candidate_provider_config = root / provider_ref
+                    if candidate_provider_config.is_file():
+                        provider_config_path = candidate_provider_config
+            packet_data_for_assignment: dict | None = None
+            if packet_path and packet_path.is_file():
+                packet_data = parse_json(packet_path)
+                if isinstance(packet_data, dict):
+                    packet_data_for_assignment = packet_data
             raw_output_path = None
             if require_completed_assignment_outputs:
                 raw_output_path = resolve_optional_assignment_output(
@@ -1558,6 +1663,15 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                             sha256_file(raw_output_path_ref),
                             reviewer,
                         )
+                        if completed_external_evidence and raw_retention_required:
+                            validate_raw_output_retention(
+                                invocation_metadata_path,
+                                invocation_data,
+                                provider_config_path,
+                                packet_data_for_assignment,
+                                raw_output_path_ref,
+                                reviewer,
+                            )
                     if completed_external_evidence:
                         normalized_output_path_ref = resolve_invocation_set_ref(
                             invocation_data.get("normalized_output_path"), f"{invocation_metadata_path}.normalized_output_path"

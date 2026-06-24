@@ -789,6 +789,11 @@ def main() -> int:
         if not isinstance(assignments, list) or not assignments:
             raise ValueError("review prompt contract must declare reviewer_assignments")
         validate_assignments(assignments, contract)
+        reviewer_entries = [
+            (assignment, build_entry(assignment, root))
+            for assignment in assignments
+        ]
+        reviewers = [entry for _, entry in reviewer_entries]
         artifact_preparation_report = validate_invocation_set_output_path(contract, output_path, root)
         external_preflight_ref, external_preflight_hash = validate_external_reviewer_preflight(
             contract,
@@ -808,10 +813,8 @@ def main() -> int:
         require_model_diversity = (contract.get("provider_policy", {}) or {}).get("require_model_diversity") is True
         internal_runs: list[tuple[dict[str, Any], dict[str, Any]]] = []
 
-        for assignment in assignments:
+        for assignment, entry in reviewer_entries:
             provider = str(assignment["provider"])
-            entry = build_entry(assignment, root)
-            reviewers.append(entry)
             if provider == "internal-agent":
                 internal_runs.append((assignment, entry))
             elif provider == "claude-code":
@@ -854,9 +857,15 @@ def main() -> int:
             )
             if collection_errors:
                 exc = RuntimeError(f"{exc}; external collection errors: {'; '.join(collection_errors)}")
+        failure_message = str(exc)
+        preflight_failure = "preflight" in failure_message.lower()
         for entry in reviewers:
             if not entry.get("status"):
-                entry["status"] = "failed"
+                if preflight_failure and entry.get("provider") == "claude-code":
+                    entry["status"] = "provider_preflight_blocked"
+                    entry["failure_stage"] = "external_reviewer_preflight"
+                else:
+                    entry["status"] = "blocked-before-dispatch" if preflight_failure else "failed"
                 entry["error"] = str(exc)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         failed_output = {

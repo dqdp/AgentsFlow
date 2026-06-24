@@ -40,6 +40,11 @@ DEFAULT_CLAUDE_MODEL = claude_code.DEFAULT_MODEL
 DEFAULT_CLAUDE_EFFORT = claude_code.DEFAULT_EFFORT
 ALLOWED_CLAUDE_EFFORTS = {"low", "medium", "high", "xhigh", "max"}
 SUPPORTED_REVIEW_PROVIDERS = {"internal-agent", "claude-code"}
+ALLOWED_RAW_OUTPUT_CLASSIFICATIONS = {
+    "explicit_non_sensitive",
+    "explicit_non_sensitive_fixture",
+    "explicit_non_sensitive_for_this_run",
+}
 
 
 def sha256_text(value: str) -> str:
@@ -166,6 +171,15 @@ def validate_provider_config(config: dict[str, Any], requested_provider: str) ->
     normalization = config.get("normalization", {}) or {}
     if normalization.get("require_schema_validation") is not True:
         raise ValueError("external reviewers must set normalization.require_schema_validation: true")
+    if not isinstance(normalization.get("preserve_raw_output"), bool):
+        raise ValueError("external reviewers must set normalization.preserve_raw_output to true or false")
+    if normalization.get("preserve_raw_output") is True:
+        classification = str(normalization.get("raw_output_classification") or "")
+        if classification not in ALLOWED_RAW_OUTPUT_CLASSIFICATIONS:
+            raise ValueError(
+                "preserved external reviewer raw output requires "
+                "normalization.raw_output_classification to explicitly declare non-sensitive retention"
+            )
     execution = config.get("execution", {}) or {}
     if execution.get("command") != "claude":
         raise ValueError("external reviewers must set execution.command: claude")
@@ -206,6 +220,81 @@ def validate_provider_config(config: dict[str, Any], requested_provider: str) ->
         raise ValueError("external reviewers must set context_policy.fork_conversation_context: false")
     if context_policy.get("session_persistence") is not False:
         raise ValueError("external reviewers must set context_policy.session_persistence: false")
+
+
+def resolve_config_ref(ref: object, config_path: Path) -> Path:
+    path = Path(str(ref))
+    if path.is_absolute():
+        return path
+    cwd_path = Path.cwd() / path
+    if cwd_path.exists():
+        return cwd_path
+    return config_path.parent / path
+
+
+def resolve_output_ref(ref: object) -> Path:
+    path = Path(str(ref))
+    if path.is_absolute():
+        return path
+    return Path.cwd() / path
+
+
+def validate_raw_output_retention_policy(
+    config: dict[str, Any],
+    config_path: Path,
+    provider: str,
+    packet: dict[str, Any],
+    packet_hashes: dict[str, Any],
+    raw_path: Path,
+) -> dict[str, str]:
+    normalization = config.get("normalization", {}) or {}
+    if normalization.get("preserve_raw_output") is not True:
+        return {}
+
+    classification = str(normalization.get("raw_output_classification") or "")
+    if classification not in ALLOWED_RAW_OUTPUT_CLASSIFICATIONS:
+        raise ValueError(
+            "preserved external reviewer raw output requires "
+            "normalization.raw_output_classification to explicitly declare non-sensitive retention"
+        )
+    result = {"raw_output_classification": classification}
+    if packet_hashes.get("artifact_scope") != "run":
+        return result
+
+    artifact_ref = normalization.get("raw_output_classification_artifact")
+    if not artifact_ref:
+        raise ValueError(
+            "run-scope preserved external reviewer raw output requires "
+            "normalization.raw_output_classification_artifact"
+        )
+    artifact_path = resolve_config_ref(artifact_ref, config_path)
+    if not artifact_path.is_file():
+        raise ValueError(f"raw output classification artifact must exist: {artifact_ref}")
+    artifact = load_yaml(artifact_path)
+    if artifact.get("artifact_kind") != "provider_raw_output_classification":
+        raise ValueError(f"{artifact_path}: artifact_kind must be provider_raw_output_classification")
+    if artifact.get("provider") != provider:
+        raise ValueError(f"{artifact_path}: provider must match external reviewer provider")
+    artifact_classification = str(artifact.get("classification") or "")
+    if artifact_classification not in ALLOWED_RAW_OUTPUT_CLASSIFICATIONS:
+        raise ValueError(f"{artifact_path}: classification must explicitly declare non-sensitive retention")
+    if str(artifact.get("run_id") or "") != str(packet.get("run_id") or ""):
+        raise ValueError(f"{artifact_path}: run_id must match review packet")
+    if str(artifact.get("material_change_id") or "") != str(packet.get("material_change_id") or ""):
+        raise ValueError(f"{artifact_path}: material_change_id must match review packet")
+    retention = artifact.get("retention", {}) or {}
+    if retention.get("preserve_raw_output") is not True:
+        raise ValueError(f"{artifact_path}: retention.preserve_raw_output must be true")
+    declared_raw_output = retention.get("raw_output_path")
+    if not declared_raw_output:
+        raise ValueError(f"{artifact_path}: retention.raw_output_path is required")
+    declared_raw_path = resolve_output_ref(declared_raw_output)
+    actual_raw_path = resolve_output_ref(raw_path)
+    if declared_raw_path.resolve() != actual_raw_path.resolve():
+        raise ValueError(f"{artifact_path}: retention.raw_output_path must match --raw-output")
+    result["raw_output_classification"] = artifact_classification
+    result["raw_output_classification_artifact"] = str(artifact_path)
+    return result
 
 
 def enforce_billing_policy(config: dict[str, Any]) -> None:
@@ -961,6 +1050,14 @@ def main() -> int:
             compare_declared_hash("rendered prompt", selected_prompt_hash, prompt_hash)
         if not args.mock_response and packet_hashes["artifact_scope"] != "run":
             raise ValueError("live external reviewer invocation requires review prompt contract artifact_scope: run")
+        raw_retention = validate_raw_output_retention_policy(
+            config,
+            config_path,
+            args.provider,
+            packet,
+            packet_hashes,
+            raw_path,
+        )
 
         if args.mock_response:
             raw_text = Path(args.mock_response).read_text(encoding="utf-8")
@@ -1023,6 +1120,7 @@ def main() -> int:
             "exit_code": exit_code,
             "raw_output_path": raw_source_path,
             "raw_output_hash": raw_output_hash,
+            **raw_retention,
             "stderr_path": str(stderr_path) if stderr else "",
             "normalized_output_path": str(output_path),
         }

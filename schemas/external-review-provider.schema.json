@@ -184,6 +184,17 @@
         "preserve_raw_output": {
           "type": "boolean"
         },
+        "raw_output_classification": {
+          "enum": [
+            "explicit_non_sensitive",
+            "explicit_non_sensitive_fixture",
+            "explicit_non_sensitive_for_this_run"
+          ]
+        },
+        "raw_output_classification_artifact": {
+          "type": "string",
+          "minLength": 1
+        },
         "record_trace": {
           "type": "boolean"
         }
