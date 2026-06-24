@@ -213,6 +213,15 @@ selected risk surfaces, Failure Path Matrix, schema, validator behavior,
 mandatory evidence, verification output, project overlay, workflow policy,
 review packet content or current evidence examples.
 
+When a fix closes a validated P0/P1 blocker or mandatory evidence gap, the
+review rerun that supports acceptance is not a closure-only material-fix check.
+It must be a full-scope blocker/evidence sweep over the latest review packet,
+complete current diff, latest green verification evidence and previous validated
+findings/fixes. Reviewers must be asked both to verify closure and to search for
+new or remaining P0/P1 blockers and mandatory evidence gaps across the full
+slice. A closure-only review can be kept as supplemental evidence, but it does
+not satisfy the review gate for acceptance.
+
 ## Result states
 
 - `pass`

@@ -61,31 +61,31 @@
       "properties": {
         "provider_config_hash": {
           "type": "string",
-          "pattern": "^sha256:"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "wrapper_hash": {
           "type": "string",
-          "pattern": "^sha256:"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "schema_hash": {
           "type": "string",
-          "pattern": "^sha256:"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "prompt_contract_hash": {
           "type": "string",
-          "pattern": "^sha256:"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "role_contract_hash": {
           "type": "string",
-          "pattern": "^sha256:"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "rubric_hash": {
           "type": "string",
-          "pattern": "^sha256:"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "forbidden_env_fingerprint": {
           "type": "string",
-          "pattern": "^sha256:"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "permission_mode": {
           "const": "default"
@@ -140,9 +140,39 @@
         "required": ["result"]
       },
       "then": {
+        "required": ["blockers"],
         "properties": {
           "forbidden_env": {
             "properties": {
+              "checked": {
+                "allOf": [
+                  {
+                    "contains": {
+                      "const": "ANTHROPIC_API_KEY"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "ANTHROPIC_AUTH_TOKEN"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "ANTHROPIC_BASE_URL"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "CLAUDE_CODE_USE_BEDROCK"
+                    }
+                  },
+                  {
+                    "contains": {
+                      "const": "CLAUDE_CODE_USE_VERTEX"
+                    }
+                  }
+                ]
+              },
               "present": {
                 "maxItems": 0
               }

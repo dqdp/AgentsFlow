@@ -426,6 +426,56 @@ def validate_upstream_review_cycle_policy(path: Path, data: dict) -> list[str]:
         )
     if review_cycle.get("max_review_cycles_absent_means") != "unlimited":
         errors.append(f"{path}: review_cycle.max_review_cycles_absent_means must be unlimited")
+    rerun_review_on = set(str(item) for item in review_cycle.get("rerun_review_on", []) or [])
+    required_rerun_triggers = {
+        "accepted_blocker_fixed",
+        "mandatory_evidence_added",
+    }
+    missing_rerun_triggers = sorted(required_rerun_triggers - rerun_review_on)
+    if missing_rerun_triggers:
+        errors.append(
+            f"{path}: review_cycle.rerun_review_on missing: {', '.join(missing_rerun_triggers)}"
+        )
+    rerun_scope = review_cycle.get("rerun_scope")
+    if not isinstance(rerun_scope, dict):
+        errors.append(f"{path}: review_cycle.rerun_scope is required")
+        return errors
+    if (
+        rerun_scope.get("after_validated_blocker_or_mandatory_evidence_gap")
+        != "full_scope_blocker_and_evidence_sweep"
+    ):
+        errors.append(
+            f"{path}: review_cycle.rerun_scope.after_validated_blocker_or_mandatory_evidence_gap "
+            "must be full_scope_blocker_and_evidence_sweep"
+        )
+    if rerun_scope.get("closure_only_review_counts_as_acceptance_gate") is not False:
+        errors.append(
+            f"{path}: review_cycle.rerun_scope.closure_only_review_counts_as_acceptance_gate must be false"
+        )
+    required_inputs = {
+        "latest_review_packet",
+        "complete_current_diff",
+        "latest_green_verification_evidence",
+        "previous_validated_findings_and_fixes",
+    }
+    inputs = set(str(item) for item in rerun_scope.get("full_scope_inputs", []) or [])
+    missing_inputs = sorted(required_inputs - inputs)
+    if missing_inputs:
+        errors.append(
+            f"{path}: review_cycle.rerun_scope.full_scope_inputs missing: {', '.join(missing_inputs)}"
+        )
+    required_instructions = {
+        "verify_closure_of_previous_validated_findings",
+        "search_for_new_or_remaining_p0_p1_blockers_across_full_slice",
+        "search_for_new_or_remaining_mandatory_evidence_gaps_across_full_slice",
+    }
+    instructions = set(str(item) for item in rerun_scope.get("reviewer_instruction_must_include", []) or [])
+    missing_instructions = sorted(required_instructions - instructions)
+    if missing_instructions:
+        errors.append(
+            f"{path}: review_cycle.rerun_scope.reviewer_instruction_must_include missing: "
+            f"{', '.join(missing_instructions)}"
+        )
     return errors
 
 
@@ -1014,13 +1064,15 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     f"{artifact_preparation_report_path}.input_artifacts[{idx}].path",
                 )
                 if artifact_path:
-                    _require_concrete_hash(
-                        artifact_preparation_report_path,
-                        f"input_artifacts[{idx}].hash",
-                        artifact.get("hash"),
-                        sha256_file(artifact_path),
-                        errors,
-                    )
+                    # Declared input artifacts are provenance for the material
+                    # change captured when the review packet was prepared. The
+                    # current repository file may legitimately drift later, so
+                    # validation requires a concrete recorded hash but does not
+                    # rewrite historical evidence to future HEAD content.
+                    if not is_concrete_sha256(artifact.get("hash")):
+                        errors.append(
+                            f"{artifact_preparation_report_path}: input_artifacts[{idx}].hash must be a concrete sha256"
+                        )
 
     completed_provider_model_families: set[str] = set()
     assignment_report_paths: dict[Path, str] = {}

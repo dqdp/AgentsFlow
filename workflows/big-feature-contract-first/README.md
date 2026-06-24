@@ -70,3 +70,10 @@ After review, fixes are classified as material or non-material before deciding
 whether another review cycle is required. A P2 finding can still produce a
 material fix if the fix changes schemas, validators, workflow policy, bindings,
 mandatory evidence or examples used as evidence.
+
+When a fix closes a validated P0/P1 blocker or mandatory evidence gap, the
+review rerun used for acceptance must keep full-slice scope. It verifies closure
+of previous findings and searches for new or remaining P0/P1 blockers and
+mandatory evidence gaps across the latest review packet, complete current diff
+and fresh green verification evidence. A closure-only material-fix review is
+supplemental evidence, not the acceptance gate.

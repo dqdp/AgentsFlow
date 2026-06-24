@@ -19,6 +19,7 @@ REQUIRED_FILES = [
     "templates/review-artifact-preparation.json",
     "templates/review-metrics.json",
     "templates/external-reviewer-preflight.json",
+    "templates/review-loop-health-checkpoint.yaml",
     "templates/evidence-probe-report.json",
     "templates/project-intake.yaml",
     "templates/research-assignment.unknown-project.md",

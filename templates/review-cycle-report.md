@@ -110,9 +110,21 @@ changes, schema/validator changes, project overlay or binding changes, mandatory
 evidence changes, verification-result changes, and examples used as current
 evidence. A P2 finding can produce a material fix.
 
+## Post-Fix Rerun Scope
+
+If a fix closes a validated P0/P1 blocker or mandatory evidence gap, the
+acceptance rerun must be a full-scope blocker/evidence sweep. The reviewer packet
+must include the latest review packet, complete current diff, latest green
+verification evidence and previous validated findings/fixes. Reviewer
+instructions must ask reviewers to verify closure and search for new or remaining
+P0/P1 blockers and mandatory evidence gaps across the full slice.
+
+Closure-only material-fix review is allowed only as supplemental evidence. It
+does not count as the acceptance review gate.
+
 ## Rerun Decision
 
-<exit-review-cycle|rerun-verification-gate|rerun-review-agents|revise-artifact|escalate-human>
+<exit-review-cycle|rerun-verification-gate|rerun-full-scope-review|revise-artifact|escalate-human>
 
 Reason:
 
@@ -122,18 +134,16 @@ Reason:
 
 Complete this section when an ADR-0022 trigger fires.
 
-```yaml
-health_checkpoint:
-  required: <true|false>
-  trigger_ids: []
-  counted_inputs: validated_findings_and_mandatory_evidence_gaps_only
-  repeated_risk_surface_ids: []
-  root_cause_classification: <contract_gap|failure_path_matrix_gap|verification_gap|false_green_or_stale_evidence|implementation_defect|authority_boundary_gap|scope_drift|provider_or_environment_blocker|main_agent_looping_on_local_patch|unknown_requires_diagnostic_review|none>
-  diagnostic_reviewers_used: <true|false>
-  correction_obligations: []
-  closure_artifact_or_section: <path or section>
-  include_in_next_review_packet: <true|false>
-```
+Use `templates/review-loop-health-checkpoint.yaml` as the structured checkpoint
+shape. The checkpoint is required only when `trigger_policy: any` fires from
+main_agent_validated_findings_and_mandatory_evidence_gaps_only.
+
+Do not copy this section as a checkpoint. Copy and fill the full canonical
+template instead. The canonical template includes `required: null`,
+`required_when_any_trigger_fires: true`, `trigger_policy: any`,
+`counted_inputs_source`, `trigger_evidence`, `risk_surface_policy`,
+`root_cause`, `diagnostic_reviewers`, `human_decision`, `closure` and
+`next_review_packet`.
 
 The checkpoint is not a review gate, cycle cap or automatic reviewer launch.
 

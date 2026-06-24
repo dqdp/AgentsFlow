@@ -153,12 +153,18 @@ Classify every fix made after review before deciding whether to rerun reviewers.
 
 | Fix ID | Finding IDs | Changed artifacts | Material? | Reason | Required next action |
 |---|---|---|---:|---|---|
-| fix-001 | F-001 | `schemas/...`, `docs/...` | yes/no | ... | rerun-verification / rerun-review / no-rerun |
+| fix-001 | F-001 | `schemas/...`, `docs/...` | yes/no | ... | rerun-verification / rerun-full-scope-review / no-rerun |
 
 A fix is material when it changes contracts, schemas, validators, workflow or
 gate policy, project bindings, mandatory evidence, verification output, reviewed
 behavior, or examples used as evidence. Editorial/report-only cleanup is
 non-material by default.
+
+When a fix closes a validated P0/P1 blocker or mandatory evidence gap, the next
+review used for acceptance must be a full-scope blocker/evidence sweep over the
+latest review packet, complete current diff, latest green verification evidence
+and previous validated findings/fixes. A closure-only review can be recorded as
+supplemental evidence, but it does not count as the acceptance review gate.
 
 ## Review Cycle Decision
 

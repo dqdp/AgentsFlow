@@ -670,6 +670,50 @@ def test_finding_validation_calibrates_blocker_severity() -> None:
     assert "membership alone is not severity" in rendered
 
 
+def test_review_loop_health_checkpoint_template_is_trigger_bound() -> None:
+    import yaml
+
+    template = yaml.safe_load((ROOT / "templates/review-loop-health-checkpoint.yaml").read_text(encoding="utf-8"))
+
+    assert template["artifact_kind"] == "review_loop_health_checkpoint"
+    assert template["required"] is None
+    assert template["trigger_policy"] == "any"
+    assert template["required_when_no_trigger_fires"] is False
+    assert template["required_when_any_trigger_fires"] is True
+    assert template["counted_inputs_source"] == "main_agent_validated_findings_and_mandatory_evidence_gaps_only"
+    assert template["diagnostic_reviewers"]["launch_by_default"] is False
+    assert template["diagnostic_reviewers"]["outputs_are_candidate_inputs"] is True
+    assert template["risk_surface_policy"]["use_canonical_risk_surface_ids"] is True
+    assert template["risk_surface_policy"]["reviewer_wording_is_source_of_truth"] is False
+    assert template["closure"]["required_before_next_substantive_review_gate"] is True
+    assert template["closure"]["standalone_schema_required"] is False
+
+    trigger_ids = {item["id"] for item in template["triggers"]}
+    assert trigger_ids == {
+        "three_consecutive_validated_blocking_cycles",
+        "same_validated_risk_surface_repeats",
+        "stale_or_false_green_evidence_repeats",
+    }
+
+
+def test_review_cycle_report_references_health_checkpoint_template() -> None:
+    review_cycle_template = (ROOT / "templates/review-cycle-report.md").read_text(encoding="utf-8").lower()
+
+    assert "templates/review-loop-health-checkpoint.yaml" in review_cycle_template
+    assert "```yaml\nhealth_checkpoint:" not in review_cycle_template
+    assert "do not copy this section as a checkpoint" in review_cycle_template
+    assert "required: <true|false>" not in review_cycle_template
+    assert "trigger_policy: any" in review_cycle_template
+    assert "required_when_any_trigger_fires: true" in review_cycle_template
+    assert "counted_inputs:" not in review_cycle_template
+    assert "`counted_inputs_source`" in review_cycle_template
+    assert "`trigger_evidence`" in review_cycle_template
+    assert "`root_cause`" in review_cycle_template
+    assert "`human_decision`" in review_cycle_template
+    assert "main_agent_validated_findings_and_mandatory_evidence_gaps_only" in review_cycle_template
+    assert "not a review gate, cycle cap or automatic reviewer launch" in review_cycle_template
+
+
 def test_finding_validation_boundary_trace_is_trigger_based() -> None:
     protocol = (ROOT / "docs/review-agent-interaction-protocol.md").read_text(
         encoding="utf-8"
@@ -1028,6 +1072,14 @@ def test_project_operating_decisions_schema_passes() -> None:
         material_triggers = set(
             data["review_cycle_policy"]["materiality_classification"]["material_if_changes"]
         )
+        rerun_triggers = set(data["review_cycle_policy"]["rerun_review_on"])
+        rerun_scope = data["review_cycle_policy"]["rerun_scope"]
+        assert {"accepted_blocker_fixed", "mandatory_evidence_added"}.issubset(rerun_triggers)
+        assert (
+            rerun_scope["after_validated_blocker_or_mandatory_evidence_gap"]
+            == "full_scope_blocker_and_evidence_sweep"
+        )
+        assert rerun_scope["closure_only_review_counts_as_acceptance_gate"] is False
         assert {
             "task_contract_or_scope",
             "selected_risk_surfaces_or_failure_path_matrix",
@@ -1051,6 +1103,28 @@ def test_project_operating_decisions_schema_passes() -> None:
     missing_context_sources = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
     missing_context_sources["review_cycle_policy"]["control_review_context_policy"].pop("allowed_context_sources")
     assert list(validator.iter_errors(missing_context_sources))
+
+    missing_accepted_blocker_trigger = yaml.safe_load(
+        (ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8")
+    )
+    missing_accepted_blocker_trigger["review_cycle_policy"]["rerun_review_on"].remove("accepted_blocker_fixed")
+    assert list(validator.iter_errors(missing_accepted_blocker_trigger))
+
+    missing_mandatory_evidence_trigger = yaml.safe_load(
+        (ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8")
+    )
+    missing_mandatory_evidence_trigger["review_cycle_policy"]["rerun_review_on"].remove("mandatory_evidence_added")
+    assert list(validator.iter_errors(missing_mandatory_evidence_trigger))
+
+    missing_rerun_scope = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    missing_rerun_scope["review_cycle_policy"].pop("rerun_scope")
+    assert list(validator.iter_errors(missing_rerun_scope))
+
+    closure_only_acceptance = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
+    closure_only_acceptance["review_cycle_policy"]["rerun_scope"][
+        "closure_only_review_counts_as_acceptance_gate"
+    ] = True
+    assert list(validator.iter_errors(closure_only_acceptance))
 
     missing_materiality = yaml.safe_load((ROOT / "templates/project-operating-decisions.yaml").read_text(encoding="utf-8"))
     missing_materiality["review_cycle_policy"].pop("materiality_classification")
@@ -3084,6 +3158,59 @@ def test_upstream_review_cycle_rejects_hardcoded_max_cycles() -> None:
     errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_source)
     assert errors
     assert "max_review_cycles_source must be project_policy_or_workflow_binding" in "\n".join(errors)
+
+    broken_missing_rerun_trigger = copy.deepcopy(workflow)
+    broken_missing_rerun_trigger["review_cycle"]["rerun_review_on"].remove("accepted_blocker_fixed")
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_missing_rerun_trigger)
+    assert errors
+    assert "review_cycle.rerun_review_on missing: accepted_blocker_fixed" in "\n".join(errors)
+
+    broken_scope = copy.deepcopy(workflow)
+    broken_scope["review_cycle"]["rerun_scope"]["closure_only_review_counts_as_acceptance_gate"] = True
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_scope)
+    assert errors
+    assert "closure_only_review_counts_as_acceptance_gate must be false" in "\n".join(errors)
+
+    broken_missing_full_slice_instruction = copy.deepcopy(workflow)
+    broken_missing_full_slice_instruction["review_cycle"]["rerun_scope"]["reviewer_instruction_must_include"].remove(
+        "search_for_new_or_remaining_p0_p1_blockers_across_full_slice"
+    )
+
+    errors = validate_repo.validate_upstream_review_cycle_policy(path, broken_missing_full_slice_instruction)
+    assert errors
+    assert "search_for_new_or_remaining_p0_p1_blockers_across_full_slice" in "\n".join(errors)
+
+
+def test_review_cycle_rerun_scope_requires_full_scope_sweep() -> None:
+    import yaml
+
+    workflow_paths = sorted((ROOT / "workflows").glob("*/workflow.yaml"))
+    assert workflow_paths
+    for path in workflow_paths:
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        review_cycle = workflow.get("review_cycle")
+        if not isinstance(review_cycle, dict):
+            continue
+        rerun_scope = review_cycle.get("rerun_scope")
+        assert rerun_scope, path
+        assert (
+            rerun_scope["after_validated_blocker_or_mandatory_evidence_gap"]
+            == "full_scope_blocker_and_evidence_sweep"
+        )
+        assert rerun_scope["closure_only_review_counts_as_acceptance_gate"] is False
+        assert {
+            "latest_review_packet",
+            "complete_current_diff",
+            "latest_green_verification_evidence",
+            "previous_validated_findings_and_fixes",
+        } <= set(rerun_scope["full_scope_inputs"])
+        assert {
+            "verify_closure_of_previous_validated_findings",
+            "search_for_new_or_remaining_p0_p1_blockers_across_full_slice",
+            "search_for_new_or_remaining_mandatory_evidence_gaps_across_full_slice",
+        } <= set(rerun_scope["reviewer_instruction_must_include"])
 
 
 def test_v02_review_control_fusion_requires_validation_after_fusion() -> None:
@@ -7600,6 +7727,33 @@ def test_external_reviewer_preflight_schema_rejects_unsafe_pass_modes() -> None:
         jsonschema.Draft202012Validator(schema).validate(broken_permission)
 
 
+def test_external_reviewer_preflight_schema_rejects_malformed_pass_evidence() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import pytest
+
+    schema = json.loads((ROOT / "schemas/external-reviewer-preflight.schema.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "templates/external-reviewer-preflight.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+
+    broken_hash = copy.deepcopy(template)
+    broken_hash["fingerprint"]["provider_config_hash"] = "sha256:not-a-real-digest"
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(broken_hash)
+
+    missing_env = copy.deepcopy(template)
+    missing_env["forbidden_env"]["checked"].remove("ANTHROPIC_API_KEY")
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(missing_env)
+
+    missing_blockers = copy.deepcopy(template)
+    missing_blockers.pop("blockers")
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(missing_blockers)
+
+
 def test_review_prompt_contract_assignments_require_preparation_evidence() -> None:
     import copy
     import sys
@@ -7909,6 +8063,66 @@ def test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts(
     (root / preparation_path).write_text(json.dumps(stale, indent=2), encoding="utf-8")
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert "review_artifact_preparation review packet hash" in "\n".join(errors)
+
+
+def test_review_artifact_preparation_declared_input_hashes_are_historical(tmp_path) -> None:
+    import copy
+    import json
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    contract_path, shared_packet_path, preparation_path, run_dir = _write_minimal_preparation_fixture(root)
+    _git_commit_all(root)
+    source_path = root / "src/new.py"
+    source_path.write_text("print('new')\n", encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/prepare_review_set_artifacts.py",
+        "--root",
+        str(root),
+        "--contract",
+        str(contract_path.relative_to(root)),
+        "--shared-packet",
+        str(shared_packet_path.relative_to(root)),
+        "--preparation-output",
+        str(preparation_path.relative_to(root)),
+        "--include",
+        "src/new.py",
+        "--include",
+        "AGENTS.md",
+        env=clean_env(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    preparation = json.loads(preparation_path.read_text(encoding="utf-8"))
+    invocation_set_path = run_dir / "review-invocation-set.json"
+    invocation_set = json.loads(invocation_set_path.read_text(encoding="utf-8"))
+    invocation_set["status"] = "completed"
+    invocation_set["artifact_preparation_report_hash"] = validate_repo.sha256_file(preparation_path)
+    invocation_set_path.write_text(json.dumps(invocation_set, indent=2), encoding="utf-8")
+
+    source_path.write_text(source_path.read_text(encoding="utf-8") + "\n# later drift\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not any("input_artifacts[0].hash hash mismatch" in error for error in errors)
+
+    broken = copy.deepcopy(preparation)
+    broken["input_artifacts"][0]["hash"] = "not-a-hash"
+    preparation_path.write_text(json.dumps(broken, indent=2), encoding="utf-8")
+    preparation_hash = validate_repo.sha256_file(preparation_path)
+    invocation_set = json.loads(invocation_set_path.read_text(encoding="utf-8"))
+    invocation_set["artifact_preparation_report_hash"] = preparation_hash
+    invocation_set_path.write_text(json.dumps(invocation_set, indent=2), encoding="utf-8")
+
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "input_artifacts[0].hash must be a concrete sha256" in "\n".join(errors)
 
 
 def _write_minimal_preparation_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
