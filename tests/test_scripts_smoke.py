@@ -5213,6 +5213,41 @@ def test_external_reviewer_wrapper_requires_run_raw_output_classification_artifa
         )
 
 
+def test_external_reviewer_wrapper_live_preflight_requires_pass_artifact(tmp_path) -> None:
+    import pytest
+    import sys
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+
+    contract = {
+        "artifact_scope": "run",
+        "inputs": {},
+    }
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract), encoding="utf-8")
+    packet = {
+        "reviewer_instance_id": "generalist-b",
+        "review_prompt_contract": {"path": str(contract_path)},
+    }
+    packet_hashes = {
+        "artifact_scope": "run",
+        "review_prompt_contract_hash": "sha256:" + "1" * 64,
+        "schema_hash": "sha256:" + "2" * 64,
+        "role_contract_hash": "sha256:" + "3" * 64,
+        "rubric_hash": "sha256:" + "4" * 64,
+    }
+
+    with pytest.raises(ValueError, match="external_reviewer_preflight"):
+        run_external_reviewer.validate_live_external_reviewer_preflight(
+            ROOT / "examples/external-reviewers/claude-code/claude-code.yaml",
+            "claude-code",
+            packet,
+            packet_hashes,
+        )
+
+
 def test_claude_code_provider_command_defaults_model_and_effort() -> None:
     import sys
 
@@ -5570,6 +5605,7 @@ def test_external_reviewer_wrapper_records_schema_valid_nonzero_provider_exit(tm
         material_change_id="",
     )
     monkeypatch.setattr(run_external_reviewer, "validate_review_packet", fake_validate_review_packet)
+    monkeypatch.setattr(run_external_reviewer, "validate_live_external_reviewer_preflight", lambda *args: None)
     monkeypatch.setattr(run_external_reviewer, "render_prompt", lambda packet, role_contract: prompt)
     monkeypatch.setattr(claude_code, "invoke", fake_invoke)
     monkeypatch.setattr(
@@ -7971,6 +8007,60 @@ def test_generate_review_metrics_minimal_from_invocation_set(tmp_path) -> None:
     assert metrics["provider_usage"]["tokens"]["available"] is False
     assert metrics["provider_usage"]["cost"]["available"] is False
     assert "estimated" not in json.dumps(metrics).lower()
+
+
+def test_generate_review_metrics_counts_failed_post_dispatch_cycle(tmp_path) -> None:
+    import json
+
+    invocation_set = tmp_path / "review-invocation-set.json"
+    output = tmp_path / "review-metrics.json"
+    invocation_set.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": "Docs/agentsflow/runs/example/review-prompt-contract.yaml",
+                "status": "failed",
+                "started_at": "2026-06-24T10:00:00+00:00",
+                "finished_at": "2026-06-24T10:05:00+00:00",
+                "runner_scheduling": "external-first-async",
+                "provider_model_families": ["claude-code/opus"],
+                "reviewers": [
+                    {
+                        "reviewer": "generalist-claude",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "packet_path": "review-packets/generalist-claude.json",
+                        "report_path": "reviewer-report.generalist-claude.json",
+                        "status": "timed-out",
+                        "dispatch_started_at": "2026-06-24T10:00:01+00:00",
+                        "dispatch_finished_at": "2026-06-24T10:05:00+00:00",
+                        "error": "external reviewer generalist-claude timed out after 300 seconds",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = run(
+        "scripts/reviewers/generate_review_metrics.py",
+        "--run-id",
+        "example-run",
+        "--workflow",
+        "big-feature-contract-first",
+        "--review-invocation-set",
+        str(invocation_set),
+        "--output",
+        str(output),
+    )
+
+    assert result.returncode == 0, result.stderr
+    metrics = json.loads(output.read_text(encoding="utf-8"))
+    assert metrics["provider_preflight_blockers"] == 0
+    assert metrics["completed_reviewer_invocations"] == 0
+    assert metrics["substantive_review_cycles"] == 1
+    assert metrics["reviewer_invocations"][0]["timed_out"] is True
 
 
 def test_generate_review_metrics_matches_review_set_runner_shape(tmp_path) -> None:

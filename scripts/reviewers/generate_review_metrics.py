@@ -179,6 +179,27 @@ def normalization_status(entry: dict[str, Any], metadata: dict[str, Any], comple
     return "not_available"
 
 
+def is_substantive_review_attempt(entry: dict[str, Any], invocation_completed: bool) -> bool:
+    if is_preflight_blocker(entry):
+        return False
+    status = str(entry.get("status") or "").lower()
+    if invocation_completed and is_completed(status):
+        return True
+    if status in {"running", "failed", "timed-out", "timeout", "invocation_failed"}:
+        return bool(
+            entry.get("dispatch_started_at")
+            or entry.get("dispatch_finished_at")
+            or entry.get("invocation_metadata_path")
+            or entry.get("exit_code") is not None
+        )
+    if entry.get("dispatch_started_at") or entry.get("dispatch_finished_at"):
+        return True
+    if entry.get("invocation_metadata_path") or entry.get("exit_code") is not None:
+        return True
+    failure_stage = str(entry.get("failure_stage") or "").lower()
+    return bool(failure_stage and "preflight" not in failure_stage)
+
+
 def add_nested_usage(
     usage: object,
     token_totals: dict[str, int],
@@ -316,6 +337,8 @@ def generate_metrics(
     summed_provider_runtime = 0
     preflight_blockers = 0
     completed = 0
+    invocation_completed = invocation_set.get("status") == "completed"
+    substantive_attempt_seen = invocation_completed
 
     for entry in reviewers:
         status = str(entry.get("status") or "")
@@ -328,6 +351,8 @@ def generate_metrics(
         preflight_blocker = is_preflight_blocker(entry)
         if preflight_blocker:
             preflight_blockers += 1
+        if is_substantive_review_attempt(entry, invocation_completed):
+            substantive_attempt_seen = True
         if is_completed(status):
             completed += 1
             if elapsed is not None:
@@ -378,7 +403,7 @@ def generate_metrics(
         )
 
     review_elapsed = elapsed_ms(invocation_set.get("started_at"), invocation_set.get("finished_at"))
-    substantive_cycles = 1 if invocation_set.get("status") == "completed" else 0
+    substantive_cycles = 1 if substantive_attempt_seen else 0
     return {
         "version": 1,
         "artifact_kind": "review_metrics",

@@ -297,6 +297,61 @@ def validate_raw_output_retention_policy(
     return result
 
 
+def validate_live_external_reviewer_preflight(
+    config_path: Path,
+    provider: str,
+    packet: dict[str, Any],
+    packet_hashes: dict[str, Any],
+) -> None:
+    if packet_hashes.get("artifact_scope") != "run":
+        return
+    prompt_contract = packet.get("review_prompt_contract", {}) or {}
+    prompt_contract_path = resolve_packet_path(str(prompt_contract.get("path", "")), Path.cwd())
+    prompt_contract_data = load_yaml(prompt_contract_path)
+    inputs = prompt_contract_data.get("inputs", {}) or {}
+    preflight_ref = inputs.get("external_reviewer_preflight")
+    if not preflight_ref:
+        raise ValueError("live external reviewer invocation requires inputs.external_reviewer_preflight")
+    preflight_path = resolve_packet_path(str(preflight_ref), Path.cwd())
+    if not preflight_path.is_file():
+        raise ValueError(f"live external reviewer preflight artifact does not exist: {preflight_ref}")
+    preflight = load_json(preflight_path)
+    if preflight.get("result") != "pass":
+        raise ValueError(f"{preflight_path}: external reviewer preflight result must be pass")
+    if preflight.get("provider") != provider:
+        raise ValueError(f"{preflight_path}: external reviewer preflight provider must match invocation provider")
+    fingerprint = preflight.get("fingerprint", {}) or {}
+    expected = {
+        "provider_config_hash": sha256_file(config_path),
+        "wrapper_hash": sha256_file(Path(__file__).resolve()),
+        "schema_hash": str(packet_hashes.get("schema_hash") or ""),
+        "prompt_contract_hash": str(packet_hashes.get("review_prompt_contract_hash") or ""),
+    }
+    for key, expected_value in expected.items():
+        if fingerprint.get(key) != expected_value:
+            raise ValueError(f"{preflight_path}: fingerprint.{key} must match live external invocation")
+    reviewer = str(packet.get("reviewer_instance_id") or "")
+    assignment_items = [
+        item
+        for item in preflight.get("assignment_fingerprints", []) or []
+        if isinstance(item, dict) and item.get("reviewer") == reviewer
+    ]
+    if not assignment_items:
+        raise ValueError(f"{preflight_path}: assignment_fingerprints missing reviewer {reviewer}")
+    assignment = assignment_items[0]
+    assignment_expected = {
+        "provider_config_hash": expected["provider_config_hash"],
+        "wrapper_hash": expected["wrapper_hash"],
+        "schema_hash": expected["schema_hash"],
+        "prompt_contract_hash": expected["prompt_contract_hash"],
+        "role_contract_hash": str(packet_hashes.get("role_contract_hash") or ""),
+        "rubric_hash": str(packet_hashes.get("rubric_hash") or ""),
+    }
+    for key, expected_value in assignment_expected.items():
+        if assignment.get(key) != expected_value:
+            raise ValueError(f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must match live invocation")
+
+
 def enforce_billing_policy(config: dict[str, Any]) -> None:
     billing = config.get("billing", {}) or {}
     forbidden_env = [str(item) for item in billing.get("fail_if_env_present", []) or []]
@@ -1058,6 +1113,8 @@ def main() -> int:
             packet_hashes,
             raw_path,
         )
+        if not args.mock_response:
+            validate_live_external_reviewer_preflight(config_path, args.provider, packet, packet_hashes)
 
         if args.mock_response:
             raw_text = Path(args.mock_response).read_text(encoding="utf-8")
