@@ -3916,6 +3916,28 @@ def test_validate_repo_tracked_only_ignores_untracked_files(tmp_path) -> None:
     assert tracked_result.returncode == 0, tracked_result.stdout + tracked_result.stderr
 
 
+def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> None:
+    import shutil
+
+    root = tmp_path / "repo"
+    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
+    run_artifact = root / "run-artifacts" / "agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
+    run_artifact.parent.mkdir(parents=True)
+    run_artifact.write_text("run_id: 2026-06-24-local-run\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
+
+    result = run("scripts/validate_repo.py", "--root", str(root))
+    assert result.returncode != 0
+    assert "tracked local AgentsFlow run artifact is not allowed" in (result.stdout + result.stderr)
+
+    tracked_result = run("scripts/validate_repo.py", "--root", str(root), "--tracked-only")
+    assert tracked_result.returncode != 0
+    assert "tracked local AgentsFlow run artifact is not allowed" in (
+        tracked_result.stdout + tracked_result.stderr
+    )
+
+
 def test_v02_review_control_requires_required_gate_order() -> None:
     import copy
     import sys

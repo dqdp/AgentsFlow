@@ -5,6 +5,7 @@ __pycache__/
 .env
 .DS_Store
 .agentsflow/
+run-artifacts/agentsflow/
 run-artifacts/**/evidence/stale-review-reports/
 run-artifacts/**/evidence/raw/*.raw.json
 build/

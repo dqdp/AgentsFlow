@@ -1,4 +1,0 @@
-Command: .venv/bin/python scripts/validate_repo.py --root .
-Exit code: 0
-
-Repository validation passed.

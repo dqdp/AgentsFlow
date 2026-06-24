@@ -101,6 +101,21 @@ def _tracked_file_refs(root: Path) -> tuple[list[Path], list[str]]:
     return refs, []
 
 
+def _is_agentsflow_local_run_artifact(rel: Path) -> bool:
+    return rel.parts[:2] == ("run-artifacts", "agentsflow")
+
+
+def _validate_no_tracked_agentsflow_run_artifacts(refs: list[Path]) -> list[str]:
+    return [
+        (
+            f"tracked local AgentsFlow run artifact is not allowed: {rel.as_posix()} "
+            "(promote curated examples under examples/ instead)"
+        )
+        for rel in refs
+        if _is_agentsflow_local_run_artifact(rel)
+    ]
+
+
 def _copy_tracked_snapshot(root: Path, target: Path, refs: list[Path]) -> list[str]:
     errors: list[str] = []
     for rel in refs:
@@ -125,6 +140,9 @@ def validate_tracked_repository(root: Path) -> list[str]:
     refs, errors = _tracked_file_refs(root)
     if errors:
         return errors
+    run_artifact_errors = _validate_no_tracked_agentsflow_run_artifacts(refs)
+    if run_artifact_errors:
+        return run_artifact_errors
     with tempfile.TemporaryDirectory(prefix="agentsflow-tracked-validation-") as tmp:
         snapshot = Path(tmp) / "repo"
         snapshot.mkdir()
@@ -144,6 +162,13 @@ def validate_repository(root: Path) -> list[str]:
     root = root.resolve()
     errors: list[str] = []
     tracked_files = _tracked_files(root)
+    if tracked_files:
+        tracked_refs = [
+            path.relative_to(root)
+            for path in tracked_files
+            if path.is_relative_to(root)
+        ]
+        errors.extend(_validate_no_tracked_agentsflow_run_artifacts(tracked_refs))
 
     for p in root.rglob('*.yaml'):
         errors.extend(validate_no_duplicate_yaml_keys(p))
