@@ -18,7 +18,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from run_external_reviewer import enforce_billing_policy, validate_provider_config  # noqa: E402
+from run_external_reviewer import (  # noqa: E402
+    enforce_billing_policy,
+    validate_provider_config,
+    validate_raw_output_retention_policy,
+)
 
 
 DEFAULT_FORBIDDEN_ENV = [
@@ -42,6 +46,13 @@ def load_yaml(path: Path) -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a YAML mapping")
+    return data
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
     return data
 
 
@@ -133,6 +144,45 @@ def assignment_fingerprints(
     return entries
 
 
+def validate_run_scope_raw_output_retention(
+    contract: dict[str, Any],
+    root: Path,
+    default_config: dict[str, Any],
+    default_config_path: Path,
+    provider: str,
+) -> None:
+    if contract.get("artifact_scope") != "run":
+        return
+    for assignment in contract.get("reviewer_assignments", []) or []:
+        if not isinstance(assignment, dict) or assignment.get("provider") != provider:
+            continue
+        packet_ref = assignment.get("packet_path")
+        raw_output_ref = assignment.get("raw_output_path")
+        if not packet_ref or not raw_output_ref:
+            continue
+        assignment_config_path = resolve_ref(assignment.get("provider_config") or default_config_path, root)
+        if assignment_config_path.resolve() == default_config_path.resolve():
+            assignment_config = default_config
+        else:
+            assignment_config = load_yaml(assignment_config_path)
+            validate_provider_config(assignment_config, provider)
+            enforce_billing_policy(assignment_config)
+        packet_path = resolve_ref(packet_ref, root)
+        packet = load_json(packet_path)
+        packet_hashes = {"artifact_scope": str(packet.get("artifact_scope") or contract.get("artifact_scope") or "run")}
+        if packet_hashes["artifact_scope"] != "run":
+            continue
+        raw_output_path = resolve_ref(raw_output_ref, root)
+        validate_raw_output_retention_policy(
+            assignment_config,
+            assignment_config_path,
+            provider,
+            packet,
+            packet_hashes,
+            raw_output_path,
+        )
+
+
 def generate_preflight(
     provider: str,
     config_path: Path,
@@ -187,6 +237,13 @@ def generate_preflight(
         "blockers": [],
     }
     contract = load_yaml(review_prompt_contract_path)
+    validate_run_scope_raw_output_retention(
+        contract,
+        Path.cwd(),
+        config,
+        config_path,
+        provider,
+    )
     fingerprints = assignment_fingerprints(
         contract,
         Path.cwd(),

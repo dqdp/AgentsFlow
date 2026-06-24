@@ -313,13 +313,9 @@ def _review_metrics_collect_provider_usage(
     for entry in reviewers:
         reviewer = str(entry.get("reviewer") or "")
         metadata = metadata_by_reviewer.get(reviewer, {})
-        _review_metrics_add_nested_usage(entry.get("provider_usage"), token_totals, cost_totals)
-        if not _review_metrics_add_provider_total_cost(entry, cost_totals):
-            _review_metrics_add_provider_total_cost(metadata, cost_totals)
-        model_usage = entry.get("provider_model_usage")
-        if not isinstance(model_usage, dict):
-            model_usage = metadata.get("provider_model_usage")
-        _review_metrics_add_provider_model_usage(model_usage, token_totals)
+        _review_metrics_add_nested_usage(metadata.get("provider_usage"), token_totals, cost_totals)
+        _review_metrics_add_provider_total_cost(metadata, cost_totals)
+        _review_metrics_add_provider_model_usage(metadata.get("provider_model_usage"), token_totals)
 
     if token_totals["available"]:
         token_payload: dict[str, object] = {
@@ -1681,8 +1677,8 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                             str(invocation_entry.get("status") or "").lower() == "timed-out"
                             or "timed out" in str(invocation_entry.get("error") or "").lower()
                         )
-                        expected_provider_runtime = _review_metrics_provider_runtime_ms(invocation_entry)
-                        if expected_provider_runtime is None and invocation_metadata:
+                        expected_provider_runtime = None
+                        if invocation_metadata:
                             expected_provider_runtime = _review_metrics_elapsed_ms(
                                 invocation_metadata.get("started_at"),
                                 invocation_metadata.get("finished_at"),
@@ -1730,9 +1726,14 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                             expected_row_values["elapsed_ms"] = expected_reviewer_elapsed
                         for key, expected_value in expected_row_values.items():
                             if metrics_row.get(key) != expected_value:
+                                source_label = (
+                                    "invocation metadata"
+                                    if key == "provider_runtime_ms"
+                                    else "review_invocation_set"
+                                )
                                 errors.append(
                                     f"{review_metrics_path}: reviewer_invocations[{reviewer}].{key} "
-                                    "must match review_invocation_set"
+                                    f"must match {source_label}"
                                 )
                     metrics_timing = metrics_data.get("timing")
                     if isinstance(metrics_timing, dict):
@@ -1760,7 +1761,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         invocation_metadata_by_reviewer,
                     )
                     if metrics_data.get("provider_usage") != expected_provider_usage:
-                        errors.append(f"{review_metrics_path}: provider_usage must match review_invocation_set")
+                        errors.append(f"{review_metrics_path}: provider_usage must match invocation metadata")
 
     require_completed_assignment_outputs = invocation_set is None or invocation_set_completed
     if assignments and artifact_preparation_report_path and require_completed_assignment_outputs:

@@ -282,13 +282,9 @@ def collect_provider_usage(reviewers: list[dict[str, Any]]) -> dict[str, Any]:
         metadata = entry.get("_invocation_metadata")
         if not isinstance(metadata, dict):
             metadata = {}
-        add_nested_usage(entry.get("provider_usage"), token_totals, cost_totals)
-        if not add_provider_total_cost(entry, cost_totals):
-            add_provider_total_cost(metadata, cost_totals)
-        model_usage = entry.get("provider_model_usage")
-        if not isinstance(model_usage, dict):
-            model_usage = metadata.get("provider_model_usage")
-        add_provider_model_usage(model_usage, token_totals)
+        add_nested_usage(metadata.get("provider_usage"), token_totals, cost_totals)
+        add_provider_total_cost(metadata, cost_totals)
+        add_provider_model_usage(metadata.get("provider_model_usage"), token_totals)
 
     token_input = token_totals["input"]
     token_output = token_totals["output"]
@@ -350,8 +346,8 @@ def generate_metrics(
         metadata = load_optional_json(entry.get("invocation_metadata_path"), invocation_set_path)
         entry["_invocation_metadata"] = metadata
         elapsed = reviewer_elapsed_ms(entry)
-        provider_runtime = provider_runtime_ms(entry)
-        if provider_runtime is None and metadata:
+        provider_runtime = None
+        if metadata:
             provider_runtime = elapsed_ms(metadata.get("started_at"), metadata.get("finished_at"))
         preflight_blocker = is_preflight_blocker(entry)
         if preflight_blocker:

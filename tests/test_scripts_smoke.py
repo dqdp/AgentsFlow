@@ -6827,9 +6827,16 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     stale_metrics["reviewer_invocations"][1]["provider_runtime_ms"] = 999
     (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
-    assert "reviewer_invocations[generalist-b].provider_runtime_ms must match review_invocation_set" in "\n".join(
+    assert "reviewer_invocations[generalist-b].provider_runtime_ms must match invocation metadata" in "\n".join(
         errors
     )
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+    stale_invocation_set = copy.deepcopy(invocation_set_data)
+    stale_invocation_set["reviewers"][1]["provider_runtime_ms"] = 999
+    (root / invocation_set).write_text(json.dumps(stale_invocation_set, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
     stale_metrics = copy.deepcopy(review_metrics_data)
     stale_metrics["provider_usage"]["tokens"] = {
         "available": True,
@@ -6839,7 +6846,17 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     }
     (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
-    assert "provider_usage must match review_invocation_set" in "\n".join(errors)
+    assert "provider_usage must match invocation metadata" in "\n".join(errors)
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+    stale_invocation_set = copy.deepcopy(invocation_set_data)
+    stale_invocation_set["reviewers"][1]["provider_usage"] = {
+        "tokens": {"available": True, "input": 100, "output": 200, "total": 300}
+    }
+    stale_invocation_set["reviewers"][1]["provider_total_cost_usd"] = 999.0
+    (root / invocation_set).write_text(json.dumps(stale_invocation_set, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
     stale_metrics = copy.deepcopy(review_metrics_data)
     stale_metrics["source_artifacts"].pop("review_prompt_contract")
     (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
@@ -8323,7 +8340,21 @@ def test_generate_review_metrics_matches_review_set_runner_shape(tmp_path) -> No
                         "dispatch_started_at": "2026-06-24T10:00:01+00:00",
                         "dispatch_finished_at": "2026-06-24T10:00:08+00:00",
                         "exit_code": 0,
-                        "provider_total_cost_usd": 1.23,
+                        "provider_runtime_ms": 999,
+                        "provider_total_cost_usd": 999.0,
+                        "provider_usage": {
+                            "tokens": {
+                                "available": True,
+                                "input": 100,
+                                "output": 200,
+                                "total": 300,
+                            },
+                            "cost": {
+                                "available": True,
+                                "amount": 999.0,
+                                "currency": "USD",
+                            },
+                        },
                     },
                 ],
             },
@@ -8486,6 +8517,118 @@ def test_generate_external_reviewer_preflight_rejects_invalid_provider_config(tm
     assert result.returncode != 0
     assert "sandbox_mode" in (result.stdout + result.stderr)
     assert not output.exists()
+
+
+def test_generate_external_reviewer_preflight_requires_run_raw_output_classification_artifact(
+    tmp_path,
+) -> None:
+    import yaml
+
+    config = yaml.safe_load(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml").read_text(encoding="utf-8")
+    )
+    config_path = tmp_path / "claude-code.yaml"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    packet_path = tmp_path / "review-packet.json"
+    packet_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_packet",
+                "artifact_scope": "run",
+                "run_id": "2026-06-24-review-gate-hardening",
+                "material_change_id": "slice-a",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    raw_output_path = tmp_path / "raw-output.json"
+    contract_path = tmp_path / "review-prompt-contract.yaml"
+    contract_path.write_text(
+        yaml.safe_dump(
+            {
+                "artifact_kind": "review_prompt_contract",
+                "artifact_scope": "run",
+                "reviewer_set": [
+                    {
+                        "instance_id": "generalist-claude",
+                        "role_id": "generalist",
+                        "role_contract": "profiles/reviewer_roles/generalist.yaml",
+                    }
+                ],
+                "rendered_prompts": [],
+                "reviewer_assignments": [
+                    {
+                        "reviewer": "generalist-claude",
+                        "provider": "claude-code",
+                        "model_family": "opus",
+                        "provider_config": str(config_path),
+                        "packet_path": str(packet_path),
+                        "report_path": str(tmp_path / "reviewer-report.generalist-claude.json"),
+                        "raw_output_path": str(raw_output_path),
+                        "invocation_metadata_path": str(tmp_path / "reviewer-invocation.generalist-claude.json"),
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "external-reviewer-preflight.json"
+
+    result = run(
+        "scripts/reviewers/generate_external_reviewer_preflight.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        str(config_path),
+        "--review-prompt-contract",
+        str(contract_path),
+        "--role-contract",
+        "profiles/reviewer_roles/generalist.yaml",
+        "--rubric-source",
+        "templates/review-prompts/base.md",
+        "--output-schema",
+        "schemas/reviewer-report.schema.json",
+        "--output",
+        str(output),
+        "--mode",
+        "full",
+    )
+
+    assert result.returncode != 0
+    assert "raw_output_classification_artifact" in (result.stdout + result.stderr)
+    assert not output.exists()
+
+    classification_path = tmp_path / "raw-output-classification.yaml"
+    write_raw_output_classification_config(
+        config_path,
+        classification_path,
+        raw_output_path,
+        run_id="2026-06-24-review-gate-hardening",
+        material_change_id="slice-a",
+    )
+    result = run(
+        "scripts/reviewers/generate_external_reviewer_preflight.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        str(config_path),
+        "--review-prompt-contract",
+        str(contract_path),
+        "--role-contract",
+        "profiles/reviewer_roles/generalist.yaml",
+        "--rubric-source",
+        "templates/review-prompts/base.md",
+        "--output-schema",
+        "schemas/reviewer-report.schema.json",
+        "--output",
+        str(output),
+        "--mode",
+        "full",
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_external_reviewer_preflight_schema_rejects_unsafe_pass_modes() -> None:
