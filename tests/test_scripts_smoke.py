@@ -2345,7 +2345,11 @@ def test_review_prompt_contract_rejects_run_artifact_drift(tmp_path) -> None:
     assert "shared_packet_content_hash" in "\n".join(errors)
 
     prompt_root = tmp_path / "agentsflow-rendered-prompt-drift"
-    shutil.copytree(ROOT, prompt_root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        prompt_root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     prompt_contract_path = (
         prompt_root
         / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
@@ -2369,7 +2373,11 @@ def test_review_prompt_contract_rejects_run_artifact_drift(tmp_path) -> None:
     assert "prompt_path content must match current packet and role contract" in "\n".join(errors)
 
     root = tmp_path / "agentsflow-shared-packet-drift"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     copied_path = (
         root
         / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml"
@@ -2438,7 +2446,11 @@ def test_review_prompt_contract_allows_provider_as_shared_packet_envelope_field(
     from repo_validation.review import _render_expected_review_prompt  # noqa: PLC0415
 
     root = tmp_path / "agentsflow-mixed-provider-shared-packet"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
     contract_path = run_dir / "review-prompt-contract.yaml"
     contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
@@ -2818,7 +2830,7 @@ def test_repository_validation_scans_root_run_review_artifacts(tmp_path) -> None
     assert f"{contract_path}: inputs.verification_gate_report does not exist: <verification-gate-report.md>" in joined
 
 
-def test_repository_validation_scans_run_artifacts_review_artifacts(tmp_path) -> None:
+def test_repository_validation_ignores_local_run_artifacts_review_artifacts(tmp_path) -> None:
     import json
     import shutil
     import sys
@@ -2832,7 +2844,7 @@ def test_repository_validation_scans_run_artifacts_review_artifacts(tmp_path) ->
     shutil.copytree(
         ROOT,
         root,
-        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
     source_run_dir = (
         root
@@ -2854,10 +2866,7 @@ def test_repository_validation_scans_run_artifacts_review_artifacts(tmp_path) ->
     contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
 
     errors = validate_repo.validate_repository(root)
-    joined = "\n".join(errors)
-    assert f"{packet_path}: verification_gate_report.path must reference a verification gate report artifact" in joined
-    assert f"{packet_path}: evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
-    assert f"{contract_path}: inputs.verification_gate_report does not exist: <verification-gate-report.md>" in joined
+    assert errors == []
 
 
 def test_repository_validation_rejects_cross_run_verification_gate_report(tmp_path) -> None:
@@ -3841,7 +3850,11 @@ def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:
     import shutil
 
     root = tmp_path / "repo"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
     report = json.loads((root / "templates/evidence-probe-report.json").read_text(encoding="utf-8"))
     report["commands_run"][0]["instrument_id"] = "not-declared"
@@ -3856,7 +3869,11 @@ def test_repo_validation_checks_all_documentation_disposition_artifacts(tmp_path
     import shutil
 
     root = tmp_path / "repo"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     rogue_dir = root / "examples" / "symlinked-initialization"
     rogue_dir.mkdir()
     (rogue_dir / "project-documentation-disposition.yaml").symlink_to(
@@ -3884,7 +3901,11 @@ def test_repo_validation_rejects_duplicate_yaml_keys(tmp_path) -> None:
     import shutil
 
     root = tmp_path / "repo"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     workflow = root / "workflows/big-feature-contract-first/workflow.yaml"
     workflow.write_text(
         workflow.read_text(encoding="utf-8") + "\n_duplicate_test: one\n_duplicate_test: two\n",
@@ -3900,7 +3921,11 @@ def test_validate_repo_tracked_only_ignores_untracked_files(tmp_path) -> None:
     import shutil
 
     root = tmp_path / "repo"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
     subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
 
@@ -3920,7 +3945,11 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
     import shutil
 
     root = tmp_path / "repo"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
     run_artifact = root / "run-artifacts" / "agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
     run_artifact.parent.mkdir(parents=True)
@@ -4782,7 +4811,11 @@ def test_repo_validation_checks_top_level_workflow_run_phase_guard(tmp_path) -> 
     import yaml
 
     root = tmp_path / "repo"
-    shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"))
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
+    )
     run_dir = root / "Docs/agentsflow/runs/2026-06-19-phase-guard"
     run_dir.mkdir(parents=True)
     (run_dir / "run.yaml").write_text(

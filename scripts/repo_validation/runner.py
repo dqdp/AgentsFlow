@@ -105,6 +105,14 @@ def _is_agentsflow_local_run_artifact(rel: Path) -> bool:
     return rel.parts[:2] == ("run-artifacts", "agentsflow")
 
 
+def _is_agentsflow_local_run_artifact_path(root: Path, path: Path) -> bool:
+    try:
+        rel = path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return _is_agentsflow_local_run_artifact(rel)
+
+
 def _validate_no_tracked_agentsflow_run_artifacts(refs: list[Path]) -> list[str]:
     return [
         (
@@ -170,19 +178,32 @@ def validate_repository(root: Path) -> list[str]:
         ]
         errors.extend(_validate_no_tracked_agentsflow_run_artifacts(tracked_refs))
 
-    for p in root.rglob('*.yaml'):
+    yaml_paths = [
+        p for p in root.rglob('*.yaml')
+        if not _is_agentsflow_local_run_artifact_path(root, p)
+    ]
+    yml_paths = [
+        p for p in root.rglob('*.yml')
+        if not _is_agentsflow_local_run_artifact_path(root, p)
+    ]
+    json_paths = [
+        p for p in root.rglob('*.json')
+        if not _is_agentsflow_local_run_artifact_path(root, p)
+    ]
+
+    for p in yaml_paths:
         errors.extend(validate_no_duplicate_yaml_keys(p))
         try:
             parse_yaml(p)
         except ValueError as exc:
             errors.append(str(exc))
-    for p in root.rglob('*.yml'):
+    for p in yml_paths:
         errors.extend(validate_no_duplicate_yaml_keys(p))
         try:
             parse_yaml(p)
         except ValueError as exc:
             errors.append(str(exc))
-    for p in root.rglob('*.json'):
+    for p in json_paths:
         try:
             parse_json(p)
         except ValueError as exc:
@@ -207,7 +228,10 @@ def validate_repository(root: Path) -> list[str]:
     for gate_path in gates.values():
         errors.extend(validate_gate_manifest(root, gate_path))
 
-    for binding in root.rglob('*.bindings.yaml'):
+    for binding in [
+        p for p in root.rglob('*.bindings.yaml')
+        if not _is_agentsflow_local_run_artifact_path(root, p)
+    ]:
         errors.extend(validate_behavior_binding(binding))
         errors.extend(validate_behavior_binding_gate_refs(binding, set(gates.keys())))
 
@@ -235,7 +259,6 @@ def validate_repository(root: Path) -> list[str]:
         root / 'templates' / 'project-documentation-disposition.yaml',
         *root.glob('examples/**/project-documentation-disposition.yaml'),
         *root.glob('Docs/agentsflow/runs/**/project-documentation-disposition.yaml'),
-        *root.glob('run-artifacts/agentsflow/runs/**/project-documentation-disposition.yaml'),
         *root.glob('examples/**/Docs/agentsflow/runs/**/project-documentation-disposition.yaml'),
     }
     for documentation_disposition in sorted(_tracked_or_all(documentation_disposition_paths, tracked_files)):
@@ -249,7 +272,6 @@ def validate_repository(root: Path) -> list[str]:
     )
     run_artifact_patterns = [
         'Docs/agentsflow/runs/*/run.yaml',
-        'run-artifacts/agentsflow/runs/*/run.yaml',
         'examples/**/Docs/agentsflow/runs/*/run.yaml',
     ]
     for run_artifact in _tracked_or_all({
@@ -260,7 +282,6 @@ def validate_repository(root: Path) -> list[str]:
         errors.extend(validate_workflow_run_artifact(root, run_artifact))
     review_prompt_contract_patterns = [
         'Docs/agentsflow/runs/*/review-prompt-contract.yaml',
-        'run-artifacts/agentsflow/runs/*/review-prompt-contract.yaml',
         'examples/**/Docs/agentsflow/runs/*/review-prompt-contract.yaml',
     ]
     for prompt_contract in sorted(_tracked_or_all({
@@ -278,7 +299,6 @@ def validate_repository(root: Path) -> list[str]:
             errors.extend(validate_review_prompt_contract_run_references(root, prompt_contract, data))
     review_packet_patterns = [
         'Docs/agentsflow/runs/*/review-packets/*.json',
-        'run-artifacts/agentsflow/runs/*/review-packets/*.json',
         'examples/**/Docs/agentsflow/runs/*/review-packets/*.json',
     ]
     for review_packet in sorted(_tracked_or_all({
@@ -294,7 +314,11 @@ def validate_repository(root: Path) -> list[str]:
     for probe_report in root.glob('examples/**/Docs/agentsflow/runs/*/evidence-probe-report*.json'):
         errors.extend(validate_evidence_probe_report_artifact(root, probe_report))
 
-    for provider_config in list(root.rglob('external-review-provider.yaml')) + list(root.rglob('claude-code.yaml')):
+    provider_configs = [
+        p for p in list(root.rglob('external-review-provider.yaml')) + list(root.rglob('claude-code.yaml'))
+        if not _is_agentsflow_local_run_artifact_path(root, p)
+    ]
+    for provider_config in provider_configs:
         errors.extend(validate_external_review_provider(provider_config))
 
     for report_path in sorted(root.glob('examples/pr-merge-readiness/**/pr-merge-readiness-report.json')):

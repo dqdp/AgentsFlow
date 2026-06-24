@@ -19,6 +19,10 @@ SKIP_DIRS = {
     "dist",
 }
 
+SKIP_PATH_PREFIXES = {
+    ("run-artifacts", "agentsflow"),
+}
+
 PATH_KEYS = {
     "cwd",
     "path",
@@ -62,12 +66,14 @@ def _iter_structured_files(root: Path) -> list[Path]:
                 root / line
                 for line in result.stdout.splitlines()
                 if line and not any(part in SKIP_DIRS for part in Path(line).parts)
+                and not any(Path(line).parts[: len(prefix)] == prefix for prefix in SKIP_PATH_PREFIXES)
             )
     return sorted(
         path
         for suffix in ("*.json", "*.yaml", "*.yml")
         for path in root.rglob(suffix)
         if not any(part in SKIP_DIRS for part in path.parts)
+        and not any(path.relative_to(root).parts[: len(prefix)] == prefix for prefix in SKIP_PATH_PREFIXES)
     )
 
 
