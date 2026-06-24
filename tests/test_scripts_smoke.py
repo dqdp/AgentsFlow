@@ -6683,6 +6683,8 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                 "external_reviewer_preflight": str(external_preflight),
                 "external_reviewer_preflight_hash": external_preflight_hash,
                 "status": "completed",
+                "started_at": "2026-06-21T00:00:00+00:00",
+                "finished_at": "2026-06-21T00:00:02+00:00",
                 "runner_scheduling": "external-first-async",
                 "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
                 "reviewers": [
@@ -6694,6 +6696,8 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                         "packet_path": contract["inputs"]["review_packets"][0]["path"],
                         "report_path": str(internal_report),
                         "status": "report-present",
+                        "started_at": "2026-06-21T00:00:00+00:00",
+                        "finished_at": "2026-06-21T00:00:01+00:00",
                     },
                     {
                         "reviewer": "generalist-b",
@@ -6706,6 +6710,8 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                         "invocation_metadata_path": str(claude_invocation),
                         "execution_mode": "real",
                         "status": "invoked",
+                        "started_at": "2026-06-21T00:00:00+00:00",
+                        "finished_at": "2026-06-21T00:00:01+00:00",
                     },
                 ],
             },
@@ -6744,7 +6750,7 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
                     "cycle_started_at": "2026-06-21T00:00:00+00:00",
                     "cycle_finished_at": "2026-06-21T00:00:02+00:00",
                     "cycle_elapsed_ms": 2000,
-                    "summed_reviewer_elapsed_ms": 1000,
+                    "summed_reviewer_elapsed_ms": 2000,
                     "summed_provider_runtime_ms": 1000,
                 },
                 "reviewer_invocations": [
@@ -6812,6 +6818,28 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert "substantive_review_cycles must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["timing"]["review_phase_elapsed_ms"] = 999
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "timing.review_phase_elapsed_ms must match review_invocation_set" in "\n".join(errors)
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["reviewer_invocations"][1]["provider_runtime_ms"] = 999
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "reviewer_invocations[generalist-b].provider_runtime_ms must match review_invocation_set" in "\n".join(
+        errors
+    )
+    stale_metrics = copy.deepcopy(review_metrics_data)
+    stale_metrics["provider_usage"]["tokens"] = {
+        "available": True,
+        "input": 1,
+        "output": 1,
+        "total": 2,
+    }
+    (root / review_metrics).write_text(json.dumps(stale_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "provider_usage must match review_invocation_set" in "\n".join(errors)
     (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
     stale_metrics = copy.deepcopy(review_metrics_data)
     stale_metrics["reviewer_invocations"] = []
@@ -6844,6 +6872,11 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     failed_metrics = copy.deepcopy(review_metrics_data)
     failed_metrics["completed_reviewer_invocations"] = 1
     failed_metrics["substantive_review_cycles"] = 1
+    failed_metrics["timing"]["review_phase_finished_at"] = "2026-06-21T00:00:03+00:00"
+    failed_metrics["timing"]["cycle_finished_at"] = "2026-06-21T00:00:03+00:00"
+    failed_metrics["timing"]["review_phase_elapsed_ms"] = 3000
+    failed_metrics["timing"]["cycle_elapsed_ms"] = 3000
+    failed_metrics["timing"]["summed_reviewer_elapsed_ms"] = 1000
     failed_metrics["reviewer_invocations"][1]["status"] = "failed"
     failed_metrics["reviewer_invocations"][1]["completed"] = False
     failed_metrics["reviewer_invocations"][1]["nonzero_exit"] = True

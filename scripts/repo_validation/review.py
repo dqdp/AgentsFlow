@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
 
@@ -128,6 +129,77 @@ def _is_review_metrics_substantive_attempt(entry: dict, invocation_completed: bo
     return bool(failure_stage and "preflight" not in failure_stage)
 
 
+def _review_metrics_parse_time(value: object) -> dt.datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = dt.datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed
+
+
+def _review_metrics_elapsed_ms(start: object, finish: object) -> int | None:
+    started = _review_metrics_parse_time(start)
+    finished = _review_metrics_parse_time(finish)
+    if not started or not finished:
+        return None
+    milliseconds = int((finished - started).total_seconds() * 1000)
+    return max(0, milliseconds)
+
+
+def _review_metrics_reviewer_elapsed_ms(entry: dict) -> int | None:
+    for started_key, finished_key in [
+        ("started_at", "finished_at"),
+        ("dispatch_started_at", "dispatch_finished_at"),
+    ]:
+        elapsed = _review_metrics_elapsed_ms(entry.get(started_key), entry.get(finished_key))
+        if elapsed is not None:
+            return elapsed
+    return None
+
+
+def _review_metrics_provider_runtime_ms(entry: dict) -> int | None:
+    value = entry.get("provider_runtime_ms")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 0:
+        return value
+    timing = entry.get("timing")
+    if isinstance(timing, dict):
+        nested = timing.get("provider_runtime_ms")
+        if isinstance(nested, bool):
+            return None
+        if isinstance(nested, int) and nested >= 0:
+            return nested
+    return None
+
+
+def _review_metrics_numeric(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _review_metrics_integer(value: object) -> int | None:
+    number = _review_metrics_numeric(value)
+    if number is None:
+        return None
+    return int(number)
+
+
+def _review_metrics_first_string(*values: object) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
 def _review_metrics_exit_code(entry: dict, metadata: dict) -> int | None:
     for source in (entry, metadata):
         value = source.get("exit_code")
@@ -163,6 +235,119 @@ def _review_metrics_normalization_status(entry: dict, metadata: dict, completed:
     if _is_review_metrics_preflight_blocker(entry):
         return "not_applicable_preflight_blocker"
     return "not_available"
+
+
+def _review_metrics_add_nested_usage(
+    usage: object,
+    token_totals: dict[str, int],
+    cost_totals: dict[str, object],
+) -> None:
+    if not isinstance(usage, dict):
+        return
+    tokens = usage.get("tokens")
+    if isinstance(tokens, dict) and tokens.get("available") is True:
+        input_tokens = _review_metrics_integer(tokens.get("input"))
+        output_tokens = _review_metrics_integer(tokens.get("output"))
+        total_tokens = _review_metrics_integer(tokens.get("total"))
+        if input_tokens is None or output_tokens is None or total_tokens is None:
+            return
+        token_totals["input"] += input_tokens
+        token_totals["output"] += output_tokens
+        token_totals["total"] += total_tokens
+        token_totals["available"] = 1
+    cost = usage.get("cost")
+    if isinstance(cost, dict) and cost.get("available") is True:
+        amount = _review_metrics_numeric(cost.get("amount"))
+        currency = cost.get("currency")
+        if amount is None or not isinstance(currency, str) or not currency:
+            return
+        cost_totals["amount"] = float(cost_totals["amount"]) + amount
+        cost_totals["currency"] = currency
+        cost_totals["available"] = True
+
+
+def _review_metrics_add_provider_model_usage(
+    model_usage: object,
+    token_totals: dict[str, int],
+) -> None:
+    if not isinstance(model_usage, dict):
+        return
+    saw_tokens = False
+    input_total = 0
+    output_total = 0
+    for payload in model_usage.values():
+        if not isinstance(payload, dict):
+            continue
+        input_tokens = _review_metrics_integer(payload.get("inputTokens")) or 0
+        cache_read = _review_metrics_integer(payload.get("cacheReadInputTokens")) or 0
+        cache_creation = _review_metrics_integer(payload.get("cacheCreationInputTokens")) or 0
+        output_tokens = _review_metrics_integer(payload.get("outputTokens")) or 0
+        if input_tokens or cache_read or cache_creation or output_tokens:
+            saw_tokens = True
+        input_total += input_tokens + cache_read + cache_creation
+        output_total += output_tokens
+    if saw_tokens:
+        token_totals["input"] += input_total
+        token_totals["output"] += output_total
+        token_totals["total"] += input_total + output_total
+        token_totals["available"] = 1
+
+
+def _review_metrics_add_provider_total_cost(source: dict, cost_totals: dict[str, object]) -> bool:
+    amount = _review_metrics_numeric(source.get("provider_total_cost_usd"))
+    if amount is None:
+        return False
+    cost_totals["amount"] = float(cost_totals["amount"]) + amount
+    cost_totals["currency"] = "USD"
+    cost_totals["available"] = True
+    return True
+
+
+def _review_metrics_collect_provider_usage(
+    reviewers: list[dict],
+    metadata_by_reviewer: dict[str, dict],
+) -> dict:
+    token_totals = {"input": 0, "output": 0, "total": 0, "available": 0}
+    cost_totals: dict[str, object] = {"amount": 0.0, "currency": None, "available": False}
+
+    for entry in reviewers:
+        reviewer = str(entry.get("reviewer") or "")
+        metadata = metadata_by_reviewer.get(reviewer, {})
+        _review_metrics_add_nested_usage(entry.get("provider_usage"), token_totals, cost_totals)
+        if not _review_metrics_add_provider_total_cost(entry, cost_totals):
+            _review_metrics_add_provider_total_cost(metadata, cost_totals)
+        model_usage = entry.get("provider_model_usage")
+        if not isinstance(model_usage, dict):
+            model_usage = metadata.get("provider_model_usage")
+        _review_metrics_add_provider_model_usage(model_usage, token_totals)
+
+    if token_totals["available"]:
+        token_payload: dict[str, object] = {
+            "available": True,
+            "input": token_totals["input"],
+            "output": token_totals["output"],
+            "total": token_totals["total"] or token_totals["input"] + token_totals["output"],
+        }
+    else:
+        token_payload = {
+            "available": False,
+            "reason": "Provider did not report token usage.",
+        }
+
+    if cost_totals["available"]:
+        cost_payload: dict[str, object] = {
+            "available": True,
+            "amount": cost_totals["amount"],
+        }
+        if cost_totals["currency"]:
+            cost_payload["currency"] = cost_totals["currency"]
+    else:
+        cost_payload = {
+            "available": False,
+            "reason": "Provider did not report cost usage.",
+        }
+
+    return {"tokens": token_payload, "cost": cost_payload}
 
 
 def _strip_fragment(ref: object) -> str:
@@ -1448,10 +1633,13 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         for item in invocation_reviewer_entries
                         if isinstance(item, dict) and item.get("reviewer")
                     }
+                    invocation_metadata_by_reviewer: dict[str, dict] = {}
                     if sorted(metrics_rows_by_reviewer) != sorted(invocation_reviewers_by_id):
                         errors.append(
                             f"{review_metrics_path}: reviewer_invocations must cover review_invocation_set reviewers exactly"
                         )
+                    expected_summed_reviewer_elapsed_ms = 0
+                    expected_summed_provider_runtime_ms = 0
                     for reviewer, invocation_entry in invocation_reviewers_by_id.items():
                         metrics_row = metrics_rows_by_reviewer.get(reviewer)
                         if not isinstance(metrics_row, dict):
@@ -1468,12 +1656,35 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                                 invocation_metadata_data = parse_json(invocation_metadata_path)
                                 if isinstance(invocation_metadata_data, dict):
                                     invocation_metadata = invocation_metadata_data
+                        invocation_metadata_by_reviewer[reviewer] = invocation_metadata
                         expected_completed_row = _is_review_metrics_completed(invocation_entry.get("status"))
                         expected_preflight_row = _is_review_metrics_preflight_blocker(invocation_entry)
                         expected_exit_code = _review_metrics_exit_code(invocation_entry, invocation_metadata)
                         expected_timed_out = (
                             str(invocation_entry.get("status") or "").lower() == "timed-out"
                             or "timed out" in str(invocation_entry.get("error") or "").lower()
+                        )
+                        expected_provider_runtime = _review_metrics_provider_runtime_ms(invocation_entry)
+                        if expected_provider_runtime is None and invocation_metadata:
+                            expected_provider_runtime = _review_metrics_elapsed_ms(
+                                invocation_metadata.get("started_at"),
+                                invocation_metadata.get("finished_at"),
+                            )
+                        expected_reviewer_elapsed = _review_metrics_reviewer_elapsed_ms(invocation_entry)
+                        if expected_completed_row and expected_reviewer_elapsed is not None:
+                            expected_summed_reviewer_elapsed_ms += expected_reviewer_elapsed
+                        if expected_provider_runtime is not None:
+                            expected_summed_provider_runtime_ms += expected_provider_runtime
+                        reviewer_started_at = _review_metrics_first_string(
+                            invocation_entry.get("started_at"),
+                            invocation_entry.get("dispatch_started_at"),
+                            invocation_metadata.get("started_at"),
+                        )
+                        reviewer_finished_at = _review_metrics_first_string(
+                            invocation_entry.get("finished_at"),
+                            invocation_entry.get("dispatch_finished_at"),
+                            invocation_entry.get("checked_at"),
+                            invocation_metadata.get("finished_at"),
                         )
                         expected_normalization = _review_metrics_normalization_status(
                             invocation_entry,
@@ -1489,17 +1700,50 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                             "review_packet_path": invocation_entry.get("packet_path"),
                             "report_path": invocation_entry.get("report_path"),
                             "invocation_metadata_path": invocation_entry.get("invocation_metadata_path"),
+                            "reviewer_started_at": reviewer_started_at,
+                            "reviewer_finished_at": reviewer_finished_at,
+                            "reviewer_elapsed_ms": expected_reviewer_elapsed,
+                            "provider_runtime_ms": expected_provider_runtime,
                             "retry_count": _review_metrics_retry_count(invocation_entry, invocation_metadata),
                             "timed_out": expected_timed_out,
                             "nonzero_exit": expected_exit_code is not None and expected_exit_code != 0,
                             "normalization_status": expected_normalization,
                         }
+                        if "elapsed_ms" in metrics_row:
+                            expected_row_values["elapsed_ms"] = expected_reviewer_elapsed
                         for key, expected_value in expected_row_values.items():
                             if metrics_row.get(key) != expected_value:
                                 errors.append(
                                     f"{review_metrics_path}: reviewer_invocations[{reviewer}].{key} "
                                     "must match review_invocation_set"
                                 )
+                    metrics_timing = metrics_data.get("timing")
+                    if isinstance(metrics_timing, dict):
+                        expected_review_elapsed = _review_metrics_elapsed_ms(
+                            (invocation_set or {}).get("started_at"),
+                            (invocation_set or {}).get("finished_at"),
+                        )
+                        expected_timing_values = {
+                            "review_phase_started_at": (invocation_set or {}).get("started_at"),
+                            "review_phase_finished_at": (invocation_set or {}).get("finished_at"),
+                            "review_phase_elapsed_ms": expected_review_elapsed,
+                            "cycle_started_at": (invocation_set or {}).get("started_at"),
+                            "cycle_finished_at": (invocation_set or {}).get("finished_at"),
+                            "cycle_elapsed_ms": expected_review_elapsed,
+                            "summed_reviewer_elapsed_ms": expected_summed_reviewer_elapsed_ms,
+                            "summed_provider_runtime_ms": expected_summed_provider_runtime_ms,
+                        }
+                        for key, expected_value in expected_timing_values.items():
+                            if metrics_timing.get(key) != expected_value:
+                                errors.append(
+                                    f"{review_metrics_path}: timing.{key} must match review_invocation_set"
+                                )
+                    expected_provider_usage = _review_metrics_collect_provider_usage(
+                        invocation_reviewer_entries,
+                        invocation_metadata_by_reviewer,
+                    )
+                    if metrics_data.get("provider_usage") != expected_provider_usage:
+                        errors.append(f"{review_metrics_path}: provider_usage must match review_invocation_set")
 
     require_completed_assignment_outputs = invocation_set is None or invocation_set_completed
     if assignments and artifact_preparation_report_path and require_completed_assignment_outputs:
