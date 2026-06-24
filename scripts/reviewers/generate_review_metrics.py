@@ -365,7 +365,7 @@ def generate_metrics(
         invocation_metadata_path = first_string(entry.get("invocation_metadata_path"))
         if packet_path:
             review_packets.add(packet_path)
-        if report_path:
+        if is_completed(status) and report_path:
             reviewer_reports.add(report_path)
         if invocation_metadata_path:
             invocation_metadata_paths.add(invocation_metadata_path)

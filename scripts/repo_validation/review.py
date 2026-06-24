@@ -1522,19 +1522,6 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     output_schema_hash,
                     errors,
                 )
-                for idx, assignment in enumerate(assignments):
-                    if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
-                        continue
-                    provider_config_ref = assignment.get("provider_config")
-                    provider_config_path = root / str(provider_config_ref)
-                    if provider_config_ref and provider_config_path.is_file():
-                        _require_concrete_hash(
-                            external_preflight_path,
-                            f"external_reviewer_preflight.fingerprint.provider_config_hash for assignment {idx}",
-                            fingerprint.get("provider_config_hash"),
-                            sha256_file(provider_config_path),
-                            errors,
-                        )
                 validate_external_assignment_fingerprints(external_preflight_path, preflight_data)
             if invocation_set:
                 invocation_preflight_ref = resolve_invocation_set_ref(
@@ -1567,6 +1554,56 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             else:
                 errors.extend(validate_against_schema(review_metrics_path, metrics_data, metrics_schema))
                 source_artifacts = metrics_data.get("source_artifacts", {}) or {}
+                invocation_reviewer_entries = [
+                    item
+                    for item in (invocation_set or {}).get("reviewers", []) or []
+                    if isinstance(item, dict)
+                ]
+
+                def compare_metrics_source_list(key: str, expected_values: list[str]) -> None:
+                    actual_values = source_artifacts.get(key)
+                    if actual_values is None:
+                        if expected_values:
+                            errors.append(f"{review_metrics_path}: source_artifacts.{key} must match review_invocation_set")
+                        return
+                    if not isinstance(actual_values, list):
+                        return
+                    normalized_actual = sorted(str(item) for item in actual_values if isinstance(item, str))
+                    if normalized_actual != expected_values:
+                        errors.append(f"{review_metrics_path}: source_artifacts.{key} must match review_invocation_set")
+
+                compare_metrics_source_list(
+                    "review_packets",
+                    sorted(
+                        {
+                            str(item.get("packet_path"))
+                            for item in invocation_reviewer_entries
+                            if isinstance(item.get("packet_path"), str) and item.get("packet_path")
+                        }
+                    ),
+                )
+                compare_metrics_source_list(
+                    "reviewer_reports",
+                    sorted(
+                        {
+                            str(item.get("report_path"))
+                            for item in invocation_reviewer_entries
+                            if _is_review_metrics_completed(item.get("status"))
+                            and isinstance(item.get("report_path"), str)
+                            and item.get("report_path")
+                        }
+                    ),
+                )
+                compare_metrics_source_list(
+                    "invocation_metadata",
+                    sorted(
+                        {
+                            str(item.get("invocation_metadata_path"))
+                            for item in invocation_reviewer_entries
+                            if isinstance(item.get("invocation_metadata_path"), str) and item.get("invocation_metadata_path")
+                        }
+                    ),
+                )
                 metrics_invocation_ref = resolve_invocation_set_ref(
                     source_artifacts.get("review_invocation_set"),
                     "review_metrics.source_artifacts.review_invocation_set",
@@ -1602,11 +1639,6 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     for item in (invocation_set or {}).get("reviewers", []) or []
                     if isinstance(item, dict) and str(item.get("status") or "").lower() in completed_statuses
                 )
-                invocation_reviewer_entries = [
-                    item
-                    for item in (invocation_set or {}).get("reviewers", []) or []
-                    if isinstance(item, dict)
-                ]
                 expected_preflight_blockers = sum(
                     1 for item in invocation_reviewer_entries if _is_review_metrics_preflight_blocker(item)
                 )

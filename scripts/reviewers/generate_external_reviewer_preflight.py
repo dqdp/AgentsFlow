@@ -151,7 +151,7 @@ def validate_run_scope_raw_output_retention(
     default_config_path: Path,
     provider: str,
 ) -> None:
-    if contract.get("artifact_scope") != "run":
+    if contract.get("artifact_scope", "run") != "run":
         return
     for assignment in contract.get("reviewer_assignments", []) or []:
         if not isinstance(assignment, dict) or assignment.get("provider") != provider:

@@ -330,15 +330,11 @@ def validate_external_reviewer_preflight(
     schema_path = root / "schemas" / "reviewer-report.schema.json"
     if schema_path.is_file() and fingerprint.get("schema_hash") != sha256_file(schema_path):
         raise ValueError(f"{preflight_path}: schema_hash must match current reviewer report schema")
-    declared_config_hash = fingerprint.get("provider_config_hash")
     for assignment in external_assignments:
         config_path = resolve_path(assignment.get("provider_config"), root)
         if not config_path.is_file():
             reviewer = assignment.get("reviewer")
             raise ValueError(f"{preflight_path}: provider_config missing for {reviewer}: {config_path}")
-        if declared_config_hash != sha256_file(config_path):
-            reviewer = assignment.get("reviewer")
-            raise ValueError(f"{preflight_path}: provider_config_hash must match assignment provider_config for {reviewer}")
     validate_assignment_fingerprints(
         preflight,
         contract,
