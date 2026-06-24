@@ -1004,6 +1004,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
     invocation_set: dict | None = None
     invocation_reviewers: dict[str, dict] = {}
     invocation_set_completed = False
+    invocation_set_terminal = False
     if assignments:
         if _is_run_scope_artifact(path, data) and not artifact_preparation_report_path:
             errors.append(f"{path}: reviewer_assignments require inputs.artifact_preparation_report")
@@ -1018,7 +1019,9 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             else:
                 invocation_set = invocation_set_data
                 errors.extend(validate_against_schema(invocation_evidence_path, invocation_set, invocation_set_schema))
-                invocation_set_completed = invocation_set.get("status") == "completed"
+                invocation_set_status = str(invocation_set.get("status") or "")
+                invocation_set_completed = invocation_set_status == "completed"
+                invocation_set_terminal = invocation_set_status in {"completed", "failed"}
                 if external_assignment_present and invocation_set.get("runner_scheduling") != "external-first-async":
                     errors.append(
                         f"{invocation_evidence_path}: external reviewer assignments require "
@@ -1317,9 +1320,12 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                     errors,
                 )
 
-    if assignments and invocation_set_completed and (review_metrics_ref or assignment_evidence_required):
+    if assignments and invocation_set_terminal and (review_metrics_ref or assignment_evidence_required):
         if not review_metrics_path:
-            errors.append(f"{path}: completed review_invocation_set requires inputs.review_metrics artifact")
+            if invocation_set_completed:
+                errors.append(f"{path}: completed review_invocation_set requires inputs.review_metrics artifact")
+            else:
+                errors.append(f"{path}: terminal review_invocation_set requires inputs.review_metrics artifact")
         else:
             metrics_schema = parse_json(root / "schemas" / "review-metrics.schema.json")
             metrics_data = parse_json(review_metrics_path)

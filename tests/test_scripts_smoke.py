@@ -6800,6 +6800,7 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert not errors
 
+    invocation_set_data = json.loads((root / invocation_set).read_text(encoding="utf-8"))
     review_metrics_data = json.loads((root / review_metrics).read_text(encoding="utf-8"))
     stale_metrics = copy.deepcopy(review_metrics_data)
     stale_metrics["provider_preflight_blockers"] = 1
@@ -6816,6 +6817,38 @@ def test_review_prompt_contract_binds_external_invocation_to_current_artifacts(t
     (root / review_metrics).unlink()
     errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
     assert "completed review_invocation_set requires inputs.review_metrics artifact" in "\n".join(errors)
+    (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
+
+    failed_invocation_set = copy.deepcopy(invocation_set_data)
+    failed_invocation_set["status"] = "failed"
+    failed_invocation_set["finished_at"] = "2026-06-21T00:00:03+00:00"
+    failed_invocation_set["error"] = "external reviewer failed after provider dispatch"
+    failed_invocation_set["reviewers"][1]["status"] = "failed"
+    failed_invocation_set["reviewers"][1]["dispatch_started_at"] = "2026-06-21T00:00:00+00:00"
+    failed_invocation_set["reviewers"][1]["dispatch_finished_at"] = "2026-06-21T00:00:03+00:00"
+    failed_invocation_set["reviewers"][1]["exit_code"] = 2
+    failed_invocation_set["reviewers"][1]["error"] = "external reviewer failed after provider dispatch"
+    failed_invocation_set["reviewers"][1].pop("evidence_model_family", None)
+    (root / invocation_set).write_text(json.dumps(failed_invocation_set, indent=2), encoding="utf-8")
+    failed_metrics = copy.deepcopy(review_metrics_data)
+    failed_metrics["completed_reviewer_invocations"] = 1
+    failed_metrics["substantive_review_cycles"] = 1
+    failed_metrics["reviewer_invocations"][1]["status"] = "failed"
+    failed_metrics["reviewer_invocations"][1]["completed"] = False
+    failed_metrics["reviewer_invocations"][1]["nonzero_exit"] = True
+    failed_metrics["reviewer_invocations"][1]["normalization_status"] = "not_available"
+    (root / review_metrics).write_text(json.dumps(failed_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert not errors
+    stale_failed_metrics = copy.deepcopy(failed_metrics)
+    stale_failed_metrics["substantive_review_cycles"] = 0
+    (root / review_metrics).write_text(json.dumps(stale_failed_metrics, indent=2), encoding="utf-8")
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "substantive_review_cycles must match review_invocation_set" in "\n".join(errors)
+    (root / review_metrics).unlink()
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, contract)
+    assert "terminal review_invocation_set requires inputs.review_metrics artifact" in "\n".join(errors)
+    (root / invocation_set).write_text(json.dumps(invocation_set_data, indent=2), encoding="utf-8")
     (root / review_metrics).write_text(json.dumps(review_metrics_data, indent=2), encoding="utf-8")
 
     preflight_data = json.loads((root / external_preflight).read_text(encoding="utf-8"))
