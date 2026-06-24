@@ -104,7 +104,7 @@ Use this section when fusion grouped findings before validation.
 |---|---|---:|---|
 | Finding is supported by contract/evidence and has a grounded P0/P1 blocker path | accepted-relevant | yes | Fix/revise, then rerun verification gate and relevant review cycle. |
 | Finding is tagged P0/P1 but lacks a grounded blocker path | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | no by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
-| Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | no | Record follow-up; no review rerun by default. |
+| Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | no | Record follow-up, or fix during an open blocker loop with materiality classification; no review rerun by default. |
 | Finding may be valid but required evidence is missing | needs-more-evidence | yes if mandatory evidence or grounded P0/P1 blocker path | Produce evidence through the verification gate or a narrow evidence-probe objective; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | no | Record reason; no rerun. |
 | Finding is factually contradicted by contract/diff/evidence | rejected-irrelevant | no | Record contradiction; no rerun. |

@@ -18,10 +18,29 @@ max_review_cycles_absent_means: unlimited
 blocking_default:
   severities: [P0, P1]
   missing_mandatory_evidence_blocks: true
+review_observability:
+  review_metrics: <path or pending until implemented>
+  provider_preflight_blockers_count_as_review_cycles: false
 collision_control:
   batching: per-review-cycle
   control_reviewer_count: 2
 ```
+
+## Review Metrics Summary
+
+Use structured `review-metrics.json` when the run profile requires it. Until the
+metrics artifact is implemented for a project, record the same facts here.
+
+| Metric | Value | Source |
+|---|---|---|
+| Review phase started | ... | invocation metadata / review metrics |
+| Review phase finished | ... | invocation metadata / review metrics |
+| Review phase elapsed ms | ... | review metrics |
+| Substantive review cycles | ... | review-cycle ledger |
+| Provider preflight blockers | ... | preflight artifact |
+| Summed reviewer elapsed ms | ... | reviewer invocation metadata |
+| Summed provider runtime ms | ... | provider-reported when available |
+| Token/cost usage available | yes/no | provider-reported, not estimated |
 
 ## Candidate Findings Summary
 
@@ -64,6 +83,20 @@ fresh-context control reviewers inspect the batch.
 
 - ...
 
+## Important P2/P3 Handling During Blocker Loop
+
+Use this section only when important P2/P3 findings are fixed while a validated
+P0/P1 blocker loop or mandatory-evidence-gap loop is already open.
+
+| Finding ID | Severity | Reason to fix now | Changed artifacts | Material review input changed? | Review rerun required? | Rationale |
+|---|---|---|---|---:|---:|---|
+| F-010 | P2 | ... | `docs/...` | no | no | Non-material clarification in same touched area. |
+
+P2/P3-only fixes do not trigger a review rerun unless they materially change
+contract, scope, selected risk surfaces, Failure Path Matrix, schema, validator
+behavior, mandatory evidence, verification result, project overlay, workflow
+policy, review packet content or current evidence examples.
+
 ## Post-Fix Materiality Classification
 
 Use this section when any accepted finding is fixed before the cycle closes.
@@ -84,6 +117,25 @@ evidence. A P2 finding can produce a material fix.
 Reason:
 
 - ...
+
+## Review-Loop Health Checkpoint
+
+Complete this section when an ADR-0022 trigger fires.
+
+```yaml
+health_checkpoint:
+  required: <true|false>
+  trigger_ids: []
+  counted_inputs: validated_findings_and_mandatory_evidence_gaps_only
+  repeated_risk_surface_ids: []
+  root_cause_classification: <contract_gap|failure_path_matrix_gap|verification_gap|false_green_or_stale_evidence|implementation_defect|authority_boundary_gap|scope_drift|provider_or_environment_blocker|main_agent_looping_on_local_patch|unknown_requires_diagnostic_review|none>
+  diagnostic_reviewers_used: <true|false>
+  correction_obligations: []
+  closure_artifact_or_section: <path or section>
+  include_in_next_review_packet: <true|false>
+```
+
+The checkpoint is not a review gate, cycle cap or automatic reviewer launch.
 
 ## Final Cycle State
 

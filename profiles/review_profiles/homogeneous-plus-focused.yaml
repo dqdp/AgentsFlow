@@ -19,10 +19,18 @@ prompt_policy:
   baseline_same_prompt: true
   baseline_same_packet: true
   baseline_same_rubric: true
+  baseline_same_output_schema: true
+  baseline_same_substantive_prompt_across_providers: true
+  provider_transport_metadata_may_differ: true
   focused_reviewers_require_explicit_focus_zone: true
+  focused_reviewers_receive_full_packet: true
   focus_zones_may_overlap: true
   all_reviewers_must_report_p0_p1_outside_focus: true
 purpose: Elevated-risk profile. Keep the homogeneous baseline pair and add one or more focused reviewers.
 use_when:
   - the baseline pair is still useful, but a declared risk needs extra specialist attention
   - architecture, product, security, adversarial or domain risk is present
+requirements:
+  - baseline generalists receive the same substantive prompt, packet, rubric and output schema
+  - baseline generalists may use different providers
+  - focused reviewers receive the full packet plus an explicit focus zone

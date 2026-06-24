@@ -15,6 +15,21 @@ Updated for default strictness: review topology remains separate from strictness
 Workflows own their normal depth through `default_strictness`; project or run
 overrides are explicit deviations, not routine setup choices.
 
+Updated for review-gate hardening on 2026-06-24: `homogeneous-plus-focused`
+is a first-class elevated-risk topology. Its homogeneous baseline pair may use
+different providers, such as Codex and Claude, but the two baseline generalists
+must receive the same substantive prompt, same review packet, same rubric and
+same output schema. Provider transport metadata may differ.
+
+Focused reviewers receive the same full review packet and diff plus an explicit
+focus zone. A focus zone is not an ownership boundary: a focused reviewer may
+and should report any plausible P0/P1 blocker noticed outside the focus.
+
+Run artifacts should record equality evidence for the homogeneous baseline
+pair, such as shared prompt-content, packet-content, rubric and output-schema
+hashes. Full rendered prompts may differ only for technical identity, provider
+or transport fields.
+
 ## Context
 
 Multi-model review and fusion are valuable but should not become a separate heavyweight mode that competes with workflows.
@@ -22,6 +37,15 @@ Multi-model review and fusion are valuable but should not become a separate heav
 ## Decision
 
 Review/fusion is modeled as a review topology selected by workflow/profile metadata.
+
+The canonical v0.2 primary topologies are:
+
+- `homogeneous-dual`;
+- `homogeneous-plus-focused`;
+- `heterogeneous-variable`.
+
+`collision-control` is a focused control topology for rejected or downgraded
+plausible blocker-path findings. It is not a normal primary gate topology.
 
 Historical seed examples:
 

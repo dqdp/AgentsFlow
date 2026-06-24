@@ -205,6 +205,14 @@ Repeated review agents are not rerun when all P0/P1 candidate findings have been
 validated and no validated blockers or mandatory evidence gaps remain. P2/P3/NOTE
 findings can become follow-up work without forcing another review cycle.
 
+Important P2/P3 findings may also be fixed while a validated blocker loop is
+already open. The main/orchestrating agent records why the fix is worth doing
+now and whether it materially changes review inputs. A P2/P3-only fix does not
+force another review cycle unless it materially changes contract, scope,
+selected risk surfaces, Failure Path Matrix, schema, validator behavior,
+mandatory evidence, verification output, project overlay, workflow policy,
+review packet content or current evidence examples.
+
 ## Result states
 
 - `pass`

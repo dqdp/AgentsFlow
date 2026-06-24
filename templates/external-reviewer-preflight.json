@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "artifact_kind": "external_reviewer_preflight",
+  "artifact_scope": "template",
+  "provider": "claude-code",
+  "mode": "full",
+  "result": "pass",
+  "generated_at": "2026-01-01T00:00:00+00:00",
+  "live_provider_call": false,
+  "fingerprint": {
+    "provider_config_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "wrapper_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "schema_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "prompt_contract_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "role_contract_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "rubric_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "forbidden_env_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "permission_mode": "default",
+    "sandbox_mode": "require_escalated",
+    "provider_transport_mode": "stdin"
+  },
+  "forbidden_env": {
+    "checked": [
+      "ANTHROPIC_API_KEY",
+      "ANTHROPIC_AUTH_TOKEN",
+      "ANTHROPIC_BASE_URL",
+      "CLAUDE_CODE_USE_BEDROCK",
+      "CLAUDE_CODE_USE_VERTEX"
+    ],
+    "present": []
+  },
+  "blockers": []
+}

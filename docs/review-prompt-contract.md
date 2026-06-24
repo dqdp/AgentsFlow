@@ -156,9 +156,21 @@ omits files present at review preparation time.
 
 - Keep the homogeneous baseline pair.
 - Add one or more focused reviewers.
+- The baseline pair resolves to generalist reviewer instances.
+- The baseline pair may use different providers.
+- The baseline pair must share the same substantive prompt content,
+  review-packet content, rubric and output schema.
+- Provider or transport metadata may differ.
 - Focused reviewers must have role contracts and explicit focus zones.
+- Focused reviewers receive the full review packet and diff plus their focus
+  zone.
 - Focus zones are not ownership boundaries.
 - Focused reviewers must report plausible P0/P1 blockers even outside focus.
+
+The contract records equality evidence for the baseline pair, including shared
+prompt-content, packet-content, rubric and output-schema hashes. Full rendered
+prompt hashes may differ only for technical identity, provider or transport
+fields.
 
 ### `heterogeneous-variable`
 

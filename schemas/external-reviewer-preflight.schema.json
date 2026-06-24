@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/external-reviewer-preflight.schema.json",
+  "title": "External Reviewer Preflight",
+  "type": "object",
+  "required": [
+    "version",
+    "artifact_kind",
+    "provider",
+    "mode",
+    "result",
+    "generated_at",
+    "live_provider_call",
+    "fingerprint",
+    "forbidden_env"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "artifact_kind": {
+      "const": "external_reviewer_preflight"
+    },
+    "artifact_scope": {
+      "type": "string",
+      "enum": ["template", "example", "run"],
+      "default": "run"
+    },
+    "provider": {
+      "const": "claude-code"
+    },
+    "mode": {
+      "enum": ["full", "cached_fingerprint"]
+    },
+    "result": {
+      "enum": ["pass", "blocked"]
+    },
+    "generated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "live_provider_call": {
+      "const": false
+    },
+    "fingerprint": {
+      "type": "object",
+      "required": [
+        "provider_config_hash",
+        "wrapper_hash",
+        "schema_hash",
+        "prompt_contract_hash",
+        "role_contract_hash",
+        "rubric_hash",
+        "forbidden_env_fingerprint",
+        "permission_mode",
+        "sandbox_mode",
+        "provider_transport_mode"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "provider_config_hash": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "wrapper_hash": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "schema_hash": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "prompt_contract_hash": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "role_contract_hash": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "rubric_hash": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "forbidden_env_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "permission_mode": {
+          "const": "default"
+        },
+        "sandbox_mode": {
+          "const": "require_escalated"
+        },
+        "provider_transport_mode": {
+          "enum": ["stdin", "file"]
+        }
+      }
+    },
+    "forbidden_env": {
+      "type": "object",
+      "required": ["checked", "present"],
+      "additionalProperties": true,
+      "properties": {
+        "checked": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "present": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "result": {
+            "const": "pass"
+          }
+        },
+        "required": ["result"]
+      },
+      "then": {
+        "properties": {
+          "forbidden_env": {
+            "properties": {
+              "present": {
+                "maxItems": 0
+              }
+            }
+          },
+          "blockers": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

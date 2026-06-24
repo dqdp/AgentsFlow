@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "artifact_kind": "review_metrics",
+  "artifact_scope": "template",
+  "run_id": "YYYY-MM-DD-task-slug",
+  "workflow": "big-feature-contract-first",
+  "material_change_id": null,
+  "generated_at": "2026-01-01T00:00:00+00:00",
+  "source_artifacts": {
+    "review_invocation_set": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/review-invocation-set.json",
+    "finding_validation_report": null,
+    "review_cycle_report": null
+  },
+  "planned_reviewer_slots": 0,
+  "completed_reviewer_invocations": 0,
+  "provider_preflight_blockers": 0,
+  "substantive_review_cycles": 0,
+  "timing": {
+    "review_phase_started_at": null,
+    "review_phase_finished_at": null,
+    "review_phase_elapsed_ms": null,
+    "summed_reviewer_elapsed_ms": 0,
+    "summed_provider_runtime_ms": 0
+  },
+  "reviewer_invocations": [],
+  "provider_usage": {
+    "tokens": {
+      "available": false,
+      "reason": "Provider did not report token usage."
+    },
+    "cost": {
+      "available": false,
+      "reason": "Provider did not report cost usage."
+    }
+  }
+}

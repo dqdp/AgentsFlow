@@ -27,6 +27,21 @@ For the v0.2 MVP:
 - External reviewers do not modify files or run tests by default.
 - The implementation is minimal: one provider, one wrapper path, one normalized reviewer-report output format, and stored invocation metadata.
 
+Updated for review-gate hardening on 2026-06-24:
+
+- when a review topology requires an external reviewer, provider
+  unavailability, missing config, preflight failure or permission failure is a
+  workflow blocker and must not silently fall back to internal-only review;
+- a provider preflight/config blocker is not a substantive review cycle and is
+  not a reviewer finding;
+- live Claude Code review launched from Codex requires the project-bound wrapper
+  to use the host-approved escalated/unsandboxed permission mode needed for
+  subscription-local auth and keychain access;
+- provider config must be tracked, or the run must explicitly record it as a
+  local required config with enough metadata to reproduce the evidence decision;
+- provider usage, token and cost evidence is recorded only when exposed by the
+  provider, not estimated by AgentsFlow.
+
 ## Consequences
 
 AgentsFlow can support multi-model review without becoming a multi-agent runtime.
@@ -42,6 +57,9 @@ The provider interface gives reproducible evidence:
 - billing/auth mode record;
 - schema validation result.
 
+Review observability evidence also records preflight status, timestamps,
+elapsed times, retry/timeout status, and provider-reported usage when available.
+
 ## Guardrails
 
 A Claude Code provider wrapper must:
@@ -56,6 +74,11 @@ A Claude Code provider wrapper must:
 - validate reviewer output schema;
 - record invocation metadata;
 - force findings to remain `candidate-unvalidated` until main-agent relevance validation.
+
+If the wrapper is launched from a sandboxed host that blocks subscription-local
+Claude Code access, the run must stop on a config/permission blocker unless the
+human changes the required review topology. The wrapper must not work around
+that blocker by switching to API-key, proxy, Bedrock or Vertex routes.
 
 ## Future work
 

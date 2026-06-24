@@ -91,6 +91,52 @@ why the extra mechanism is justified.
    - Does the change add human review only where a real decision is required?
    - Avoid asking the human to approve routine mechanical artifacts.
 
+## Complexity Risk Controls
+
+These controls are accepted constraints for the review-gate hardening track.
+They limit the slices below when a proposed implementation starts to look like a
+workflow runtime or telemetry subsystem.
+
+1. **Concrete-failure test**
+   - Each new rule must map to a concrete failure or friction observed in Bro
+     TG-A or an AgentsFlow dogfood run.
+   - If the motivation is abstract completeness only, keep the rule as guidance
+     instead of promoting it to a schema, validator or gate.
+
+2. **Health checkpoint as exception**
+   - A review-loop health checkpoint is created only when an accepted trigger
+     fires.
+   - It is not a standard phase in every review cycle.
+   - If no trigger fires, no health-check artifact is required.
+
+3. **Minimal metrics first**
+   - The first `review-metrics.json` implementation must be the smallest useful
+     generated artifact.
+   - Minimum scope: timestamps, elapsed versus summed runtime, planned versus
+     completed reviewers, preflight blockers separated from review cycles, and
+     provider-reported token/cost availability.
+   - Do not build a general telemetry subsystem in the first metrics slice.
+
+4. **Preflight latency guard**
+   - Full external-provider preflight runs once before the first required
+     external reviewer invocation in a run.
+   - Later external cycles use cheap fingerprint checks unless a recorded stale
+     or changed fingerprint reason requires full preflight again.
+   - Do not add a slow live Claude call before every external review cycle.
+
+5. **Diagnostic reviewers are trigger-bound**
+   - Fresh-context diagnostic reviewers are optional and never automatic.
+   - Launch them only when root cause is unclear, disputed, or there is a
+     concrete risk that the main agent is stuck in local patching or drifting
+     from accepted scope/authority decisions.
+
+6. **Schema deferral**
+   - Slice A remains decision/docs-only.
+   - New schemas or validators are added only in later implementation slices
+     when the artifact shape is stable enough for deterministic validation.
+   - Closure starts as a section in the review-cycle/report artifact; add a
+     standalone closure schema only if validation needs prove it is necessary.
+
 ## Decision Structure
 
 ### New ADR: Review Observability And External Provider Evidence
@@ -390,8 +436,12 @@ Scope:
 - Add `templates/review-metrics.json`.
 - Add validation for review metrics artifacts.
 - Update review/evidence templates and example run artifacts.
-- Normalize timestamps, durations, planned slots, actual invocations,
-  normalized reports, retries, failure state and token/cost availability.
+- Start with the minimum generated metrics artifact: timestamps, elapsed versus
+  summed runtime, planned versus completed reviewers, preflight blockers
+  separated from substantive review cycles, and token/cost availability when
+  provider-reported.
+- Defer richer per-provider telemetry until a concrete run need proves it is
+  necessary.
 
 Expected metrics distinctions:
 
@@ -419,6 +469,8 @@ Constraints:
 
 - Do not add a live Claude review/preflight call before every cycle.
 - Do not permit internal-only fallback when external review is required.
+- Do not repeat full preflight when the cached fingerprint is unchanged and
+  still fresh.
 
 ### Slice D: Topology And Prompt Equality Hardening
 
@@ -458,11 +510,13 @@ Exit evidence:
 
 Scope:
 
-- Add `schemas/review-loop-health-check.schema.json`.
-- Add `templates/review-loop-health-check.json`.
+- Start with a minimal checkpoint section/template tied to the review-cycle or
+  review-fix-loop report.
+- Add `schemas/review-loop-health-check.schema.json` only if the checkpoint
+  shape proves stable enough for deterministic validation.
 - Add a human-readable template if useful.
-- Add `review-loop-health-closure` schema/template if the closure shape needs
-  separate validation.
+- Add `review-loop-health-closure` schema/template only if the closure shape
+  needs separate validation.
 - Add validator coverage: if trigger evidence exists, the health checkpoint must
   exist.
 - Add review packet requirements after a triggered checkpoint: include the

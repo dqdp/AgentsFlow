@@ -136,6 +136,11 @@ For v0.2 this binding is intentionally small:
   artifacts and worktree status.
 - mock responses are smoke-test evidence only; completed review gates require
   external invocation metadata with `execution_mode: real`.
+- required external reviewer preflight/config failures are workflow blockers,
+  not substantive review cycles and not reviewer findings;
+- a required external reviewer must not be silently replaced by an internal-only
+  reviewer unless a human changes the accepted review topology or provider
+  requirement;
 - completed external evidence must be bound to the current packet, prompt,
   contract, role contract, rubric, output schema and normalized reviewer report
   hashes, with `exit_code: 0`; when raw provider output is preserved as
@@ -154,6 +159,29 @@ In practice, artifact assembly is deterministic for the v0.2 provider path:
 `prepare_review_set_artifacts.py` materializes declared packets, prompts and
 preparation evidence. Model reviewers return structured findings and summaries;
 they are not responsible for inventing file paths or evidence hashes.
+
+## Provider preflight and observability
+
+Runs that require an external reviewer perform a full deterministic preflight
+before the first external invocation, then cheap cached fingerprint checks before
+later external cycles unless the fingerprint changes or becomes stale.
+An unchanged fresh fingerprint must not cause a slow live Claude call before
+every review cycle.
+
+The preflight fingerprint records provider config hash, wrapper hash,
+reviewer-report schema hash, prompt-contract hash, role/rubric hash,
+forbidden-environment fingerprint, permission/sandbox mode and provider
+transport mode.
+
+When launched from Codex for live Claude Code review, the project-bound wrapper
+must use the host-approved escalated/unsandboxed permission mode required for
+subscription-local auth and keychain access. If that permission is unavailable,
+the workflow stops on a config/permission blocker rather than falling back to
+internal-only review or API-key/proxy routes.
+
+Provider metrics are recorded as observability evidence. Tokens and cost are
+recorded only when the provider reports them; AgentsFlow does not estimate them
+as evidence.
 
 Example assignment shape:
 
@@ -237,6 +265,10 @@ review-packet.<role>.json
 reviewer-report.<provider>-<role>.json
 reviewer-invocation.<provider>-<role>.json
 ```
+
+Review-enabled gates also record review metrics when the run profile requires
+them. The metrics artifact links invocation metadata, normalized reports,
+preflight status, timestamps and provider-reported usage when available.
 
 When `normalization.preserve_raw_output: true` is explicitly selected for
 non-sensitive output, also store:

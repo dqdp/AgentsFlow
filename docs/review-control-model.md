@@ -130,6 +130,43 @@ Exit the review cycle when there are no validated blocking findings and no
 mandatory evidence gaps.
 ```
 
+### Provider preflight blockers
+
+External provider preflight/config blockers are not substantive review cycles.
+When a review topology requires an external reviewer, missing provider config,
+permission failure, wrapper failure before review, or unavailable subscription
+auth blocks the workflow as configuration/evidence failure. It must not be
+normalized as a reviewer finding, counted as a completed review cycle, or used
+to silently fall back to internal-only review.
+
+The first required external invocation in a run uses a full deterministic
+preflight. Later cycles use a cheap cached fingerprint check unless the
+fingerprint is stale or changed. See ADR-0021.
+
+### P2/P3 handling during blocker loops
+
+Validated P0/P1 findings and mandatory evidence gaps block acceptance. While a
+validated blocker loop is already open, the main/orchestrating agent may also
+fix important P2/P3 findings in the same material area, but it must record the
+reason and materiality classification.
+
+P2/P3-only findings do not trigger review reruns unless the fix materially
+changes contract, scope, selected risk surfaces, Failure Path Matrix, schema,
+validator behavior, mandatory evidence, verification results, project overlay,
+workflow policy, review packet content or current evidence examples.
+
+### Review-loop health checkpoint
+
+A review-loop health checkpoint is required when any ADR-0022 trigger fires.
+The checkpoint uses validated findings and mandatory evidence gaps only. It is
+owned by the main/orchestrating agent by default and does not launch reviewers
+unless the root cause is unclear, disputed, or risks scope/authority drift.
+When no trigger fires, no health-check artifact is required.
+
+When a checkpoint fires, the next substantive review packet includes the
+checkpoint and its closure record so reviewers can inspect whether the repeated
+class of problem was addressed.
+
 ## Core vs workflow responsibilities
 
 **Core defines contracts. Workflow defines composition.**
@@ -214,6 +251,12 @@ generalist reviewers using the same prompt, same packet, same rubric and same
 output schema. A workflow, project binding or task contract should select
 `homogeneous-plus-focused` or `heterogeneous-variable` only when the selected
 risk surfaces justify extra focused attention.
+
+For `homogeneous-plus-focused`, the homogeneous baseline pair remains a pair of
+generalists. They may use different providers, but they receive the same
+substantive prompt, review packet, rubric and output schema. Focused reviewers
+receive the full packet plus an explicit focus zone, and may report blockers
+outside that focus.
 
 Risk-driven escalation is recorded as metadata, not inferred silently:
 

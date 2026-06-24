@@ -1,0 +1,20 @@
+name: generate_external_reviewer_preflight
+kind: script_contract
+script: scripts/reviewers/generate_external_reviewer_preflight.py
+deterministic: true
+purpose: >
+  Generate deterministic external reviewer preflight evidence and fingerprint
+  without calling an external provider.
+inputs:
+  provider_config: external reviewer provider config
+  review_prompt_contract: review prompt contract used for the gate
+  role_contract: reviewer role contract
+  rubric_source: shared rubric or prompt source
+  output_schema: reviewer-report schema
+outputs:
+  external_reviewer_preflight: JSON artifact conforming to schemas/external-reviewer-preflight.schema.json
+guarantees:
+  - Records provider config, wrapper, schema, prompt, role and rubric hashes.
+  - Records permission/sandbox/transport mode.
+  - Fails if forbidden Claude API/proxy environment variables are present.
+  - Does not call Claude or any other external provider.
