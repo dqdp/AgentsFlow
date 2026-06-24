@@ -2491,6 +2491,53 @@ def test_review_prompt_contract_rejects_missing_shared_hash() -> None:
         raise AssertionError("missing shared prompt hash was accepted")
 
 
+def test_review_prompt_contract_v2_requires_assignment_evidence() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    sys.path.insert(0, str(ROOT / "scripts" / "reviewers"))
+    import run_external_reviewer  # noqa: PLC0415
+
+    path = ROOT / "templates/review-prompt-contract.yaml"
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    missing_metrics = copy.deepcopy(contract)
+    missing_metrics["inputs"].pop("review_metrics", None)
+    errors = validate_repo.validate_review_prompt_contract_invariants(ROOT, path, missing_metrics, False)
+    assert "assignment evidence requires inputs.review_metrics" in "\n".join(errors)
+    try:
+        run_external_reviewer.validate_prompt_contract_invariants(missing_metrics)
+    except ValueError as exc:
+        assert "inputs.review_metrics" in str(exc)
+    else:
+        raise AssertionError("version 2 assignment evidence without metrics was accepted")
+
+    missing_preflight = copy.deepcopy(contract)
+    missing_preflight["provider_policy"]["allow_external_reviewers"] = True
+    missing_preflight["reviewer_assignments"][1].update(
+        {
+            "provider": "claude-code",
+            "provider_config": "examples/external-reviewers/claude-code/claude-code.yaml",
+            "raw_output_path": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/reviewer-report.generalist-b.raw.json",
+            "invocation_metadata_path": "Docs/agentsflow/runs/YYYY-MM-DD-task-slug/reviewer-invocation.generalist-b.json",
+        }
+    )
+    missing_preflight["inputs"].pop("external_reviewer_preflight", None)
+    errors = validate_repo.validate_review_prompt_contract_invariants(ROOT, path, missing_preflight, False)
+    assert "claude-code assignment evidence requires inputs.external_reviewer_preflight" in "\n".join(errors)
+    try:
+        run_external_reviewer.validate_prompt_contract_invariants(missing_preflight)
+    except ValueError as exc:
+        assert "inputs.external_reviewer_preflight" in str(exc)
+    else:
+        raise AssertionError("version 2 Claude assignment evidence without preflight was accepted")
+
+
 def test_review_prompt_contract_rejects_run_artifact_drift(tmp_path) -> None:
     import copy
     import hashlib
@@ -8453,6 +8500,7 @@ def _write_minimal_preparation_fixture(root: Path) -> tuple[Path, Path, Path, Pa
     (root / "src").mkdir()
     (root / "AGENTS.md").write_text("# Test Instructions\n", encoding="utf-8")
     (run_dir / "task.contract.md").write_text("# Task Contract\n", encoding="utf-8")
+    (run_dir / "evidence-report.md").write_text("# Evidence Report\n", encoding="utf-8")
     (run_dir / "verification-gate-report.json").write_text(
         json.dumps(
             {
@@ -8642,6 +8690,126 @@ def _git_commit_all(root: Path) -> None:
     subprocess.run(["git", "config", "user.name", "AgentsFlow Test"], cwd=root, check=True)
     subprocess.run(["git", "add", "."], cwd=root, check=True)
     subprocess.run(["git", "commit", "-m", "initial"], cwd=root, text=True, capture_output=True, check=True)
+
+
+def test_prepare_review_set_artifacts_generates_homogeneous_plus_focused_baseline_hashes(tmp_path) -> None:
+    import json
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "root"
+    root.mkdir()
+    contract_path, shared_packet_path, preparation_path, run_dir = _write_minimal_preparation_fixture(root)
+
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    shared_packet = json.loads(shared_packet_path.read_text(encoding="utf-8"))
+    shared_packet["review_profile"] = "homogeneous-plus-focused"
+    shared_packet["composition"] = "homogeneous-plus-focused"
+    shared_packet["prompt_policy"] = {
+        "baseline_same_prompt": True,
+        "baseline_same_packet": True,
+        "baseline_same_rubric": True,
+        "baseline_same_output_schema": True,
+        "baseline_same_substantive_prompt_across_providers": True,
+        "provider_transport_metadata_may_differ": True,
+        "focused_reviewers_require_explicit_focus_zone": True,
+        "focused_reviewers_receive_full_packet": True,
+        "focus_zones_may_overlap": True,
+        "all_reviewers_must_report_p0_p1_outside_focus": True,
+    }
+    shared_packet_path.write_text(json.dumps(shared_packet, indent=2) + "\n", encoding="utf-8")
+
+    contract["identity"]["review_profile"] = "homogeneous-plus-focused"
+    contract["identity"]["topology"] = "homogeneous-plus-focused"
+    contract["identity"]["composition"] = "homogeneous-plus-focused"
+    contract["provider_policy"]["require_model_diversity"] = False
+    contract["prompt_policy"] = shared_packet["prompt_policy"]
+    contract["reviewer_set"].append(
+        {
+            "instance_id": "adversarial-codex",
+            "role_id": "adversarial",
+            "role_contract": "profiles/reviewer_roles/adversarial.yaml",
+            "independent": True,
+            "focus_zone": {"topic": "adversarial", "primary_focus": "evidence bypass"},
+        }
+    )
+    contract["inputs"]["review_packets"].append(
+        {
+            "reviewer": "adversarial-codex",
+            "path": "Docs/agentsflow/runs/2026-06-21-prep/review-packets/adversarial-codex.json",
+            "schema": "schemas/review-packet.schema.json",
+            "packet_hash": "sha256:<pending>",
+        }
+    )
+    contract["rendered_prompts"].append(
+        {
+            "reviewer": "adversarial-codex",
+            "prompt_path": "Docs/agentsflow/runs/2026-06-21-prep/review-prompts/adversarial-codex.md",
+            "prompt_hash": "sha256:<pending>",
+            "packet_hash": "sha256:<pending>",
+            "schema_hash": "sha256:<pending>",
+            "rubric_hash": "sha256:<pending>",
+            "role_contract_hash": "sha256:<pending>",
+        }
+    )
+    contract["reviewer_assignments"][1]["provider"] = "internal-agent"
+    contract["reviewer_assignments"][1].pop("provider_config", None)
+    contract["reviewer_assignments"][1].pop("raw_output_path", None)
+    contract["reviewer_assignments"][1].pop("invocation_metadata_path", None)
+    contract["reviewer_assignments"].append(
+        {
+            "reviewer": "adversarial-codex",
+            "provider": "internal-agent",
+            "model_family": "codex",
+            "packet_path": "Docs/agentsflow/runs/2026-06-21-prep/review-packets/adversarial-codex.json",
+            "report_path": "Docs/agentsflow/runs/2026-06-21-prep/reports/reviewer-report.adversarial-codex.json",
+        }
+    )
+    contract["validation"]["assembly_invariants"] = [
+        "homogeneous-plus-focused uses two baseline generalists plus focused reviewers.",
+        "baseline generalists share substantive prompt and packet content hashes.",
+    ]
+    contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+
+    _git_commit_all(root)
+    result = run(
+        "scripts/reviewers/prepare_review_set_artifacts.py",
+        "--root",
+        str(root),
+        "--contract",
+        str(contract_path.relative_to(root)),
+        "--shared-packet",
+        str(shared_packet_path.relative_to(root)),
+        "--preparation-output",
+        str(preparation_path.relative_to(root)),
+        env=clean_env(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    prepared_contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    assert prepared_contract["version"] == 2
+    assert prepared_contract["validation"]["assignment_evidence_required"] is True
+    baseline_packet_hashes = {
+        item["reviewer"]: item.get("shared_packet_content_hash")
+        for item in prepared_contract["inputs"]["review_packets"]
+    }
+    baseline_prompt_hashes = {
+        item["reviewer"]: item.get("shared_prompt_content_hash")
+        for item in prepared_contract["rendered_prompts"]
+    }
+    assert baseline_packet_hashes["generalist-a"] == baseline_packet_hashes["generalist-b"]
+    assert baseline_prompt_hashes["generalist-a"] == baseline_prompt_hashes["generalist-b"]
+    assert baseline_packet_hashes["generalist-a"].startswith("sha256:")
+    assert baseline_packet_hashes["adversarial-codex"] is None
+    assert baseline_prompt_hashes["adversarial-codex"] is None
+
+    errors = validate_repo.validate_review_prompt_contract_invariants(root, contract_path, prepared_contract, True)
+    assert not errors
+    errors = validate_repo.validate_review_prompt_contract_run_references(root, contract_path, prepared_contract)
+    assert not errors
 
 
 def test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths(tmp_path) -> None:

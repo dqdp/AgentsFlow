@@ -1,4 +1,4 @@
-version: 1
+version: 2
 artifact_kind: review_prompt_contract
 artifact_scope: template
 
@@ -117,8 +117,10 @@ collision_control: null
 
 validation:
   schema: schemas/review-prompt-contract.schema.json
+  assignment_evidence_required: true
   assembly_invariants:
     - homogeneous-dual uses exactly two reviewers.
     - homogeneous-dual reviewers share prompt content, packet content, rubric, role contract and output schema hashes.
+    - assignment-enabled version 2 contracts require review metrics evidence and external preflight evidence for Claude assignments.
     - reviewer role ids resolve to profiles/reviewer_roles/*.yaml.
     - reviewers start from fresh context and do not receive forked conversation context.

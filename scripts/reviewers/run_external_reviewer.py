@@ -327,6 +327,72 @@ def compare_declared_hash(label: str, declared: object, actual: str) -> None:
         raise ValueError(f"{label} hash mismatch: declared {declared}, computed {actual}")
 
 
+def assignment_evidence_required(contract: dict[str, Any]) -> bool:
+    try:
+        version = int(contract.get("version", 1) or 1)
+    except (TypeError, ValueError):
+        version = 1
+    validation = contract.get("validation", {}) or {}
+    return version >= 2 or validation.get("assignment_evidence_required") is True
+
+
+def baseline_reviewer_ids(contract: dict[str, Any]) -> list[str]:
+    reviewers = contract.get("reviewer_set", []) or []
+    profile = (contract.get("identity", {}) or {}).get("review_profile")
+    if profile == "homogeneous-dual":
+        return [
+            str(item.get("instance_id"))
+            for item in reviewers
+            if isinstance(item, dict) and item.get("instance_id")
+        ]
+    if profile == "homogeneous-plus-focused":
+        return [
+            str(item.get("instance_id"))
+            for item in reviewers
+            if isinstance(item, dict)
+            and item.get("instance_id")
+            and item.get("role_id") == "generalist"
+        ][:2]
+    return []
+
+
+def validate_shared_baseline_hash_declarations(contract: dict[str, Any], profile: object) -> None:
+    baseline_ids = set(baseline_reviewer_ids(contract))
+    prompts = [
+        item
+        for item in contract.get("rendered_prompts", []) or []
+        if isinstance(item, dict) and str(item.get("reviewer")) in baseline_ids
+    ]
+    review_packets = [
+        item
+        for item in ((contract.get("inputs") or {}).get("review_packets") or [])
+        if isinstance(item, dict) and str(item.get("reviewer")) in baseline_ids
+    ]
+    for key in ["schema_hash", "rubric_hash", "role_contract_hash"]:
+        values = {str(item.get(key)) for item in prompts}
+        if len(values) != 1:
+            raise ValueError(f"{profile} baseline rendered_prompts must have matching {key}")
+    for key in ["shared_prompt_content_hash", "shared_packet_content_hash"]:
+        values = [item.get(key) for item in prompts]
+        if any(not value for value in values):
+            raise ValueError(f"{profile} baseline rendered_prompts must declare {key}")
+        if len(set(str(value) for value in values)) != 1:
+            raise ValueError(f"{profile} baseline rendered_prompts must have matching {key}")
+        if contract.get("artifact_scope", "run") == "run":
+            for value in values:
+                if not is_concrete_sha256(value):
+                    raise ValueError(f"run {profile} baseline rendered_prompts.{key} must be concrete sha256")
+    packet_shared_values = {item.get("shared_packet_content_hash") for item in review_packets}
+    if any(not value for value in packet_shared_values):
+        raise ValueError(f"{profile} baseline review_packets must declare shared_packet_content_hash")
+    if len(packet_shared_values) != 1:
+        raise ValueError(f"{profile} baseline review_packets must have matching shared_packet_content_hash")
+    if contract.get("artifact_scope", "run") == "run":
+        for value in packet_shared_values:
+            if not is_concrete_sha256(value):
+                raise ValueError(f"run {profile} baseline shared packet hashes must be concrete sha256")
+
+
 def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
     identity = contract.get("identity", {}) or {}
     profile = identity.get("review_profile")
@@ -337,6 +403,7 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
     prompt_policy = contract.get("prompt_policy", {}) or {}
     provider_policy = contract.get("provider_policy", {}) or {}
     assignments = contract.get("reviewer_assignments", []) or []
+    inputs = contract.get("inputs", {}) or {}
     reviewer_ids = [str(item.get("instance_id")) for item in reviewers if isinstance(item, dict)]
     prompt_ids = [str(item.get("reviewer")) for item in prompts if isinstance(item, dict)]
 
@@ -357,7 +424,6 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
     if assignments:
         if not isinstance(assignments, list):
             raise ValueError("review prompt contract reviewer_assignments must be a list")
-        inputs = contract.get("inputs", {}) or {}
         if not inputs.get("review_invocation_set"):
             raise ValueError("review prompt contract reviewer_assignments require inputs.review_invocation_set")
         if inputs.get("evidence_report") and str(inputs.get("evidence_report")) == str(inputs.get("review_invocation_set")):
@@ -401,6 +467,14 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
             minimum = int(provider_policy.get("min_distinct_provider_model_families", 2))
             if len(provider_model_families) < minimum:
                 raise ValueError("review prompt contract model diversity requirement is not satisfied")
+        if assignment_evidence_required(contract):
+            if not inputs.get("review_metrics"):
+                raise ValueError("review prompt contract assignment evidence requires inputs.review_metrics")
+            if any(
+                isinstance(assignment, dict) and assignment.get("provider") == "claude-code"
+                for assignment in assignments
+            ) and not inputs.get("external_reviewer_preflight"):
+                raise ValueError("review prompt contract claude-code assignment evidence requires inputs.external_reviewer_preflight")
     elif provider_policy.get("require_model_diversity") is True:
         raise ValueError("review prompt contract model diversity requires reviewer_assignments")
 
@@ -412,33 +486,7 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
         for key in ["same_prompt", "same_packet", "same_rubric", "same_output_schema"]:
             if prompt_policy.get(key) is not True:
                 raise ValueError(f"homogeneous-dual prompt_policy.{key} must be true")
-        for key in ["schema_hash", "rubric_hash", "role_contract_hash"]:
-            values = {str(item.get(key)) for item in prompts if isinstance(item, dict)}
-            if len(values) != 1:
-                raise ValueError(f"homogeneous-dual rendered_prompts must have matching {key}")
-        for key in ["shared_prompt_content_hash", "shared_packet_content_hash"]:
-            values = [item.get(key) for item in prompts if isinstance(item, dict)]
-            if any(not value for value in values):
-                raise ValueError(f"homogeneous-dual rendered_prompts must declare {key}")
-            if len(set(str(value) for value in values)) != 1:
-                raise ValueError(f"homogeneous-dual rendered_prompts must have matching {key}")
-            if contract.get("artifact_scope", "run") == "run":
-                for value in values:
-                    if not is_concrete_sha256(value):
-                        raise ValueError(f"run homogeneous-dual rendered_prompts.{key} must be concrete sha256")
-        packet_shared_values = {
-            item.get("shared_packet_content_hash")
-            for item in ((contract.get("inputs") or {}).get("review_packets") or [])
-            if isinstance(item, dict)
-        }
-        if any(not value for value in packet_shared_values):
-            raise ValueError("homogeneous-dual review_packets must declare shared_packet_content_hash")
-        if len(packet_shared_values) != 1:
-            raise ValueError("homogeneous-dual review_packets must have matching shared_packet_content_hash")
-        if contract.get("artifact_scope", "run") == "run":
-            for value in packet_shared_values:
-                if not is_concrete_sha256(value):
-                    raise ValueError("run homogeneous-dual shared packet hashes must be concrete sha256")
+        validate_shared_baseline_hash_declarations(contract, profile)
     elif profile == "homogeneous-plus-focused":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
             raise ValueError("homogeneous-plus-focused prompt contract must have three to eight reviewers")
@@ -451,6 +499,10 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
             raise ValueError("homogeneous-plus-focused requires at least two generalist baseline reviewers")
         for key in [
             "baseline_same_prompt",
+            "baseline_same_packet",
+            "baseline_same_rubric",
+            "baseline_same_output_schema",
+            "baseline_same_substantive_prompt_across_providers",
             "focused_reviewers_require_explicit_focus_zone",
             "focus_zones_may_overlap",
             "all_reviewers_must_report_p0_p1_outside_focus",
@@ -465,6 +517,7 @@ def validate_prompt_contract_invariants(contract: dict[str, Any]) -> None:
         ]
         if any(not item.get("focus_zone") for item in focused):
             raise ValueError("homogeneous-plus-focused focused reviewers must have focus zones")
+        validate_shared_baseline_hash_declarations(contract, profile)
     elif profile == "heterogeneous-variable":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
             raise ValueError("heterogeneous-variable prompt contract must have three to eight reviewers")

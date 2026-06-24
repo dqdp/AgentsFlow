@@ -97,8 +97,13 @@ provider-independent model proof.
 The v0.2 supported external provider is `claude-code`. Unsupported providers
 are configuration blockers.
 
-`reviewer_assignments` are a dispatch plan before the review gate runs. A
-run-scope assignment-enabled contract must predeclare separate artifacts:
+`reviewer_assignments` are a dispatch plan before the review gate runs. New
+run-scope assignment-enabled contracts use `version: 2` and
+`validation.assignment_evidence_required: true`; legacy `version: 1` run
+snapshots remain historical evidence and are not retroactively upgraded.
+
+A version 2 run-scope assignment-enabled contract must predeclare separate
+artifacts:
 
 - `inputs.artifact_preparation_report`, the deterministic preparation evidence
   linking the contract, packets, rendered prompts, included context and hashes;
@@ -130,9 +135,9 @@ The external reviewer preflight records `assignment_fingerprints[]` for
 prepared Claude assignments. Each entry binds a reviewer id to the provider
 config, wrapper, reviewer-report schema, prompt contract, role contract, rubric,
 forbidden-environment fingerprint and permission/sandbox/transport modes. A
-completed gate that declares `inputs.review_metrics` must provide a metrics
-artifact whose source references resolve to the same invocation set, prompt
-contract and external preflight.
+completed version 2 assignment-enabled gate must provide a metrics artifact
+whose source references resolve to the same invocation set, prompt contract and
+external preflight.
 Each reviewer assignment must write to a distinct reviewer-report artifact, and
 the report's `reviewer.id` must identify the assigned reviewer instance. A
 single report artifact cannot satisfy multiple primary-gate reviewer slots.

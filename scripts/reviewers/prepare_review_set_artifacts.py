@@ -199,6 +199,19 @@ def packet_shared_payload(packet: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in packet.items() if key not in ENVELOPE_FIELDS}
 
 
+def baseline_reviewer_ids(contract: dict[str, Any], reviewers: dict[str, dict[str, Any]]) -> list[str]:
+    profile = (contract.get("identity", {}) or {}).get("review_profile")
+    if profile == "homogeneous-dual":
+        return list(reviewers)
+    if profile == "homogeneous-plus-focused":
+        return [
+            reviewer_id
+            for reviewer_id, reviewer in reviewers.items()
+            if reviewer.get("role_id") == "generalist"
+        ][:2]
+    return []
+
+
 def normalize_forbidden_actions(values: object) -> list[str]:
     if not isinstance(values, list):
         return []
@@ -327,6 +340,9 @@ def prepare_artifacts(
     if sorted(assignments) != sorted(reviewers):
         raise ValueError("reviewer_assignments must cover reviewer_set exactly")
 
+    contract["version"] = max(int(contract.get("version", 1) or 1), 2)
+    validation = contract.setdefault("validation", {})
+    validation.setdefault("assignment_evidence_required", True)
     inputs["artifact_preparation_report"] = rel_ref(root, preparation_path)
     inputs.setdefault("review_invocation_set", rel_ref(root, contract_path.parent / "review-invocation-set.json"))
     inputs.setdefault("review_metrics", rel_ref(root, contract_path.parent / "review-metrics.json"))
@@ -400,8 +416,9 @@ def prepare_artifacts(
     shared_content_path: Path | None = None
     shared_packet_hash: str | None = None
     shared_prompt_hash: str | None = None
-    if (contract.get("identity", {}) or {}).get("review_profile") == "homogeneous-dual":
-        first_reviewer = next(iter(reviewers))
+    baseline_ids = baseline_reviewer_ids(contract, reviewers)
+    if baseline_ids:
+        first_reviewer = baseline_ids[0]
         first_packet_path = resolve_ref(
             root,
             packet_entries[first_reviewer].get("path"),
@@ -415,10 +432,11 @@ def prepare_artifacts(
         shared_prompt_hash = sha256_text(
             render_review_prompt(packet_shared_payload(packets_by_reviewer[first_reviewer]), role_data_by_reviewer[first_reviewer])
         )
-        for packet_entry in packet_entries.values():
-            packet_entry["shared_packet_content_hash"] = shared_packet_hash
+        for reviewer_id in baseline_ids:
+            packet_entries[reviewer_id]["shared_packet_content_hash"] = shared_packet_hash
         for packet in generated_packets:
-            packet["shared_packet_content_hash"] = shared_packet_hash
+            if packet["reviewer"] in baseline_ids:
+                packet["shared_packet_content_hash"] = shared_packet_hash
 
     for reviewer_id, reviewer in reviewers.items():
         prompt_entry = prompt_entries[reviewer_id]
@@ -433,21 +451,24 @@ def prepare_artifacts(
         prompt_entry["schema_hash"] = output_schema_hash
         prompt_entry["rubric_hash"] = rubric_hash
         prompt_entry["role_contract_hash"] = role_hash_by_reviewer[reviewer_id]
-        if shared_packet_hash:
+        if shared_packet_hash and reviewer_id in baseline_ids:
             prompt_entry["shared_packet_content_hash"] = shared_packet_hash
-        if shared_prompt_hash:
+        if shared_prompt_hash and reviewer_id in baseline_ids:
             prompt_entry["shared_prompt_content_hash"] = shared_prompt_hash
-        generated_prompts.append(
-            {
-                "reviewer": reviewer_id,
-                "path": rel_ref(root, prompt_path),
-                "hash": prompt_hash,
-                "packet_hash": prompt_entry["packet_hash"],
-                "schema_hash": output_schema_hash,
-                "rubric_hash": rubric_hash,
-                "role_contract_hash": role_hash_by_reviewer[reviewer_id],
-            }
-        )
+        prompt_artifact = {
+            "reviewer": reviewer_id,
+            "path": rel_ref(root, prompt_path),
+            "hash": prompt_hash,
+            "packet_hash": prompt_entry["packet_hash"],
+            "schema_hash": output_schema_hash,
+            "rubric_hash": rubric_hash,
+            "role_contract_hash": role_hash_by_reviewer[reviewer_id],
+        }
+        if prompt_entry.get("shared_packet_content_hash"):
+            prompt_artifact["shared_packet_content_hash"] = prompt_entry["shared_packet_content_hash"]
+        if prompt_entry.get("shared_prompt_content_hash"):
+            prompt_artifact["shared_prompt_content_hash"] = prompt_entry["shared_prompt_content_hash"]
+        generated_prompts.append(prompt_artifact)
 
     write_yaml(contract_path, contract)
     contract_hash = sha256_file(contract_path)

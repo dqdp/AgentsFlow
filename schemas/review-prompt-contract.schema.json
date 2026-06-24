@@ -483,6 +483,9 @@
         "schema": {
           "type": "string"
         },
+        "assignment_evidence_required": {
+          "type": "boolean"
+        },
         "assembly_invariants": {
           "type": "array",
           "items": {

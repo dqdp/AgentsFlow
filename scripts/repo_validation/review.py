@@ -225,6 +225,78 @@ def _require_concrete_hash(path: Path, label: str, declared: object, actual: str
         errors.append(f"{path}: {label} hash mismatch: declared {declared}, computed {actual}")
 
 
+def _assignment_evidence_required(data: dict) -> bool:
+    try:
+        version = int(data.get("version", 1) or 1)
+    except (TypeError, ValueError):
+        version = 1
+    validation = data.get("validation", {}) or {}
+    return version >= 2 or validation.get("assignment_evidence_required") is True
+
+
+def _baseline_reviewer_ids(data: dict) -> list[str]:
+    reviewers = data.get("reviewer_set", []) or []
+    profile = (data.get("identity", {}) or {}).get("review_profile")
+    if profile == "homogeneous-dual":
+        return [
+            str(item.get("instance_id"))
+            for item in reviewers
+            if isinstance(item, dict) and item.get("instance_id")
+        ]
+    if profile == "homogeneous-plus-focused":
+        return [
+            str(item.get("instance_id"))
+            for item in reviewers
+            if isinstance(item, dict)
+            and item.get("instance_id")
+            and item.get("role_id") == "generalist"
+        ][:2]
+    return []
+
+
+def _validate_shared_baseline_hash_declarations(
+    *,
+    path: Path,
+    profile: object,
+    prompts: list,
+    review_packets: list,
+    baseline_ids: set[str],
+    run_scope_artifact: bool,
+    errors: list[str],
+) -> None:
+    baseline_prompts = [
+        item for item in prompts if isinstance(item, dict) and str(item.get("reviewer")) in baseline_ids
+    ]
+    for key in ["schema_hash", "rubric_hash", "role_contract_hash"]:
+        values = {str(item.get(key)) for item in baseline_prompts}
+        if len(values) != 1:
+            errors.append(f"{path}: {profile} baseline rendered_prompts must share {key}")
+    for key in ["shared_prompt_content_hash", "shared_packet_content_hash"]:
+        values = [item.get(key) for item in baseline_prompts]
+        if any(not value for value in values):
+            errors.append(f"{path}: {profile} baseline rendered_prompts must declare {key}")
+        elif len(set(str(value) for value in values)) != 1:
+            errors.append(f"{path}: {profile} baseline rendered_prompts must share {key}")
+        elif run_scope_artifact:
+            for value in values:
+                if not is_concrete_sha256(value):
+                    errors.append(f"{path}: run baseline rendered_prompts.{key} must be a concrete sha256")
+
+    packet_shared_values = {
+        item.get("shared_packet_content_hash")
+        for item in review_packets
+        if isinstance(item, dict) and str(item.get("reviewer")) in baseline_ids
+    }
+    if any(not value for value in packet_shared_values):
+        errors.append(f"{path}: {profile} baseline review_packets must declare shared_packet_content_hash")
+    elif len(set(str(value) for value in packet_shared_values)) != 1:
+        errors.append(f"{path}: {profile} baseline review_packets must share shared_packet_content_hash")
+    elif run_scope_artifact:
+        for value in packet_shared_values:
+            if not is_concrete_sha256(value):
+                errors.append(f"{path}: run baseline review_packets.shared_packet_content_hash must be a concrete sha256")
+
+
 def _validate_reviewer_report_normalization(root: Path, path: Path, data: dict, errors: list[str]) -> None:
     normalization = data.get("normalization")
     if not isinstance(normalization, dict):
@@ -495,6 +567,9 @@ def validate_review_prompt_contract_invariants(
     prompt_policy = data.get("prompt_policy", {}) or {}
     provider_policy = data.get("provider_policy", {}) or {}
     assignments = data.get("reviewer_assignments", []) or []
+    inputs = data.get("inputs", {}) or {}
+    review_packets = inputs.get("review_packets", []) or []
+    assignment_evidence_required = _assignment_evidence_required(data)
     run_scope_artifact = _is_run_scope_artifact(path, data)
     reviewer_ids = [str(item.get("instance_id")) for item in reviewers if isinstance(item, dict)]
     prompt_ids = [str(item.get("reviewer")) for item in prompts if isinstance(item, dict)]
@@ -575,6 +650,14 @@ def validate_review_prompt_contract_invariants(
             minimum = int(provider_policy.get("min_distinct_provider_model_families", 2))
             if len(provider_model_families) < minimum:
                 errors.append(f"{path}: model diversity requirement is not satisfied by reviewer_assignments")
+        if assignment_evidence_required:
+            if not inputs.get("review_metrics"):
+                errors.append(f"{path}: assignment evidence requires inputs.review_metrics")
+            if any(
+                isinstance(assignment, dict) and assignment.get("provider") == "claude-code"
+                for assignment in assignments
+            ) and not inputs.get("external_reviewer_preflight"):
+                errors.append(f"{path}: claude-code assignment evidence requires inputs.external_reviewer_preflight")
     elif provider_policy.get("require_model_diversity") is True:
         errors.append(f"{path}: model diversity requires reviewer_assignments")
 
@@ -587,35 +670,15 @@ def validate_review_prompt_contract_invariants(
         for key in ["same_prompt", "same_packet", "same_rubric", "same_output_schema"]:
             if prompt_policy.get(key) is not True:
                 errors.append(f"{path}: homogeneous-dual prompt_policy.{key} must be true")
-        for key in ["schema_hash", "rubric_hash", "role_contract_hash"]:
-            values = {str(item.get(key)) for item in prompts if isinstance(item, dict)}
-            if len(values) != 1:
-                errors.append(f"{path}: homogeneous-dual rendered_prompts must share {key}")
-        for key in ["shared_prompt_content_hash", "shared_packet_content_hash"]:
-            values = [item.get(key) for item in prompts if isinstance(item, dict)]
-            if any(not value for value in values):
-                errors.append(f"{path}: homogeneous-dual rendered_prompts must declare {key}")
-            elif len(set(str(value) for value in values)) != 1:
-                errors.append(f"{path}: homogeneous-dual rendered_prompts must share {key}")
-            elif run_scope_artifact:
-                for value in values:
-                    digest = str(value).removeprefix("sha256:")
-                    if not str(value).startswith("sha256:") or len(digest) != 64 or not all(c in "0123456789abcdef" for c in digest):
-                        errors.append(f"{path}: run rendered_prompts.{key} must be a concrete sha256")
-        packet_shared_values = {
-            item.get("shared_packet_content_hash")
-            for item in ((data.get("inputs") or {}).get("review_packets") or [])
-            if isinstance(item, dict)
-        }
-        if any(not value for value in packet_shared_values):
-            errors.append(f"{path}: homogeneous-dual review_packets must declare shared_packet_content_hash")
-        elif len(set(str(value) for value in packet_shared_values)) != 1:
-            errors.append(f"{path}: homogeneous-dual review_packets must share shared_packet_content_hash")
-        elif run_scope_artifact:
-            for value in packet_shared_values:
-                digest = str(value).removeprefix("sha256:")
-                if not str(value).startswith("sha256:") or len(digest) != 64 or not all(c in "0123456789abcdef" for c in digest):
-                    errors.append(f"{path}: run review_packets.shared_packet_content_hash must be a concrete sha256")
+        _validate_shared_baseline_hash_declarations(
+            path=path,
+            profile=profile,
+            prompts=prompts,
+            review_packets=review_packets,
+            baseline_ids=set(_baseline_reviewer_ids(data)),
+            run_scope_artifact=run_scope_artifact,
+            errors=errors,
+        )
     elif profile == "homogeneous-plus-focused":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
             errors.append(f"{path}: homogeneous-plus-focused must use three to eight reviewers")
@@ -628,6 +691,10 @@ def validate_review_prompt_contract_invariants(
             errors.append(f"{path}: homogeneous-plus-focused requires at least two generalist baseline reviewers")
         for key in [
             "baseline_same_prompt",
+            "baseline_same_packet",
+            "baseline_same_rubric",
+            "baseline_same_output_schema",
+            "baseline_same_substantive_prompt_across_providers",
             "focused_reviewers_require_explicit_focus_zone",
             "focus_zones_may_overlap",
             "all_reviewers_must_report_p0_p1_outside_focus",
@@ -640,6 +707,15 @@ def validate_review_prompt_contract_invariants(
                 continue
             if reviewer.get("instance_id") not in baseline_ids and not reviewer.get("focus_zone"):
                 errors.append(f"{path}: focused reviewer {reviewer.get('instance_id')} must have focus_zone")
+        _validate_shared_baseline_hash_declarations(
+            path=path,
+            profile=profile,
+            prompts=prompts,
+            review_packets=review_packets,
+            baseline_ids=baseline_ids,
+            run_scope_artifact=run_scope_artifact,
+            errors=errors,
+        )
     elif profile == "heterogeneous-variable":
         if primary_gate is not True or not (3 <= len(reviewers) <= 8):
             errors.append(f"{path}: heterogeneous-variable must use three to eight reviewers")
@@ -864,6 +940,12 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
         isinstance(item, dict) and item.get("provider") == "claude-code"
         for item in assignments
     )
+    assignment_evidence_required = _assignment_evidence_required(data)
+    if assignments and assignment_evidence_required:
+        if not review_metrics_ref:
+            errors.append(f"{path}: assignment evidence requires inputs.review_metrics")
+        if external_assignment_present and not inputs.get("external_reviewer_preflight"):
+            errors.append(f"{path}: claude-code assignment evidence requires inputs.external_reviewer_preflight")
     invocation_set: dict | None = None
     invocation_reviewers: dict[str, dict] = {}
     invocation_set_completed = False
@@ -1031,71 +1113,74 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         f"{preflight_path}: assignment_fingerprints[{reviewer}].{key} must match current review artifact"
                     )
 
-    if external_assignment_present and invocation_set_completed and external_preflight_path:
-        preflight_schema = parse_json(root / "schemas" / "external-reviewer-preflight.schema.json")
-        preflight_data = parse_json(external_preflight_path)
-        if not isinstance(preflight_data, dict):
-            errors.append(f"{external_preflight_path}: external_reviewer_preflight evidence must be a JSON object")
+    if external_assignment_present and invocation_set_completed and (external_preflight_path or assignment_evidence_required):
+        if not external_preflight_path:
+            errors.append(f"{path}: completed claude-code review_invocation_set requires inputs.external_reviewer_preflight artifact")
         else:
-            errors.extend(validate_against_schema(external_preflight_path, preflight_data, preflight_schema))
-            if preflight_data.get("result") != "pass":
-                errors.append(f"{external_preflight_path}: external_reviewer_preflight result must be pass")
-            fingerprint = preflight_data.get("fingerprint", {}) or {}
-            _require_concrete_hash(
-                external_preflight_path,
-                "external_reviewer_preflight.fingerprint.prompt_contract_hash",
-                fingerprint.get("prompt_contract_hash"),
-                review_prompt_contract_hash,
-                errors,
-            )
-            wrapper_path = root / "scripts" / "reviewers" / "run_external_reviewer.py"
-            if wrapper_path.is_file():
+            preflight_schema = parse_json(root / "schemas" / "external-reviewer-preflight.schema.json")
+            preflight_data = parse_json(external_preflight_path)
+            if not isinstance(preflight_data, dict):
+                errors.append(f"{external_preflight_path}: external_reviewer_preflight evidence must be a JSON object")
+            else:
+                errors.extend(validate_against_schema(external_preflight_path, preflight_data, preflight_schema))
+                if preflight_data.get("result") != "pass":
+                    errors.append(f"{external_preflight_path}: external_reviewer_preflight result must be pass")
+                fingerprint = preflight_data.get("fingerprint", {}) or {}
                 _require_concrete_hash(
                     external_preflight_path,
-                    "external_reviewer_preflight.fingerprint.wrapper_hash",
-                    fingerprint.get("wrapper_hash"),
-                    sha256_file(wrapper_path),
+                    "external_reviewer_preflight.fingerprint.prompt_contract_hash",
+                    fingerprint.get("prompt_contract_hash"),
+                    review_prompt_contract_hash,
                     errors,
                 )
-            _require_concrete_hash(
-                external_preflight_path,
-                "external_reviewer_preflight.fingerprint.schema_hash",
-                fingerprint.get("schema_hash"),
-                output_schema_hash,
-                errors,
-            )
-            for idx, assignment in enumerate(assignments):
-                if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
-                    continue
-                provider_config_ref = assignment.get("provider_config")
-                provider_config_path = root / str(provider_config_ref)
-                if provider_config_ref and provider_config_path.is_file():
+                wrapper_path = root / "scripts" / "reviewers" / "run_external_reviewer.py"
+                if wrapper_path.is_file():
                     _require_concrete_hash(
                         external_preflight_path,
-                        f"external_reviewer_preflight.fingerprint.provider_config_hash for assignment {idx}",
-                        fingerprint.get("provider_config_hash"),
-                        sha256_file(provider_config_path),
+                        "external_reviewer_preflight.fingerprint.wrapper_hash",
+                        fingerprint.get("wrapper_hash"),
+                        sha256_file(wrapper_path),
                         errors,
                     )
-            validate_external_assignment_fingerprints(external_preflight_path, preflight_data)
-        if invocation_set:
-            invocation_preflight_ref = resolve_invocation_set_ref(
-                invocation_set.get("external_reviewer_preflight"),
-                "review_invocation_set.external_reviewer_preflight",
-            )
-            if invocation_preflight_ref and invocation_preflight_ref.resolve() != external_preflight_path.resolve():
-                errors.append(
-                    f"{path}: review_invocation_set external_reviewer_preflight must match inputs.external_reviewer_preflight"
+                _require_concrete_hash(
+                    external_preflight_path,
+                    "external_reviewer_preflight.fingerprint.schema_hash",
+                    fingerprint.get("schema_hash"),
+                    output_schema_hash,
+                    errors,
                 )
-            _require_concrete_hash(
-                external_preflight_path,
-                "review_invocation_set.external_reviewer_preflight_hash",
-                invocation_set.get("external_reviewer_preflight_hash"),
-                sha256_file(external_preflight_path),
-                errors,
-            )
+                for idx, assignment in enumerate(assignments):
+                    if not isinstance(assignment, dict) or assignment.get("provider") != "claude-code":
+                        continue
+                    provider_config_ref = assignment.get("provider_config")
+                    provider_config_path = root / str(provider_config_ref)
+                    if provider_config_ref and provider_config_path.is_file():
+                        _require_concrete_hash(
+                            external_preflight_path,
+                            f"external_reviewer_preflight.fingerprint.provider_config_hash for assignment {idx}",
+                            fingerprint.get("provider_config_hash"),
+                            sha256_file(provider_config_path),
+                            errors,
+                        )
+                validate_external_assignment_fingerprints(external_preflight_path, preflight_data)
+            if invocation_set:
+                invocation_preflight_ref = resolve_invocation_set_ref(
+                    invocation_set.get("external_reviewer_preflight"),
+                    "review_invocation_set.external_reviewer_preflight",
+                )
+                if invocation_preflight_ref and invocation_preflight_ref.resolve() != external_preflight_path.resolve():
+                    errors.append(
+                        f"{path}: review_invocation_set external_reviewer_preflight must match inputs.external_reviewer_preflight"
+                    )
+                _require_concrete_hash(
+                    external_preflight_path,
+                    "review_invocation_set.external_reviewer_preflight_hash",
+                    invocation_set.get("external_reviewer_preflight_hash"),
+                    sha256_file(external_preflight_path),
+                    errors,
+                )
 
-    if assignments and invocation_set_completed and review_metrics_ref:
+    if assignments and invocation_set_completed and (review_metrics_ref or assignment_evidence_required):
         if not review_metrics_path:
             errors.append(f"{path}: completed review_invocation_set requires inputs.review_metrics artifact")
         else:
@@ -1555,18 +1640,25 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
             )
 
     identity = data.get("identity", {}) or {}
-    if identity.get("review_profile") == "homogeneous-dual" and packet_paths:
-        for packet_path in packet_paths:
+    shared_baseline_ids = set(_baseline_reviewer_ids(data))
+    shared_baseline_packet_paths = [
+        packet_path
+        for reviewer, packet_path in packet_path_by_reviewer.items()
+        if reviewer in shared_baseline_ids
+    ]
+    if identity.get("review_profile") in {"homogeneous-dual", "homogeneous-plus-focused"} and shared_baseline_packet_paths:
+        profile = identity.get("review_profile")
+        for packet_path in shared_baseline_packet_paths:
             if not (packet_path.parent / "shared-content.json").exists():
-                errors.append(f"{path}: homogeneous-dual run review packet missing sibling shared-content.json: {packet_path}")
+                errors.append(f"{path}: {profile} run review packet missing sibling shared-content.json: {packet_path}")
         shared_content_paths = {
             packet_path.parent / "shared-content.json"
-            for packet_path in packet_paths
+            for packet_path in shared_baseline_packet_paths
             if (packet_path.parent / "shared-content.json").exists()
         }
         if len(shared_content_paths) != 1:
             errors.append(
-                f"{path}: homogeneous-dual run review packets must have exactly one sibling shared-content.json"
+                f"{path}: {profile} run review packets must have exactly one sibling shared-content.json"
             )
         else:
             shared_content_path = next(iter(shared_content_paths))
@@ -1594,7 +1686,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
 
             expected_shared_packet = shared_packet_payload(shared_content, sidecar=True)
             for idx, packet in enumerate(inputs.get("review_packets", []) or []):
-                if isinstance(packet, dict):
+                if isinstance(packet, dict) and str(packet.get("reviewer")) in shared_baseline_ids:
                     compare_hash(
                         path,
                         f"inputs.review_packets[{idx}].shared_packet_content_hash",
@@ -1614,7 +1706,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                                 f"{path}: inputs.review_packets[{idx}] content must match shared-content.json except excluded envelope fields"
                             )
             for idx, prompt in enumerate(data.get("rendered_prompts", []) or []):
-                if isinstance(prompt, dict):
+                if isinstance(prompt, dict) and str(prompt.get("reviewer")) in shared_baseline_ids:
                     compare_hash(
                         path,
                         f"rendered_prompts[{idx}].shared_packet_content_hash",
@@ -1622,6 +1714,25 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                         shared_content_hash,
                         errors,
                     )
+                    reviewer = str(prompt.get("reviewer", ""))
+                    reviewer_def = reviewers.get(reviewer) or {}
+                    role_path = resolve_existing(
+                        reviewer_def.get("role_contract"),
+                        f"reviewer_set.{reviewer}.role_contract",
+                    )
+                    if role_path:
+                        role_data = parse_yaml(role_path)
+                        if isinstance(role_data, dict):
+                            expected_prompt_hash = sha256_text(
+                                _render_expected_review_prompt(expected_shared_packet, role_data)
+                            )
+                            compare_hash(
+                                path,
+                                f"rendered_prompts[{idx}].shared_prompt_content_hash",
+                                prompt.get("shared_prompt_content_hash"),
+                                expected_prompt_hash,
+                                errors,
+                            )
 
     for idx, prompt in enumerate(data.get("rendered_prompts", []) or []):
         if not isinstance(prompt, dict):
