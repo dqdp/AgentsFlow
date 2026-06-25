@@ -11,6 +11,7 @@ from .common import (
     is_concrete_sha256,
     parse_json,
     parse_yaml,
+    provider_models_include_family,
     sha256_file,
     sha256_text,
     validate_against_schema,
@@ -166,13 +167,6 @@ def _verification_gate_refs_match(
     left_resolved = _resolve_verification_gate_report_ref(root, packet_path, left_text)
     right_resolved = _resolve_verification_gate_report_ref(root, packet_path, right_text)
     return bool(left_resolved and right_resolved and left_resolved == right_resolved)
-
-
-def _provider_models_include_family(provider_models: object, model_family: str) -> bool:
-    family = str(model_family).lower()
-    if not family or not isinstance(provider_models, list):
-        return False
-    return any(family in str(model).lower() for model in provider_models)
 
 
 def _validate_reviewer_report_context(
@@ -1157,7 +1151,7 @@ def validate_review_prompt_contract_run_references(root: Path, path: Path, data:
                             errors.append(
                                 f"{invocation_metadata_path}: requested_model must match assignment model_family for {reviewer}"
                             )
-                        elif not _provider_models_include_family(invocation_data.get("provider_models_used"), model_family):
+                        elif not provider_models_include_family(invocation_data.get("provider_models_used"), model_family):
                             errors.append(
                                 f"{invocation_metadata_path}: provider_models_used must include assignment model_family for {reviewer}"
                             )

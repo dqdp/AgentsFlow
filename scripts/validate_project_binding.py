@@ -6,27 +6,18 @@ import argparse
 from pathlib import Path
 
 from repo_validation.collect import collect_active_review_topologies, collect_yaml_manifest_names
-from repo_validation.common import parse_json, parse_yaml, safe_resolve, validate_against_schema
+from repo_validation.common import (
+    parse_json_mapping as load_json,
+    parse_yaml_mapping as load_yaml,
+    safe_resolve,
+    validate_against_schema,
+)
 from repo_validation.gates import (
     required_workflow_gates,
     validate_binding_strictness_policy,
     validate_project_gate_manifest,
 )
 from repo_validation.review import validate_enabled_review_minimum
-
-
-def load_yaml(path: Path) -> dict:
-    data = parse_yaml(path) or {}
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a YAML mapping")
-    return data
-
-
-def load_json(path: Path) -> dict:
-    data = parse_json(path)
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    return data
 
 
 def validate_review_policy(

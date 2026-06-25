@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import json
 import subprocess
 import sys
@@ -18,35 +17,22 @@ import time
 from pathlib import Path
 from typing import Any
 
-import yaml
+SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPTS_DIR = SCRIPT_DIR.parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
+from repo_validation.common import parse_json_mapping as load_json  # noqa: E402
+from repo_validation.common import parse_yaml_mapping as load_yaml  # noqa: E402
+from repo_validation.common import provider_models_include_family  # noqa: E402
+from repo_validation.common import raise_schema_validation_error  # noqa: E402
+from repo_validation.common import sha256_file  # noqa: E402
 
 SUPPORTED_PROVIDERS = {"internal-agent", "claude-code"}
 
 
 def now_utc() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
-
-
-def provider_models_include_family(provider_models: object, model_family: str) -> bool:
-    family = str(model_family).lower()
-    if not family or not isinstance(provider_models, list):
-        return False
-    return any(family in str(model).lower() for model in provider_models)
-
-
-def load_json(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    return data
-
-
-def load_yaml(path: Path) -> dict[str, Any]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a YAML mapping")
-    return data
 
 
 def resolve_path(ref: object, root: Path) -> Path:
@@ -56,22 +42,13 @@ def resolve_path(ref: object, root: Path) -> Path:
     return root / path
 
 
-def sha256_file(path: Path) -> str:
-    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def validate_report(path: Path, root: Path) -> dict[str, Any]:
     report = load_json(path)
-    try:
-        import jsonschema
-    except ImportError as exc:
-        raise RuntimeError("jsonschema is required for review-set validation") from exc
-    schema = load_json(root / "schemas" / "reviewer-report.schema.json")
-    errors = sorted(jsonschema.Draft202012Validator(schema).iter_errors(report), key=lambda err: list(err.path))
-    if errors:
-        first = errors[0]
-        location = ".".join(str(part) for part in first.path) or "<root>"
-        raise ValueError(f"{path}: reviewer report schema validation failed at {location}: {first.message}")
+    raise_schema_validation_error(
+        report,
+        load_json(root / "schemas" / "reviewer-report.schema.json"),
+        f"{path}: reviewer report",
+    )
     return report
 
 

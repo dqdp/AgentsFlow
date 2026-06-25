@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import json
 import subprocess
 import sys
@@ -24,32 +23,16 @@ SCRIPTS_DIR = SCRIPT_DIR.parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+from repo_validation.common import (  # noqa: E402
+    parse_json_mapping as load_json,
+    parse_yaml_mapping as load_yaml,
+    sha256_file,
+    sha256_text,
+)
 from reviewers.prompt_rendering import render_review_prompt  # noqa: E402
 
 
 ENVELOPE_FIELDS = {"review_packet_path", "reviewer_instance_id", "provider"}
-
-
-def sha256_file(path: Path) -> str:
-    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def sha256_text(value: str) -> str:
-    return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def load_json(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    return data
-
-
-def load_yaml(path: Path) -> dict[str, Any]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a YAML mapping")
-    return data
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:

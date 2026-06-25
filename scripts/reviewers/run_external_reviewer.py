@@ -12,15 +12,12 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 # Allow running as a script from repository root without installing a package.
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -31,6 +28,13 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from providers import claude_code  # noqa: E402
+from repo_validation.common import (  # noqa: E402
+    parse_json_mapping as load_json,
+    parse_yaml_mapping as load_yaml,
+    raise_schema_validation_error,
+    sha256_file,
+    sha256_text,
+)
 from repo_validation.review import (  # noqa: E402
     validate_review_prompt_contract_invariants,
 )
@@ -42,28 +46,6 @@ ROLE_CONTRACT_PREFIXES = ("profiles/reviewer_roles/", ".agentsflow/profiles/revi
 DEFAULT_CLAUDE_MODEL = claude_code.DEFAULT_MODEL
 DEFAULT_CLAUDE_EFFORT = claude_code.DEFAULT_EFFORT
 ALLOWED_CLAUDE_EFFORTS = {"low", "medium", "high", "xhigh", "max"}
-
-
-def sha256_text(value: str) -> str:
-    return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def load_yaml(path: Path) -> dict[str, Any]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a YAML mapping")
-    return data
-
-
-def load_json(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    return data
 
 
 def strip_json_markdown_fence(value: str) -> str:
@@ -280,17 +262,7 @@ def find_forbidden_claude_settings_env(
 
 
 def validate_json_schema(data: dict[str, Any], schema_path: Path, label: str) -> None:
-    try:
-        import jsonschema
-    except ImportError as exc:
-        raise RuntimeError("jsonschema is required for reviewer wrapper validation") from exc
-    schema = load_json(schema_path)
-    validator = jsonschema.Draft202012Validator(schema)
-    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.path))
-    if errors:
-        first = errors[0]
-        location = ".".join(str(part) for part in first.path) or "<root>"
-        raise ValueError(f"{label} schema validation failed at {location}: {first.message}")
+    raise_schema_validation_error(data, load_json(schema_path), label)
 
 
 def resolve_packet_path(ref: str, root: Path) -> Path:
@@ -682,21 +654,7 @@ def validate_normalized_report(report: dict[str, Any]) -> None:
 
 
 def validate_normalized_report_schema(report: dict[str, Any], schema_path: Path) -> None:
-    try:
-        import jsonschema
-    except ImportError as exc:
-        raise RuntimeError(
-            "jsonschema is required when normalization.require_schema_validation is true"
-        ) from exc
-    schema = load_json(schema_path)
-    validator = jsonschema.Draft202012Validator(schema)
-    errors = sorted(validator.iter_errors(report), key=lambda err: list(err.path))
-    if errors:
-        first = errors[0]
-        location = ".".join(str(part) for part in first.path) or "<root>"
-        raise ValueError(
-            f"normalized reviewer report schema validation failed at {location}: {first.message}"
-        )
+    raise_schema_validation_error(report, load_json(schema_path), "normalized reviewer report")
 
 
 def main() -> int:
