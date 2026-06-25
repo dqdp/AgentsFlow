@@ -3960,7 +3960,9 @@ def test_workflow_binding_rejects_too_low_max_review_cycles(tmp_path) -> None:
 
     result = run("scripts/validate_project_binding.py", "--project", str(project), "--agentsflow-root", ".")
     assert result.returncode != 0
-    assert "max_review_cycles must be an integer" in (result.stdout + result.stderr)
+    output = result.stdout + result.stderr
+    assert "review_cycle.max_review_cycles" in output
+    assert "not of type 'integer'" in output
 
 
 def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:
