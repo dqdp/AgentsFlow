@@ -68,3 +68,18 @@ Possible future work:
 - optional enterprise/CI auth policy as a separate explicit design decision.
 
 API-key mode remains forbidden in the v0.2 MVP.
+
+## Proposed Follow-Up
+
+ADR-0021 should clarify review observability and external-provider evidence:
+
+- provider preflight/config blockers are separate from substantive review
+  cycles;
+- if an external reviewer is required by topology, provider unavailability or
+  preflight failure blocks the workflow and must not silently fall back to
+  internal-only review;
+- Codex-launched live Claude Code reviewer runs use project-bound wrappers with
+  escalated sandbox access for subscription-local authentication;
+- raw provider output is stored only when classified as non-sensitive, otherwise
+  the run stores redacted output, summary, pointer or omission reason;
+- token and cost evidence is normalized only when provider-reported.
