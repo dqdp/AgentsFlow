@@ -18,26 +18,21 @@ External model reviewers are invoked only through explicit project-bound
 wrappers. A wrapper receives either a structured review packet or a lite review
 request with referenced artifacts, and must return a normalized reviewer report.
 
-### 2026-06-25 mode-policy amendment
+### 2026-06-25 simplification amendment
 
-External reviewer context has two transport modes:
+External reviewer context uses one v0.2 mode:
 
-- `lite` is the ordinary standalone external-review helper when the workflow or
-  project binding accepts lite evidence. The run records a small review request
-  plus referenced artifacts and hashes. The reviewer receives a declared review
-  bundle and must cite only that bundle. This is not a hard filesystem sandbox.
-  The review context boundary is mandatory; embedding every byte of context into
-  the packet is not.
-- `strict-sealed` is an exception for sensitive or high-assurance reviews. The
-  packet or generated prompt must contain the substantive context, or the
-  wrapper must otherwise prove the exact sealed input set. Use this mode when
-  external file access is not acceptable, context must be redacted/curated
-  before provider use, or the workflow needs clean-room proof of the exact bytes
-  shown to the provider.
+- `lite` is the ordinary standalone external-review helper. The run records a
+  small review request plus referenced artifacts and hashes. The reviewer
+  receives a declared review bundle and must cite only that bundle. This is not
+  a hard filesystem sandbox. The review context boundary is mandatory; embedding
+  every byte of context into the packet is not.
 
-Workflows and project bindings may select `lite` unless they record a concrete
-`strict-sealed` reason or the current validator requires strict invocation-set
-evidence.
+Earlier strict packet-bound wrapper and invocation-set designs are not part of
+the v0.2 implementation. If a future workflow needs sealed, redacted or
+clean-room provider context, it should introduce that as a separate accepted
+slice with its own concrete use case instead of keeping a parallel unused review
+path in the MVP.
 
 For the v0.2 MVP:
 
@@ -48,10 +43,9 @@ For the v0.2 MVP:
 - External reviewer findings are candidate findings and require main-agent relevance validation.
 - External reviewers do not replace verification gates.
 - External reviewers do not modify files or run tests by default.
-- The implementation is minimal: one provider, a lite helper for ordinary review,
-  a strict packet-bound wrapper for `strict-sealed` review, one normalized
-  reviewer-report output format, and stored invocation metadata. Lite mode must
-  not be simulated by ad hoc direct provider calls.
+- The implementation is minimal: one provider, one lite helper for standalone
+  review, one normalized reviewer-report output format, and stored invocation
+  metadata. Lite mode must not be simulated by ad hoc direct provider calls.
 
 ## Consequences
 

@@ -16,10 +16,6 @@
   },
   "role_contract": "profiles/reviewer_roles/generalist.yaml",
   "role_contract_hash": "sha256:<generalist-role-contract>",
-  "review_prompt_contract": {
-    "path": "Docs/agentsflow/runs/<run-id>/review-prompt-contract.yaml",
-    "schema": "schemas/review-prompt-contract.schema.json"
-  },
   "context_policy": {
     "start_mode": "fresh_context",
     "fork_conversation_context": false,

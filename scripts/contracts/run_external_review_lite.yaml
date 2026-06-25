@@ -20,6 +20,5 @@ notes: >
   This script implements the lite external-review context transport for
   ordinary standalone review. It creates a declared review bundle and invokes
   the same Claude Code provider adapter without requiring a review prompt
-  contract or strict packet materialization. Current PR-readiness validators
-  still use strict invocation-set evidence until lite evidence is accepted
-  explicitly.
+  contract or strict packet materialization. PR-readiness reports can use this
+  lite evidence mode by default.

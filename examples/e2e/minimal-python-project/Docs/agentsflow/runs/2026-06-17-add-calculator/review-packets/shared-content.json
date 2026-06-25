@@ -13,10 +13,6 @@
     "same_output_schema": true
   },
   "role_contract": "profiles/reviewer_roles/generalist.yaml",
-  "review_prompt_contract": {
-    "path": "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml",
-    "schema": "schemas/review-prompt-contract.schema.json"
-  },
   "context_policy": {
     "start_mode": "fresh_context",
     "fork_conversation_context": false,

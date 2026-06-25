@@ -80,8 +80,8 @@ The preflight fingerprint should include at least:
 - provider config hash;
 - wrapper hash;
 - reviewer-report schema hash;
-- prompt-contract hash;
-- role/rubric hash;
+- review request or review bundle hash;
+- reviewer assignment or role hash when declared;
 - forbidden-environment fingerprint;
 - permission/sandbox mode;
 - provider transport mode.
@@ -117,7 +117,7 @@ for a completed external reviewer assignment.
 Metrics should be script-generated or script-updated where possible from
 existing evidence such as:
 
-- `review-invocation-set.json`;
+- review request bundle metadata;
 - reviewer invocation metadata;
 - normalized reviewer reports;
 - external reviewer preflight artifacts;

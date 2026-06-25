@@ -77,7 +77,6 @@ def _collect_phase_status_artifact_paths(value: object, prefix: str) -> list[tup
         "review_packets",
         "review_packet_summary",
         "review_packet_summaries",
-        "review_prompt_contract",
         "reviewer_report",
         "reviewer_reports",
         "reviewer_report_summaries",

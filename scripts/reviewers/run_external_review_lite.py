@@ -24,7 +24,7 @@ if str(SCRIPT_DIR) not in sys.path:
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-import run_external_reviewer as strict_reviewer  # noqa: E402
+import external_common  # noqa: E402
 from providers import claude_code  # noqa: E402
 from repo_validation.common import (  # noqa: E402
     parse_json_mapping as load_json,
@@ -474,8 +474,8 @@ def failure_invocation_base(
         "sandbox_mode": str(execution.get("sandbox_mode", "require_escalated")),
         "tools": "Read",
         "output_format": str(execution.get("output_format", "json")),
-        "requested_model": str(execution.get("model", strict_reviewer.DEFAULT_CLAUDE_MODEL)),
-        "requested_effort": str(execution.get("effort", strict_reviewer.DEFAULT_CLAUDE_EFFORT)),
+        "requested_model": str(execution.get("model", external_common.DEFAULT_CLAUDE_MODEL)),
+        "requested_effort": str(execution.get("effort", external_common.DEFAULT_CLAUDE_EFFORT)),
         "max_turns": int(execution.get("max_turns", 3)),
         "timeout_seconds": int(execution.get("timeout_seconds", 900)),
         "review_request_path": portable_ref(Path.cwd(), request_path),
@@ -526,8 +526,8 @@ def main() -> int:
     try:
         prepare_output_dir(output_dir, args.replace_output_dir)
         config = load_yaml(Path(args.config))
-        strict_reviewer.validate_provider_config(config, args.provider)
-        strict_reviewer.enforce_billing_policy(config)
+        external_common.validate_provider_config(config, args.provider)
+        external_common.enforce_billing_policy(config)
         effective_config = lite_provider_config(config)
         validate_lite_provider_config(effective_config)
         request, request_path = build_lite_request(
@@ -638,7 +638,7 @@ def main() -> int:
             )
         if exit_code != 0:
             finished = now_utc()
-            detail = strict_reviewer.provider_failure_detail(raw_text, stderr)
+            detail = external_common.provider_failure_detail(raw_text, stderr)
             if stderr:
                 stderr_path.parent.mkdir(parents=True, exist_ok=True)
                 stderr_path.write_text(stderr, encoding="utf-8")
@@ -667,15 +667,15 @@ def main() -> int:
         raw_json = json.loads(raw_text)
         if not isinstance(raw_json, dict):
             raise ValueError("raw provider output must be a JSON object")
-        provider_diagnostic = strict_reviewer.provider_output_diagnostic(raw_json)
-        reviewer_report = strict_reviewer.extract_provider_reviewer_report(raw_json, args.provider)
-        normalized = strict_reviewer.normalize_report(
+        provider_diagnostic = external_common.provider_output_diagnostic(raw_json)
+        reviewer_report = external_common.extract_provider_reviewer_report(raw_json, args.provider)
+        normalized = external_common.normalize_report(
             reviewer_report,
             packet_like_from_request(request, request_path, root),
             args.provider,
         )
         normalization_trace = {
-            "method": strict_reviewer.normalization_method(raw_json, args.provider),
+            "method": external_common.normalization_method(raw_json, args.provider),
             "source_path": raw_source_path,
             "source_hash": raw_output_hash,
             "schema_validation": "passed",
@@ -683,8 +683,8 @@ def main() -> int:
         }
         normalized["normalization"] = normalization_trace
         if normalization.get("require_schema_validation") is True:
-            strict_reviewer.validate_normalized_report_schema(normalized, root / OUTPUT_SCHEMA)
-        strict_reviewer.validate_normalized_report(normalized)
+            external_common.validate_normalized_report_schema(normalized, root / OUTPUT_SCHEMA)
+        external_common.validate_normalized_report(normalized)
 
         report_path.parent.mkdir(parents=True, exist_ok=True)
         write_json(report_path, normalized)
@@ -711,7 +711,7 @@ def main() -> int:
                 },
             }
         )
-        invocation.update(strict_reviewer.provider_invocation_metadata(raw_json))
+        invocation.update(external_common.provider_invocation_metadata(raw_json))
         raise_schema_validation_error(
             invocation,
             load_json(root / INVOCATION_SCHEMA),

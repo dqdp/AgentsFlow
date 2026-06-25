@@ -6,11 +6,7 @@ from typing import Any
 
 from .common import is_concrete_sha256, parse_json, parse_yaml, sha256_file, validate_against_schema
 from .external_reviewers import validate_external_review_provider
-from .review import (
-    validate_review_packet_artifact,
-    validate_review_prompt_contract_invariants,
-    validate_review_prompt_contract_run_references,
-)
+from .review import validate_review_packet_artifact
 
 
 BLOCKING_FINDING_SEVERITIES = {"P0", "P1"}
@@ -23,11 +19,8 @@ REQUIRED_CLAUDE_FORBIDDEN_ENV = {
     "CLAUDE_CODE_USE_BEDROCK",
     "CLAUDE_CODE_USE_VERTEX",
 }
-DEFAULT_PR_MERGE_REQUIRED_REVIEWS = [
-    ("generalist-a", "generalist-readiness", "internal-agent", False, "generalist"),
-    ("generalist-b", "generalist-readiness", "internal-agent", False, "generalist"),
-    ("adversarial-codex", "adversarial-authority", "internal-agent", False, "adversarial"),
-]
+REQUIRED_REVIEW_FIELDS = ("id", "topic", "provider", "role", "required_live")
+MIN_REQUIRED_REVIEWERS = 2
 
 
 def _schema(root: Path) -> dict:
@@ -91,24 +84,17 @@ def _external_review_summary(entries: list[dict[str, Any]]) -> dict[str, bool]:
     }
 
 
-def _reviewer_invocation_schema(root: Path) -> dict:
-    schema = parse_json(root / "schemas" / "reviewer-invocation.schema.json")
+def _external_review_lite_invocation_schema(root: Path) -> dict:
+    schema = parse_json(root / "schemas" / "external-review-lite-invocation.schema.json")
     if not isinstance(schema, dict):
-        raise ValueError("schemas/reviewer-invocation.schema.json is not a mapping")
+        raise ValueError("schemas/external-review-lite-invocation.schema.json is not a mapping")
     return schema
 
 
-def _review_invocation_set_schema(root: Path) -> dict:
-    schema = parse_json(root / "schemas" / "review-invocation-set.schema.json")
+def _external_review_lite_request_schema(root: Path) -> dict:
+    schema = parse_json(root / "schemas" / "external-review-lite-request.schema.json")
     if not isinstance(schema, dict):
-        raise ValueError("schemas/review-invocation-set.schema.json is not a mapping")
-    return schema
-
-
-def _review_prompt_contract_schema(root: Path) -> dict:
-    schema = parse_json(root / "schemas" / "review-prompt-contract.schema.json")
-    if not isinstance(schema, dict):
-        raise ValueError("schemas/review-prompt-contract.schema.json is not a mapping")
+        raise ValueError("schemas/external-review-lite-request.schema.json is not a mapping")
     return schema
 
 
@@ -157,6 +143,31 @@ def _resolve_invocation_ref(invocation_path: Path, root: Path, ref: object) -> P
     return None
 
 
+def _resolve_lite_request_artifact_ref(root: Path, request_path: Path, ref: object) -> Path | None:
+    if not isinstance(ref, str) or not ref.strip():
+        return None
+    ref_path = Path(ref)
+    if ref_path.is_absolute() or ".." in ref_path.parts:
+        return None
+    output_dir = request_path.parent.resolve()
+    root = root.resolve()
+    root_candidate = (root / ref_path).resolve()
+    output_candidate = (output_dir / ref_path).resolve()
+    candidates = [root_candidate] if root_candidate.exists() else [output_candidate, root_candidate]
+    for candidate in candidates:
+        try:
+            candidate.relative_to(root)
+            return candidate
+        except ValueError:
+            pass
+        try:
+            candidate.relative_to(output_dir)
+            return candidate
+        except ValueError:
+            pass
+    return None
+
+
 def _role_from_contract_ref(ref: object) -> str | None:
     if not isinstance(ref, str) or not ref.strip():
         return None
@@ -170,6 +181,158 @@ def _external_entry_by_report_path(entries: list[dict[str, Any]]) -> dict[str, d
         if isinstance(report_path, str) and report_path:
             indexed[report_path] = entry
     return indexed
+
+
+def _canonical_required_review(review: dict[str, Any]) -> dict[str, Any]:
+    return {field: review.get(field) for field in REQUIRED_REVIEW_FIELDS}
+
+
+def _required_reviews_from_source(data: object) -> list[dict[str, Any]] | None:
+    if not isinstance(data, dict):
+        return None
+    if data.get("version") != 1 or data.get("artifact_kind") != "review_requirements":
+        return None
+    reviews = data.get("required_reviews")
+    if not isinstance(reviews, list):
+        return None
+    if len(reviews) < MIN_REQUIRED_REVIEWERS:
+        return None
+    if not all(isinstance(item, dict) for item in reviews):
+        return None
+    for item in reviews:
+        if not all(field in item for field in REQUIRED_REVIEW_FIELDS):
+            return None
+        if not all(isinstance(item.get(field), str) and item.get(field).strip() for field in ["id", "topic", "provider", "role"]):
+            return None
+        if item.get("provider") not in {"internal-agent", "claude-code"}:
+            return None
+        if not isinstance(item.get("required_live"), bool):
+            return None
+    return reviews
+
+
+def _parse_json_or_yaml(path: Path) -> object:
+    if path.suffix.lower() == ".json":
+        return parse_json(path)
+    return parse_yaml(path)
+
+
+def _validate_review_requirements_source(
+    root: Path,
+    report_path: Path,
+    review_requirements: object,
+    required_reviews: list[dict[str, Any]],
+    missing_evidence: list[str],
+    blockers: list[str],
+) -> None:
+    if not isinstance(review_requirements, dict):
+        blockers.append("review_requirements_source_missing")
+        return
+    source = review_requirements.get("source")
+    if not isinstance(source, dict):
+        blockers.append("review_requirements_source_missing")
+        return
+    source_ref = source.get("path")
+    if not source_ref:
+        blockers.append("review_requirements_source_missing")
+        return
+    source_path = _safe_relative(report_path, root, source_ref)
+    if not source_path or not source_path.is_file():
+        missing_evidence.append(str(source_ref))
+        blockers.append("review_requirements_source_missing")
+        return
+    declared_hash = source.get("artifact_hash")
+    if not is_concrete_sha256(declared_hash):
+        blockers.append("review_requirements_source_hash_missing")
+    elif declared_hash != sha256_file(source_path):
+        blockers.append("review_requirements_source_hash_mismatch")
+    try:
+        source_data = _parse_json_or_yaml(source_path)
+    except ValueError:
+        blockers.append("review_requirements_source_invalid")
+        return
+    source_required_reviews = _required_reviews_from_source(source_data)
+    if source_required_reviews is None:
+        blockers.append("review_requirements_source_invalid")
+        return
+    source_canonical = [_canonical_required_review(item) for item in source_required_reviews]
+    report_canonical = [_canonical_required_review(item) for item in required_reviews]
+    if source_canonical != report_canonical:
+        blockers.append("review_requirements_source_mismatch")
+
+
+def _validate_external_lite_request_context(
+    root: Path,
+    request_path: Path,
+    request_schema: dict,
+    review_id: str,
+    expected_role: object,
+    report_run_id: str,
+    report_material_change_id: str,
+    review_report: dict[str, Any] | None,
+    blockers: list[str],
+) -> None:
+    try:
+        request = parse_json(request_path)
+    except ValueError:
+        blockers.append(f"external_review_request_invalid:{review_id}")
+        return
+    if not isinstance(request, dict):
+        blockers.append(f"external_review_request_invalid:{review_id}")
+        return
+    if validate_against_schema(request_path, request, request_schema):
+        blockers.append(f"external_review_request_invalid:{review_id}")
+    if request.get("provider") != "claude-code":
+        blockers.append(f"external_review_request_provider_mismatch:{review_id}")
+    reviewer = request.get("reviewer")
+    if not isinstance(reviewer, dict):
+        blockers.append(f"external_review_request_reviewer_mismatch:{review_id}")
+    else:
+        if reviewer.get("id") != review_id:
+            blockers.append(f"external_review_request_reviewer_mismatch:{review_id}")
+        if expected_role and reviewer.get("role") != expected_role:
+            blockers.append(f"external_review_request_role_mismatch:{review_id}")
+    if report_run_id and request.get("run_id") != report_run_id:
+        blockers.append(f"external_review_request_context_mismatch:{review_id}:run_id")
+    if report_material_change_id and request.get("material_change_id") != report_material_change_id:
+        blockers.append(f"external_review_request_context_mismatch:{review_id}:material_change_id")
+    artifacts = request.get("artifacts")
+    if isinstance(artifacts, list):
+        for artifact in artifacts:
+            if not isinstance(artifact, dict):
+                blockers.append(f"external_review_request_artifact_invalid:{review_id}")
+                continue
+            artifact_path = _resolve_lite_request_artifact_ref(
+                root,
+                request_path,
+                artifact.get("path"),
+            )
+            if not artifact_path or not artifact_path.is_file():
+                blockers.append(f"external_review_request_artifact_missing:{review_id}")
+                continue
+            if artifact.get("hash") != sha256_file(artifact_path):
+                blockers.append(f"external_review_request_artifact_hash_mismatch:{review_id}")
+            bundle_path = artifact.get("bundle_path")
+            if bundle_path:
+                bundle_ref = Path(str(bundle_path))
+                if bundle_ref.is_absolute() or ".." in bundle_ref.parts:
+                    blockers.append(f"external_review_request_artifact_bundle_path_mismatch:{review_id}")
+                    continue
+                bundle_resolved = (request_path.parent / bundle_ref).resolve()
+                if bundle_resolved != artifact_path.resolve():
+                    blockers.append(f"external_review_request_artifact_bundle_path_mismatch:{review_id}")
+    if not review_report:
+        return
+    context = review_report.get("review_context")
+    if not isinstance(context, dict):
+        blockers.append(f"reviewer_report_context_missing:{review_id}")
+        return
+    if report_run_id and context.get("run_id") != report_run_id:
+        blockers.append(f"reviewer_report_context_mismatch:{review_id}")
+    if report_material_change_id and context.get("material_change_id") != report_material_change_id:
+        blockers.append(f"reviewer_report_context_mismatch:{review_id}")
+    if context.get("reviewer_instance_id") != review_id:
+        blockers.append(f"reviewer_report_context_mismatch:{review_id}")
 
 
 def _candidate_handles_source_finding(candidate: dict[str, Any], review_id: str, finding_id: str) -> bool:
@@ -332,77 +495,6 @@ def _validate_control_report(
             blockers.append(f"collision_control_report_invalid:{finding_id}")
             return None
     return str(reviewer["id"])
-
-
-def _validate_collision_control_prompt_contract(
-    root: Path,
-    report_path: Path,
-    ref: object,
-    missing: list[str],
-    blockers: list[str],
-    finding_id: str,
-    collision_batch_id: str,
-    latest_material_change_at: datetime | None,
-) -> tuple[set[str], datetime | None]:
-    _record_missing(report_path, root, ref, missing)
-    resolved = _safe_relative(report_path, root, ref)
-    if not resolved or not resolved.is_file():
-        blockers.append(f"collision_control_prompt_contract_missing:{finding_id}")
-        return set(), None
-    try:
-        data = parse_yaml(resolved)
-    except ValueError:
-        blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-        return set(), None
-    if not isinstance(data, dict):
-        blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-        return set(), None
-    schema = parse_json(root / "schemas" / "review-prompt-contract.schema.json")
-    if not isinstance(schema, dict) or validate_against_schema(resolved, data, schema):
-        blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-
-    identity = data.get("identity")
-    if not isinstance(identity, dict) or identity.get("review_profile") != "collision-control":
-        blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-    if isinstance(identity, dict) and identity.get("primary_gate") is not False:
-        blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-
-    collision = data.get("collision_control")
-    prepared_at: datetime | None = None
-    if not isinstance(collision, dict):
-        blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-    else:
-        disputed = collision.get("disputed_findings")
-        disputed_ids = {
-            str(item.get("finding_id"))
-            for item in disputed or []
-            if isinstance(item, dict) and item.get("finding_id")
-        }
-        if (
-            collision.get("trigger") != "rejected_or_downgraded_blocker_collision"
-            or collision.get("collision_batch_id") != collision_batch_id
-            or collision.get("control_reviewer_count") != 2
-            or finding_id not in disputed_ids
-        ):
-            blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-        prepared_at = _parse_timestamp(collision.get("prepared_at"))
-        if not prepared_at:
-            blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-        elif latest_material_change_at:
-            try:
-                if prepared_at < latest_material_change_at:
-                    blockers.append(f"collision_control_stale:{finding_id}")
-            except TypeError:
-                blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-
-    reviewer_ids = {
-        str(item.get("instance_id"))
-        for item in data.get("reviewer_set", []) or []
-        if isinstance(item, dict) and item.get("instance_id")
-    }
-    if len(reviewer_ids) != 2:
-        blockers.append(f"collision_control_prompt_contract_invalid:{finding_id}")
-    return reviewer_ids, prepared_at
 
 
 def _has_matching_human_decision(
@@ -587,60 +679,6 @@ def _record_hash_check(
         blockers.append(f"external_review_{label}_hash_mismatch:{review_id}")
 
 
-def _record_invocation_set_hash_check(
-    blockers: list[str],
-    review_id: str,
-    label: str,
-    declared: object,
-    artifact_path: Path | None,
-) -> None:
-    if not is_concrete_sha256(declared):
-        blockers.append(f"review_invocation_set_{label}_hash_missing:{review_id}")
-        return
-    if not artifact_path or not artifact_path.is_file():
-        blockers.append(f"review_invocation_set_{label}_path_missing:{review_id}")
-        return
-    if declared != sha256_file(artifact_path):
-        blockers.append(f"review_invocation_set_{label}_hash_mismatch:{review_id}")
-
-
-def _record_expected_hash_check(
-    blockers: list[str],
-    review_id: str,
-    label: str,
-    declared: object,
-    expected: object,
-    missing_blocker: str,
-) -> None:
-    if not is_concrete_sha256(declared):
-        blockers.append(f"external_review_invocation_missing_{label}_hash:{review_id}")
-        return
-    if not is_concrete_sha256(expected):
-        blockers.append(f"{missing_blocker}:{review_id}")
-        return
-    if declared != expected:
-        blockers.append(f"external_review_{label}_hash_mismatch:{review_id}")
-
-
-def _prompt_contract_rubric_hash(report_path: Path, root: Path, contract_ref: object, review_id: str) -> str | None:
-    contract_path = _safe_relative(report_path, root, contract_ref)
-    if not contract_path or not contract_path.is_file():
-        return None
-    try:
-        contract = parse_yaml(contract_path)
-    except ValueError:
-        return None
-    if not isinstance(contract, dict):
-        return None
-    for item in contract.get("rendered_prompts", []) or []:
-        if not isinstance(item, dict) or item.get("reviewer") != review_id:
-            continue
-        rubric_hash = item.get("rubric_hash")
-        if is_concrete_sha256(rubric_hash):
-            return str(rubric_hash)
-    return None
-
-
 def _validate_live_claude_guardrails(
     root: Path,
     invocation_path: Path,
@@ -655,14 +693,15 @@ def _validate_live_claude_guardrails(
     command = str(invocation.get("command") or "")
     if not command.startswith("claude "):
         blockers.append(f"external_review_guardrail_command_invalid:{review_id}")
-    if invocation.get("wrapper") != "scripts/reviewers/run_external_reviewer.py":
+    wrapper = invocation.get("wrapper")
+    if wrapper != "scripts/reviewers/run_external_review_lite.py":
         blockers.append(f"external_review_guardrail_wrapper_missing:{review_id}")
-    provider_config_ref = invocation.get("provider_config_path")
+    provider_config_ref = invocation.get("effective_provider_config_path")
     provider_config_path = _resolve_invocation_ref(invocation_path, root, provider_config_ref)
     if not provider_config_path or not provider_config_path.is_file():
         blockers.append(f"external_review_guardrail_provider_config_missing:{review_id}")
         return
-    provider_config_hash = invocation.get("provider_config_hash")
+    provider_config_hash = invocation.get("effective_provider_config_hash")
     if not is_concrete_sha256(provider_config_hash):
         blockers.append(f"external_review_invocation_missing_provider_config_hash:{review_id}")
     elif provider_config_hash != sha256_file(provider_config_path):
@@ -766,9 +805,7 @@ def _classify_state(
                 "missing_required_review:",
                 "duplicate_required_review:",
                 "duplicate_review:",
-                "review_prompt_contract_",
                 "review_packet_",
-                "review_invocation_set_",
                 "reviewer_report_",
             )
         )
@@ -825,9 +862,8 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
     stale_reviews: list[str] = []
     human_record_valid = False
     reviewer_report_schema = _reviewer_report_schema(root)
-    reviewer_invocation_schema = _reviewer_invocation_schema(root)
-    review_invocation_set_schema = _review_invocation_set_schema(root)
-    review_prompt_contract_schema = _review_prompt_contract_schema(root)
+    lite_invocation_schema = _external_review_lite_invocation_schema(root)
+    lite_request_schema = _external_review_lite_request_schema(root)
     reviewer_reports: dict[str, dict[str, Any]] = {}
     reviewer_report_paths: dict[str, Path] = {}
     source_blocking_findings: list[dict[str, str]] = []
@@ -871,113 +907,22 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
         ]
     if not required_reviews:
         blockers.append("review_requirements_missing")
+    elif len(required_reviews) < MIN_REQUIRED_REVIEWERS:
+        blockers.append("review_requirements_minimum_not_met")
+    _validate_review_requirements_source(
+        root,
+        report_path,
+        review_requirements,
+        required_reviews,
+        missing_evidence,
+        blockers,
+    )
     required_ids: set[str] = set()
     required_by_id = {
         str(item.get("id", "")): item
         for item in required_reviews
         if isinstance(item, dict) and item.get("id")
     }
-    prompt_contract_reviewers: set[str] = set()
-    review_invocation_entries: dict[str, dict[str, Any]] = {}
-    prompt_contract_path: Path | None = None
-    if isinstance(review_requirements, dict):
-        prompt_contract_ref = review_requirements.get("review_prompt_contract_path")
-        prompt_contract_path = _safe_relative(report_path, root, prompt_contract_ref)
-        if not prompt_contract_path or not prompt_contract_path.is_file():
-            missing_evidence.append(str(prompt_contract_ref or "review_requirements.review_prompt_contract_path"))
-            blockers.append("review_prompt_contract_missing")
-        else:
-            try:
-                prompt_contract = parse_yaml(prompt_contract_path)
-            except ValueError:
-                prompt_contract = None
-            if not isinstance(prompt_contract, dict):
-                blockers.append("review_prompt_contract_invalid")
-            else:
-                prompt_contract_errors = validate_against_schema(
-                    prompt_contract_path,
-                    prompt_contract,
-                    review_prompt_contract_schema,
-                )
-                prompt_contract_errors.extend(
-                    validate_review_prompt_contract_invariants(
-                        root,
-                        prompt_contract_path,
-                        prompt_contract,
-                        True,
-                    )
-                )
-                prompt_contract_errors.extend(
-                    validate_review_prompt_contract_run_references(
-                        root,
-                        prompt_contract_path,
-                        prompt_contract,
-                    )
-                )
-                prompt_contract_reviewers = {
-                    str(item.get("instance_id"))
-                    for item in prompt_contract.get("reviewer_set", []) or []
-                    if isinstance(item, dict) and item.get("instance_id")
-                }
-                if prompt_contract_errors:
-                    blockers.append("review_prompt_contract_invalid")
-    invocation_set_path: Path | None = None
-    if isinstance(review_requirements, dict):
-        invocation_set_ref = review_requirements.get("review_invocation_set_path")
-        invocation_set_path = _safe_relative(report_path, root, invocation_set_ref)
-        if not invocation_set_path or not invocation_set_path.is_file():
-            missing_evidence.append(str(invocation_set_ref or "review_requirements.review_invocation_set_path"))
-            blockers.append("review_invocation_set_missing")
-        else:
-            try:
-                invocation_set = parse_json(invocation_set_path)
-            except ValueError:
-                invocation_set = None
-            if not isinstance(invocation_set, dict):
-                blockers.append("review_invocation_set_invalid")
-            else:
-                if validate_against_schema(invocation_set_path, invocation_set, review_invocation_set_schema):
-                    blockers.append("review_invocation_set_invalid")
-                if invocation_set.get("status") != "completed":
-                    blockers.append("review_invocation_set_not_completed")
-                invocation_contract_path = _resolve_invocation_ref(
-                    invocation_set_path,
-                    root,
-                    invocation_set.get("review_prompt_contract"),
-                )
-                if (
-                    prompt_contract_path
-                    and invocation_contract_path
-                    and prompt_contract_path.resolve() != invocation_contract_path.resolve()
-                ):
-                    blockers.append("review_invocation_set_contract_mismatch")
-                if prompt_contract_path and prompt_contract_path.is_file():
-                    declared_contract_hash = invocation_set.get("review_prompt_contract_hash")
-                    if not is_concrete_sha256(declared_contract_hash):
-                        blockers.append("review_invocation_set_contract_hash_missing")
-                    elif declared_contract_hash != sha256_file(prompt_contract_path):
-                        blockers.append("review_invocation_set_contract_hash_mismatch")
-                review_invocation_entries = {
-                    str(item.get("reviewer")): item
-                    for item in invocation_set.get("reviewers", []) or []
-                    if isinstance(item, dict) and item.get("reviewer")
-                }
-    if data.get("workflow") == "pr-merge-readiness":
-        for default_id, default_topic, default_provider, default_live, default_role in DEFAULT_PR_MERGE_REQUIRED_REVIEWS:
-            declared = required_by_id.get(default_id)
-            if not declared:
-                blockers.append(f"review_requirements_undeclared:{default_id}")
-                if default_id not in reviews_by_id:
-                    blockers.append(f"missing_required_review:{default_id}")
-                continue
-            if declared.get("topic") != default_topic:
-                blockers.append(f"required_review_mismatch:{default_id}:topic")
-            if declared.get("provider") != default_provider:
-                blockers.append(f"required_review_mismatch:{default_id}:provider")
-            if default_provider == "claude-code" and declared.get("required_live") is not default_live:
-                blockers.append(f"required_live_claude_not_declared:{default_id}")
-            if declared.get("role") != default_role:
-                blockers.append(f"required_review_mismatch:{default_id}:role")
     for required in required_reviews:
         required_id = str(required.get("id", ""))
         if not required_id:
@@ -1003,63 +948,12 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
 
     for review in reviews:
         review_id = str(review.get("id", "<unknown>"))
-        if prompt_contract_reviewers and review_id not in prompt_contract_reviewers:
-            blockers.append(f"review_prompt_contract_reviewer_missing:{review_id}")
         if review.get("status") not in {"pass", "pass-with-notes"}:
             blockers.append(f"failed_review:{review_id}")
         _record_missing(report_path, root, review.get("packet_path"), missing_evidence)
         _record_missing(report_path, root, review.get("report_path"), missing_evidence)
         review_packet_path = _safe_relative(report_path, root, review.get("packet_path"))
         review_report_path = _safe_relative(report_path, root, review.get("report_path"))
-        invocation_entry = review_invocation_entries.get(review_id)
-        if not invocation_entry:
-            blockers.append(f"review_invocation_set_reviewer_missing:{review_id}")
-        else:
-            expected_invocation_status = "invoked" if review.get("provider") == "claude-code" else "report-present"
-            if invocation_entry.get("status") != expected_invocation_status:
-                blockers.append(f"review_invocation_set_reviewer_status_invalid:{review_id}")
-            if invocation_entry.get("provider") != review.get("provider"):
-                blockers.append(f"review_invocation_set_reviewer_provider_mismatch:{review_id}")
-            invocation_packet_path = _resolve_invocation_ref(
-                invocation_set_path or report_path,
-                root,
-                invocation_entry.get("packet_path"),
-            )
-            if not invocation_packet_path or not invocation_packet_path.is_file():
-                blockers.append(f"review_invocation_set_packet_path_missing:{review_id}")
-            elif (
-                review_packet_path
-                and invocation_packet_path
-                and review_packet_path.resolve() != invocation_packet_path.resolve()
-            ):
-                blockers.append(f"review_invocation_set_packet_path_mismatch:{review_id}")
-            invocation_report_path = _resolve_invocation_ref(
-                invocation_set_path or report_path,
-                root,
-                invocation_entry.get("report_path"),
-            )
-            if not invocation_report_path or not invocation_report_path.is_file():
-                blockers.append(f"review_invocation_set_report_path_missing:{review_id}")
-            elif (
-                review_report_path
-                and invocation_report_path
-                and review_report_path.resolve() != invocation_report_path.resolve()
-            ):
-                blockers.append(f"review_invocation_set_report_path_mismatch:{review_id}")
-            _record_invocation_set_hash_check(
-                blockers,
-                review_id,
-                "packet",
-                invocation_entry.get("packet_hash"),
-                review_packet_path,
-            )
-            _record_invocation_set_hash_check(
-                blockers,
-                review_id,
-                "report",
-                invocation_entry.get("report_hash"),
-                review_report_path,
-            )
         if review_packet_path and review_packet_path.is_file():
             try:
                 loaded_packet = parse_json(review_packet_path)
@@ -1068,7 +962,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             if not isinstance(loaded_packet, dict):
                 blockers.append(f"review_packet_invalid:{review_id}")
             else:
-                if validate_review_packet_artifact(root, review_packet_path, check_references=False):
+                if validate_review_packet_artifact(root, review_packet_path, check_references=True):
                     blockers.append(f"review_packet_invalid:{review_id}")
                 if report_run_id and loaded_packet.get("run_id") != report_run_id:
                     blockers.append(f"review_packet_context_mismatch:{review_id}:run_id")
@@ -1178,10 +1072,14 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             if not isinstance(invocation, dict):
                 blockers.append(f"external_review_invocation_invalid:{review_id}")
             else:
+                is_lite_invocation = invocation.get("context_mode") == "lite"
+                if not is_lite_invocation:
+                    blockers.append(f"external_review_invocation_not_lite:{review_id}")
+                    continue
                 invocation_errors = validate_against_schema(
                     invocation_path,
                     invocation,
-                    reviewer_invocation_schema,
+                    lite_invocation_schema,
                 )
                 if invocation_errors:
                     blockers.append(f"external_review_invocation_invalid:{review_id}")
@@ -1215,77 +1113,46 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                 expected_role = required.get("role") if isinstance(required, dict) else None
                 if expected_role and invocation.get("reviewer_role") != expected_role:
                     blockers.append(f"external_review_invocation_role_mismatch:{review_id}")
+                review_request_path = _resolve_invocation_ref(
+                    invocation_path,
+                    root,
+                    invocation.get("review_request_path"),
+                )
                 _record_hash_check(
                     blockers,
                     review_id,
                     "input",
                     invocation.get("input_hash"),
-                    review_packet_path,
+                    review_request_path,
                     "external_review_packet_missing",
                 )
-                prompt_path = _safe_relative(report_path, root, review.get("prompt_path"))
-                _record_hash_check(
-                    blockers,
-                    review_id,
-                    "prompt",
-                    invocation.get("prompt_hash"),
-                    prompt_path,
-                    "external_review_prompt_path_missing",
-                )
-                review_prompt_contract_path = _safe_relative(
-                    report_path,
-                    root,
-                    (review_requirements or {}).get("review_prompt_contract_path")
-                    if isinstance(review_requirements, dict)
-                    else None,
-                )
-                _record_hash_check(
-                    blockers,
-                    review_id,
-                    "review_prompt_contract",
-                    invocation.get("review_prompt_contract_hash"),
-                    review_prompt_contract_path,
-                    "external_review_prompt_contract_path_missing",
-                )
-                role_contract_path = _safe_relative(report_path, root, review.get("role_contract_path"))
-                _record_hash_check(
-                    blockers,
-                    review_id,
-                    "role_contract",
-                    invocation.get("role_contract_hash"),
-                    role_contract_path,
-                    "external_review_role_contract_path_missing",
-                )
-                rubric_path = _safe_relative(
-                    report_path,
-                    root,
-                    (review_requirements or {}).get("rubric_path") if isinstance(review_requirements, dict) else None,
-                )
-                prompt_contract_rubric_hash = _prompt_contract_rubric_hash(
-                    report_path,
-                    root,
-                    (review_requirements or {}).get("review_prompt_contract_path")
-                    if isinstance(review_requirements, dict)
-                    else None,
-                    review_id,
-                )
-                if prompt_contract_rubric_hash:
-                    _record_expected_hash_check(
-                        blockers,
+                request_hash = invocation.get("review_request_hash")
+                if request_hash and review_request_path and review_request_path.is_file():
+                    if request_hash != sha256_file(review_request_path):
+                        blockers.append(f"external_review_review_request_hash_mismatch:{review_id}")
+                elif not request_hash:
+                    blockers.append(f"external_review_invocation_missing_review_request_hash:{review_id}")
+                if review_request_path and review_request_path.is_file():
+                    _validate_external_lite_request_context(
+                        root,
+                        review_request_path,
+                        lite_request_schema,
                         review_id,
-                        "rubric",
-                        invocation.get("rubric_hash"),
-                        prompt_contract_rubric_hash,
-                        "external_review_rubric_path_missing",
+                        expected_role,
+                        report_run_id,
+                        report_material_change_id,
+                        review_report,
+                        blockers,
                     )
-                else:
+                prompt_path = _safe_relative(report_path, root, review.get("prompt_path"))
+                if is_lite_invocation and prompt_path and prompt_path.is_file():
                     _record_hash_check(
                         blockers,
                         review_id,
-                        "rubric",
-                        invocation.get("rubric_hash"),
-                        rubric_path,
-                        "external_review_rubric_path_missing",
+                        "prompt",
+                        invocation.get("prompt_hash"),
+                        prompt_path,
+                        "external_review_prompt_path_missing",
                     )
                 _record_hash_check(
                     blockers,
@@ -1404,13 +1271,11 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                 blockers.append(f"collision_control_missing:{finding_id}")
                 continue
             evidence_path = control.get("evidence_path")
-            review_prompt_contract_path = control.get("review_prompt_contract_path")
             control_reports = control.get("control_reports")
             disputed_finding_ids = control.get("disputed_finding_ids")
             collision_batch_id = control.get("collision_batch_id")
             if (
                 not evidence_path
-                or not review_prompt_contract_path
                 or not isinstance(collision_batch_id, str)
                 or not collision_batch_id.strip()
                 or control.get("control_reviewer_count") != 2
@@ -1421,22 +1286,6 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             ):
                 blockers.append(f"collision_control_incomplete:{finding_id}")
             _record_missing(report_path, root, evidence_path, missing_evidence)
-            expected_control_reviewer_ids = set()
-            collision_prompt_prepared_at: datetime | None = None
-            if isinstance(collision_batch_id, str) and collision_batch_id.strip():
-                (
-                    expected_control_reviewer_ids,
-                    collision_prompt_prepared_at,
-                ) = _validate_collision_control_prompt_contract(
-                    root,
-                    report_path,
-                    review_prompt_contract_path,
-                    missing_evidence,
-                    blockers,
-                    finding_id,
-                    collision_batch_id,
-                    latest_material_change_at,
-                )
             control_reviewer_ids: set[str] = set()
             if isinstance(control_reports, list):
                 for control_report in control_reports:
@@ -1451,7 +1300,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                             finding_id,
                             collision_batch_id,
                             latest_material_change_at,
-                            collision_prompt_prepared_at,
+                            None,
                         )
                     else:
                         reviewer_id = _validate_control_report(
@@ -1464,14 +1313,12 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                             finding_id,
                             collision_batch_id,
                             latest_material_change_at,
-                            collision_prompt_prepared_at,
+                            None,
                         )
                     if reviewer_id:
                         control_reviewer_ids.add(reviewer_id)
             if isinstance(control_reports, list) and len(control_reviewer_ids) < 2:
                 blockers.append(f"collision_control_incomplete:{finding_id}")
-            if expected_control_reviewer_ids and control_reviewer_ids != expected_control_reviewer_ids:
-                blockers.append(f"collision_control_reviewer_set_mismatch:{finding_id}")
 
     for source in source_blocking_findings:
         if not any(

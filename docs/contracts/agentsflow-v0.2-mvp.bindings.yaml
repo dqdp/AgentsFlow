@@ -2,7 +2,7 @@ version: 1
 contract: agentsflow-v0.2-mvp.contract.md
 bindings:
   - id: AF-V02-BHV-001
-    scenario: "Live external reviewer requires run-scope prompt contract"
+    scenario: "External reviewer lite wrapper generates bounded bundle"
     required: true
     status: executable
     source:
@@ -11,15 +11,15 @@ bindings:
       section: Behavioral Scenarios
     severity_if_unverified: P1
     checks:
-      - id: pytest-live-example-scope
+      - id: pytest-external-lite-bounded-bundle
         type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_rejects_live_example_scope"
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_external_reviewer_lite_mock_generates_bounded_bundle"
         evidence:
           - pytest-output
     gates:
       - verification_gate
   - id: AF-V02-BHV-002
-    scenario: "Homogeneous dual review requires shared prompt and packet hashes"
+    scenario: "External reviewer lite wrapper records provider output failures"
     required: true
     status: executable
     source:
@@ -28,9 +28,9 @@ bindings:
       section: Behavioral Scenarios
     severity_if_unverified: P1
     checks:
-      - id: pytest-shared-review-hashes
+      - id: pytest-external-lite-malformed-output
         type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_rejects_missing_shared_hash"
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_external_reviewer_lite_malformed_output_preserves_failure_raw_hash"
         evidence:
           - pytest-output
     gates:
@@ -305,9 +305,9 @@ bindings:
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch"
         evidence:
           - pytest-output
-      - id: pytest-collision-prompt-contract
+      - id: pytest-collision-control-pr-readiness
         type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch"
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_collision_control_reports_can_clear_rejected_blocker"
         evidence:
           - pytest-output
     gates:
@@ -344,16 +344,6 @@ bindings:
       section: Behavioral Scenarios
     severity_if_unverified: P1
     checks:
-      - id: pytest-finding-validation-severity-calibration
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_finding_validation_calibrates_blocker_severity"
-        evidence:
-          - pytest-output
-      - id: pytest-external-reviewer-preserves-blocker-metadata
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_normalizes_claude_code_envelope"
-        evidence:
-          - pytest-output
       - id: pytest-pr-readiness-accepted-p1-requires-blocker-path
         type: test
         command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_accepted_p1_without_blocker_path_is_invalid_calibration"
@@ -417,8 +407,7 @@ bindings:
         type: manual_evidence
         target: "docs/review-agent-interaction-protocol.md"
         evidence:
-          - "docs/review-prompt-contract.md"
-          - "schemas/review-prompt-contract.schema.json"
+          - "docs/external-reviewer-provider-model.md"
     gates:
       - verification_gate
   - id: AF-V02-BHV-014
@@ -516,84 +505,6 @@ bindings:
       - id: pytest-review-packet-risk-context
         type: test
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_packet_schema_accepts_risk_surface_context"
-        evidence:
-          - pytest-output
-    gates:
-      - verification_gate
-  - id: AF-V02-BHV-018
-    scenario: "Provider-assigned review gates require invocation evidence"
-    required: true
-    status: executable
-    source:
-      type: contract
-      path: agentsflow-v0.2-mvp.contract.md
-      section: Behavioral Scenarios
-    severity_if_unverified: P1
-    checks:
-      - id: pytest-review-contract-requires-invocation-set
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_assignments_require_review_set_evidence"
-        evidence:
-          - pytest-output
-      - id: pytest-review-contract-binds-invocation-set
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_binds_external_invocation_to_current_artifacts"
-        evidence:
-          - pytest-output
-    gates:
-      - verification_gate
-  - id: AF-V02-BHV-019
-    scenario: "Review artifact preparation fails closed on uncovered dirty paths"
-    required: true
-    status: executable
-    source:
-      type: contract
-      path: agentsflow-v0.2-mvp.contract.md
-      section: Behavioral Scenarios
-    severity_if_unverified: P1
-    checks:
-      - id: pytest-prepare-review-artifacts-dirty-paths
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths"
-        evidence:
-          - pytest-output
-      - id: pytest-prepare-review-artifacts-generates-evidence
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence"
-        evidence:
-          - pytest-output
-    gates:
-      - verification_gate
-  - id: AF-V02-BHV-020
-    scenario: "Review set dispatch starts external reviewers asynchronously"
-    required: true
-    status: executable
-    source:
-      type: contract
-      path: agentsflow-v0.2-mvp.contract.md
-      section: Behavioral Scenarios
-    severity_if_unverified: P1
-    checks:
-      - id: pytest-review-set-external-async
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_run_review_set_starts_external_reviewers_asynchronously"
-        evidence:
-          - pytest-output
-    gates:
-      - verification_gate
-  - id: AF-V02-BHV-021
-    scenario: "Review set collection preserves completed external reviewer evidence on timeout"
-    required: true
-    status: executable
-    source:
-      type: contract
-      path: agentsflow-v0.2-mvp.contract.md
-      section: Behavioral Scenarios
-    severity_if_unverified: P1
-    checks:
-      - id: pytest-review-set-external-timeout-preserves-completed
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_run_review_set_times_out_hung_external_without_losing_completed_peer"
         evidence:
           - pytest-output
     gates:

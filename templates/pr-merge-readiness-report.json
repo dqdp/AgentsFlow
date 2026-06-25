@@ -20,9 +20,11 @@
     }
   ],
   "review_requirements": {
-    "review_prompt_contract_path": "review-prompt-contract.yaml",
-    "review_invocation_set_path": "review-invocation-set.json",
-    "rubric_path": "rubric.json",
+    "source": {
+      "kind": "explicit_review_gate",
+      "path": "review-requirements.yaml",
+      "artifact_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
     "required_reviews": [
       {
         "id": "generalist-a",

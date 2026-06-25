@@ -25,11 +25,12 @@ execution:
   sandbox_mode: require_escalated
   output_format: json
   permission_mode: default
-  tools: ""
+  prompt_transport: file
+  tools: Read
   model: opus
   effort: max
   timeout_seconds: 900
-  max_turns: 3
+  max_turns: 10
   use_bare_mode: false
   no_session_persistence: true
 
@@ -37,10 +38,11 @@ context_policy:
   start_mode: fresh_context
   fork_conversation_context: false
   session_persistence: false
-  input_mode: review_packet
+  input_mode: review_bundle
 
 permissions:
-  read_packet_only: true
+  read_packet_only: false
+  read_review_bundle_only: true
   write_files: false
   run_tests: false
   run_verification_instruments: false
@@ -48,11 +50,11 @@ permissions:
   may_request_additional_verification: true
 
 inputs:
-  review_packet_schema: schemas/review-packet.schema.json
+  review_request_schema: schemas/external-review-lite-request.schema.json
 
 outputs:
   reviewer_report_schema: schemas/reviewer-report.schema.json
-  invocation_metadata_schema: schemas/reviewer-invocation.schema.json
+  invocation_metadata_schema: schemas/external-review-lite-invocation.schema.json
 
 normalization:
   force_finding_status: candidate-unvalidated

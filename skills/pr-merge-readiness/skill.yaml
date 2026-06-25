@@ -1,0 +1,38 @@
+name: pr-merge-readiness
+type: skill
+version: 0.1
+purpose: Assemble a pull-request readiness report from already-produced evidence for deterministic readiness evaluation.
+inputs:
+- branch
+- base_branch
+- commit_range
+- worktree_state
+- verification_evidence
+- review_requirements_source
+- review_gate_evidence
+- review_reports
+- external_reviewer_invocation_metadata
+- finding_validation_report
+- collision_control_evidence
+- human_merge_decision
+outputs:
+- pr_merge_readiness_report
+- evidence_reference_list
+- unresolved_blocker_summary
+depends_on:
+- evidence-reporting
+compatible_workflows:
+- pr-merge-readiness
+quality_bar:
+- The report references evidence instead of rerunning gates or reviewers.
+- Required reviews are bound to a source artifact by path and SHA-256 hash.
+- Accepted merge-ready status requires fresh required review-gate evidence.
+- Missing, stale or mock evidence is explicit.
+- Accepted merge-ready status depends on deterministic evaluation and hash-bound human decision evidence.
+- Review topology and reviewer assignment remain owned by the source workflow or project binding.
+anti_patterns:
+- Launching reviewers from this skill.
+- Choosing review topology for the PR acceptance gate.
+- Treating green tests without required review-gate evidence as merge-ready.
+- Treating mock external reviewer evidence as live provider evidence.
+- Accepting a PR without deterministic evaluator success.

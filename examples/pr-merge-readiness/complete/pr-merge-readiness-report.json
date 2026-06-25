@@ -37,6 +37,11 @@
     }
   ],
   "review_requirements": {
+    "source": {
+      "kind": "explicit_review_gate",
+      "path": "review-requirements.yaml",
+      "artifact_hash": "sha256:5411113cdc241b17f0873d3969f39de2d9869751720642ffd201a525048de832"
+    },
     "required_reviews": [
       {
         "id": "generalist-a",
@@ -59,10 +64,7 @@
         "provider": "internal-agent",
         "required_live": false
       }
-    ],
-    "review_prompt_contract_path": "review-prompt-contract.yaml",
-    "review_invocation_set_path": "review-invocation-set.json",
-    "rubric_path": "rubric.json"
+    ]
   },
   "reviews": [
     {
@@ -73,9 +75,7 @@
       "packet_path": "review-packets/generalist-a.json",
       "report_path": "reviewer-report.generalist-a.json",
       "packet_prepared_at": "2026-06-22T10:00:00Z",
-      "latest_material_change_at": "2026-06-22T09:30:00Z",
-      "prompt_path": "review-prompts/generalist-a.md",
-      "role_contract_path": "profiles/reviewer_roles/generalist.yaml"
+      "latest_material_change_at": "2026-06-22T09:30:00Z"
     },
     {
       "id": "generalist-b",
@@ -85,9 +85,7 @@
       "packet_path": "review-packets/generalist-b.json",
       "report_path": "reviewer-report.generalist-b.json",
       "packet_prepared_at": "2026-06-22T10:00:00Z",
-      "latest_material_change_at": "2026-06-22T09:30:00Z",
-      "prompt_path": "review-prompts/generalist-b.md",
-      "role_contract_path": "profiles/reviewer_roles/generalist.yaml"
+      "latest_material_change_at": "2026-06-22T09:30:00Z"
     },
     {
       "id": "adversarial-codex",
@@ -97,9 +95,7 @@
       "packet_path": "review-packets/adversarial-codex.json",
       "report_path": "reviewer-report.adversarial-codex.json",
       "packet_prepared_at": "2026-06-22T10:00:00Z",
-      "latest_material_change_at": "2026-06-22T09:30:00Z",
-      "prompt_path": "review-prompts/adversarial-codex.md",
-      "role_contract_path": "profiles/reviewer_roles/adversarial.yaml"
+      "latest_material_change_at": "2026-06-22T09:30:00Z"
     }
   ],
   "external_review_evidence": [],

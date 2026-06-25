@@ -15,7 +15,6 @@
     "composition",
     "prompt_policy",
     "role_contract",
-    "review_prompt_contract",
     "context_policy",
     "changed_files",
     "risk_surface_profile",
@@ -76,20 +75,6 @@
     },
     "role_contract_hash": {
       "type": "string"
-    },
-    "review_prompt_contract": {
-      "type": "object",
-      "required": ["path", "schema"],
-      "additionalProperties": true,
-      "properties": {
-        "path": {
-          "type": "string",
-          "minLength": 1
-        },
-        "schema": {
-          "type": "string"
-        }
-      }
     },
     "collision_control": {
       "type": ["object", "null"],
