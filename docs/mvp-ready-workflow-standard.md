@@ -151,6 +151,11 @@ The Claude provider is in v0.2 MVP scope, but narrowly:
 - review packet in, normalized reviewer report out;
 - invocation metadata stored, with raw output stored only when explicitly
   non-sensitive;
+- standalone external review can use `lite`: a bounded review request with
+  referenced artifact paths and hashes. Use `strict-sealed` when a concrete risk
+  requires embedding or otherwise proving the exact sealed provider input set,
+  or when the current workflow validator requires strict invocation-set
+  evidence;
 - Codex-launched live runs use escalated sandbox access for subscription-local
   auth. Stdin packet transport disables Claude Code tools with `--tools ""`;
   file prompt transport may use only `--tools Read` for the generated prompt
@@ -158,6 +163,12 @@ The Claude provider is in v0.2 MVP scope, but narrowly:
 - provider/model diversity is proved through assignment, invocation-set and
   reviewer-report evidence, not by role names alone;
 - findings remain candidate/unvalidated.
+
+`run_external_review_lite.py` is the helper for ordinary standalone live
+external review. The strict packet-bound `run_external_reviewer.py` path remains
+available for explicit `strict-sealed` runs and current PR-readiness
+invocation-set validation. Live runs must not bypass project-bound wrappers with
+direct provider commands.
 
 ## Release / PR readiness note
 

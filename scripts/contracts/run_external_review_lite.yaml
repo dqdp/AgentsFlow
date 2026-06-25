@@ -1,0 +1,25 @@
+name: run_external_review_lite
+type: script
+version: 1
+entrypoint: scripts/reviewers/run_external_review_lite.py
+inputs:
+  - provider config
+  - review goal
+  - branch base/head refs
+  - optional explicit include artifacts
+  - optional staged and unstaged tracked diffs for pre-commit review
+outputs:
+  - external-review-lite-request.json
+  - review bundle artifacts and hashes
+  - effective provider config snapshot and hash
+  - normalized reviewer report
+  - lite invocation metadata
+deterministic: false
+ci_compatible: false
+notes: >
+  This script implements the lite external-review context transport for
+  ordinary standalone review. It creates a declared review bundle and invokes
+  the same Claude Code provider adapter without requiring a review prompt
+  contract or strict packet materialization. Current PR-readiness validators
+  still use strict invocation-set evidence until lite evidence is accepted
+  explicitly.

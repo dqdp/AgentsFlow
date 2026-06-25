@@ -191,6 +191,15 @@ When applying AgentsFlow to a concrete project:
 - Store review packets, normalized reviewer report and invocation metadata as
   run evidence. Store raw provider output only when explicitly non-sensitive;
   otherwise store a redacted artifact, summary or pointer.
+- Ordinary standalone external review can use `lite`: a small review request
+  plus referenced review-bundle artifacts and hashes. Use `strict-sealed` when a
+  concrete risk requires embedded/sealed provider input, redacted context, no
+  external file access, clean-room proof of the exact bytes shown to the
+  provider, or the current validator requires strict invocation-set evidence.
+  Use `scripts/reviewers/run_external_review_lite.py` for lite review and
+  `scripts/reviewers/run_external_reviewer.py` for explicit strict-sealed
+  packet-bound review. Do not bypass project-bound wrappers with direct provider
+  calls.
 
 ## Validation
 

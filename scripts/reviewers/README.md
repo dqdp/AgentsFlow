@@ -2,6 +2,29 @@
 
 This directory contains the MVP external reviewer wrapper.
 
+## Context mode policy
+
+External review should use `lite` mode for ordinary standalone live reviews
+when the workflow or project binding accepts lite evidence: a small review
+request plus referenced review-bundle artifacts and hashes. This avoids
+embedding the whole repository context into one packet.
+
+Use `strict-sealed` only when a concrete risk requires it: no external file
+access, sensitive/redacted context, clean-room proof of exact provider input, or
+a project binding that explicitly requires sealed evidence.
+
+`run_external_review_lite.py` implements this path. It writes
+`external-review-lite-request.json`, snapshots explicit include files, writes a
+branch diff artifact, optionally records staged/unstaged tracked diffs for
+pre-commit review, invokes Claude Code with `--tools Read`, and records
+normalized report plus lite invocation metadata, including the effective lite
+provider config hash. Lite records a declared input boundary; it is not a hard
+filesystem sandbox.
+
+Do not emulate `lite` mode by calling `claude` directly; use the project-bound
+lite helper so review request, artifact hashes, normalized report and invocation
+metadata are recorded.
+
 ## v0.2 MVP provider
 
 `run_external_reviewer.py` supports the first MVP provider:
@@ -91,6 +114,28 @@ python3 scripts/reviewers/run_review_set.py \
   --contract Docs/agentsflow/runs/<run-id>/review-prompt-contract.yaml \
   --output Docs/agentsflow/runs/<run-id>/review-invocation-set.json
 ```
+
+## Lite external review
+
+Ordinary standalone external review can use the lite helper instead of manually
+preparing a prompt contract and strict packet:
+
+```bash
+python3 scripts/reviewers/run_external_review_lite.py \
+  --provider claude-code \
+  --config .agentsflow/external-reviewers/claude-code.yaml \
+  --output-dir Docs/agentsflow/runs/<run-id>/external-review-lite \
+  --goal "Review this branch for acceptance-impacting defects." \
+  --run-id <run-id> \
+  --base-ref main \
+  --head-ref HEAD \
+  --include AGENTS.md
+```
+
+For pre-commit review, stage intended new files first and add
+`--include-uncommitted` so staged and unstaged tracked diffs are bundled. Use
+`run_external_reviewer.py` when the run explicitly requires `strict-sealed`
+packet-bound evidence or current PR-readiness invocation-set validation.
 
 ## Smoke test without Claude
 

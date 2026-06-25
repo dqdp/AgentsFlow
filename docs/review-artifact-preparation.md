@@ -21,6 +21,12 @@ important, or whether a finding is valid. Those decisions remain workflow,
 project-binding, run or main-agent decisions. The script only materializes and
 hashes declared inputs.
 
+Preparation is mainly for strict provider-assigned gates. Ordinary standalone
+external review can use `lite` mode: a small review request plus referenced
+review-bundle artifacts and hashes. In `lite` mode the declared input boundary is
+recorded, but the full diff or source context does not have to be embedded in the
+review packet. Use `scripts/reviewers/run_external_review_lite.py` for this path.
+
 ## Preparation Evidence
 
 A completed preparation artifact can record:
@@ -45,9 +51,12 @@ inputs:
 `inputs.evidence_report` remains available for ordinary verification evidence.
 It is not the review invocation set.
 
-`run_review_set.py` validates the review prompt contract, assignment coverage,
-reviewer reports, external invocation metadata and the completed invocation set.
-It does not require a separate preparation artifact before dispatch. Projects
+`run_review_set.py` is a dispatcher for a declared review prompt contract. Before
+dispatch it checks assignment coverage and output-path aliasing; after dispatch
+it records invocation-set evidence for repository validation. Full prompt
+contract, reviewer report and invocation metadata validation remains the
+responsibility of repository validation and the external reviewer wrapper. The
+runner does not require a separate preparation artifact before dispatch. Projects
 may still use `prepare_review_set_artifacts.py` when they want deterministic
 packet/prompt materialization and dirty-worktree accounting.
 External reviewer collection is bounded by `--external-reviewer-timeout-seconds`

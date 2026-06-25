@@ -8,7 +8,9 @@ The initial MVP provider is **Claude Code CLI**, invoked from another harness su
 
 External model reviewers must be invoked only through explicit project-bound wrappers.
 
-A wrapper receives a bounded **review packet** and returns a normalized `reviewer-report.json` that conforms to the AgentsFlow reviewer-report schema.
+A wrapper receives a bounded **review packet** or a lite review request with
+referenced artifacts, then returns a normalized `reviewer-report.json` that
+conforms to the AgentsFlow reviewer-report schema.
 
 External reviewers:
 
@@ -22,6 +24,56 @@ External reviewers:
 - do not produce patches;
 - produce candidate findings only;
 - must pass main/orchestrating-agent relevance validation before their findings affect the workflow decision.
+
+## Context transport modes
+
+External review has two context transport modes.
+
+### `lite` mode, ordinary standalone default
+
+Use `lite` for ordinary standalone external reviews when the workflow or
+project binding accepts lite evidence.
+
+In `lite` mode the review context boundary is explicit, but the full context
+does not have to be embedded in one JSON packet. The run records:
+
+- a small review request with goal, workflow/run ids, branch/base/head and
+  forbidden actions;
+- changed-file and verification summaries;
+- referenced artifacts such as a generated branch diff, contracts, gate reports
+  or selected docs;
+- hashes for referenced artifacts;
+- normalized reviewer report and invocation metadata.
+
+The external reviewer receives a declared review bundle and must cite only that
+bundle. This is a policy and evidence boundary, not an operating-system
+filesystem sandbox. It must not run tests and must not modify files.
+
+`scripts/reviewers/run_external_review_lite.py` is the helper for this mode. It
+generates the review request, branch diff artifact, optional staged/unstaged
+diff artifacts, optional included file snapshots, normalized reviewer report and
+lite invocation metadata, including the effective lite provider config hash.
+Dirty worktrees are rejected unless the caller
+explicitly includes staged and unstaged tracked diffs; untracked files must be
+staged first.
+
+### `strict-sealed` mode, exception
+
+Use `strict-sealed` only when a concrete risk requires it:
+
+- the provider must not read repository files or generated artifact files;
+- sensitive context must be curated or redacted before provider use;
+- the run needs clean-room proof of the exact bytes shown to the provider;
+- the review is security/authority-sensitive enough that referenced artifacts
+  are not an acceptable context boundary;
+- a project binding explicitly requires sealed external-provider evidence.
+
+In this mode the packet or generated prompt carries the substantive context, or
+the wrapper otherwise proves the sealed input set. The current
+`run_external_reviewer.py` wrapper implements the strict packet-bound path.
+
+The required guarantee is a reproducible context boundary, not mandatory
+embedding of all context into one artifact.
 
 ## MVP provider: Claude Code CLI
 
@@ -47,10 +99,11 @@ The MVP implementation target is intentionally narrow:
   reviewer invocations because plan mode may route the deliverable into
   Claude-managed plan artifacts instead of returning schema-bound JSON to the
   wrapper;
-- tool mode: Claude Code tools are disabled for stdin prompt transport. For
-  file prompt transport, only the `Read` tool is allowed and only so Claude can
-  read the generated review prompt file from its isolated temporary reviewer
-  directory;
+- tool mode: Claude Code tools are disabled for stdin prompt transport. Strict
+  file prompt transport may use only the `Read` tool for the generated review
+  prompt file in an isolated temporary reviewer directory. Lite review also
+  uses `Read` for the generated review bundle directory. Lite mode records a
+  declared input boundary but does not claim hard filesystem sandboxing;
 - output: normalized reviewer report + invocation metadata, plus raw output
   only when the provider config explicitly preserves non-sensitive raw output;
 - normalization trace: source path/hash in the reviewer report, output hash in
@@ -154,6 +207,11 @@ Model reviewers return structured findings and summaries; they are not
 responsible for inventing file paths or evidence hashes. When deterministic
 artifact assembly is needed, `prepare_review_set_artifacts.py` can materialize
 declared packets, prompts and preparation evidence before dispatch.
+
+Full prompt-contract preparation is not required for standalone `lite` external
+review. PR-merge-readiness and strict provider-assigned gates still use the
+strict invocation-set evidence path until their validators explicitly accept
+lite invocation evidence.
 
 Example assignment shape:
 

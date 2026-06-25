@@ -81,6 +81,9 @@ def strip_json_markdown_fence(value: str) -> str:
                 extracted = decode_report_object(text.split(marker, 1)[1])
                 if extracted:
                     return extracted
+        extracted = decode_report_object(text)
+        if extracted:
+            return extracted
         extracted = decode_first_object(text) if text.startswith("{") else None
         if extracted:
             return extracted
@@ -575,6 +578,33 @@ def require_reviewer_report_shape(raw: dict[str, Any], provider_name: str) -> No
         raise ValueError(f"{provider_name} provider result must contain reviewer-report JSON")
 
 
+def provider_output_diagnostic(raw: object) -> dict[str, Any]:
+    diagnostic: dict[str, Any] = {"top_level_type": type(raw).__name__}
+    if not isinstance(raw, dict):
+        return diagnostic
+    diagnostic["top_level_keys"] = sorted(str(key) for key in raw.keys())
+    diagnostic["is_reviewer_report_like"] = is_reviewer_report_like(raw)
+    if raw.get("type") == "result" and "result" in raw:
+        result = raw.get("result")
+        diagnostic["claude_envelope"] = {
+            "subtype": raw.get("subtype"),
+            "is_error": raw.get("is_error"),
+            "result_type": type(result).__name__,
+        }
+        if isinstance(result, str):
+            diagnostic["claude_envelope"]["result_length"] = len(result)
+            diagnostic["claude_envelope"]["result_hash"] = sha256_text(result)
+            try:
+                parsed = json.loads(strip_json_markdown_fence(result))
+            except json.JSONDecodeError:
+                diagnostic["claude_envelope"]["embedded_reviewer_report_json"] = False
+            else:
+                diagnostic["claude_envelope"]["embedded_reviewer_report_json"] = is_reviewer_report_like(parsed)
+        elif isinstance(result, dict):
+            diagnostic["claude_envelope"]["embedded_reviewer_report_json"] = is_reviewer_report_like(result)
+    return diagnostic
+
+
 def extract_provider_reviewer_report(raw: dict[str, Any], provider: str) -> dict[str, Any]:
     if provider != "claude-code":
         return raw
@@ -584,6 +614,9 @@ def extract_provider_reviewer_report(raw: dict[str, Any], provider: str) -> dict
     result = raw.get("result")
     if raw.get("is_error") is True:
         raise ValueError(f"Claude Code provider returned an error result: {str(result).strip()}")
+    if isinstance(result, dict):
+        require_reviewer_report_shape(result, "Claude Code")
+        return result
     if not isinstance(result, str) or not result.strip():
         raise ValueError("Claude Code provider result must contain reviewer-report JSON")
     result_text = strip_json_markdown_fence(result)
@@ -783,6 +816,7 @@ def main() -> int:
         raw_json = json.loads(raw_text)
         if not isinstance(raw_json, dict):
             raise ValueError("raw provider output must be a JSON object")
+        provider_diagnostic = provider_output_diagnostic(raw_json)
         reviewer_report = extract_provider_reviewer_report(raw_json, args.provider)
         normalized = normalize_report(reviewer_report, packet, args.provider)
         normalization_trace = {
@@ -835,6 +869,8 @@ def main() -> int:
             invocation["finished_at"] = finished.isoformat()
             invocation["failure_stage"] = "provider_output_processing"
             invocation["failure_message"] = str(exc)
+            if "provider_diagnostic" in locals():
+                invocation["provider_output_diagnostic"] = provider_diagnostic
             invocation_path.parent.mkdir(parents=True, exist_ok=True)
             invocation_path.write_text(
                 json.dumps(invocation, ensure_ascii=False, indent=2) + "\n",

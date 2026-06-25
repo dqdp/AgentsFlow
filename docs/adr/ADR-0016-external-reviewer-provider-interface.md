@@ -14,7 +14,30 @@ A direct ad-hoc command such as `claude -p "review this diff"` is too loose. It 
 
 AgentsFlow defines an **External Reviewer Provider Interface**.
 
-External model reviewers are invoked only through explicit project-bound wrappers. A wrapper receives a structured review packet and must return a normalized reviewer report.
+External model reviewers are invoked only through explicit project-bound
+wrappers. A wrapper receives either a structured review packet or a lite review
+request with referenced artifacts, and must return a normalized reviewer report.
+
+### 2026-06-25 mode-policy amendment
+
+External reviewer context has two transport modes:
+
+- `lite` is the ordinary standalone external-review helper when the workflow or
+  project binding accepts lite evidence. The run records a small review request
+  plus referenced artifacts and hashes. The reviewer receives a declared review
+  bundle and must cite only that bundle. This is not a hard filesystem sandbox.
+  The review context boundary is mandatory; embedding every byte of context into
+  the packet is not.
+- `strict-sealed` is an exception for sensitive or high-assurance reviews. The
+  packet or generated prompt must contain the substantive context, or the
+  wrapper must otherwise prove the exact sealed input set. Use this mode when
+  external file access is not acceptable, context must be redacted/curated
+  before provider use, or the workflow needs clean-room proof of the exact bytes
+  shown to the provider.
+
+Workflows and project bindings may select `lite` unless they record a concrete
+`strict-sealed` reason or the current validator requires strict invocation-set
+evidence.
 
 For the v0.2 MVP:
 
@@ -25,7 +48,10 @@ For the v0.2 MVP:
 - External reviewer findings are candidate findings and require main-agent relevance validation.
 - External reviewers do not replace verification gates.
 - External reviewers do not modify files or run tests by default.
-- The implementation is minimal: one provider, one wrapper path, one normalized reviewer-report output format, and stored invocation metadata.
+- The implementation is minimal: one provider, a lite helper for ordinary review,
+  a strict packet-bound wrapper for `strict-sealed` review, one normalized
+  reviewer-report output format, and stored invocation metadata. Lite mode must
+  not be simulated by ad hoc direct provider calls.
 
 ## Consequences
 

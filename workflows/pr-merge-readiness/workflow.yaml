@@ -247,10 +247,9 @@ exit_criteria:
 - Readiness report validates against `schemas/pr-merge-readiness-report.schema.json`.
 - Accepted merge-ready status has recorded human merge approval bound to the
   current material change and exact readiness report hash.
-- GitHub PR publication has an explicit intake decision; publication is an
-  optional post-acceptance action and does not block accepted merge-ready status.
-  If the report claims `published`, publication result evidence with a URL is
-  required.
+- GitHub PR publication is optional. Omitted, skipped or deferred publication
+  does not block accepted merge-ready status. If the report claims `published`,
+  publication result evidence with a URL is required.
 - Missing evidence, stale review evidence and live-vs-mock external review gaps
   are recorded as blockers or non-accepted states.
 - Rejected or downgraded plausible blocker-path candidate findings have

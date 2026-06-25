@@ -5006,6 +5006,372 @@ def test_external_reviewer_wrapper_mock_passes(tmp_path) -> None:
     assert invocation["tools"] == ""
 
 
+def test_external_reviewer_lite_mock_generates_bounded_bundle(tmp_path) -> None:
+    import jsonschema
+
+    raw = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": json.dumps(
+            {
+                "reviewer": {
+                    "id": "generalist-claude",
+                    "provider": "claude-code",
+                    "role": "generalist",
+                },
+                "summary": "Lite review found no blockers.",
+                "findings": [],
+            }
+        ),
+    }
+    raw_path = tmp_path / "mock-lite-raw.json"
+    raw_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+    bundle_dir = tmp_path / "lite-review"
+
+    result = run(
+        "scripts/reviewers/run_external_review_lite.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--output-dir",
+        str(bundle_dir),
+        "--goal",
+        "Review the branch in lite mode.",
+        "--run-id",
+        "test-lite-run",
+        "--base-ref",
+        "HEAD",
+        "--head-ref",
+        "HEAD",
+        "--include",
+        "AGENTS.md",
+        "--include-uncommitted",
+        "--mock-response",
+        str(raw_path),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    request_path = bundle_dir / "external-review-lite-request.json"
+    report_path = bundle_dir / "reviewer-report.claude-lite.json"
+    invocation_path = bundle_dir / "reviewer-invocation.claude-lite.json"
+    assert request_path.exists()
+    assert (bundle_dir / "artifacts" / "branch.diff").exists()
+    assert (bundle_dir / "artifacts" / "git-status.txt").exists()
+    assert (bundle_dir / "artifacts" / "staged.diff").exists()
+    assert (bundle_dir / "artifacts" / "unstaged.diff").exists()
+    assert (bundle_dir / "artifacts" / "AGENTS.md").exists()
+    assert not (bundle_dir / "review-prompt-contract.yaml").exists()
+
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    request_schema = json.loads((ROOT / "schemas/external-review-lite-request.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(request_schema).validate(request)
+    assert request["context_mode"] == "lite"
+    assert request["dirty_worktree"]["policy"] == "include_staged_and_unstaged_diffs"
+    if request["dirty_worktree"]["status"] == "dirty":
+        assert request["material_change_id"].startswith(request["branch"]["head_commit"] + "+dirty-")
+        assert request["dirty_worktree"]["material_change_id_basis_hash"].startswith("sha256:")
+    assert request["artifacts"][0]["kind"] == "branch_diff"
+    assert any(artifact.get("source_path") == "AGENTS.md" for artifact in request["artifacts"])
+
+    normalized = json.loads(report_path.read_text(encoding="utf-8"))
+    assert normalized["reviewer"]["id"] == "generalist-claude"
+    assert normalized["summary"] == "Lite review found no blockers."
+    assert normalized["normalization"]["normalized_by"] == "scripts/reviewers/run_external_review_lite.py"
+
+    invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+    invocation_schema = json.loads(
+        (ROOT / "schemas/external-review-lite-invocation.schema.json").read_text(encoding="utf-8")
+    )
+    jsonschema.Draft202012Validator(invocation_schema).validate(invocation)
+    effective_config_path = bundle_dir / "effective-provider-config.json"
+    assert effective_config_path.exists()
+    effective_config = json.loads(effective_config_path.read_text(encoding="utf-8"))
+    assert invocation["context_mode"] == "lite"
+    assert invocation["wrapper"] == "scripts/reviewers/run_external_review_lite.py"
+    assert invocation["prompt_transport"] == "file"
+    assert invocation["tools"] == "Read"
+    assert invocation["max_turns"] == 10
+    assert invocation["sandbox_mode"] == "require_escalated"
+    assert invocation["effective_provider_config_path"] == str(effective_config_path)
+    assert invocation["effective_provider_config_hash"] != invocation["provider_config_hash"]
+    assert effective_config["permissions"]["read_packet_only"] is False
+    assert effective_config["permissions"]["read_review_bundle_only"] is True
+    assert "review_packet_schema" not in effective_config["inputs"]
+    assert effective_config["inputs"]["review_request_schema"] == "schemas/external-review-lite-request.schema.json"
+    assert (
+        effective_config["outputs"]["invocation_metadata_schema"]
+        == "schemas/external-review-lite-invocation.schema.json"
+    )
+    assert invocation["raw_output_disposition"]["stored"] is True
+    assert invocation["raw_output_disposition"]["kind"] == "raw_output"
+    assert invocation["review_request_hash"] == invocation["input_hash"]
+
+
+def test_external_reviewer_lite_replace_output_dir_requires_prior_lite_bundle(tmp_path) -> None:
+    bundle_dir = tmp_path / "not-a-lite-bundle"
+    bundle_dir.mkdir()
+    (bundle_dir / "important.txt").write_text("keep", encoding="utf-8")
+
+    result = run(
+        "scripts/reviewers/run_external_review_lite.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--output-dir",
+        str(bundle_dir),
+        "--replace-output-dir",
+        "--goal",
+        "Review the branch in lite mode.",
+        "--run-id",
+        "test-lite-run",
+        "--base-ref",
+        "HEAD",
+        "--head-ref",
+        "HEAD",
+        "--include-uncommitted",
+        "--mock-response",
+        str(tmp_path / "missing.json"),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    assert "Refusing to delete" in result.stderr
+    assert (bundle_dir / "important.txt").exists()
+
+
+def test_external_reviewer_lite_live_relative_output_dir_uses_readable_prompt_path(tmp_path) -> None:
+    import jsonschema
+    import shutil
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_claude = fake_bin / "claude"
+    fake_claude.write_text(
+        """#!/usr/bin/env python3
+import json
+import pathlib
+import sys
+
+prompt_arg = sys.argv[2]
+prompt_path = pathlib.Path(prompt_arg.rsplit(": ", 1)[-1])
+if not prompt_path.is_file():
+    print(json.dumps({"type": "result", "subtype": "error", "is_error": True, "result": f"missing prompt: {prompt_path}"}))
+    sys.exit(1)
+report = {
+    "reviewer": {"id": "generalist-claude", "provider": "claude-code", "role": "generalist"},
+    "summary": "Lite live fake review found no blockers.",
+    "findings": [],
+}
+print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": json.dumps(report)}))
+""",
+        encoding="utf-8",
+    )
+    fake_claude.chmod(0o755)
+    output_rel = Path("run-artifacts/agentsflow/test-lite-relative") / tmp_path.name / "external-review-lite"
+    shutil.rmtree(ROOT / output_rel, ignore_errors=True)
+    env = clean_env()
+    env["PATH"] = str(fake_bin) + os.pathsep + env.get("PATH", "")
+
+    try:
+        result = run(
+            "scripts/reviewers/run_external_review_lite.py",
+            "--provider",
+            "claude-code",
+            "--config",
+            "examples/external-reviewers/claude-code/claude-code.yaml",
+            "--output-dir",
+            output_rel.as_posix(),
+            "--goal",
+            "Review the branch in lite mode.",
+            "--run-id",
+            "test-lite-run",
+            "--base-ref",
+            "HEAD",
+            "--head-ref",
+            "HEAD",
+            "--include-uncommitted",
+            env=env,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        invocation_path = ROOT / output_rel / "reviewer-invocation.claude-lite.json"
+        invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+        invocation_schema = json.loads(
+            (ROOT / "schemas/external-review-lite-invocation.schema.json").read_text(encoding="utf-8")
+        )
+        jsonschema.Draft202012Validator(invocation_schema).validate(invocation)
+        assert invocation["execution_mode"] == "real"
+        assert invocation["exit_code"] == 0
+        assert invocation["effective_provider_config_hash"] != invocation["provider_config_hash"]
+        assert invocation["raw_output_disposition"]["stored"] is True
+    finally:
+        shutil.rmtree(ROOT / output_rel.parent, ignore_errors=True)
+
+
+def test_external_reviewer_lite_malformed_output_preserves_failure_raw_hash(tmp_path) -> None:
+    import hashlib
+    import jsonschema
+
+    raw = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": "not reviewer report json",
+    }
+    raw_path = tmp_path / "mock-lite-malformed-raw.json"
+    raw_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+    bundle_dir = tmp_path / "lite-review-malformed"
+
+    result = run(
+        "scripts/reviewers/run_external_review_lite.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--output-dir",
+        str(bundle_dir),
+        "--goal",
+        "Review the branch in lite mode.",
+        "--run-id",
+        "test-lite-run",
+        "--base-ref",
+        "HEAD",
+        "--head-ref",
+        "HEAD",
+        "--include-uncommitted",
+        "--mock-response",
+        str(raw_path),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    invocation_path = bundle_dir / "reviewer-invocation.claude-lite.json"
+    raw_output_path = bundle_dir / "reviewer-report.claude-lite.raw.json"
+    invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+    invocation_schema = json.loads(
+        (ROOT / "schemas/external-review-lite-invocation.schema.json").read_text(encoding="utf-8")
+    )
+    jsonschema.Draft202012Validator(invocation_schema).validate(invocation)
+    assert invocation["failure_stage"] == "provider_output_processing"
+    assert invocation["raw_output_path"] == str(raw_output_path)
+    assert invocation["raw_output_disposition"]["kind"] == "raw_output"
+    assert invocation["raw_output_hash"] != "sha256:" + "0" * 64
+    assert invocation["raw_output_hash"] == "sha256:" + hashlib.sha256(raw_output_path.read_bytes()).hexdigest()
+
+
+def test_external_reviewer_lite_malformed_output_without_raw_persistence_records_diagnostic(tmp_path) -> None:
+    import jsonschema
+
+    raw = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": "No findings.",
+    }
+    raw_path = tmp_path / "mock-lite-malformed-raw.json"
+    raw_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+    config_path = tmp_path / "claude-code-no-raw.yaml"
+    config_path.write_text(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml")
+        .read_text(encoding="utf-8")
+        .replace("preserve_raw_output: true", "preserve_raw_output: false"),
+        encoding="utf-8",
+    )
+    bundle_dir = tmp_path / "lite-review-malformed-no-raw"
+
+    result = run(
+        "scripts/reviewers/run_external_review_lite.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        str(config_path),
+        "--output-dir",
+        str(bundle_dir),
+        "--goal",
+        "Review the branch in lite mode.",
+        "--run-id",
+        "test-lite-run",
+        "--base-ref",
+        "HEAD",
+        "--head-ref",
+        "HEAD",
+        "--include-uncommitted",
+        "--mock-response",
+        str(raw_path),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 2
+    invocation_path = bundle_dir / "reviewer-invocation.claude-lite.json"
+    invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+    invocation_schema = json.loads(
+        (ROOT / "schemas/external-review-lite-invocation.schema.json").read_text(encoding="utf-8")
+    )
+    jsonschema.Draft202012Validator(invocation_schema).validate(invocation)
+    assert invocation["failure_stage"] == "provider_output_processing"
+    assert invocation["raw_output_path"] == ""
+    assert invocation["raw_output_disposition"]["kind"] == "omission_reason"
+    diagnostic = invocation["provider_output_diagnostic"]["claude_envelope"]
+    assert diagnostic["result_type"] == "str"
+    assert diagnostic["result_length"] == len("No findings.")
+    assert diagnostic["embedded_reviewer_report_json"] is False
+
+
+def test_external_reviewer_lite_provider_exception_writes_failure_invocation(tmp_path) -> None:
+    import jsonschema
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_claude = fake_bin / "claude"
+    fake_claude.write_text("#!/bin/sh\nsleep 5\n", encoding="utf-8")
+    fake_claude.chmod(0o755)
+    config_path = tmp_path / "claude-code-timeout.yaml"
+    config_path.write_text(
+        (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml")
+        .read_text(encoding="utf-8")
+        .replace("timeout_seconds: 900", "timeout_seconds: 0"),
+        encoding="utf-8",
+    )
+    bundle_dir = tmp_path / "external-review-lite"
+    env = clean_env()
+    env["PATH"] = str(fake_bin) + os.pathsep + env.get("PATH", "")
+
+    result = run(
+        "scripts/reviewers/run_external_review_lite.py",
+        "--provider",
+        "claude-code",
+        "--config",
+        str(config_path),
+        "--output-dir",
+        str(bundle_dir),
+        "--goal",
+        "Review the branch in lite mode.",
+        "--run-id",
+        "test-lite-run",
+        "--base-ref",
+        "HEAD",
+        "--head-ref",
+        "HEAD",
+        "--include-uncommitted",
+        env=env,
+    )
+
+    assert result.returncode == 2
+    invocation_path = bundle_dir / "reviewer-invocation.claude-lite.json"
+    invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+    invocation_schema = json.loads(
+        (ROOT / "schemas/external-review-lite-invocation.schema.json").read_text(encoding="utf-8")
+    )
+    jsonschema.Draft202012Validator(invocation_schema).validate(invocation)
+    assert invocation["failure_stage"] == "provider_invocation_exception"
+    assert invocation["command"] == "provider-call-not-completed"
+    assert invocation["raw_output_disposition"]["kind"] == "omission_reason"
+    assert invocation["raw_output_hash"] == "sha256:" + "0" * 64
+
+
 def test_claude_code_provider_command_defaults_model_and_effort() -> None:
     import sys
 
@@ -5216,6 +5582,44 @@ def test_external_reviewer_wrapper_normalizes_schema_adjacent_claude_code_result
     assert normalized["normalization"]["schema_validation"] == "passed"
 
 
+def test_external_reviewer_wrapper_extracts_prose_prefixed_reviewer_json(tmp_path) -> None:
+    import json
+
+    reviewer_report = {
+        "reviewer": {
+            "id": "claude-code-architecture",
+            "provider": "claude-code",
+            "role": "architecture",
+        },
+        "summary": "Prefixed JSON summary",
+        "findings": [],
+    }
+    raw = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": "Here is the requested reviewer-report JSON:\n" + json.dumps(reviewer_report),
+    }
+    raw_path = tmp_path / "claude-prefixed-report.json"
+    raw_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+    out = tmp_path / "reviewer-report.json"
+
+    result = run(
+        "scripts/reviewers/run_external_reviewer.py",
+        "--provider", "claude-code",
+        "--config", "examples/external-reviewers/claude-code/claude-code.yaml",
+        "--input", "examples/external-reviewers/claude-code/review-packet.architecture.json",
+        "--mock-response", str(raw_path),
+        "--output", str(out),
+        env=clean_env(),
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    normalized = json.loads(out.read_text(encoding="utf-8"))
+    assert normalized["summary"] == "Prefixed JSON summary"
+    assert normalized["normalization"]["method"] == "deterministic-extraction"
+
+
 def test_external_reviewer_wrapper_can_skip_raw_output_persistence(tmp_path) -> None:
     import json
 
@@ -5306,6 +5710,10 @@ def test_external_reviewer_wrapper_rejects_non_json_claude_code_envelope(tmp_pat
     jsonschema.Draft202012Validator(schema).validate(invocation)
     assert invocation["failure_stage"] == "provider_output_processing"
     assert "reviewer-report JSON" in invocation["failure_message"]
+    diagnostic = invocation["provider_output_diagnostic"]["claude_envelope"]
+    assert diagnostic["result_type"] == "str"
+    assert diagnostic["result_length"] == len("No findings.")
+    assert diagnostic["embedded_reviewer_report_json"] is False
     assert "normalized_output_hash" not in invocation
 
 

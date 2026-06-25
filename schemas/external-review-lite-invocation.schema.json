@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agentsflow/external-review-lite-invocation.schema.json",
+  "title": "AgentsFlow External Review Lite Invocation Metadata",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "provider",
+    "reviewer_role",
+    "context_mode",
+    "billing_mode",
+    "api_key_usage_forbidden",
+    "context_policy",
+    "forbidden_env_checked",
+    "command",
+    "wrapper",
+    "provider_config_path",
+    "provider_config_hash",
+    "effective_provider_config_path",
+    "effective_provider_config_hash",
+    "execution_mode",
+    "permission_mode",
+    "prompt_transport",
+    "sandbox_mode",
+    "tools",
+    "output_format",
+    "requested_model",
+    "requested_effort",
+    "review_request_path",
+    "review_request_hash",
+    "review_bundle_path",
+    "input_hash",
+    "prompt_hash",
+    "schema_hash",
+    "started_at",
+    "finished_at",
+    "exit_code",
+    "raw_output_path",
+    "raw_output_hash",
+    "raw_output_disposition",
+    "normalized_output_path"
+  ],
+  "properties": {
+    "provider": {"const": "claude-code"},
+    "reviewer_role": {"type": "string"},
+    "context_mode": {"const": "lite"},
+    "billing_mode": {"const": "subscription-local"},
+    "api_key_usage_forbidden": {"const": true},
+    "context_policy": {
+      "type": "object",
+      "required": ["start_mode", "fork_conversation_context", "session_persistence", "input_mode"],
+      "additionalProperties": true,
+      "properties": {
+        "start_mode": {"const": "fresh_context"},
+        "fork_conversation_context": {"const": false},
+        "session_persistence": {"const": false},
+        "input_mode": {"const": "review_bundle"}
+      }
+    },
+    "forbidden_env_checked": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "command": {"type": "string"},
+    "wrapper": {"const": "scripts/reviewers/run_external_review_lite.py"},
+    "provider_config_path": {"type": "string", "minLength": 1},
+    "provider_config_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "effective_provider_config_path": {"type": "string", "minLength": 1},
+    "effective_provider_config_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "execution_mode": {"enum": ["real", "mock"]},
+    "permission_mode": {"const": "default"},
+    "prompt_transport": {"const": "file"},
+    "sandbox_mode": {"const": "require_escalated"},
+    "tools": {"const": "Read"},
+    "output_format": {"const": "json"},
+    "requested_model": {"const": "opus"},
+    "requested_effort": {"const": "max"},
+    "provider_models_used": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "provider_model_usage": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "provider_total_cost_usd": {"type": "number"},
+    "provider_service_tier": {"type": "string"},
+    "provider_speed": {"type": "string"},
+    "max_turns": {"type": "integer"},
+    "timeout_seconds": {"type": "integer"},
+    "review_request_path": {"type": "string", "minLength": 1},
+    "review_request_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "review_bundle_path": {"type": "string", "minLength": 1},
+    "input_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "prompt_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "schema_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "started_at": {"type": "string"},
+    "finished_at": {"type": "string"},
+    "exit_code": {"type": "integer"},
+    "raw_output_path": {"type": "string"},
+    "raw_output_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "raw_output_disposition": {
+      "type": "object",
+      "required": ["stored", "kind"],
+      "additionalProperties": true,
+      "properties": {
+        "stored": {"type": "boolean"},
+        "kind": {"enum": ["raw_output", "redacted_output", "summary_artifact", "pointer", "omission_reason"]},
+        "reason": {"type": "string"},
+        "path": {"type": "string"},
+        "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "normalized_output_path": {"type": "string"},
+    "normalized_output_hash": {"type": "string"},
+    "failure_stage": {"type": "string"},
+    "failure_message": {"type": "string"},
+    "normalization": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "method": {
+          "enum": [
+            "native-json",
+            "deterministic-extraction",
+            "orchestrator-extraction",
+            "model-structured-extraction"
+          ]
+        },
+        "source_path": {"type": "string"},
+        "source_hash": {"type": "string"},
+        "output_path": {"type": "string"},
+        "output_hash": {"type": "string"},
+        "schema_validation": {"const": "passed"},
+        "normalized_by": {"const": "scripts/reviewers/run_external_review_lite.py"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"required": ["failure_stage"]},
+      "then": {"required": ["failure_message"]},
+      "else": {"required": ["normalized_output_hash"]}
+    }
+  ]
+}
