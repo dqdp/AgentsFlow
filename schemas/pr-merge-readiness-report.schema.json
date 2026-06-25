@@ -17,10 +17,7 @@
     "reviews",
     "external_review_evidence",
     "candidate_findings",
-    "human_decision",
-    "github_publication",
-    "self_application",
-    "residual_limitations"
+    "human_decision"
   ],
   "allOf": [
     {
@@ -93,9 +90,10 @@
     "review_requirements": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["required_reviews"],
+      "required": ["review_prompt_contract_path", "review_invocation_set_path", "required_reviews"],
       "properties": {
         "review_prompt_contract_path": {"type": "string", "minLength": 1},
+        "review_invocation_set_path": {"type": "string", "minLength": 1},
         "rubric_path": {"type": "string", "minLength": 1},
         "required_reviews": {
           "type": "array",
@@ -192,6 +190,11 @@
           "severity": {"enum": ["P0", "P1", "P2", "P3", "NOTE"]},
           "validated_severity": {"enum": ["P0", "P1", "P2", "P3", "NOTE"]},
           "status": {"enum": ["accepted", "rejected", "downgraded", "duplicate", "needs-more-evidence"]},
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
           "blocker_path": {"type": "string", "minLength": 1},
           "acceptance_impact": {"type": "string", "minLength": 1},
           "mandatory_evidence_gap": {"type": "boolean"},
@@ -216,16 +219,10 @@
       "type": "object",
       "additionalProperties": true,
       "required": [
-        "decision_required",
-        "decision_id",
-        "decision_path",
         "status",
         "required_for_merge_readiness"
       ],
       "properties": {
-        "decision_required": {"type": "boolean"},
-        "decision_id": {"type": "string", "const": "github.publication"},
-        "decision_path": {"type": "string"},
         "status": {
           "enum": [
             "requested",

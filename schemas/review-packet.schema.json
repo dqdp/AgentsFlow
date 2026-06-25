@@ -17,6 +17,7 @@
     "role_contract",
     "review_prompt_contract",
     "context_policy",
+    "changed_files",
     "risk_surface_profile",
     "failure_path_matrix",
     "verification_gate_report",
@@ -45,7 +46,9 @@
       "type": "string"
     },
     "review_goal": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
     },
     "review_profile": {
       "type": "string",
@@ -155,7 +158,23 @@
       }
     },
     "focus_zone": {
-      "type": "object"
+      "type": "object",
+      "required": ["primary_focus"],
+      "additionalProperties": true,
+      "properties": {
+        "primary_focus": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "may_report_outside_focus": {
+          "type": "boolean"
+        }
+      }
     },
     "context_policy": {
       "type": "object",
@@ -182,7 +201,9 @@
     "changed_files": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
       }
     },
     "risk_surface_profile": {
@@ -321,7 +342,6 @@
       "type": "object",
       "required": [
         "material_change_id",
-        "latest_green_gate",
         "review_packet_generated_after_latest_green_gate",
         "stale_evidence_marked_or_excluded"
       ],
@@ -335,7 +355,8 @@
         "latest_green_gate": {
           "type": "string",
           "minLength": 1,
-          "pattern": "\\S"
+          "pattern": "\\S",
+          "description": "Optional legacy mirror of verification_gate_report.path. New packets should use verification_gate_report.path as the canonical green gate reference."
         },
         "review_packet_generated_after_latest_green_gate": {
           "const": true

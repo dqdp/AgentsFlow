@@ -3,12 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from .common import (
-    compare_hash,
     parse_json,
     parse_yaml,
     safe_resolve,
-    sha256_file,
-    sha256_text,
     validate_against_schema,
 )
 from .gates import STRICTNESS_OVERRIDE_SOURCES, supported_workflow_strictness

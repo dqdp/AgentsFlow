@@ -38,8 +38,10 @@ A contract records:
 - at least one review subject: `task_contract`, `reviewed_artifact`, or
   `reviewed_artifacts`;
 - verification gate report and evidence report when applicable;
-- structured review artifact preparation evidence when provider assignments are
-  used for a run-scope gate;
+- review invocation set evidence when provider assignments are used for a
+  run-scope gate;
+- optional review artifact preparation evidence when deterministic packet/prompt
+  materialization is used;
 - project agent instructions such as `AGENTS.md`, when they are part of the
   reviewer context;
 - reviewer-report output schema;
@@ -51,6 +53,23 @@ The contract does not require `CLAUDE.md` or any other provider-specific
 instruction file. Provider-specific guidance may be included only as an explicit
 artifact in the same packet/contract mechanism; it is not a parallel source of
 review authority.
+
+## Field Ownership
+
+Review artifacts intentionally repeat some identity fields to prevent stale or
+misattributed evidence, but each artifact has one job:
+
+| Artifact | Owns | Does not own |
+|---|---|---|
+| Review prompt contract | reviewer set, assignments, packet paths, rendered prompt hashes and output schema | reviewer judgment |
+| Review packet | reviewer-visible snapshot and relevance inputs: `focus_zone`, `risk_surface_profile`, `failure_path_matrix`, `changed_files`, `verification_gate_report`, `evidence_freshness`, `known_blockers` | reviewer execution proof |
+| Reviewer report | candidate findings and report context copied from the packet | accepted severity or gate verdict |
+| Review invocation set | which assigned reviewers completed and where their reports/raw evidence/metadata live | finding relevance |
+
+`verification_gate_report.path` is the canonical latest green gate reference in a
+review packet. `evidence_freshness` records material-change and staleness flags;
+older packets may contain `evidence_freshness.latest_green_gate` as a mirror, but
+new packets should not need a second path field.
 
 ## Provider Assignments
 
@@ -98,12 +117,9 @@ The v0.2 supported external provider is `claude-code`. Unsupported providers
 are configuration blockers.
 
 `reviewer_assignments` are a dispatch plan before the review gate runs. A
-run-scope assignment-enabled contract must predeclare two separate artifacts:
-
-- `inputs.artifact_preparation_report`, the deterministic preparation evidence
-  linking the contract, packets, rendered prompts, included context and hashes;
-- `inputs.review_invocation_set`, the invocation evidence that proves which
-  assignments actually completed.
+run-scope assignment-enabled contract must predeclare
+`inputs.review_invocation_set`, the invocation evidence that proves which
+assignments actually completed.
 
 `inputs.evidence_report` remains ordinary verification or project evidence. It
 is not the review invocation set.
@@ -124,11 +140,11 @@ Each reviewer assignment must write to a distinct reviewer-report artifact, and
 the report's `reviewer.id` must identify the assigned reviewer instance. A
 single report artifact cannot satisfy multiple primary-gate reviewer slots.
 
-## Artifact Preparation
+## Optional Artifact Preparation
 
 The deterministic preparation script materializes reviewer packets and rendered
 prompts from an assignment-enabled contract and a declared shared packet source.
-It writes `review_artifact_preparation` evidence before reviewers are invoked.
+It can write `review_artifact_preparation` evidence before reviewers are invoked.
 That evidence records worktree status, explicit includes/exclusions, input
 artifact hashes, generated packet hashes, rendered prompt hashes and the
 predeclared invocation-set path.

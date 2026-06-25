@@ -521,7 +521,7 @@ bindings:
     gates:
       - verification_gate
   - id: AF-V02-BHV-018
-    scenario: "Provider-assigned review gates require structured artifact preparation"
+    scenario: "Provider-assigned review gates require invocation evidence"
     required: true
     status: executable
     source:
@@ -530,19 +530,14 @@ bindings:
       section: Behavioral Scenarios
     severity_if_unverified: P1
     checks:
-      - id: pytest-review-artifact-preparation-schema
+      - id: pytest-review-contract-requires-invocation-set
         type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_artifact_preparation_schema_passes"
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_assignments_require_review_set_evidence"
         evidence:
           - pytest-output
-      - id: pytest-review-contract-requires-preparation
+      - id: pytest-review-contract-binds-invocation-set
         type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_assignments_require_preparation_evidence"
-        evidence:
-          - pytest-output
-      - id: pytest-review-contract-binds-preparation
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts"
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_review_prompt_contract_binds_external_invocation_to_current_artifacts"
         evidence:
           - pytest-output
     gates:

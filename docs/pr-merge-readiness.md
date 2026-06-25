@@ -32,19 +32,16 @@ accepted answer. For `merge.acceptance`, the decision record must also bind the
 accepted artifact by `material_change_id` and the exact readiness report
 `report_hash`. An in-band `{status: accepted}` field is not sufficient.
 
-The readiness intake asks whether the readiness summary should be published back
-to the GitHub PR after final acceptance. This publication is optional: a human
-`skip` or `defer` answer does not block merge readiness. A human `publish`
-answer authorizes an automated post-acceptance publication step, but publication
-failure does not change local merge readiness.
+The readiness summary may be published back to the GitHub PR after final
+acceptance. This publication is optional and does not block merge readiness when
+it is omitted, skipped, deferred, requested but not yet performed, failed or
+unavailable.
 
 Because the final report hash is only known near the end of the run,
-`pr-merge-readiness` separates the intake publication policy from final
-acceptance. Intake records `github.publication`. After review and finding
-validation, the run produces the readiness report, records the final
-`merge.acceptance` decision with the exact `report_hash`, runs the final
-readiness validation, and only then performs optional GitHub publication when
-previously authorized.
+`pr-merge-readiness` keeps publication outside the acceptance proof. After
+review and finding validation, the run produces the readiness report, records the
+final `merge.acceptance` decision with the exact `report_hash`, runs the final
+readiness validation, and may then perform optional GitHub publication.
 
 The readiness evaluator treats these surfaces as blocking:
 
@@ -53,7 +50,7 @@ The readiness evaluator treats these surfaces as blocking:
 - malformed or stale review timestamps;
 - review packets whose `run_id` or `material_change_id` do not match the
   evaluated readiness report;
-- omitted provider-mirrored target review topology entries;
+- omitted required review topology entries;
 - missing live Claude invocation evidence for a Claude-backed review;
 - mock or failed external reviewer invocation metadata when live Claude evidence
   is required;
@@ -78,24 +75,17 @@ The readiness evaluator treats these surfaces as blocking:
   pointer persistence;
 - redacted, summary or pointer raw-output evidence without a concrete artifact
   path and hash;
-- missing GitHub publication decision, or claimed published GitHub publication
-  without recorded publication result evidence and URL;
+- claimed published GitHub publication without recorded publication result
+  evidence and URL;
 - self-application reports that claim the bootstrap run proves itself.
 
 ## Review Model
 
-The target review topology is `heterogeneous-variable` with provider-mirrored
-topic pairs:
-
-| Topic | Role | Providers |
-|---|---|---|
-| `verification-evidence` | `verification` | `internal-agent`, `claude-code` |
-| `architecture-process` | `architecture` | `internal-agent`, `claude-code` |
-| `adversarial-authority` | `adversarial` | `internal-agent`, `claude-code` |
-
-The mirrored pair shape is a target workflow policy. A workflow used to develop
-`pr-merge-readiness` may choose a smaller development review gate when its own
-contract records that decision.
+The default review topology is `homogeneous-plus-focused`: `generalist-a`,
+`generalist-b` and one explicit adversarial reviewer. Project bindings may
+escalate to `heterogeneous-variable` when selected risk surfaces justify more
+reviewers or provider diversity. Provider assignment belongs in the project
+binding or review invocation set, not in this workflow's default reviewer list.
 
 ## Report Validation
 
@@ -118,16 +108,8 @@ sufficient for accepted merge-ready status. A report may have been generated
 before that decision was recorded; the evaluator computes the final state from
 the report plus the external hash-bound human decision record.
 
-The same `human-decisions.yaml` artifact also records the intake
-`github.publication` policy. This record must be human-authored and confirmed.
-Valid answers are:
-
-- `publish`: publish a summary or review comment to GitHub after final
-  acceptance and record evidence;
-- `skip`: do not publish; this is non-blocking;
-- `defer`: leave publication to a later out-of-band step; this is non-blocking.
-
-The default publication mode is a single PR summary comment:
+If publication runs, the default publication mode is a single PR summary
+comment:
 
 ```yaml
 publication_mode: summary_comment
@@ -168,10 +150,8 @@ result:
 ```
 
 When the report claims `github_publication.status: published`, the readiness
-evaluator requires this default evidence shape. A `github.publication: publish`
-intake decision with `github_publication.status: requested` means publication is
-authorized but not yet performed; it does not block merge readiness. `skip` and
-`defer` also do not block merge readiness.
+evaluator requires this default evidence shape. Other publication states do not
+block merge readiness.
 
 Each review packet must be anchored to the evaluated readiness report: packet
 `run_id` must match report `run_id`, and packet `material_change_id` must match

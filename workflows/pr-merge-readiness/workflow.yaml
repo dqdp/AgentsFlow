@@ -13,12 +13,11 @@ outputs:
 - review and fusion reports
 - finding validation report
 - human merge decision record
-- optional GitHub publication decision/evidence
+- optional GitHub publication evidence
 uses:
   skills:
   - evidence-reporting
-  - reviewer-verification
-  - reviewer-architecture
+  - reviewer-generalist
   - reviewer-adversarial
   - fusion-synthesis
   scripts:
@@ -44,34 +43,17 @@ supported_profiles:
   - homogeneous-plus-focused
   - heterogeneous-variable
 review:
-  topology: heterogeneous-variable
-  composition: heterogeneous
-  provider_strategy: provider-mirrored-topic-pairs
+  topology: homogeneous-plus-focused
+  composition: homogeneous-plus-focused
   reviewers:
-  - verification-codex
-  - verification-claude
-  - architecture-codex
-  - architecture-claude
+  - generalist-a
+  - generalist-b
   - adversarial-codex
-  - adversarial-claude
-  topic_pairs:
-  - topic: verification-evidence
-    role: verification
-    providers:
-    - internal-agent
-    - claude-code
-  - topic: architecture-process
-    role: architecture
-    providers:
-    - internal-agent
-    - claude-code
-  - topic: adversarial-authority
-    role: adversarial
-    providers:
-    - internal-agent
-    - claude-code
   prompt_policy:
-    focus_prompts_required: true
+    baseline_same_prompt: true
+    baseline_same_packet: true
+    baseline_same_rubric: true
+    focused_reviewers_require_explicit_focus_zone: true
     focus_zones_may_overlap: true
     all_reviewers_must_report_p0_p1_outside_focus: true
     same_output_schema: true
@@ -82,37 +64,7 @@ review:
     - review_packet
     - referenced_artifacts
   focus_zones:
-  - reviewer: verification-codex
-    role: verification
-    primary_focus:
-    - verification evidence
-    - red/green freshness
-    - missing or stale artifacts
-  - reviewer: verification-claude
-    role: verification
-    primary_focus:
-    - verification evidence
-    - red/green freshness
-    - missing or stale artifacts
-  - reviewer: architecture-codex
-    role: architecture
-    primary_focus:
-    - workflow boundary
-    - self-application artifact separation
-    - methodology consistency
-  - reviewer: architecture-claude
-    role: architecture
-    primary_focus:
-    - workflow boundary
-    - self-application artifact separation
-    - methodology consistency
   - reviewer: adversarial-codex
-    role: adversarial
-    primary_focus:
-    - false readiness claims
-    - missing human approval
-    - mock-vs-live external review evidence
-  - reviewer: adversarial-claude
     role: adversarial
     primary_focus:
     - false readiness claims
@@ -135,17 +87,14 @@ phases:
   mode: human_guided
   coordinator: main-agent
   purpose: Record branch, base branch, commit range, worktree state and required
-    evidence policy, including whether a final readiness summary should be
-    published to the GitHub pull request after final acceptance.
+    evidence policy.
   human_interaction:
     required: true
     question_artifact: human-questions.yaml
     decision_artifact: human-decisions.yaml
-    required_decisions:
-    - github.publication
+    required_decisions: []
   outputs:
   - readiness intake
-  - GitHub publication policy decision
 - name: evidence-collection
   id: evidence_collection
   kind: reporting
@@ -175,20 +124,19 @@ phases:
   - evidence_validate
   outputs:
   - evidence gate report
-- name: provider-mirrored-review
-  id: provider_mirrored_review
+- name: review
+  id: review
   kind: review
   runs_after:
   - evidence_gate
-  purpose: Run provider-mirrored topic-pair review over the same readiness
+  purpose: Run the selected readiness review topology over the same readiness
     packet and output schema.
   skills:
-  - reviewer-verification
-  - reviewer-architecture
+  - reviewer-generalist
   - reviewer-adversarial
   scripts: []
   outputs:
-  - provider-mirrored reviewer reports
+  - reviewer reports
   default_permissions:
     read: true
     write: false
@@ -199,7 +147,7 @@ phases:
   id: fusion
   kind: fusion
   runs_after:
-  - provider_mirrored_review
+  - review
   purpose: Synthesize reviewer agreement, disagreement and candidate blockers
     without majority-voting away P0/P1 findings.
   skills:
@@ -273,11 +221,10 @@ phases:
   mode: automated
   coordinator: main-agent
   purpose: >
-    When the intake decision is `github.publication: publish`, publish the
-    accepted readiness summary to the GitHub PR and record publication result
-    evidence with a URL. Skipping, deferring or failing publication does not
-    change local merge readiness.
-  condition: github.publication == publish
+    When explicitly requested, publish the accepted readiness summary to the
+    GitHub PR and record publication result evidence with a URL. Skipping,
+    deferring or failing publication does not change local merge readiness.
+  condition: publication requested
   optional: true
   required_for_merge_readiness: false
   default_publication:

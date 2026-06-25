@@ -199,6 +199,15 @@ def packet_shared_payload(packet: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in packet.items() if key not in ENVELOPE_FIELDS}
 
 
+def homogeneous_baseline_reviewer_ids(contract: dict[str, Any], reviewers: dict[str, dict[str, Any]]) -> list[str]:
+    profile = (contract.get("identity", {}) or {}).get("review_profile")
+    if profile == "homogeneous-dual":
+        return list(reviewers)
+    if profile == "homogeneous-plus-focused":
+        return ["generalist-a", "generalist-b"]
+    return []
+
+
 def normalize_forbidden_actions(values: object) -> list[str]:
     if not isinstance(values, list):
         return []
@@ -298,7 +307,7 @@ def apply_common_packet_fields(
         packet.setdefault("evidence_freshness", {})
         freshness = packet.get("evidence_freshness")
         if isinstance(freshness, dict):
-            freshness["latest_green_gate"] = inputs["verification_gate_report"]
+            freshness.pop("latest_green_gate", None)
             freshness.setdefault("material_change_id", packet.get("material_change_id", "current"))
             freshness.setdefault("review_packet_generated_after_latest_green_gate", True)
             freshness.setdefault("stale_evidence_marked_or_excluded", True)
@@ -394,8 +403,12 @@ def prepare_artifacts(
     shared_content_path: Path | None = None
     shared_packet_hash: str | None = None
     shared_prompt_hash: str | None = None
-    if (contract.get("identity", {}) or {}).get("review_profile") == "homogeneous-dual":
-        first_reviewer = next(iter(reviewers))
+    baseline_reviewers = homogeneous_baseline_reviewer_ids(contract, reviewers)
+    if baseline_reviewers:
+        missing_baseline = [reviewer for reviewer in baseline_reviewers if reviewer not in packets_by_reviewer]
+        if missing_baseline:
+            raise ValueError("homogeneous baseline reviewers missing: " + ", ".join(missing_baseline))
+        first_reviewer = baseline_reviewers[0]
         first_packet_path = resolve_ref(
             root,
             packet_entries[first_reviewer].get("path"),
@@ -409,10 +422,11 @@ def prepare_artifacts(
         shared_prompt_hash = sha256_text(
             render_review_prompt(packet_shared_payload(packets_by_reviewer[first_reviewer]), role_data_by_reviewer[first_reviewer])
         )
-        for packet_entry in packet_entries.values():
-            packet_entry["shared_packet_content_hash"] = shared_packet_hash
+        for reviewer_id in baseline_reviewers:
+            packet_entries[reviewer_id]["shared_packet_content_hash"] = shared_packet_hash
         for packet in generated_packets:
-            packet["shared_packet_content_hash"] = shared_packet_hash
+            if packet["reviewer"] in baseline_reviewers:
+                packet["shared_packet_content_hash"] = shared_packet_hash
 
     for reviewer_id, reviewer in reviewers.items():
         prompt_entry = prompt_entries[reviewer_id]
@@ -427,9 +441,9 @@ def prepare_artifacts(
         prompt_entry["schema_hash"] = output_schema_hash
         prompt_entry["rubric_hash"] = rubric_hash
         prompt_entry["role_contract_hash"] = role_hash_by_reviewer[reviewer_id]
-        if shared_packet_hash:
+        if shared_packet_hash and reviewer_id in baseline_reviewers:
             prompt_entry["shared_packet_content_hash"] = shared_packet_hash
-        if shared_prompt_hash:
+        if shared_prompt_hash and reviewer_id in baseline_reviewers:
             prompt_entry["shared_prompt_content_hash"] = shared_prompt_hash
         generated_prompts.append(
             {
@@ -524,8 +538,6 @@ def prepare_artifacts(
     invocation_set: dict[str, Any] = {
         "artifact_kind": "review_invocation_set",
         "review_prompt_contract": contract_ref,
-        "artifact_preparation_report": rel_ref(root, preparation_path),
-        "artifact_preparation_report_hash": sha256_file(preparation_path),
         "status": "predeclared",
         "provider_model_families": provider_model_families,
         "reviewers": invocation_reviewers,

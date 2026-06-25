@@ -23,15 +23,18 @@ Independently review test adequacy, impact map, evidence quality, and regression
 
 ## Procedure
 
-1. Check scenario coverage.
-2. Check Failure Path Matrix coverage for selected risk surfaces and path
+1. Start with the packet's relevance inputs: `focus_zone` when present,
+   `risk_surface_profile`, `failure_path_matrix`, `changed_files`,
+   `verification_gate_report`, `evidence_freshness`, and `known_blockers`.
+2. Check scenario coverage.
+3. Check Failure Path Matrix coverage for selected risk surfaces and path
    classes.
-3. Check required tests, scripts, trace/log assertions and manual evidence
+4. Check required tests, scripts, trace/log assertions and manual evidence
    bindings.
-4. Detect weakened/missing tests, and confirm the red→green evidence pair exists for test-bound acceptance scenarios (a captured failing run before implementation, passing run after — ADR-0017); a test only ever green, or never run against broken code, is a finding.
-5. Check evidence freshness after the latest material change.
-6. Check evidence gaps.
-7. Classify issues.
+5. Detect weakened/missing tests, and confirm the red→green evidence pair exists for test-bound acceptance scenarios (a captured failing run before implementation, passing run after — ADR-0017); a test only ever green, or never run against broken code, is a finding.
+6. Check evidence freshness after the latest material change.
+7. Check evidence gaps.
+8. Classify issues.
 
 
 ## Quality bar
@@ -89,3 +92,8 @@ Treat selected risk surfaces, Failure Path Matrix rows, behavior-binding
 metadata, structured command evidence, evidence freshness and known blockers as
 review inputs. Missing required risk/path evidence is a candidate mandatory
 evidence gap. Do not run the missing check yourself.
+
+A P0/P1 finding should cite the relevant packet input when applicable. If no
+relevance input applies, classify the issue as a contract, review-packet,
+verification or valid-late-discovery gap instead of treating it as an ordinary
+implementation blocker.

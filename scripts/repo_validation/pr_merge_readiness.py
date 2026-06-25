@@ -6,6 +6,11 @@ from typing import Any
 
 from .common import is_concrete_sha256, parse_json, parse_yaml, sha256_file, validate_against_schema
 from .external_reviewers import validate_external_review_provider
+from .review import (
+    validate_review_packet_artifact,
+    validate_review_prompt_contract_invariants,
+    validate_review_prompt_contract_run_references,
+)
 
 
 BLOCKING_FINDING_SEVERITIES = {"P0", "P1"}
@@ -19,12 +24,9 @@ REQUIRED_CLAUDE_FORBIDDEN_ENV = {
     "CLAUDE_CODE_USE_VERTEX",
 }
 DEFAULT_PR_MERGE_REQUIRED_REVIEWS = [
-    ("verification-codex", "verification-evidence", "internal-agent", False, "verification"),
-    ("verification-claude", "verification-evidence", "claude-code", True, "verification"),
-    ("architecture-codex", "architecture-process", "internal-agent", False, "architecture"),
-    ("architecture-claude", "architecture-process", "claude-code", True, "architecture"),
+    ("generalist-a", "generalist-readiness", "internal-agent", False, "generalist"),
+    ("generalist-b", "generalist-readiness", "internal-agent", False, "generalist"),
     ("adversarial-codex", "adversarial-authority", "internal-agent", False, "adversarial"),
-    ("adversarial-claude", "adversarial-authority", "claude-code", True, "adversarial"),
 ]
 
 
@@ -93,6 +95,20 @@ def _reviewer_invocation_schema(root: Path) -> dict:
     schema = parse_json(root / "schemas" / "reviewer-invocation.schema.json")
     if not isinstance(schema, dict):
         raise ValueError("schemas/reviewer-invocation.schema.json is not a mapping")
+    return schema
+
+
+def _review_invocation_set_schema(root: Path) -> dict:
+    schema = parse_json(root / "schemas" / "review-invocation-set.schema.json")
+    if not isinstance(schema, dict):
+        raise ValueError("schemas/review-invocation-set.schema.json is not a mapping")
+    return schema
+
+
+def _review_prompt_contract_schema(root: Path) -> dict:
+    schema = parse_json(root / "schemas" / "review-prompt-contract.schema.json")
+    if not isinstance(schema, dict):
+        raise ValueError("schemas/review-prompt-contract.schema.json is not a mapping")
     return schema
 
 
@@ -193,9 +209,16 @@ def _nonempty_text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _has_concrete_evidence(finding: dict[str, Any]) -> bool:
+    evidence = finding.get("evidence")
+    return isinstance(evidence, list) and any(_nonempty_text(item) for item in evidence)
+
+
 def _has_grounded_blocker_path(finding: dict[str, Any]) -> bool:
-    return _nonempty_text(finding.get("blocker_path")) and _nonempty_text(
-        finding.get("acceptance_impact")
+    return (
+        _has_concrete_evidence(finding)
+        and _nonempty_text(finding.get("blocker_path"))
+        and _nonempty_text(finding.get("acceptance_impact"))
     )
 
 
@@ -457,60 +480,6 @@ def _has_matching_human_decision(
     )
 
 
-def _matching_github_publication_answer(
-    root: Path,
-    report_path: Path,
-    report_run_id: object,
-    publication: dict[str, Any],
-) -> str | bool | None:
-    resolved = _safe_relative(report_path, root, publication.get("decision_path"))
-    if not resolved or not resolved.is_file():
-        return None
-    try:
-        data = parse_yaml(resolved)
-    except ValueError:
-        return False
-    if not isinstance(data, dict):
-        return False
-    schema_errors = validate_against_schema(resolved, data, _human_decisions_schema(root))
-    if schema_errors:
-        return False
-    if data.get("run_id") != report_run_id:
-        return False
-    decisions = data.get("decisions")
-    if not isinstance(decisions, list):
-        return False
-    matching: list[dict[str, Any]] = []
-    for item in decisions:
-        if not isinstance(item, dict) or item.get("decision_id") != "github.publication":
-            continue
-        if not _affected_artifacts_target_report(
-            item.get("affected_artifacts"),
-            resolved,
-            root,
-            report_path,
-        ):
-            continue
-        matching.append(item)
-    if not matching:
-        return False
-    if len(matching) != 1:
-        return False
-    item = matching[0]
-    answer = str(item.get("answer", "")).strip()
-    if answer not in {"publish", "skip", "defer"}:
-        return False
-    if (
-        item.get("status") != "confirmed"
-        or item.get("answered_by") != "human"
-        or item.get("classification") != "nonblocking-follow-up"
-        or item.get("phase_id") != "readiness_intake"
-        or item.get("question_ref") != "github.publication"
-    ):
-        return False
-    return answer
-
-
 def _validate_github_publication_result(
     root: Path,
     report_path: Path,
@@ -616,6 +585,23 @@ def _record_hash_check(
         return
     if declared != sha256_file(artifact_path):
         blockers.append(f"external_review_{label}_hash_mismatch:{review_id}")
+
+
+def _record_invocation_set_hash_check(
+    blockers: list[str],
+    review_id: str,
+    label: str,
+    declared: object,
+    artifact_path: Path | None,
+) -> None:
+    if not is_concrete_sha256(declared):
+        blockers.append(f"review_invocation_set_{label}_hash_missing:{review_id}")
+        return
+    if not artifact_path or not artifact_path.is_file():
+        blockers.append(f"review_invocation_set_{label}_path_missing:{review_id}")
+        return
+    if declared != sha256_file(artifact_path):
+        blockers.append(f"review_invocation_set_{label}_hash_mismatch:{review_id}")
 
 
 def _record_expected_hash_check(
@@ -780,6 +766,9 @@ def _classify_state(
                 "missing_required_review:",
                 "duplicate_required_review:",
                 "duplicate_review:",
+                "review_prompt_contract_",
+                "review_packet_",
+                "review_invocation_set_",
                 "reviewer_report_",
             )
         )
@@ -806,13 +795,6 @@ def _classify_state(
         return "rejected"
     if any(blocker.startswith("unhandled_source_blocking_finding:") for blocker in blockers):
         return "rejected"
-    github_decision_blockers = {
-        "github_publication_missing",
-        "github_publication_decision_missing",
-        "github_publication_decision_invalid",
-    }
-    if blockers and all(blocker in github_decision_blockers for blocker in blockers):
-        return "awaiting_human_decision"
     if blockers:
         return "rejected"
     if not human_record_valid:
@@ -844,6 +826,8 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
     human_record_valid = False
     reviewer_report_schema = _reviewer_report_schema(root)
     reviewer_invocation_schema = _reviewer_invocation_schema(root)
+    review_invocation_set_schema = _review_invocation_set_schema(root)
+    review_prompt_contract_schema = _review_prompt_contract_schema(root)
     reviewer_reports: dict[str, dict[str, Any]] = {}
     reviewer_report_paths: dict[str, Path] = {}
     source_blocking_findings: list[dict[str, str]] = []
@@ -893,6 +877,91 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
         for item in required_reviews
         if isinstance(item, dict) and item.get("id")
     }
+    prompt_contract_reviewers: set[str] = set()
+    review_invocation_entries: dict[str, dict[str, Any]] = {}
+    prompt_contract_path: Path | None = None
+    if isinstance(review_requirements, dict):
+        prompt_contract_ref = review_requirements.get("review_prompt_contract_path")
+        prompt_contract_path = _safe_relative(report_path, root, prompt_contract_ref)
+        if not prompt_contract_path or not prompt_contract_path.is_file():
+            missing_evidence.append(str(prompt_contract_ref or "review_requirements.review_prompt_contract_path"))
+            blockers.append("review_prompt_contract_missing")
+        else:
+            try:
+                prompt_contract = parse_yaml(prompt_contract_path)
+            except ValueError:
+                prompt_contract = None
+            if not isinstance(prompt_contract, dict):
+                blockers.append("review_prompt_contract_invalid")
+            else:
+                prompt_contract_errors = validate_against_schema(
+                    prompt_contract_path,
+                    prompt_contract,
+                    review_prompt_contract_schema,
+                )
+                prompt_contract_errors.extend(
+                    validate_review_prompt_contract_invariants(
+                        root,
+                        prompt_contract_path,
+                        prompt_contract,
+                        True,
+                    )
+                )
+                prompt_contract_errors.extend(
+                    validate_review_prompt_contract_run_references(
+                        root,
+                        prompt_contract_path,
+                        prompt_contract,
+                    )
+                )
+                prompt_contract_reviewers = {
+                    str(item.get("instance_id"))
+                    for item in prompt_contract.get("reviewer_set", []) or []
+                    if isinstance(item, dict) and item.get("instance_id")
+                }
+                if prompt_contract_errors:
+                    blockers.append("review_prompt_contract_invalid")
+    invocation_set_path: Path | None = None
+    if isinstance(review_requirements, dict):
+        invocation_set_ref = review_requirements.get("review_invocation_set_path")
+        invocation_set_path = _safe_relative(report_path, root, invocation_set_ref)
+        if not invocation_set_path or not invocation_set_path.is_file():
+            missing_evidence.append(str(invocation_set_ref or "review_requirements.review_invocation_set_path"))
+            blockers.append("review_invocation_set_missing")
+        else:
+            try:
+                invocation_set = parse_json(invocation_set_path)
+            except ValueError:
+                invocation_set = None
+            if not isinstance(invocation_set, dict):
+                blockers.append("review_invocation_set_invalid")
+            else:
+                if validate_against_schema(invocation_set_path, invocation_set, review_invocation_set_schema):
+                    blockers.append("review_invocation_set_invalid")
+                if invocation_set.get("status") != "completed":
+                    blockers.append("review_invocation_set_not_completed")
+                invocation_contract_path = _resolve_invocation_ref(
+                    invocation_set_path,
+                    root,
+                    invocation_set.get("review_prompt_contract"),
+                )
+                if (
+                    prompt_contract_path
+                    and invocation_contract_path
+                    and prompt_contract_path.resolve() != invocation_contract_path.resolve()
+                ):
+                    blockers.append("review_invocation_set_contract_mismatch")
+                if prompt_contract_path and prompt_contract_path.is_file():
+                    declared_contract_hash = invocation_set.get("review_prompt_contract_hash")
+                    if not is_concrete_sha256(declared_contract_hash):
+                        blockers.append("review_invocation_set_contract_hash_missing")
+                    elif declared_contract_hash != sha256_file(prompt_contract_path):
+                        blockers.append("review_invocation_set_contract_hash_mismatch")
+                review_invocation_entries = {
+                    str(item.get("reviewer")): item
+                    for item in invocation_set.get("reviewers", []) or []
+                    if isinstance(item, dict) and item.get("reviewer")
+                }
     if data.get("workflow") == "pr-merge-readiness":
         for default_id, default_topic, default_provider, default_live, default_role in DEFAULT_PR_MERGE_REQUIRED_REVIEWS:
             declared = required_by_id.get(default_id)
@@ -934,12 +1003,63 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
 
     for review in reviews:
         review_id = str(review.get("id", "<unknown>"))
+        if prompt_contract_reviewers and review_id not in prompt_contract_reviewers:
+            blockers.append(f"review_prompt_contract_reviewer_missing:{review_id}")
         if review.get("status") not in {"pass", "pass-with-notes"}:
             blockers.append(f"failed_review:{review_id}")
         _record_missing(report_path, root, review.get("packet_path"), missing_evidence)
         _record_missing(report_path, root, review.get("report_path"), missing_evidence)
         review_packet_path = _safe_relative(report_path, root, review.get("packet_path"))
         review_report_path = _safe_relative(report_path, root, review.get("report_path"))
+        invocation_entry = review_invocation_entries.get(review_id)
+        if not invocation_entry:
+            blockers.append(f"review_invocation_set_reviewer_missing:{review_id}")
+        else:
+            expected_invocation_status = "invoked" if review.get("provider") == "claude-code" else "report-present"
+            if invocation_entry.get("status") != expected_invocation_status:
+                blockers.append(f"review_invocation_set_reviewer_status_invalid:{review_id}")
+            if invocation_entry.get("provider") != review.get("provider"):
+                blockers.append(f"review_invocation_set_reviewer_provider_mismatch:{review_id}")
+            invocation_packet_path = _resolve_invocation_ref(
+                invocation_set_path or report_path,
+                root,
+                invocation_entry.get("packet_path"),
+            )
+            if not invocation_packet_path or not invocation_packet_path.is_file():
+                blockers.append(f"review_invocation_set_packet_path_missing:{review_id}")
+            elif (
+                review_packet_path
+                and invocation_packet_path
+                and review_packet_path.resolve() != invocation_packet_path.resolve()
+            ):
+                blockers.append(f"review_invocation_set_packet_path_mismatch:{review_id}")
+            invocation_report_path = _resolve_invocation_ref(
+                invocation_set_path or report_path,
+                root,
+                invocation_entry.get("report_path"),
+            )
+            if not invocation_report_path or not invocation_report_path.is_file():
+                blockers.append(f"review_invocation_set_report_path_missing:{review_id}")
+            elif (
+                review_report_path
+                and invocation_report_path
+                and review_report_path.resolve() != invocation_report_path.resolve()
+            ):
+                blockers.append(f"review_invocation_set_report_path_mismatch:{review_id}")
+            _record_invocation_set_hash_check(
+                blockers,
+                review_id,
+                "packet",
+                invocation_entry.get("packet_hash"),
+                review_packet_path,
+            )
+            _record_invocation_set_hash_check(
+                blockers,
+                review_id,
+                "report",
+                invocation_entry.get("report_hash"),
+                review_report_path,
+            )
         if review_packet_path and review_packet_path.is_file():
             try:
                 loaded_packet = parse_json(review_packet_path)
@@ -948,6 +1068,8 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             if not isinstance(loaded_packet, dict):
                 blockers.append(f"review_packet_invalid:{review_id}")
             else:
+                if validate_review_packet_artifact(root, review_packet_path, check_references=False):
+                    blockers.append(f"review_packet_invalid:{review_id}")
                 if report_run_id and loaded_packet.get("run_id") != report_run_id:
                     blockers.append(f"review_packet_context_mismatch:{review_id}:run_id")
                 if report_material_change_id and loaded_packet.get("material_change_id") != report_material_change_id:
@@ -1006,6 +1128,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                                     "review_id": review_id,
                                     "finding_id": finding_id,
                                     "severity": severity,
+                                    "evidence": finding.get("evidence"),
                                     "blocker_path": finding.get("blocker_path"),
                                     "acceptance_impact": finding.get("acceptance_impact"),
                                     "mandatory_evidence_gap": finding.get("mandatory_evidence_gap"),
@@ -1397,52 +1520,22 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
 
     github_publication = data.get("github_publication")
     github_publication_summary: dict[str, Any] = {
-        "decision_required": True,
         "status": "missing",
     }
-    if not isinstance(github_publication, dict):
-        blockers.append("github_publication_missing")
-    else:
+    if isinstance(github_publication, dict):
         status = str(github_publication.get("status", "missing"))
         github_publication_summary = {
-            "decision_required": github_publication.get("decision_required") is True,
             "status": status,
             "required_for_merge_readiness": github_publication.get("required_for_merge_readiness") is True,
         }
-        if github_publication.get("decision_required") is not True:
-            blockers.append("github_publication_decision_missing")
-        if github_publication.get("decision_id") != "github.publication":
-            blockers.append("github_publication_decision_invalid")
-        if not github_publication.get("decision_path"):
-            blockers.append("github_publication_decision_missing")
-        else:
-            publication_answer = _matching_github_publication_answer(
+        if status == "published":
+            _validate_github_publication_result(
                 root,
                 report_path,
-                data.get("run_id"),
                 github_publication,
+                blockers,
+                missing_evidence,
             )
-            if publication_answer is None:
-                blockers.append("github_publication_decision_missing")
-            elif publication_answer is False:
-                blockers.append("github_publication_decision_invalid")
-            else:
-                github_publication_summary["decision_answer"] = publication_answer
-                if publication_answer == "publish":
-                    if status == "published":
-                        _validate_github_publication_result(
-                            root,
-                            report_path,
-                            github_publication,
-                            blockers,
-                            missing_evidence,
-                        )
-                    elif status not in {"requested", "failed", "unavailable"}:
-                        blockers.append("github_publication_decision_invalid")
-                elif publication_answer == "skip" and status != "skipped":
-                    blockers.append("github_publication_decision_invalid")
-                elif publication_answer == "defer" and status != "deferred":
-                    blockers.append("github_publication_decision_invalid")
 
     self_application = data.get("self_application")
     if isinstance(self_application, dict) and self_application.get("enabled") is True:

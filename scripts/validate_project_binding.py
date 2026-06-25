@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import sys
 import jsonschema
 import yaml
 
@@ -162,6 +161,8 @@ def validate_review_policy(
             errors.append(f"{path}: homogeneous-plus-focused missing baseline reviewers: {', '.join(baseline_missing)}")
         for key in [
             "baseline_same_prompt",
+            "baseline_same_packet",
+            "baseline_same_rubric",
             "focused_reviewers_require_explicit_focus_zone",
             "focus_zones_may_overlap",
             "all_reviewers_must_report_p0_p1_outside_focus",

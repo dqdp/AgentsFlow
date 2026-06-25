@@ -13,14 +13,14 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+from reviewers.prompt_rendering import render_review_prompt  # noqa: E402
+
 PR_REVIEW_MATRIX = [
-    ("verification-codex", "verification-evidence", "internal-agent", False, "verification"),
-    ("verification-claude", "verification-evidence", "claude-code", True, "verification"),
-    ("architecture-codex", "architecture-process", "internal-agent", False, "architecture"),
-    ("architecture-claude", "architecture-process", "claude-code", True, "architecture"),
+    ("generalist-a", "generalist-readiness", "internal-agent", False, "generalist"),
+    ("generalist-b", "generalist-readiness", "internal-agent", False, "generalist"),
     ("adversarial-codex", "adversarial-authority", "internal-agent", False, "adversarial"),
-    ("adversarial-claude", "adversarial-authority", "claude-code", True, "adversarial"),
 ]
+CLAUDE_REVIEW = ("generalist-claude", "generalist-readiness", "claude-code", True, "generalist")
 PROVIDER_CONFIG_CONTENT = (ROOT / "templates" / "external-review-provider.yaml").read_text(
     encoding="utf-8"
 )
@@ -86,7 +86,8 @@ def text_sha(text: str) -> str:
 def grounded_blocker_fields() -> dict[str, object]:
     return {
         "validated_severity": "P1",
-        "blocker_path": "review finding -> required PR readiness evidence -> unsafe merge acceptance",
+        "evidence": ["reviewer-report.generalist-a.json"],
+        "blocker_path": "required PR readiness evidence -> review finding -> unsafe merge acceptance",
         "acceptance_impact": "Accepting the branch unchanged would approve a PR without required readiness evidence.",
     }
 
@@ -190,6 +191,7 @@ def complete_report() -> dict:
         ],
         "review_requirements": {
             "review_prompt_contract_path": "review-prompt-contract.yaml",
+            "review_invocation_set_path": "review-invocation-set.json",
             "rubric_path": "rubric.json",
             "required_reviews": [
                 {
@@ -242,17 +244,8 @@ def complete_report() -> dict:
             "path": "human-decisions.yaml",
         },
         "github_publication": {
-            "decision_required": True,
-            "decision_id": "github.publication",
-            "decision_path": "human-decisions.yaml",
             "status": "skipped",
             "required_for_merge_readiness": False,
-            "publication_mode": "summary_comment",
-            "target": "pull_request",
-            "tool": "gh",
-            "action": "pr comment",
-            "body_path": "github-publication.md",
-            "result_path": "github-publication-result.json",
             "reason": "Human selected no GitHub PR publication for this fixture.",
         },
         "self_application": {
@@ -264,12 +257,151 @@ def complete_report() -> dict:
     }
 
 
+def add_claude_review(report: dict, reviewer: str = "generalist-claude") -> dict:
+    if reviewer != CLAUDE_REVIEW[0]:
+        raise ValueError("test helper currently supports only generalist-claude")
+    reviewer, topic, provider, required_live, role = CLAUDE_REVIEW
+    report["review_requirements"]["required_reviews"].append(
+        {
+            "id": reviewer,
+            "topic": topic,
+            "role": role,
+            "provider": provider,
+            "required_live": required_live,
+        }
+    )
+    report["reviews"].append(
+        {
+            "id": reviewer,
+            "topic": topic,
+            "provider": provider,
+            "status": "pass",
+            "packet_path": f"review-packets/{reviewer}.json",
+            "prompt_path": f"review-prompts/{reviewer}.md",
+            "role_contract_path": f"profiles/reviewer_roles/{role}.yaml",
+            "report_path": f"reviewer-report.{reviewer}.json",
+            "packet_prepared_at": "2026-06-22T10:00:00Z",
+            "latest_material_change_at": "2026-06-22T09:30:00Z",
+        }
+    )
+    report["external_review_evidence"].append(
+        {
+            "provider": "claude-code",
+            "mode": "live",
+            "required_live": True,
+            "status": "pass",
+            "normalized_report_path": f"reviewer-report.{reviewer}.json",
+            "invocation_metadata_path": f"reviewer-invocation.{reviewer}.json",
+            "raw_output": {
+                "persistence": "redacted",
+                "redaction_reason": "live output may contain local workspace context",
+                "artifact_path": f"evidence/raw/{reviewer}.redacted-summary.md",
+                "artifact_hash": text_sha(redacted_raw_summary(reviewer)),
+            },
+        }
+    )
+    return report
+
+
+def reviewer_role_manifest(role: str) -> dict[str, object]:
+    return {
+        "kind": "reviewer_role",
+        "name": role,
+        "description": f"{role} reviewer fixture role.",
+        "responsibilities": ["Review the packet and report candidate findings."],
+    }
+
+
+def review_prompt_policy() -> dict[str, object]:
+    return {
+        "baseline_same_prompt": True,
+        "baseline_same_packet": True,
+        "baseline_same_rubric": True,
+        "focused_reviewers_require_explicit_focus_zone": True,
+        "focus_zones_may_overlap": True,
+        "all_reviewers_must_report_p0_p1_outside_focus": True,
+    }
+
+
+def base_review_packet(reviewer: str, provider: str, role: str) -> dict[str, object]:
+    return {
+        "agentsflow_version": "0.2",
+        "workflow": "pr-merge-readiness",
+        "run_id": "2026-06-22-pr-merge-readiness-example",
+        "material_change_id": "pr-merge-readiness-example-change",
+        "reviewer_role": role,
+        "reviewer_instance_id": reviewer,
+        "provider": provider,
+        "review_packet_path": f"review-packets/{reviewer}.json",
+        "review_goal": "Review PR readiness evidence for acceptance-blocking risks.",
+        "review_profile": "homogeneous-plus-focused",
+        "composition": "homogeneous-plus-focused",
+        "prompt_policy": review_prompt_policy(),
+        "role_contract": f"profiles/reviewer_roles/{role}.yaml",
+        "review_prompt_contract": {
+            "path": "review-prompt-contract.yaml",
+            "schema": "schemas/review-prompt-contract.schema.json",
+        },
+        "context_policy": {
+            "start_mode": "fresh_context",
+            "fork_conversation_context": False,
+            "allowed_context_sources": ["review_packet", "referenced_artifacts"],
+        },
+        "task_contract": {
+            "path": "task.contract.md",
+            "summary": "PR readiness fixture contract.",
+        },
+        "risk_surface_profile": {
+            "selected_risk_surfaces": ["review_evidence_integrity"],
+            "review_topology_source": "project_policy",
+            "escalation_reason": "PR readiness requires review-evidence integrity checks.",
+        },
+        "failure_path_matrix": {
+            "path": "task.contract.md#failure-path-matrix",
+            "rows": [
+                {
+                    "id": "FPM-REVIEW-EVIDENCE-001",
+                    "risk_surface": "review_evidence_integrity",
+                    "path_class": "review gate evidence binding",
+                    "evidence_binding": "review-prompt-contract.yaml + review-invocation-set.json",
+                    "status": "covered",
+                }
+            ],
+        },
+        "diff_summary": "Fixture PR readiness evidence.",
+        "changed_files": ["scripts/repo_validation/pr_merge_readiness.py"],
+        "verification_gate_report": {
+            "path": "verification-gate-report.json",
+            "summary": "Fixture green verification.",
+        },
+        "evidence_freshness": {
+            "material_change_id": "pr-merge-readiness-example-change",
+            "review_packet_generated_after_latest_green_gate": True,
+            "stale_evidence_marked_or_excluded": True,
+        },
+        "evidence_summary": "Fixture evidence is present.",
+        "known_blockers": [],
+        "forbidden_actions": [
+            "Do not use or assume forked orchestrator conversation context.",
+            "Do not modify files.",
+            "Do not run tests.",
+            "Do not execute scripts.",
+            "Do not produce patches.",
+            "Do not update evidence.",
+            "Return candidate findings only.",
+        ],
+        "output_schema": "schemas/reviewer-report.schema.json",
+    }
+
+
 def prepare_complete_evidence(root: Path) -> None:
     (root / "schemas").mkdir(parents=True, exist_ok=True)
     for schema_name in [
         "human-decisions.schema.json",
+        "review-packet.schema.json",
         "review-prompt-contract.schema.json",
         "reviewer-invocation.schema.json",
+        "review-invocation-set.schema.json",
         "reviewer-report.schema.json",
     ]:
         (root / "schemas" / schema_name).write_text(
@@ -281,38 +413,75 @@ def prepare_complete_evidence(root: Path) -> None:
         "evidence/repo-validation.log",
         "evidence/pytest.log",
     )
+    (root / "task.contract.md").write_text("# Task Contract\n\nFixture contract.\n", encoding="utf-8")
+    (root / "verification-gate-report.json").write_text(
+        json.dumps(
+            {
+                "kind": "verification_gate_report",
+                "result_state": "pass",
+                "checks": [{"id": "repo-validation", "status": "pass"}],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (root / "templates" / "review-prompts").mkdir(parents=True, exist_ok=True)
+    (root / "templates" / "review-prompts" / "base.md").write_text(
+        "Fixture base review prompt.\n",
+        encoding="utf-8",
+    )
     provider_config = root / "external-reviewers" / "claude-code.yaml"
     provider_config.parent.mkdir(parents=True, exist_ok=True)
     provider_config.write_text(PROVIDER_CONFIG_CONTENT, encoding="utf-8")
-    (root / "review-prompt-contract.yaml").write_text("reviewer_set: []\n", encoding="utf-8")
     (root / "rubric.json").write_text('{"same_output_schema":true}\n', encoding="utf-8")
-    for role in sorted({item[4] for item in PR_REVIEW_MATRIX} | {"generalist"}):
+    active_reviews = PR_REVIEW_MATRIX + [CLAUDE_REVIEW]
+    for role in sorted({item[4] for item in active_reviews}):
         role_path = root / "profiles" / "reviewer_roles" / f"{role}.yaml"
         role_path.parent.mkdir(parents=True, exist_ok=True)
-        role_path.write_text(f"id: {role}\n", encoding="utf-8")
-    for reviewer, topic, provider, _required_live, role in PR_REVIEW_MATRIX:
-        packet_path = root / "review-packets" / f"{reviewer}.json"
-        packet_path.parent.mkdir(parents=True, exist_ok=True)
-        packet_path.write_text(
-            json.dumps(
-                {
-                    "agentsflow_version": "0.2",
-                    "workflow": "pr-merge-readiness",
-                    "run_id": "2026-06-22-pr-merge-readiness-example",
-                    "material_change_id": "pr-merge-readiness-example-change",
-                    "review_packet_path": f"review-packets/{reviewer}.json",
-                    "reviewer_instance_id": reviewer,
-                    "reviewer_role": role,
-                    "topic": topic,
-                },
-                indent=2,
-            )
-            + "\n",
+        role_path.write_text(
+            yaml.safe_dump(reviewer_role_manifest(role), sort_keys=False),
             encoding="utf-8",
         )
+    common_generalist_packet = base_review_packet("generalist-a", "internal-agent", "generalist")
+    common_generalist_packet["topic"] = "generalist-readiness"
+    for field in ["reviewer_instance_id", "review_packet_path", "provider"]:
+        common_generalist_packet.pop(field, None)
+    shared_content = {
+        **common_generalist_packet,
+        "excluded_envelope_fields": ["review_packet_path", "reviewer_instance_id", "provider"],
+    }
+    shared_content_path = root / "review-packets" / "shared-content.json"
+    shared_content_path.parent.mkdir(parents=True, exist_ok=True)
+    shared_content_path.write_text(json.dumps(shared_content, indent=2) + "\n", encoding="utf-8")
+    shared_content_hash = file_sha(shared_content_path)
+    prompt_policy = review_prompt_policy()
+    output_schema_hash = file_sha(root / "schemas" / "reviewer-report.schema.json")
+    rubric_hash = text_sha(json.dumps(prompt_policy, sort_keys=True))
+
+    packet_paths: dict[str, Path] = {}
+    prompt_paths: dict[str, Path] = {}
+    for reviewer, topic, provider, _required_live, role in active_reviews:
+        packet_path = root / "review-packets" / f"{reviewer}.json"
+        packet_path.parent.mkdir(parents=True, exist_ok=True)
+        packet = base_review_packet(reviewer, provider, role)
+        packet["topic"] = topic
+        if reviewer in {"adversarial-codex", "generalist-claude"}:
+            packet["focus_zone"] = {
+                "primary_focus": [
+                    "false readiness claims",
+                    "stale review evidence",
+                    "external provider evidence",
+                ],
+                "may_report_outside_focus": True,
+            }
+        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+        packet_paths[reviewer] = packet_path
         prompt_path = root / "review-prompts" / f"{reviewer}.md"
         prompt_path.parent.mkdir(parents=True, exist_ok=True)
-        prompt_path.write_text(f"Review prompt for {reviewer}\n", encoding="utf-8")
+        role_data = reviewer_role_manifest(role)
+        prompt_path.write_text(render_review_prompt(packet, role_data), encoding="utf-8")
+        prompt_paths[reviewer] = prompt_path
         (root / f"reviewer-report.{reviewer}.json").write_text(
             json.dumps(
                 {
@@ -339,14 +508,154 @@ def prepare_complete_evidence(root: Path) -> None:
             invocation["normalized_output_hash"] = file_sha(root / f"reviewer-report.{reviewer}.json")
             invocation["input_hash"] = file_sha(root / "review-packets" / f"{reviewer}.json")
             invocation["prompt_hash"] = file_sha(root / "review-prompts" / f"{reviewer}.md")
-            invocation["review_prompt_contract_hash"] = file_sha(root / "review-prompt-contract.yaml")
             invocation["role_contract_hash"] = file_sha(root / "profiles" / "reviewer_roles" / f"{role}.yaml")
-            invocation["rubric_hash"] = file_sha(root / "rubric.json")
+            invocation["rubric_hash"] = rubric_hash
             invocation["schema_hash"] = file_sha(root / "schemas" / "reviewer-report.schema.json")
             (root / f"reviewer-invocation.{reviewer}.json").write_text(
                 json.dumps(invocation, indent=2) + "\n",
                 encoding="utf-8",
             )
+    review_packets = []
+    rendered_prompts = []
+    reviewer_set = []
+    for reviewer, _topic, provider, _required_live, role in active_reviews:
+        packet_entry = {
+            "reviewer": reviewer,
+            "path": f"review-packets/{reviewer}.json",
+            "schema": "schemas/review-packet.schema.json",
+            "packet_hash": file_sha(packet_paths[reviewer]),
+        }
+        prompt_entry = {
+            "reviewer": reviewer,
+            "prompt_path": f"review-prompts/{reviewer}.md",
+            "prompt_hash": file_sha(prompt_paths[reviewer]),
+            "packet_hash": file_sha(packet_paths[reviewer]),
+            "schema_hash": output_schema_hash,
+            "rubric_hash": rubric_hash,
+            "role_contract_hash": file_sha(root / "profiles" / "reviewer_roles" / f"{role}.yaml"),
+        }
+        reviewer_definition = {
+            "instance_id": reviewer,
+            "role_id": role,
+            "role_contract": f"profiles/reviewer_roles/{role}.yaml",
+            "independent": True,
+        }
+        if reviewer in {"generalist-a", "generalist-b"}:
+            packet_entry["shared_packet_content_hash"] = shared_content_hash
+            prompt_entry["shared_packet_content_hash"] = shared_content_hash
+            prompt_entry["shared_prompt_content_hash"] = text_sha("shared generalist prompt fixture")
+        else:
+            reviewer_definition["focus_zone"] = {
+                "primary_focus": [
+                    "false readiness claims",
+                    "stale review evidence",
+                    "external provider evidence",
+                ],
+                "may_report_outside_focus": True,
+            }
+        review_packets.append(packet_entry)
+        rendered_prompts.append(prompt_entry)
+        reviewer_set.append(reviewer_definition)
+
+    review_prompt_contract = {
+        "version": 1,
+        "artifact_kind": "review_prompt_contract",
+        "artifact_scope": "run",
+        "identity": {
+            "run_id": "2026-06-22-pr-merge-readiness-example",
+            "workflow": "pr-merge-readiness",
+            "phase_id": "review",
+            "review_profile": "homogeneous-plus-focused",
+            "composition": "homogeneous-plus-focused",
+            "primary_gate": True,
+        },
+        "inputs": {
+            "review_packet_schema": "schemas/review-packet.schema.json",
+            "review_packets": review_packets,
+            "output_schema": "schemas/reviewer-report.schema.json",
+            "task_contract": "task.contract.md",
+            "verification_gate_report": "verification-gate-report.json",
+            "review_invocation_set": "review-invocation-set.json",
+        },
+        "reviewer_set": reviewer_set,
+        "context_policy": {
+            "start_mode": "fresh_context",
+            "fork_conversation_context": False,
+            "allowed_context_sources": ["review_packet", "referenced_artifacts"],
+        },
+        "permission_policy": {
+            "read_only": True,
+            "forbidden_actions": ["run_tests", "run_scripts", "modify_files", "create_patch", "update_evidence"],
+            "explicit_tool_exceptions": [],
+        },
+        "prompt_components": {
+            "shared_base_instructions": "templates/review-prompts/base.md",
+            "finding_lifecycle": "candidate-unvalidated",
+            "output_instructions": "schemas/reviewer-report.schema.json",
+        },
+        "prompt_policy": prompt_policy,
+        "provider_policy": {
+            "allow_external_reviewers": True,
+            "require_model_diversity": False,
+            "unsupported_provider_behavior": "config_blocker",
+        },
+        "rendered_prompts": rendered_prompts,
+        "validation": {
+            "schema": "schemas/review-prompt-contract.schema.json",
+            "assembly_invariants": [
+                "homogeneous-plus-focused uses baseline generalist-a/generalist-b plus focused reviewers.",
+                "review packets and rendered prompts are hash-bound.",
+            ],
+        },
+    }
+    (root / "review-prompt-contract.yaml").write_text(
+        yaml.safe_dump(review_prompt_contract, sort_keys=False),
+        encoding="utf-8",
+    )
+    contract_hash = file_sha(root / "review-prompt-contract.yaml")
+    for reviewer, _topic, provider, _required_live, _role in active_reviews:
+        if provider != "claude-code":
+            continue
+        invocation_path = root / f"reviewer-invocation.{reviewer}.json"
+        invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+        invocation["review_prompt_contract_hash"] = contract_hash
+        invocation_path.write_text(json.dumps(invocation, indent=2) + "\n", encoding="utf-8")
+    invocation_reviewers = []
+    for reviewer, _topic, provider, _required_live, _role in active_reviews:
+        packet_path = root / "review-packets" / f"{reviewer}.json"
+        report_path = root / f"reviewer-report.{reviewer}.json"
+        entry = {
+            "reviewer": reviewer,
+            "provider": provider,
+            "model_family": "opus" if provider == "claude-code" else "codex",
+            "packet_path": f"review-packets/{reviewer}.json",
+            "packet_hash": file_sha(packet_path),
+            "report_path": f"reviewer-report.{reviewer}.json",
+            "report_hash": file_sha(report_path),
+            "status": "invoked" if provider == "claude-code" else "report-present",
+        }
+        if provider == "claude-code":
+            entry["invocation_metadata_path"] = f"reviewer-invocation.{reviewer}.json"
+            entry["execution_mode"] = "real"
+        invocation_reviewers.append(entry)
+    (root / "review-invocation-set.json").write_text(
+        json.dumps(
+            {
+                "artifact_kind": "review_invocation_set",
+                "review_prompt_contract": "review-prompt-contract.yaml",
+                "review_prompt_contract_hash": contract_hash,
+                "status": "completed",
+                "started_at": "2026-06-22T10:00:00Z",
+                "finished_at": "2026-06-22T10:01:00Z",
+                "runner_scheduling": "external-first-async",
+                "provider_model_families": ["claude-code/opus", "internal-agent/codex"],
+                "reviewers": invocation_reviewers,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (root / "human-decisions.yaml").write_text(
         yaml.safe_dump(
             {
@@ -363,22 +672,57 @@ def prepare_complete_evidence(root: Path) -> None:
                         "classification": "blocking-material",
                         "affected_artifacts": ["pr-merge-readiness-report.json"],
                     },
-                    {
-                        "decision_id": "github.publication",
-                        "phase_id": "readiness_intake",
-                        "question_ref": "github.publication",
-                        "answer": "skip",
-                        "status": "confirmed",
-                        "answered_by": "human",
-                        "classification": "nonblocking-follow-up",
-                        "affected_artifacts": ["pr-merge-readiness-report.json"],
-                    }
                 ],
             },
             sort_keys=False,
         ),
         encoding="utf-8",
     )
+
+
+def refresh_review_invocation_set(root: Path) -> None:
+    path = root / "review-invocation-set.json"
+    invocation_set = json.loads(path.read_text(encoding="utf-8"))
+    contract_hash = file_sha(root / "review-prompt-contract.yaml")
+    invocation_set["review_prompt_contract_hash"] = contract_hash
+    for entry in invocation_set.get("reviewers", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        packet_path = root / str(entry.get("packet_path"))
+        if packet_path.is_file():
+            entry["packet_hash"] = file_sha(packet_path)
+        report_path = root / str(entry.get("report_path"))
+        if report_path.is_file():
+            entry["report_hash"] = file_sha(report_path)
+    path.write_text(json.dumps(invocation_set, indent=2) + "\n", encoding="utf-8")
+
+
+def refresh_prompt_contract_packet_hash(root: Path, reviewer: str) -> None:
+    path = root / "review-prompt-contract.yaml"
+    contract = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(contract, dict):
+        raise AssertionError("review-prompt-contract.yaml must be a mapping")
+    packet_path = root / "review-packets" / f"{reviewer}.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    role = str(packet.get("reviewer_role") or "generalist")
+    prompt_path = root / "review-prompts" / f"{reviewer}.md"
+    prompt_path.write_text(
+        render_review_prompt(packet, reviewer_role_manifest(role)),
+        encoding="utf-8",
+    )
+    packet_hash = file_sha(packet_path)
+    prompt_hash = file_sha(prompt_path)
+    inputs = contract.get("inputs")
+    if not isinstance(inputs, dict):
+        raise AssertionError("contract inputs must be a mapping")
+    for entry in inputs.get("review_packets", []) or []:
+        if isinstance(entry, dict) and entry.get("reviewer") == reviewer:
+            entry["packet_hash"] = packet_hash
+    for entry in contract.get("rendered_prompts", []) or []:
+        if isinstance(entry, dict) and entry.get("reviewer") == reviewer:
+            entry["packet_hash"] = packet_hash
+            entry["prompt_hash"] = prompt_hash
+    path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
 
 
 def write_collision_control_fixture(
@@ -508,12 +852,12 @@ def write_collision_control_fixture(
                         {
                             "finding_id": finding_id,
                             "original_severity": "P1",
-                            "source_reviewer_report": "reviewer-report.verification-codex.json",
+                            "source_reviewer_report": "reviewer-report.generalist-a.json",
                             "orchestrator_action": "rejected",
                         }
                     ],
                     "orchestrator_collision_reason": "Fixture rejected P1 requires control review.",
-                    "evidence_references_checked": ["reviewer-report.verification-codex.json"],
+                    "evidence_references_checked": ["reviewer-report.generalist-a.json"],
                 },
                 "validation": {
                     "schema": "schemas/review-prompt-contract.schema.json",
@@ -543,6 +887,87 @@ def test_complete_evidence_requires_human_decision(tmp_path: Path) -> None:
     assert result["blockers"] == []
     assert result["human_decision"]["required"] is True
     assert result["human_decision"]["status"] == "accepted"
+
+
+def test_merge_readiness_requires_completed_review_invocation_set(tmp_path: Path) -> None:
+    report = complete_report()
+    report["review_requirements"]["review_invocation_set_path"] = "missing-review-invocation-set.json"
+
+    result = evaluate(tmp_path, report)
+
+    assert result["accepted"] is False
+    assert "review_invocation_set_missing" in result["blockers"]
+
+
+def test_merge_readiness_rejects_stale_review_invocation_set(tmp_path: Path) -> None:
+    report = complete_report()
+    prepare_complete_evidence(tmp_path)
+    path = write_report(tmp_path, report)
+    invocation_set_path = tmp_path / "review-invocation-set.json"
+    invocation_set = json.loads(invocation_set_path.read_text(encoding="utf-8"))
+    invocation_set["review_prompt_contract_hash"] = "sha256:" + "0" * 64
+    invocation_set_path.write_text(json.dumps(invocation_set, indent=2) + "\n", encoding="utf-8")
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["accepted"] is False
+    assert "review_invocation_set_contract_hash_mismatch" in result["blockers"]
+
+
+def test_merge_readiness_requires_review_prompt_contract(tmp_path: Path) -> None:
+    report = complete_report()
+    report["review_requirements"].pop("review_prompt_contract_path")
+
+    result = evaluate(tmp_path, report)
+
+    assert result["accepted"] is False
+    assert "review_prompt_contract_missing" in result["blockers"]
+
+
+def test_merge_readiness_rejects_schema_invalid_review_prompt_contract(tmp_path: Path) -> None:
+    report = complete_report()
+    prepare_complete_evidence(tmp_path)
+    (tmp_path / "review-prompt-contract.yaml").write_text("reviewer_set: []\n", encoding="utf-8")
+    refresh_review_invocation_set(tmp_path)
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["accepted"] is False
+    assert "review_prompt_contract_invalid" in result["blockers"]
+
+
+def test_merge_readiness_rejects_schema_invalid_review_packet(tmp_path: Path) -> None:
+    report = complete_report()
+    prepare_complete_evidence(tmp_path)
+    packet_path = tmp_path / "review-packets" / "adversarial-codex.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet.pop("review_goal")
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+    refresh_prompt_contract_packet_hash(tmp_path, "adversarial-codex")
+    refresh_review_invocation_set(tmp_path)
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["accepted"] is False
+    assert "review_packet_invalid:adversarial-codex" in result["blockers"]
+    assert "review_prompt_contract_invalid" not in result["blockers"]
+
+
+def test_merge_readiness_rejects_missing_invocation_set_packet_ref(tmp_path: Path) -> None:
+    report = complete_report()
+    prepare_complete_evidence(tmp_path)
+    invocation_set_path = tmp_path / "review-invocation-set.json"
+    invocation_set = json.loads(invocation_set_path.read_text(encoding="utf-8"))
+    invocation_set["reviewers"][0]["packet_path"] = "review-packets/missing.json"
+    invocation_set_path.write_text(json.dumps(invocation_set, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["accepted"] is False
+    assert "review_invocation_set_packet_path_missing:generalist-a" in result["blockers"]
 
 
 def test_green_evidence_without_human_decision_is_not_accepted(tmp_path: Path) -> None:
@@ -576,44 +1001,25 @@ def test_hash_bound_human_decision_accepts_candidate_report_without_self_status(
     assert result["human_decision"]["status"] == "accepted"
 
 
-def test_github_publication_decision_is_required_but_publication_is_optional(
+def test_github_publication_is_not_required_for_readiness(
     tmp_path: Path,
 ) -> None:
     report = complete_report()
+    report.pop("github_publication")
     prepare_complete_evidence(tmp_path)
-    human_decisions_path = tmp_path / "human-decisions.yaml"
-    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
-    human_decisions["decisions"] = [
-        item
-        for item in human_decisions["decisions"]
-        if item["decision_id"] != "github.publication"
-    ]
-    human_decisions_path.write_text(
-        yaml.safe_dump(human_decisions, sort_keys=False),
-        encoding="utf-8",
-    )
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
 
-    assert result["state"] == "awaiting_human_decision"
-    assert result["accepted"] is False
-    assert "github_publication_decision_invalid" in result["blockers"]
+    assert result["state"] == "accepted_merge_ready"
+    assert result["accepted"] is True
+    assert result["blockers"] == []
 
 
 def test_requested_github_publication_is_nonblocking_before_publication(tmp_path: Path) -> None:
     report = complete_report()
     report["github_publication"]["status"] = "requested"
     prepare_complete_evidence(tmp_path)
-    human_decisions_path = tmp_path / "human-decisions.yaml"
-    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
-    for item in human_decisions["decisions"]:
-        if item["decision_id"] == "github.publication":
-            item["answer"] = "publish"
-    human_decisions_path.write_text(
-        yaml.safe_dump(human_decisions, sort_keys=False),
-        encoding="utf-8",
-    )
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -623,12 +1029,9 @@ def test_requested_github_publication_is_nonblocking_before_publication(tmp_path
     assert "github_publication_evidence_missing" not in result["blockers"]
 
 
-def test_requested_github_publication_with_evidence_can_pass(tmp_path: Path) -> None:
+def test_published_github_publication_with_evidence_can_pass(tmp_path: Path) -> None:
     report = complete_report()
     report["github_publication"] = {
-        "decision_required": True,
-        "decision_id": "github.publication",
-        "decision_path": "human-decisions.yaml",
         "status": "published",
         "required_for_merge_readiness": False,
         "publication_mode": "summary_comment",
@@ -657,15 +1060,6 @@ def test_requested_github_publication_with_evidence_can_pass(tmp_path: Path) -> 
         + "\n",
         encoding="utf-8",
     )
-    human_decisions_path = tmp_path / "human-decisions.yaml"
-    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
-    for item in human_decisions["decisions"]:
-        if item["decision_id"] == "github.publication":
-            item["answer"] = "publish"
-    human_decisions_path.write_text(
-        yaml.safe_dump(human_decisions, sort_keys=False),
-        encoding="utf-8",
-    )
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -681,9 +1075,6 @@ def test_published_github_publication_requires_result_artifact_url(
     report = complete_report()
     report["status"] = "blocked_missing_evidence"
     report["github_publication"] = {
-        "decision_required": True,
-        "decision_id": "github.publication",
-        "decision_path": "human-decisions.yaml",
         "status": "published",
         "required_for_merge_readiness": False,
         "publication_mode": "summary_comment",
@@ -711,15 +1102,6 @@ def test_published_github_publication_requires_result_artifact_url(
         + "\n",
         encoding="utf-8",
     )
-    human_decisions_path = tmp_path / "human-decisions.yaml"
-    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
-    for item in human_decisions["decisions"]:
-        if item["decision_id"] == "github.publication":
-            item["answer"] = "publish"
-    human_decisions_path.write_text(
-        yaml.safe_dump(human_decisions, sort_keys=False),
-        encoding="utf-8",
-    )
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -735,9 +1117,6 @@ def test_requested_github_publication_requires_default_result_shape(
     report = complete_report()
     report["status"] = "blocked_missing_evidence"
     report["github_publication"] = {
-        "decision_required": True,
-        "decision_id": "github.publication",
-        "decision_path": "human-decisions.yaml",
         "status": "published",
         "required_for_merge_readiness": False,
         "publication_mode": "summary_comment",
@@ -752,15 +1131,6 @@ def test_requested_github_publication_requires_default_result_shape(
     write_evidence(tmp_path, "github-publication.md")
     (tmp_path / "github-publication-result.json").write_text(
         '{"provider":"github","tool":"gh","action":"pr review","status":"published"}\n',
-        encoding="utf-8",
-    )
-    human_decisions_path = tmp_path / "human-decisions.yaml"
-    human_decisions = yaml.safe_load(human_decisions_path.read_text(encoding="utf-8"))
-    for item in human_decisions["decisions"]:
-        if item["decision_id"] == "github.publication":
-            item["answer"] = "publish"
-    human_decisions_path.write_text(
-        yaml.safe_dump(human_decisions, sort_keys=False),
         encoding="utf-8",
     )
     path = write_report(tmp_path, report)
@@ -805,7 +1175,7 @@ def test_failed_review_status_blocks_readiness(tmp_path: Path) -> None:
 
     assert result["state"] == "rejected"
     assert result["accepted"] is False
-    assert "failed_review:verification-codex" in result["blockers"]
+    assert "failed_review:generalist-a" in result["blockers"]
 
 
 def test_missing_required_review_topology_blocks_readiness(tmp_path: Path) -> None:
@@ -818,9 +1188,10 @@ def test_missing_required_review_topology_blocks_readiness(tmp_path: Path) -> No
 
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "missing_required_review:verification-codex" in result["blockers"]
-    assert "missing_required_review:verification-claude" in result["blockers"]
-    assert "live_claude_absent" in result["blockers"]
+    assert "missing_required_review:generalist-a" in result["blockers"]
+    assert "missing_required_review:generalist-b" in result["blockers"]
+    assert "missing_required_review:adversarial-codex" in result["blockers"]
+    assert "live_claude_absent" not in result["blockers"]
 
 
 def test_underdeclared_pr_merge_review_topology_blocks_readiness(tmp_path: Path) -> None:
@@ -834,23 +1205,24 @@ def test_underdeclared_pr_merge_review_topology_blocks_readiness(tmp_path: Path)
 
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "review_requirements_undeclared:architecture-codex" in result["blockers"]
-    assert "missing_required_review:architecture-codex" in result["blockers"]
-    assert "review_requirements_undeclared:adversarial-claude" in result["blockers"]
+    assert "review_requirements_undeclared:adversarial-codex" in result["blockers"]
+    assert "missing_required_review:adversarial-codex" in result["blockers"]
+    assert "review_requirements_undeclared:generalist-claude" not in result["blockers"]
 
 
 def test_required_live_false_for_claude_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_missing_evidence"
     for required in report["review_requirements"]["required_reviews"]:
-        if required["id"] == "verification-claude":
+        if required["id"] == "generalist-claude":
             required["required_live"] = False
 
     result = evaluate(tmp_path, report)
 
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "required_live_claude_not_declared:verification-claude" in result["blockers"]
+    assert "required_live_claude_not_declared:generalist-claude" in result["blockers"]
 
 
 def test_required_review_role_binding_blocks_wrong_role(tmp_path: Path) -> None:
@@ -858,11 +1230,11 @@ def test_required_review_role_binding_blocks_wrong_role(tmp_path: Path) -> None:
     report["status"] = "blocked_missing_evidence"
     report["reviews"][0]["role_contract_path"] = "profiles/reviewer_roles/architecture.yaml"
     prepare_complete_evidence(tmp_path)
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(
             {
                 "reviewer": {
-                    "id": "verification-codex",
+                    "id": "generalist-a",
                     "provider": "internal-agent",
                     "role": "architecture",
                     "model": "codex",
@@ -881,12 +1253,13 @@ def test_required_review_role_binding_blocks_wrong_role(tmp_path: Path) -> None:
 
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "required_review_mismatch:verification-codex:role_contract_path" in result["blockers"]
-    assert "reviewer_report_role_mismatch:verification-codex" in result["blockers"]
+    assert "required_review_mismatch:generalist-a:role_contract_path" in result["blockers"]
+    assert "reviewer_report_role_mismatch:generalist-a" in result["blockers"]
 
 
 def test_mock_external_review_is_not_live_claude_evidence(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     for entry in report["external_review_evidence"]:
         entry["mode"] = "mock"
@@ -901,6 +1274,7 @@ def test_mock_external_review_is_not_live_claude_evidence(tmp_path: Path) -> Non
 
 def test_omitted_external_review_evidence_for_claude_review_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     report["external_review_evidence"] = []
 
@@ -908,15 +1282,16 @@ def test_omitted_external_review_evidence_for_claude_review_blocks_readiness(tmp
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_evidence_missing:verification-claude" in result["blockers"]
+    assert "external_review_evidence_missing:generalist-claude" in result["blockers"]
 
 
 def test_mock_invocation_metadata_does_not_satisfy_live_claude_evidence(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     prepare_complete_evidence(tmp_path)
-    (tmp_path / "reviewer-invocation.verification-claude.json").write_text(
-        json.dumps({**invocation_metadata("verification-claude"), "execution_mode": "mock"}) + "\n",
+    (tmp_path / "reviewer-invocation.generalist-claude.json").write_text(
+        json.dumps({**invocation_metadata("generalist-claude"), "execution_mode": "mock"}) + "\n",
         encoding="utf-8",
     )
     path = write_report(tmp_path, report)
@@ -925,23 +1300,24 @@ def test_mock_invocation_metadata_does_not_satisfy_live_claude_evidence(tmp_path
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_not_real:verification-claude" in result["blockers"]
+    assert "external_review_not_real:generalist-claude" in result["blockers"]
 
 
 def test_missing_claude_forbidden_env_guardrails_block_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     prepare_complete_evidence(tmp_path)
-    invocation = invocation_metadata("verification-claude")
+    invocation = invocation_metadata("generalist-claude")
     invocation["forbidden_env_checked"] = ["ANTHROPIC_API_KEY"]
-    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.verification-claude.json")
-    invocation["input_hash"] = file_sha(tmp_path / "review-packets" / "verification-claude.json")
-    invocation["prompt_hash"] = file_sha(tmp_path / "review-prompts" / "verification-claude.md")
+    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.generalist-claude.json")
+    invocation["input_hash"] = file_sha(tmp_path / "review-packets" / "generalist-claude.json")
+    invocation["prompt_hash"] = file_sha(tmp_path / "review-prompts" / "generalist-claude.md")
     invocation["review_prompt_contract_hash"] = file_sha(tmp_path / "review-prompt-contract.yaml")
-    invocation["role_contract_hash"] = file_sha(tmp_path / "profiles" / "reviewer_roles" / "verification.yaml")
+    invocation["role_contract_hash"] = file_sha(tmp_path / "profiles" / "reviewer_roles" / "generalist.yaml")
     invocation["rubric_hash"] = file_sha(tmp_path / "rubric.json")
     invocation["schema_hash"] = file_sha(tmp_path / "schemas" / "reviewer-report.schema.json")
-    (tmp_path / "reviewer-invocation.verification-claude.json").write_text(
+    (tmp_path / "reviewer-invocation.generalist-claude.json").write_text(
         json.dumps(invocation, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -951,43 +1327,44 @@ def test_missing_claude_forbidden_env_guardrails_block_readiness(tmp_path: Path)
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_guardrail_forbidden_env_missing:verification-claude" in result["blockers"]
+    assert "external_review_guardrail_forbidden_env_missing:generalist-claude" in result["blockers"]
 
 
 def test_invalid_claude_provider_config_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     prepare_complete_evidence(tmp_path)
     provider_config = tmp_path / "external-reviewers" / "claude-code.yaml"
     provider_config.write_text("provider: claude-code\n", encoding="utf-8")
-    for reviewer in ["verification-claude", "architecture-claude", "adversarial-claude"]:
-        invocation_path = tmp_path / f"reviewer-invocation.{reviewer}.json"
-        invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
-        invocation["provider_config_hash"] = file_sha(provider_config)
-        invocation_path.write_text(json.dumps(invocation, indent=2) + "\n", encoding="utf-8")
+    invocation_path = tmp_path / "reviewer-invocation.generalist-claude.json"
+    invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+    invocation["provider_config_hash"] = file_sha(provider_config)
+    invocation_path.write_text(json.dumps(invocation, indent=2) + "\n", encoding="utf-8")
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_provider_config_invalid:verification-claude" in result["blockers"]
+    assert "external_review_provider_config_invalid:generalist-claude" in result["blockers"]
 
 
 def test_missing_claude_wrapper_metadata_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     prepare_complete_evidence(tmp_path)
-    invocation = invocation_metadata("verification-claude")
+    invocation = invocation_metadata("generalist-claude")
     invocation.pop("wrapper")
-    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.verification-claude.json")
-    invocation["input_hash"] = file_sha(tmp_path / "review-packets" / "verification-claude.json")
-    invocation["prompt_hash"] = file_sha(tmp_path / "review-prompts" / "verification-claude.md")
+    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.generalist-claude.json")
+    invocation["input_hash"] = file_sha(tmp_path / "review-packets" / "generalist-claude.json")
+    invocation["prompt_hash"] = file_sha(tmp_path / "review-prompts" / "generalist-claude.md")
     invocation["review_prompt_contract_hash"] = file_sha(tmp_path / "review-prompt-contract.yaml")
-    invocation["role_contract_hash"] = file_sha(tmp_path / "profiles" / "reviewer_roles" / "verification.yaml")
+    invocation["role_contract_hash"] = file_sha(tmp_path / "profiles" / "reviewer_roles" / "generalist.yaml")
     invocation["rubric_hash"] = file_sha(tmp_path / "rubric.json")
     invocation["schema_hash"] = file_sha(tmp_path / "schemas" / "reviewer-report.schema.json")
-    (tmp_path / "reviewer-invocation.verification-claude.json").write_text(
+    (tmp_path / "reviewer-invocation.generalist-claude.json").write_text(
         json.dumps(invocation, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -997,20 +1374,21 @@ def test_missing_claude_wrapper_metadata_blocks_readiness(tmp_path: Path) -> Non
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_invocation_invalid:verification-claude" in result["blockers"]
-    assert "external_review_guardrail_wrapper_missing:verification-claude" in result["blockers"]
+    assert "external_review_invocation_invalid:generalist-claude" in result["blockers"]
+    assert "external_review_guardrail_wrapper_missing:generalist-claude" in result["blockers"]
 
 
 def test_plan_mode_claude_invocation_metadata_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     prepare_complete_evidence(tmp_path)
-    invocation = invocation_metadata("verification-claude")
+    invocation = invocation_metadata("generalist-claude")
     invocation["permission_mode"] = "plan"
     invocation["prompt_transport"] = "file"
     invocation["tools"] = "Read"
-    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.verification-claude.json")
-    (tmp_path / "reviewer-invocation.verification-claude.json").write_text(
+    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.generalist-claude.json")
+    (tmp_path / "reviewer-invocation.generalist-claude.json").write_text(
         json.dumps(invocation, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -1020,17 +1398,18 @@ def test_plan_mode_claude_invocation_metadata_blocks_readiness(tmp_path: Path) -
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_invocation_invalid:verification-claude" in result["blockers"]
-    assert "external_review_invocation_unsafe_permission_mode:verification-claude" in result["blockers"]
+    assert "external_review_invocation_invalid:generalist-claude" in result["blockers"]
+    assert "external_review_invocation_unsafe_permission_mode:generalist-claude" in result["blockers"]
 
 
 def test_claude_invocation_hash_mismatch_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     prepare_complete_evidence(tmp_path)
-    invocation = invocation_metadata("verification-claude")
+    invocation = invocation_metadata("generalist-claude")
     invocation["normalized_output_hash"] = "sha256:" + "0" * 64
-    (tmp_path / "reviewer-invocation.verification-claude.json").write_text(
+    (tmp_path / "reviewer-invocation.generalist-claude.json").write_text(
         json.dumps(invocation, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -1040,17 +1419,18 @@ def test_claude_invocation_hash_mismatch_blocks_readiness(tmp_path: Path) -> Non
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_normalized_output_hash_mismatch:verification-claude" in result["blockers"]
+    assert "external_review_normalized_output_hash_mismatch:generalist-claude" in result["blockers"]
 
 
 def test_claude_invocation_role_mismatch_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     prepare_complete_evidence(tmp_path)
-    invocation = invocation_metadata("verification-claude")
+    invocation = invocation_metadata("generalist-claude")
     invocation["reviewer_role"] = "architecture"
-    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.verification-claude.json")
-    (tmp_path / "reviewer-invocation.verification-claude.json").write_text(
+    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.generalist-claude.json")
+    (tmp_path / "reviewer-invocation.generalist-claude.json").write_text(
         json.dumps(invocation, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -1060,22 +1440,23 @@ def test_claude_invocation_role_mismatch_blocks_readiness(tmp_path: Path) -> Non
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_invocation_role_mismatch:verification-claude" in result["blockers"]
+    assert "external_review_invocation_role_mismatch:generalist-claude" in result["blockers"]
 
 
 def test_claude_invocation_input_hash_mismatch_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     prepare_complete_evidence(tmp_path)
-    invocation = invocation_metadata("verification-claude")
+    invocation = invocation_metadata("generalist-claude")
     invocation["input_hash"] = "sha256:" + "0" * 64
-    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.verification-claude.json")
-    invocation["prompt_hash"] = file_sha(tmp_path / "review-prompts" / "verification-claude.md")
+    invocation["normalized_output_hash"] = file_sha(tmp_path / "reviewer-report.generalist-claude.json")
+    invocation["prompt_hash"] = file_sha(tmp_path / "review-prompts" / "generalist-claude.md")
     invocation["review_prompt_contract_hash"] = file_sha(tmp_path / "review-prompt-contract.yaml")
-    invocation["role_contract_hash"] = file_sha(tmp_path / "profiles" / "reviewer_roles" / "verification.yaml")
+    invocation["role_contract_hash"] = file_sha(tmp_path / "profiles" / "reviewer_roles" / "generalist.yaml")
     invocation["rubric_hash"] = file_sha(tmp_path / "rubric.json")
     invocation["schema_hash"] = file_sha(tmp_path / "schemas" / "reviewer-report.schema.json")
-    (tmp_path / "reviewer-invocation.verification-claude.json").write_text(
+    (tmp_path / "reviewer-invocation.generalist-claude.json").write_text(
         json.dumps(invocation, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -1085,47 +1466,43 @@ def test_claude_invocation_input_hash_mismatch_blocks_readiness(tmp_path: Path) 
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_input_hash_mismatch:verification-claude" in result["blockers"]
+    assert "external_review_input_hash_mismatch:generalist-claude" in result["blockers"]
 
 
 def test_claude_invocation_rubric_hash_may_match_prompt_contract(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     prepare_complete_evidence(tmp_path)
-    prompt_contract = {
-        "rendered_prompts": [
-            {
-                "reviewer": "verification-claude",
-                "rubric_hash": "sha256:" + "a" * 64,
-            }
-        ]
-    }
-    (tmp_path / "review-prompt-contract.yaml").write_text(
-        yaml.safe_dump(prompt_contract, sort_keys=False),
-        encoding="utf-8",
+    prompt_contract = yaml.safe_load((tmp_path / "review-prompt-contract.yaml").read_text(encoding="utf-8"))
+    rubric_hash = next(
+        prompt["rubric_hash"]
+        for prompt in prompt_contract["rendered_prompts"]
+        if prompt["reviewer"] == "generalist-claude"
     )
     contract_hash = file_sha(tmp_path / "review-prompt-contract.yaml")
-    for reviewer, _topic, provider, _required_live, _role in PR_REVIEW_MATRIX:
+    for reviewer, _topic, provider, _required_live, _role in PR_REVIEW_MATRIX + [CLAUDE_REVIEW]:
         if provider != "claude-code":
             continue
         path = tmp_path / f"reviewer-invocation.{reviewer}.json"
         invocation = json.loads(path.read_text(encoding="utf-8"))
         invocation["review_prompt_contract_hash"] = contract_hash
-        if reviewer == "verification-claude":
-            invocation["rubric_hash"] = "sha256:" + "a" * 64
+        if reviewer == "generalist-claude":
+            invocation["rubric_hash"] = rubric_hash
         path.write_text(json.dumps(invocation, indent=2) + "\n", encoding="utf-8")
+    refresh_review_invocation_set(tmp_path)
 
     result = load_evaluator()(tmp_path, write_report(tmp_path, report))
 
     assert result["state"] == "accepted_merge_ready"
     assert result["accepted"] is True
-    assert "external_review_rubric_hash_mismatch:verification-claude" not in result["blockers"]
+    assert "external_review_rubric_hash_mismatch:generalist-claude" not in result["blockers"]
 
 
 def test_malformed_reviewer_report_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "blocked_missing_evidence"
     prepare_complete_evidence(tmp_path)
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps({"summary": "missing reviewer and findings"}) + "\n",
         encoding="utf-8",
     )
@@ -1135,7 +1512,7 @@ def test_malformed_reviewer_report_blocks_readiness(tmp_path: Path) -> None:
 
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "reviewer_report_invalid:verification-codex" in result["blockers"]
+    assert "reviewer_report_invalid:generalist-a" in result["blockers"]
 
 
 def test_internal_reviewer_report_without_current_context_blocks_readiness(tmp_path: Path) -> None:
@@ -1144,15 +1521,15 @@ def test_internal_reviewer_report_without_current_context_blocks_readiness(tmp_p
     prepare_complete_evidence(tmp_path)
     stale_report = {
         "reviewer": {
-            "id": "verification-codex",
+            "id": "generalist-a",
             "provider": "internal-agent",
-            "role": "verification",
+            "role": "generalist",
             "model": "codex",
         },
         "summary": "Old report with matching reviewer identity but no current packet context.",
         "findings": [],
     }
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(stale_report, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -1162,27 +1539,27 @@ def test_internal_reviewer_report_without_current_context_blocks_readiness(tmp_p
 
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "reviewer_report_context_missing:verification-codex" in result["blockers"]
+    assert "reviewer_report_context_missing:generalist-a" in result["blockers"]
 
 
 def test_internal_reviewer_report_wrong_run_context_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "blocked_missing_evidence"
     prepare_complete_evidence(tmp_path)
-    stale_context = review_context("verification-codex")
+    stale_context = review_context("generalist-a")
     stale_context["run_id"] = "older-run"
     stale_report = {
         "reviewer": {
-            "id": "verification-codex",
+            "id": "generalist-a",
             "provider": "internal-agent",
-            "role": "verification",
+            "role": "generalist",
             "model": "codex",
         },
         "review_context": stale_context,
         "summary": "Old report with matching packet path but wrong run.",
         "findings": [],
     }
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(stale_report, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -1192,27 +1569,27 @@ def test_internal_reviewer_report_wrong_run_context_blocks_readiness(tmp_path: P
 
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "reviewer_report_context_mismatch:verification-codex" in result["blockers"]
+    assert "reviewer_report_context_mismatch:generalist-a" in result["blockers"]
 
 
 def test_internal_reviewer_report_missing_reviewer_instance_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "blocked_missing_evidence"
     prepare_complete_evidence(tmp_path)
-    incomplete_context = review_context("verification-codex")
+    incomplete_context = review_context("generalist-a")
     incomplete_context.pop("reviewer_instance_id")
     stale_report = {
         "reviewer": {
-            "id": "verification-codex",
+            "id": "generalist-a",
             "provider": "internal-agent",
-            "role": "verification",
+            "role": "generalist",
             "model": "codex",
         },
         "review_context": incomplete_context,
         "summary": "Old report without the assigned reviewer instance in context.",
         "findings": [],
     }
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(stale_report, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -1222,72 +1599,68 @@ def test_internal_reviewer_report_missing_reviewer_instance_blocks_readiness(tmp
 
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "reviewer_report_context_mismatch:verification-codex" in result["blockers"]
+    assert "reviewer_report_context_mismatch:generalist-a" in result["blockers"]
 
 
 def test_old_packet_and_matching_internal_report_pair_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
-    report["status"] = "rejected"
+    report["status"] = "blocked_missing_evidence"
     prepare_complete_evidence(tmp_path)
 
-    old_packet = {
-        "agentsflow_version": "0.2",
-        "workflow": "pr-merge-readiness",
-        "run_id": "older-run",
-        "material_change_id": "older-change",
-        "review_packet_path": "review-packets/verification-codex.json",
-        "reviewer_instance_id": "verification-codex",
-        "reviewer_role": "verification",
-        "topic": "verification-evidence",
-    }
-    (tmp_path / "review-packets" / "verification-codex.json").write_text(
+    packet_path = tmp_path / "review-packets" / "generalist-a.json"
+    old_packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    old_packet["run_id"] = "older-run"
+    old_packet["material_change_id"] = "older-change"
+    packet_path.write_text(
         json.dumps(old_packet, indent=2) + "\n",
         encoding="utf-8",
     )
     old_report = {
         "reviewer": {
-            "id": "verification-codex",
+            "id": "generalist-a",
             "provider": "internal-agent",
-            "role": "verification",
+            "role": "generalist",
             "model": "codex",
         },
         "review_context": {
             "run_id": "older-run",
             "material_change_id": "older-change",
-            "review_packet_path": "review-packets/verification-codex.json",
-            "reviewer_instance_id": "verification-codex",
+            "review_packet_path": "review-packets/generalist-a.json",
+            "reviewer_instance_id": "generalist-a",
         },
         "summary": "Old packet and old report are internally consistent.",
         "findings": [],
     }
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(old_report, indent=2) + "\n",
         encoding="utf-8",
     )
+    refresh_prompt_contract_packet_hash(tmp_path, "generalist-a")
+    refresh_review_invocation_set(tmp_path)
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
 
-    assert result["state"] == "rejected"
+    assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
-    assert "review_packet_context_mismatch:verification-codex:run_id" in result["blockers"]
-    assert "review_packet_context_mismatch:verification-codex:material_change_id" in result["blockers"]
+    assert "review_packet_context_mismatch:generalist-a:run_id" in result["blockers"]
+    assert "review_packet_context_mismatch:generalist-a:material_change_id" in result["blockers"]
 
 
 def test_reviewer_report_p1_omitted_from_candidate_findings_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "rejected"
     prepare_complete_evidence(tmp_path)
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(
             {
                 "reviewer": {
-                    "id": "verification-codex",
+                    "id": "generalist-a",
                     "provider": "internal-agent",
-                    "role": "verification",
+                    "role": "generalist",
                 },
                 "summary": "Found blocker.",
-                "review_context": review_context("verification-codex"),
+                "review_context": review_context("generalist-a"),
                 "findings": [
                     {
                         "id": "P1-SOURCE",
@@ -1304,13 +1677,14 @@ def test_reviewer_report_p1_omitted_from_candidate_findings_blocks_readiness(tmp
         + "\n",
         encoding="utf-8",
     )
+    refresh_review_invocation_set(tmp_path)
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
 
     assert result["state"] == "rejected"
     assert result["accepted"] is False
-    assert "unhandled_source_blocking_finding:verification-codex:P1-SOURCE" in result["blockers"]
+    assert "unhandled_source_blocking_finding:generalist-a:P1-SOURCE" in result["blockers"]
 
 
 def test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_readiness(
@@ -1319,16 +1693,16 @@ def test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_re
     report = complete_report()
     report["status"] = "rejected"
     prepare_complete_evidence(tmp_path)
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(
             {
                 "reviewer": {
-                    "id": "verification-codex",
+                    "id": "generalist-a",
                     "provider": "internal-agent",
-                    "role": "verification",
+                    "role": "generalist",
                 },
                 "summary": "Found missing mandatory evidence.",
-                "review_context": review_context("verification-codex"),
+                "review_context": review_context("generalist-a"),
                 "findings": [
                     {
                         "id": "MANDATORY-GAP",
@@ -1345,13 +1719,14 @@ def test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_re
         + "\n",
         encoding="utf-8",
     )
+    refresh_review_invocation_set(tmp_path)
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
 
     assert result["state"] == "rejected"
     assert result["accepted"] is False
-    assert "unhandled_source_blocking_finding:verification-codex:MANDATORY-GAP" in result["blockers"]
+    assert "unhandled_source_blocking_finding:generalist-a:MANDATORY-GAP" in result["blockers"]
 
 
 def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) -> None:
@@ -1363,21 +1738,21 @@ def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) ->
             "severity": "P3",
             "status": "rejected",
             "validation_rationale": "Main agent judged this irrelevant.",
-            "source_findings": [{"reviewer": "verification-codex", "id": "P1-SOURCE"}],
+            "source_findings": [{"reviewer": "generalist-a", "id": "P1-SOURCE"}],
         }
     ]
     prepare_complete_evidence(tmp_path)
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(
             {
                 "reviewer": {
-                    "id": "verification-codex",
+                    "id": "generalist-a",
                     "provider": "internal-agent",
-                    "role": "verification",
+                    "role": "generalist",
                     "model": "codex",
                 },
                 "summary": "Found blocker.",
-                "review_context": review_context("verification-codex"),
+                "review_context": review_context("generalist-a"),
                 "findings": [
                     {
                         "id": "P1-SOURCE",
@@ -1394,6 +1769,7 @@ def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) ->
         + "\n",
         encoding="utf-8",
     )
+    refresh_review_invocation_set(tmp_path)
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -1411,22 +1787,22 @@ def test_reviewer_report_p1_cannot_disappear_as_duplicate_without_resolution(tmp
             "id": "P1-SOURCE",
             "severity": "P1",
             "status": "duplicate",
-            "source_findings": [{"reviewer": "verification-codex", "id": "P1-SOURCE"}],
+            "source_findings": [{"reviewer": "generalist-a", "id": "P1-SOURCE"}],
             **grounded_blocker_fields(),
         }
     ]
     prepare_complete_evidence(tmp_path)
-    (tmp_path / "reviewer-report.verification-codex.json").write_text(
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
         json.dumps(
             {
                 "reviewer": {
-                    "id": "verification-codex",
+                    "id": "generalist-a",
                     "provider": "internal-agent",
-                    "role": "verification",
+                    "role": "generalist",
                     "model": "codex",
                 },
                 "summary": "Found blocker.",
-                "review_context": review_context("verification-codex"),
+                "review_context": review_context("generalist-a"),
                 "findings": [
                     {
                         "id": "P1-SOURCE",
@@ -1443,6 +1819,7 @@ def test_reviewer_report_p1_cannot_disappear_as_duplicate_without_resolution(tmp
         + "\n",
         encoding="utf-8",
     )
+    refresh_review_invocation_set(tmp_path)
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -1460,14 +1837,14 @@ def test_duplicate_local_source_finding_ids_require_reviewer_identity(tmp_path: 
             "id": "F-001",
             "severity": "P1",
             "status": "accepted",
-            "source_findings": [{"reviewer": "verification-codex", "id": "F-001"}],
+            "source_findings": [{"reviewer": "generalist-a", "id": "F-001"}],
             **grounded_blocker_fields(),
         }
     ]
     prepare_complete_evidence(tmp_path)
     for reviewer, provider, role in [
-        ("verification-codex", "internal-agent", "verification"),
-        ("architecture-codex", "internal-agent", "architecture"),
+        ("generalist-a", "internal-agent", "generalist"),
+        ("generalist-b", "internal-agent", "generalist"),
     ]:
         (tmp_path / f"reviewer-report.{reviewer}.json").write_text(
             json.dumps(
@@ -1496,17 +1873,19 @@ def test_duplicate_local_source_finding_ids_require_reviewer_identity(tmp_path: 
             + "\n",
             encoding="utf-8",
         )
+    refresh_review_invocation_set(tmp_path)
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
 
     assert result["state"] == "rejected"
     assert result["accepted"] is False
-    assert "unhandled_source_blocking_finding:architecture-codex:F-001" in result["blockers"]
+    assert "unhandled_source_blocking_finding:generalist-b:F-001" in result["blockers"]
 
 
 def test_sensitive_raw_external_output_requires_redaction_reason(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_sensitive_raw_evidence"
     report["external_review_evidence"][0]["raw_output"] = {
         "persistence": "redacted",
@@ -1521,6 +1900,7 @@ def test_sensitive_raw_external_output_requires_redaction_reason(tmp_path: Path)
 
 def test_redacted_live_external_output_requires_redacted_artifact(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_sensitive_raw_evidence"
     report["external_review_evidence"][0]["raw_output"].pop("artifact_path")
     report["external_review_evidence"][0]["raw_output"].pop("artifact_hash")
@@ -1531,11 +1911,12 @@ def test_redacted_live_external_output_requires_redacted_artifact(tmp_path: Path
 
     assert result["state"] == "blocked_sensitive_raw_evidence"
     assert result["accepted"] is False
-    assert "raw_output_artifact_missing:verification-claude" in result["blockers"]
+    assert "raw_output_artifact_missing:generalist-claude" in result["blockers"]
 
 
 def test_redacted_live_external_output_does_not_require_raw_provider_artifact(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     prepare_complete_evidence(tmp_path)
     path = write_report(tmp_path, report)
 
@@ -1543,40 +1924,42 @@ def test_redacted_live_external_output_does_not_require_raw_provider_artifact(tm
 
     assert result["state"] == "accepted_merge_ready"
     assert result["accepted"] is True
-    assert "external_review_raw_output_missing:verification-claude" not in result["blockers"]
+    assert "external_review_raw_output_missing:generalist-claude" not in result["blockers"]
 
 
 def test_redacted_live_external_output_rejects_persisted_raw_provider_artifact(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_sensitive_raw_evidence"
     prepare_complete_evidence(tmp_path)
-    attach_raw_provider_output(tmp_path, "verification-claude")
+    attach_raw_provider_output(tmp_path, "generalist-claude")
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
 
     assert result["state"] == "blocked_sensitive_raw_evidence"
     assert result["accepted"] is False
-    assert "raw_output_unexpected_persisted:verification-claude" in result["blockers"]
+    assert "raw_output_unexpected_persisted:generalist-claude" in result["blockers"]
 
 
 def test_redacted_live_external_output_rejects_invocation_normalization_raw_source(
     tmp_path: Path,
 ) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_sensitive_raw_evidence"
     prepare_complete_evidence(tmp_path)
-    raw_path = tmp_path / "raw" / "verification-claude.raw.json"
+    raw_path = tmp_path / "raw" / "generalist-claude.raw.json"
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     raw_path.write_text('{"result":"raw"}\n', encoding="utf-8")
-    invocation_path = tmp_path / "reviewer-invocation.verification-claude.json"
+    invocation_path = tmp_path / "reviewer-invocation.generalist-claude.json"
     invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
     invocation["normalization"] = {
         "method": "native-json",
-        "source_path": "raw/verification-claude.raw.json",
+        "source_path": "raw/generalist-claude.raw.json",
         "source_hash": file_sha(raw_path),
-        "output_path": "reviewer-report.verification-claude.json",
-        "output_hash": file_sha(tmp_path / "reviewer-report.verification-claude.json"),
+        "output_path": "reviewer-report.generalist-claude.json",
+        "output_hash": file_sha(tmp_path / "reviewer-report.generalist-claude.json"),
         "schema_validation": "passed",
         "normalized_by": "scripts/reviewers/run_external_reviewer.py",
     }
@@ -1587,49 +1970,52 @@ def test_redacted_live_external_output_rejects_invocation_normalization_raw_sour
 
     assert result["state"] == "blocked_sensitive_raw_evidence"
     assert result["accepted"] is False
-    assert "raw_output_unexpected_persisted:verification-claude" in result["blockers"]
+    assert "raw_output_unexpected_persisted:generalist-claude" in result["blockers"]
 
 
 def test_redacted_live_external_output_rejects_report_normalization_raw_source(
     tmp_path: Path,
 ) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_sensitive_raw_evidence"
     prepare_complete_evidence(tmp_path)
-    raw_path = tmp_path / "raw" / "verification-claude.raw.json"
+    raw_path = tmp_path / "raw" / "generalist-claude.raw.json"
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     raw_path.write_text('{"result":"raw"}\n', encoding="utf-8")
-    reviewer_report_path = tmp_path / "reviewer-report.verification-claude.json"
+    reviewer_report_path = tmp_path / "reviewer-report.generalist-claude.json"
     reviewer_report = json.loads(reviewer_report_path.read_text(encoding="utf-8"))
     reviewer_report["normalization"] = {
         "method": "native-json",
-        "source_path": "raw/verification-claude.raw.json",
+        "source_path": "raw/generalist-claude.raw.json",
         "source_hash": file_sha(raw_path),
         "schema_validation": "passed",
         "normalized_by": "scripts/reviewers/run_external_reviewer.py",
     }
     reviewer_report_path.write_text(json.dumps(reviewer_report, indent=2) + "\n", encoding="utf-8")
-    invocation_path = tmp_path / "reviewer-invocation.verification-claude.json"
+    invocation_path = tmp_path / "reviewer-invocation.generalist-claude.json"
     invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
     invocation["normalized_output_hash"] = file_sha(reviewer_report_path)
     invocation_path.write_text(json.dumps(invocation, indent=2) + "\n", encoding="utf-8")
+    refresh_review_invocation_set(tmp_path)
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
 
     assert result["state"] == "blocked_sensitive_raw_evidence"
     assert result["accepted"] is False
-    assert "raw_output_unexpected_persisted:verification-claude" in result["blockers"]
+    assert "raw_output_unexpected_persisted:generalist-claude" in result["blockers"]
 
 
 def test_raw_live_external_output_requires_non_sensitive_declaration(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_sensitive_raw_evidence"
     report["external_review_evidence"][0]["raw_output"] = {
         "persistence": "raw",
     }
     prepare_complete_evidence(tmp_path)
-    attach_raw_provider_output(tmp_path, "verification-claude")
+    attach_raw_provider_output(tmp_path, "generalist-claude")
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -1641,12 +2027,13 @@ def test_raw_live_external_output_requires_non_sensitive_declaration(tmp_path: P
 
 def test_non_sensitive_raw_live_external_output_is_hash_bound(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["external_review_evidence"][0]["raw_output"] = {
         "persistence": "raw",
         "non_sensitive": True,
     }
     prepare_complete_evidence(tmp_path)
-    attach_raw_provider_output(tmp_path, "verification-claude")
+    attach_raw_provider_output(tmp_path, "generalist-claude")
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -1658,14 +2045,15 @@ def test_non_sensitive_raw_live_external_output_is_hash_bound(tmp_path: Path) ->
 
 def test_non_sensitive_raw_live_external_output_hash_mismatch_blocks(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     report["external_review_evidence"][0]["raw_output"] = {
         "persistence": "raw",
         "non_sensitive": True,
     }
     prepare_complete_evidence(tmp_path)
-    attach_raw_provider_output(tmp_path, "verification-claude")
-    invocation_path = tmp_path / "reviewer-invocation.verification-claude.json"
+    attach_raw_provider_output(tmp_path, "generalist-claude")
+    invocation_path = tmp_path / "reviewer-invocation.generalist-claude.json"
     invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
     invocation["raw_output_hash"] = "sha256:" + "0" * 64
     invocation_path.write_text(json.dumps(invocation, indent=2) + "\n", encoding="utf-8")
@@ -1675,21 +2063,22 @@ def test_non_sensitive_raw_live_external_output_hash_mismatch_blocks(tmp_path: P
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_raw_output_hash_mismatch:verification-claude" in result["blockers"]
+    assert "external_review_raw_output_hash_mismatch:generalist-claude" in result["blockers"]
 
 
 def test_non_sensitive_raw_live_external_output_missing_hash_blocks_with_precise_label(
     tmp_path: Path,
 ) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_external_review"
     report["external_review_evidence"][0]["raw_output"] = {
         "persistence": "raw",
         "non_sensitive": True,
     }
     prepare_complete_evidence(tmp_path)
-    attach_raw_provider_output(tmp_path, "verification-claude")
-    invocation_path = tmp_path / "reviewer-invocation.verification-claude.json"
+    attach_raw_provider_output(tmp_path, "generalist-claude")
+    invocation_path = tmp_path / "reviewer-invocation.generalist-claude.json"
     invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
     invocation.pop("raw_output_hash")
     invocation_path.write_text(json.dumps(invocation, indent=2) + "\n", encoding="utf-8")
@@ -1699,12 +2088,13 @@ def test_non_sensitive_raw_live_external_output_missing_hash_blocks_with_precise
 
     assert result["state"] == "blocked_external_review"
     assert result["accepted"] is False
-    assert "external_review_invocation_missing_raw_output_hash:verification-claude" in result["blockers"]
-    assert "external_review_raw_output_hash_mismatch:verification-claude" not in result["blockers"]
+    assert "external_review_invocation_missing_raw_output_hash:generalist-claude" in result["blockers"]
+    assert "external_review_raw_output_hash_mismatch:generalist-claude" not in result["blockers"]
 
 
 def test_live_external_output_not_persisted_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
+    add_claude_review(report)
     report["status"] = "blocked_sensitive_raw_evidence"
     report["external_review_evidence"][0]["raw_output"] = {
         "persistence": "not_persisted",
@@ -1714,7 +2104,7 @@ def test_live_external_output_not_persisted_blocks_readiness(tmp_path: Path) -> 
 
     assert result["state"] == "blocked_sensitive_raw_evidence"
     assert result["accepted"] is False
-    assert "raw_output_not_persisted:verification-claude" in result["blockers"]
+    assert "raw_output_not_persisted:generalist-claude" in result["blockers"]
 
 
 def test_fixture_report_is_not_real_merge_readiness(tmp_path: Path) -> None:
@@ -1760,6 +2150,7 @@ def test_validated_blocker_severity_overrides_lower_candidate_severity(tmp_path:
             "severity": "P3",
             "validated_severity": "P1",
             "status": "accepted",
+            "evidence": ["finding-validation-report.md records the validated blocker"],
             "blocker_path": "validated readiness finding -> required merge gate -> unsafe acceptance",
             "acceptance_impact": "Accepting the branch unchanged would approve a validated blocker.",
         }
@@ -1951,8 +2342,8 @@ def test_unrelated_valid_reports_do_not_satisfy_collision_control(tmp_path: Path
                 "control_reviewer_count": 2,
                 "disputed_finding_ids": ["F-001"],
                 "control_reports": [
-                    {"path": "reviewer-report.verification-codex.json"},
-                    {"path": "reviewer-report.architecture-codex.json"},
+                    {"path": "reviewer-report.generalist-a.json"},
+                    {"path": "reviewer-report.generalist-b.json"},
                 ],
             },
         }
@@ -2044,7 +2435,7 @@ def test_minimal_collision_control_prompt_contract_does_not_clear_rejected_block
                         {
                             "finding_id": "F-001",
                             "original_severity": "P1",
-                            "source_reviewer_report": "reviewer-report.verification-codex.json",
+                            "source_reviewer_report": "reviewer-report.generalist-a.json",
                             "orchestrator_action": "rejected",
                         }
                     ],
@@ -2219,8 +2610,8 @@ def test_review_packet_older_than_material_change_is_stale(tmp_path: Path) -> No
 
     assert result["state"] == "blocked_stale_review"
     assert result["accepted"] is False
-    assert "stale_review:verification-codex" in result["blockers"]
-    assert result["stale_reviews"] == ["verification-codex"]
+    assert "stale_review:generalist-a" in result["blockers"]
+    assert result["stale_reviews"] == ["generalist-a"]
 
 
 def test_malformed_review_timestamp_blocks_readiness(tmp_path: Path) -> None:
@@ -2232,7 +2623,7 @@ def test_malformed_review_timestamp_blocks_readiness(tmp_path: Path) -> None:
 
     assert result["state"] == "blocked_stale_review"
     assert result["accepted"] is False
-    assert "invalid_review_timestamp:verification-codex" in result["blockers"]
+    assert "invalid_review_timestamp:generalist-a" in result["blockers"]
 
 
 def test_mixed_timezone_review_timestamps_do_not_false_accept(tmp_path: Path) -> None:
@@ -2497,12 +2888,10 @@ def test_pr_merge_readiness_workflow_manifest_declares_utility_policy() -> None:
     assert workflow["mvp_status"] == "v0.2-utility"
     assert workflow["default_strictness"] == "L3"
     assert "project-initialization" not in workflow.get("outputs", [])
-    assert workflow["review"]["topology"] == "heterogeneous-variable"
-    assert workflow["review"]["provider_strategy"] == "provider-mirrored-topic-pairs"
+    assert workflow["review"]["topology"] == "homogeneous-plus-focused"
+    assert workflow["review"]["reviewers"] == ["generalist-a", "generalist-b", "adversarial-codex"]
     phases = {item["id"]: item for item in workflow["phases"]}
-    assert phases["readiness_intake"]["human_interaction"]["required_decisions"] == [
-        "github.publication",
-    ]
+    assert phases["readiness_intake"]["human_interaction"]["required_decisions"] == []
     assert phases["optional_github_publication"]["required_for_merge_readiness"] is False
     assert phases["optional_github_publication"]["mode"] == "automated"
     assert phases["optional_github_publication"]["runs_after"] == ["final_readiness_gate"]
@@ -2511,14 +2900,17 @@ def test_pr_merge_readiness_workflow_manifest_declares_utility_policy() -> None:
     assert phases["final_human_merge_decision"]["name"] == "final-human-merge-decision"
     assert phases["final_human_merge_decision"]["runs_after"] == ["readiness_report"]
     assert phases["final_readiness_gate"]["runs_after"] == ["final_human_merge_decision"]
-    topic_pairs = workflow["review"]["topic_pairs"]
-    assert {item["topic"] for item in topic_pairs} == {
-        "verification-evidence",
-        "architecture-process",
-        "adversarial-authority",
-    }
-    for pair in topic_pairs:
-        assert pair["providers"] == ["internal-agent", "claude-code"]
+    assert workflow["review"]["focus_zones"] == [
+        {
+            "reviewer": "adversarial-codex",
+            "role": "adversarial",
+            "primary_focus": [
+                "false readiness claims",
+                "missing human approval",
+                "mock-vs-live external review evidence",
+            ],
+        }
+    ]
 
 
 def test_example_pr_merge_readiness_report_validates() -> None:

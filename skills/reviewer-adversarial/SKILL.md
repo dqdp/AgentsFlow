@@ -23,13 +23,16 @@ Look for scope creep, prompt/policy bypasses, hidden failure modes, and false co
 
 ## Procedure
 
-1. Assume the implementation may be subtly wrong.
-2. Search for boundary violations.
-3. Search for bypasses, false completion or hidden failure modes in selected
+1. Start with the packet's relevance inputs: `focus_zone` when present,
+   `risk_surface_profile`, `failure_path_matrix`, `changed_files`,
+   `verification_gate_report`, `evidence_freshness`, and `known_blockers`.
+2. Assume the implementation may be subtly wrong.
+3. Search for boundary violations.
+4. Search for bypasses, false completion or hidden failure modes in selected
    risk surfaces and FPM rows.
-4. Search for ambiguous behavior.
-5. Search for false or stale evidence.
-6. Propose regression scenarios tied to concrete triggers and path classes.
+5. Search for ambiguous behavior.
+6. Search for false or stale evidence.
+7. Propose regression scenarios tied to concrete triggers and path classes.
 
 
 ## Quality bar
@@ -89,3 +92,8 @@ Treat selected risk surfaces, Failure Path Matrix rows, freshness metadata and
 known blockers as attack surfaces for review. Report plausible bypass,
 misclassification, missing denial path, hidden timeout/failure path, audit loss
 or false-completion risks as candidate findings with concrete triggers.
+
+A P0/P1 finding should cite the relevant packet input when applicable. If no
+relevance input applies, classify the issue as a contract, review-packet,
+verification or valid-late-discovery gap instead of treating it as an ordinary
+implementation blocker.

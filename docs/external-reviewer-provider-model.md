@@ -131,9 +131,9 @@ For v0.2 this binding is intentionally small:
   reviewer evidence is preserved.
 - completed runs store `review_invocation_set` evidence linking assignments to
   normalized reports, raw external output and invocation metadata.
-- run-scope provider-assigned gates store `review_artifact_preparation`
-  evidence before invocation, so packets and prompts are tied to explicit input
-  artifacts and worktree status.
+- run-scope provider-assigned gates may store `review_artifact_preparation`
+  evidence when the project wants deterministic packet/prompt materialization,
+  explicit input artifacts and dirty-worktree status.
 - mock responses are smoke-test evidence only; completed review gates require
   external invocation metadata with `execution_mode: real`.
 - completed external evidence must be bound to the current packet, prompt,
@@ -150,10 +150,10 @@ allowing a single review gate to mix internal Codex reports and external Claude
 reports. Adding another provider should add a provider adapter and config
 schema support, not a parallel review workflow.
 
-In practice, artifact assembly is deterministic for the v0.2 provider path:
-`prepare_review_set_artifacts.py` materializes declared packets, prompts and
-preparation evidence. Model reviewers return structured findings and summaries;
-they are not responsible for inventing file paths or evidence hashes.
+Model reviewers return structured findings and summaries; they are not
+responsible for inventing file paths or evidence hashes. When deterministic
+artifact assembly is needed, `prepare_review_set_artifacts.py` can materialize
+declared packets, prompts and preparation evidence before dispatch.
 
 Example assignment shape:
 

@@ -21,35 +21,22 @@
   ],
   "review_requirements": {
     "review_prompt_contract_path": "review-prompt-contract.yaml",
+    "review_invocation_set_path": "review-invocation-set.json",
     "rubric_path": "rubric.json",
     "required_reviews": [
       {
-        "id": "verification-codex",
-        "topic": "verification-evidence",
-        "role": "verification",
+        "id": "generalist-a",
+        "topic": "generalist-readiness",
+        "role": "generalist",
         "provider": "internal-agent",
         "required_live": false
       },
       {
-        "id": "verification-claude",
-        "topic": "verification-evidence",
-        "role": "verification",
-        "provider": "claude-code",
-        "required_live": true
-      },
-      {
-        "id": "architecture-codex",
-        "topic": "architecture-process",
-        "role": "architecture",
+        "id": "generalist-b",
+        "topic": "generalist-readiness",
+        "role": "generalist",
         "provider": "internal-agent",
         "required_live": false
-      },
-      {
-        "id": "architecture-claude",
-        "topic": "architecture-process",
-        "role": "architecture",
-        "provider": "claude-code",
-        "required_live": true
       },
       {
         "id": "adversarial-codex",
@@ -57,13 +44,6 @@
         "role": "adversarial",
         "provider": "internal-agent",
         "required_live": false
-      },
-      {
-        "id": "adversarial-claude",
-        "topic": "adversarial-authority",
-        "role": "adversarial",
-        "provider": "claude-code",
-        "required_live": true
       }
     ]
   },
@@ -102,17 +82,8 @@
     "status": "missing"
   },
   "github_publication": {
-    "decision_required": true,
-    "decision_id": "github.publication",
-    "decision_path": "human-decisions.yaml",
     "status": "skipped",
     "required_for_merge_readiness": false,
-    "publication_mode": "summary_comment",
-    "target": "pull_request",
-    "tool": "gh",
-    "action": "pr comment",
-    "body_path": "github-publication.md",
-    "result_path": "github-publication-result.json",
     "reason": "Human selected no GitHub PR publication for this readiness run."
   },
   "self_application": {

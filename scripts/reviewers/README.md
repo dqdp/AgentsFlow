@@ -71,14 +71,9 @@ The runner records `runner_scheduling: external-first-async` in invocation-set
 evidence for this scheduling mode.
 For assignment-enabled gates, `inputs.review_invocation_set` must be declared
 in the contract before dispatch and `run_review_set.py --output` must match
-that path. Run-scope provider-assigned gates also declare
-`inputs.artifact_preparation_report`, written by
-`prepare_review_set_artifacts.py`, before reviewers are invoked.
-The runner fails before dispatch if this run-scope preparation artifact is
-missing, does not exist, is not a completed `review_artifact_preparation`
-artifact, or no longer matches the current review prompt contract. Completed
-invocation-set evidence records both the preparation path and
-`artifact_preparation_report_hash`.
+that path. `prepare_review_set_artifacts.py` may be used before dispatch to
+materialize packets, prompts and dirty-worktree accounting, but the dispatcher
+does not require that optional preparation artifact.
 Mock responses are for smoke tests only. External reviewer evidence used to
 close a run must carry `execution_mode: real`.
 Completed external evidence must also have `exit_code: 0` and invocation hashes

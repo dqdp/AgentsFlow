@@ -19,13 +19,8 @@
       "type": "string",
       "minLength": 1
     },
-    "artifact_preparation_report": {
-      "type": "string",
-      "minLength": 1
-    },
-    "artifact_preparation_report_hash": {
-      "type": "string",
-      "minLength": 1
+    "review_prompt_contract_hash": {
+      "type": "string"
     },
     "status": {
       "enum": ["predeclared", "completed", "failed"]
@@ -78,10 +73,12 @@
             "minLength": 1
           },
           "packet_path": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "report_path": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "raw_output_path": {
             "type": "string"
@@ -95,9 +92,22 @@
           "normalized_output_hash": {
             "type": "string"
           },
+          "packet_hash": {
+            "type": "string"
+          },
+          "report_hash": {
+            "type": "string"
+          },
           "status": {
-            "type": "string",
-            "minLength": 1
+            "enum": [
+              "predeclared",
+              "report-present",
+              "waiting-for-report",
+              "running",
+              "invoked",
+              "timed-out",
+              "failed"
+            ]
           },
           "execution_mode": {
             "enum": ["real", "mock"]
@@ -123,10 +133,18 @@
         "required": ["status"]
       },
       "then": {
-        "required": ["artifact_preparation_report", "artifact_preparation_report_hash"],
+        "required": ["started_at", "finished_at"],
         "properties": {
           "reviewers": {
-            "minItems": 1
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "enum": ["report-present", "invoked"]
+                }
+              }
+            }
           }
         }
       }

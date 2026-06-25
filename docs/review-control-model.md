@@ -118,6 +118,22 @@ A finding blocks acceptance by default when it has been validated as relevant an
 its validated severity is P0/P1 with a grounded blocker path, or when mandatory
 verification evidence is missing.
 
+Validated P0/P1 severity requires all four fields below:
+
+- violated requirement: contract, accepted decision, ADR, gate policy, safety
+  rule, authority boundary or mandatory evidence requirement;
+- concrete evidence: reviewed artifact, diff, report, log or recorded evidence
+  reference;
+- blocker path: the violated requirement and how the artifact can violate
+  acceptance if unchanged;
+- acceptance consequence: why the workflow cannot accept the artifact before the
+  issue is fixed or the requirement is explicitly changed.
+
+A candidate finding that lacks any of those fields is not a validated P0/P1 by
+default. It may be `needs-more-evidence`, downgraded to P2/P3/NOTE, classified as
+a contract gap, or rejected with reason. Risk-surface or Failure Path Matrix
+membership alone is never a blocker path.
+
 Candidate blockers must be explicitly validated, rejected with reason, marked as
 duplicate, escalated, or resolved by additional evidence.
 
@@ -235,6 +251,12 @@ The review packet for each reviewer must include:
 - latest green gate evidence after the latest material change;
 - known validated blockers and their status.
 
+Reviewers treat the packet's existing `focus_zone`, `risk_surface_profile`,
+`failure_path_matrix`, `changed_files`, `verification_gate_report`,
+`evidence_freshness`, and `known_blockers` as relevance inputs. These fields are
+the review map; workflows should not add a parallel focus-map field unless an
+accepted design change removes or replaces the existing inputs.
+
 This keeps risk-driven review grounded in the contract and evidence instead of
 turning role selection into reviewer preference.
 
@@ -269,6 +291,12 @@ after review, the prior review is stale for the affected scope. The run records
 the invalidation reason and refreshes verification and review according to the
 workflow's review-cycle policy.
 
+A closure-only review may confirm that previously validated findings were fixed,
+but it is not an acceptance review gate after a material change. The next
+acceptance-capable review must inspect the full current review packet and must
+ask reviewers both to confirm closure of prior findings and to look for new
+P0/P1 blockers across the changed scope.
+
 ## Actor classes
 
 
@@ -282,6 +310,10 @@ It must:
 
 - compare each finding against the contract, diff/artifact, evidence, workflow,
   ADRs, and non-goals;
+- validate P0/P1 findings with the four-part blocker rule above;
+- classify late accepted blockers as `contract_gap`, `verification_gap`,
+  `review_packet_gap`, `material_fix_regression`, `valid_late_discovery`,
+  `false_positive` or `process_hygiene_nonblocking`;
 - preserve plausible blockers until they are accepted, rejected with reason, or
   escalated to a human;
 - avoid implementing reviewer suggestions blindly;

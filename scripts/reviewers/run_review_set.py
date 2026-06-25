@@ -28,10 +28,6 @@ def now_utc() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
-def sha256_file(path: Path) -> str:
-    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def provider_models_include_family(provider_models: object, model_family: str) -> bool:
     family = str(model_family).lower()
     if not family or not isinstance(provider_models, list):
@@ -58,6 +54,10 @@ def resolve_path(ref: object, root: Path) -> Path:
     if path.is_absolute():
         return path
     return root / path
+
+
+def sha256_file(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def validate_report(path: Path, root: Path) -> dict[str, Any]:
@@ -160,7 +160,7 @@ def validate_assignments(assignments: list[dict[str, Any]], contract: dict[str, 
                     raise ValueError(f"claude-code reviewer assignment missing {key}: {assignment}")
 
 
-def validate_invocation_set_output_path(contract: dict[str, Any], output_path: Path, root: Path) -> Path | None:
+def validate_invocation_set_output_path(contract: dict[str, Any], output_path: Path, root: Path) -> None:
     inputs = contract.get("inputs", {}) or {}
     invocation_set = inputs.get("review_invocation_set")
     if not invocation_set:
@@ -168,180 +168,29 @@ def validate_invocation_set_output_path(contract: dict[str, Any], output_path: P
     evidence_report = inputs.get("evidence_report")
     if evidence_report and resolve_path(evidence_report, root).resolve() == resolve_path(invocation_set, root).resolve():
         raise ValueError("inputs.evidence_report must not match inputs.review_invocation_set")
-    artifact_preparation_report: Path | None = None
-    if contract.get("artifact_scope", "run") == "run":
-        preparation_ref = inputs.get("artifact_preparation_report")
-        if not preparation_ref:
-            raise ValueError("run reviewer_assignments require inputs.artifact_preparation_report path")
-        artifact_preparation_report = resolve_path(preparation_ref, root)
-        if not artifact_preparation_report.is_file():
-            raise ValueError(
-                "run reviewer_assignments require existing inputs.artifact_preparation_report: "
-                f"{artifact_preparation_report}"
-            )
     expected_output = resolve_path(invocation_set, root).resolve()
     if output_path.resolve() != expected_output:
         raise ValueError("--output must match inputs.review_invocation_set path")
-    return artifact_preparation_report
 
 
-def require_hash_match(path: Path, label: str, declared: object, artifact_path: Path) -> None:
-    if not isinstance(declared, str) or not declared.startswith("sha256:"):
-        raise ValueError(f"{path}: {label} hash is required")
-    digest = declared.removeprefix("sha256:")
-    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
-        raise ValueError(f"{path}: {label} hash must be a concrete sha256")
-    actual = sha256_file(artifact_path)
-    if declared != actual:
-        raise ValueError(f"{path}: {label} hash must match current artifact")
-
-
-def resolve_prepared_artifact_path(preparation_path: Path, ref: object, root: Path, label: str) -> Path:
-    if not ref:
-        raise ValueError(f"{preparation_path}: {label} path is required")
-    path = resolve_path(ref, root)
-    if not path.is_file():
-        raise ValueError(f"{preparation_path}: {label} must be an existing file: {ref}")
-    return path
-
-
-def validate_preparation_artifact(
-    preparation_path: Path,
-    contract_path: Path,
+def build_entry(
+    assignment: dict[str, Any],
     root: Path,
-    contract: dict[str, Any],
-    output_path: Path,
-) -> str:
-    preparation = load_json(preparation_path)
-    try:
-        import jsonschema
-    except ImportError as exc:
-        raise RuntimeError("jsonschema is required for review-set validation") from exc
-    schema = load_json(root / "schemas" / "review-artifact-preparation.schema.json")
-    errors = sorted(jsonschema.Draft202012Validator(schema).iter_errors(preparation), key=lambda err: list(err.path))
-    if errors:
-        first = errors[0]
-        location = ".".join(str(part) for part in first.path) or "<root>"
-        raise ValueError(f"{preparation_path}: preparation artifact schema validation failed at {location}: {first.message}")
-    if preparation.get("status") != "completed":
-        raise ValueError(f"{preparation_path}: preparation artifact status must be completed")
-    prompt_contract = preparation.get("review_prompt_contract", {}) or {}
-    prepared_contract_ref = prompt_contract.get("path")
-    if not prepared_contract_ref:
-        raise ValueError(f"{preparation_path}: review_prompt_contract.path is required")
-    prepared_contract_path = resolve_path(prepared_contract_ref, root).resolve()
-    if prepared_contract_path != contract_path.resolve():
-        raise ValueError(f"{preparation_path}: review_prompt_contract.path must match --contract")
-    prepared_contract_hash = prompt_contract.get("hash")
-    require_hash_match(preparation_path, "review_prompt_contract", prepared_contract_hash, contract_path)
-
-    inputs = contract.get("inputs", {}) or {}
-    assignments = {
-        str(item.get("reviewer")): item
-        for item in contract.get("reviewer_assignments", []) or []
-        if isinstance(item, dict) and item.get("reviewer")
-    }
-    reviewers = {
-        str(item.get("instance_id"))
-        for item in contract.get("reviewer_set", []) or []
-        if isinstance(item, dict) and item.get("instance_id")
-    }
-    assigned_reviewers = set(assignments)
-    if reviewers and assigned_reviewers != reviewers:
-        raise ValueError(f"{preparation_path}: reviewer_assignments must cover reviewer_set exactly")
-
-    prep_assignments = {
-        str(item.get("reviewer")): item
-        for item in preparation.get("reviewer_assignments", []) or []
-        if isinstance(item, dict) and item.get("reviewer")
-    }
-    if set(prep_assignments) != assigned_reviewers:
-        raise ValueError(f"{preparation_path}: reviewer_assignments must cover reviewer_set exactly")
-    for reviewer, assignment in assignments.items():
-        prepared_assignment = prep_assignments[reviewer]
-        for key in ["provider", "model_family", "packet_path", "report_path"]:
-            if str(prepared_assignment.get(key)) != str(assignment.get(key)):
-                raise ValueError(f"{preparation_path}: reviewer_assignments[{reviewer}].{key} must match contract")
-
-    generated = preparation.get("generated_artifacts", {}) or {}
-    prep_invocation = generated.get("review_invocation_set", {}) or {}
-    if not prep_invocation.get("path"):
-        raise ValueError(f"{preparation_path}: generated_artifacts.review_invocation_set.path is required")
-    prep_invocation_path = resolve_path(prep_invocation.get("path"), root).resolve()
-    if prep_invocation_path != output_path.resolve():
-        raise ValueError(f"{preparation_path}: generated_artifacts.review_invocation_set.path must match --output")
-
-    packet_paths = {
-        str(item.get("reviewer")): resolve_path(item.get("path"), root)
-        for item in inputs.get("review_packets", []) or []
-        if isinstance(item, dict) and item.get("reviewer") and item.get("path")
-    }
-    for reviewer, assignment in assignments.items():
-        packet_paths.setdefault(reviewer, resolve_path(assignment.get("packet_path"), root))
-    prep_packets = {
-        str(item.get("reviewer")): item
-        for item in generated.get("review_packets", []) or []
-        if isinstance(item, dict) and item.get("reviewer")
-    }
-    if set(prep_packets) != assigned_reviewers:
-        raise ValueError(f"{preparation_path}: generated review_packets must cover reviewer_set exactly")
-    for reviewer, packet_entry in prep_packets.items():
-        prepared_packet_path = resolve_prepared_artifact_path(
-            preparation_path,
-            packet_entry.get("path"),
-            root,
-            f"generated_artifacts.review_packets[{reviewer}]",
-        )
-        expected_packet_path = packet_paths[reviewer].resolve()
-        if prepared_packet_path.resolve() != expected_packet_path:
-            raise ValueError(f"{preparation_path}: review packet path must match contract for {reviewer}")
-        require_hash_match(preparation_path, f"review packet for {reviewer}", packet_entry.get("hash"), expected_packet_path)
-
-    prompt_paths = {
-        str(item.get("reviewer")): resolve_path(item.get("prompt_path"), root)
-        for item in contract.get("rendered_prompts", []) or []
-        if isinstance(item, dict) and item.get("reviewer") and item.get("prompt_path")
-    }
-    prep_prompts = {
-        str(item.get("reviewer")): item
-        for item in generated.get("rendered_prompts", []) or []
-        if isinstance(item, dict) and item.get("reviewer")
-    }
-    if prompt_paths and set(prep_prompts) != assigned_reviewers:
-        raise ValueError(f"{preparation_path}: generated rendered_prompts must cover reviewer_set exactly")
-    for reviewer, prompt_entry in prep_prompts.items():
-        prepared_prompt_path = resolve_prepared_artifact_path(
-            preparation_path,
-            prompt_entry.get("path"),
-            root,
-            f"generated_artifacts.rendered_prompts[{reviewer}]",
-        )
-        if reviewer in prompt_paths and prepared_prompt_path.resolve() != prompt_paths[reviewer].resolve():
-            raise ValueError(f"{preparation_path}: rendered prompt path must match contract for {reviewer}")
-        require_hash_match(preparation_path, f"rendered prompt for {reviewer}", prompt_entry.get("hash"), prepared_prompt_path)
-
-    for idx, artifact in enumerate(preparation.get("input_artifacts", []) or []):
-        if not isinstance(artifact, dict):
-            continue
-        artifact_path = resolve_prepared_artifact_path(
-            preparation_path,
-            artifact.get("path"),
-            root,
-            f"input_artifacts[{idx}]",
-        )
-        require_hash_match(preparation_path, f"input_artifacts[{idx}]", artifact.get("hash"), artifact_path)
-    return sha256_file(preparation_path)
-
-
-def build_entry(assignment: dict[str, Any], root: Path) -> dict[str, Any]:
+    contract_path: Path,
+) -> dict[str, Any]:
+    reviewer = str(assignment["reviewer"])
+    packet_path = resolve_path(assignment["packet_path"], root)
     report_path = resolve_path(assignment["report_path"], root)
-    return {
-        "reviewer": str(assignment["reviewer"]),
+    entry = {
+        "reviewer": reviewer,
         "provider": str(assignment["provider"]),
         "model_family": str(assignment["model_family"]),
-        "packet_path": str(resolve_path(assignment["packet_path"], root)),
+        "packet_path": str(packet_path),
         "report_path": str(report_path),
     }
+    if packet_path.is_file():
+        entry["packet_hash"] = sha256_file(packet_path)
+    return entry
 
 
 def validate_internal_assignment(
@@ -374,9 +223,11 @@ def validate_internal_assignment(
     if not report_path.exists():
         raise ValueError(f"internal reviewer report is missing for {reviewer}: {report_path}")
     report = validate_report(report_path, root)
+    entry["report_hash"] = sha256_file(report_path)
     validate_report_identity(report, reviewer, report_path)
     packet_path = resolve_path(assignment["packet_path"], root)
     packet = load_json(packet_path)
+    entry["packet_hash"] = sha256_file(packet_path)
     validate_report_review_context(report, packet, packet_path, reviewer, report_path, root)
     report_model = str(((report.get("reviewer") or {}).get("model") or ""))
     if require_model_diversity:
@@ -465,7 +316,6 @@ def finish_external_assignment(
     reviewer = str(assignment["reviewer"])
     model_family = str(assignment["model_family"])
     report_path = resolve_path(assignment["report_path"], root)
-    raw_output_path = run["raw_output_path"]
     invocation_path = run["invocation_path"]
 
     stdout, stderr = process.communicate()
@@ -478,6 +328,7 @@ def finish_external_assignment(
         entry["error"] = f"external reviewer {reviewer} failed"
         raise RuntimeError(f"external reviewer {reviewer} failed: {stdout}{stderr}")
     report = validate_report(report_path, root)
+    entry["report_hash"] = sha256_file(report_path)
     validate_report_identity(report, reviewer, report_path)
     if invocation_path.exists():
         invocation = load_json(invocation_path)
@@ -625,22 +476,13 @@ def main() -> int:
         if not isinstance(assignments, list) or not assignments:
             raise ValueError("review prompt contract must declare reviewer_assignments")
         validate_assignments(assignments, contract)
-        artifact_preparation_report = validate_invocation_set_output_path(contract, output_path, root)
-        artifact_preparation_report_hash: str | None = None
-        if artifact_preparation_report:
-            artifact_preparation_report_hash = validate_preparation_artifact(
-                artifact_preparation_report,
-                resolve_path(contract_path, root),
-                root,
-                contract,
-                output_path,
-            )
+        validate_invocation_set_output_path(contract, output_path, root)
         require_model_diversity = (contract.get("provider_policy", {}) or {}).get("require_model_diversity") is True
         internal_runs: list[tuple[dict[str, Any], dict[str, Any]]] = []
 
         for assignment in assignments:
             provider = str(assignment["provider"])
-            entry = build_entry(assignment, root)
+            entry = build_entry(assignment, root, contract_path)
             reviewers.append(entry)
             if provider == "internal-agent":
                 internal_runs.append((assignment, entry))
@@ -692,6 +534,7 @@ def main() -> int:
         failed_output = {
             "artifact_kind": "review_invocation_set",
             "review_prompt_contract": str(contract_path),
+            "review_prompt_contract_hash": sha256_file(contract_path) if contract_path.is_file() else "",
             "status": status,
             "started_at": started,
             "finished_at": now_utc(),
@@ -700,11 +543,6 @@ def main() -> int:
             "reviewers": reviewers,
             "error": str(exc),
         }
-        artifact_preparation_report = (contract.get("inputs", {}) or {}).get("artifact_preparation_report") if "contract" in locals() else None
-        if artifact_preparation_report:
-            failed_output["artifact_preparation_report"] = str(artifact_preparation_report)
-        if "artifact_preparation_report_hash" in locals() and artifact_preparation_report_hash:
-            failed_output["artifact_preparation_report_hash"] = artifact_preparation_report_hash
         output_path.write_text(
             json.dumps(failed_output, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
@@ -723,6 +561,7 @@ def main() -> int:
     completed_output = {
         "artifact_kind": "review_invocation_set",
         "review_prompt_contract": str(contract_path),
+        "review_prompt_contract_hash": sha256_file(contract_path),
         "status": status,
         "started_at": started,
         "finished_at": now_utc(),
@@ -730,11 +569,6 @@ def main() -> int:
         "provider_model_families": provider_model_families,
         "reviewers": reviewers,
     }
-    artifact_preparation_report = (contract.get("inputs", {}) or {}).get("artifact_preparation_report")
-    if artifact_preparation_report:
-        completed_output["artifact_preparation_report"] = str(artifact_preparation_report)
-    if "artifact_preparation_report_hash" in locals() and artifact_preparation_report_hash:
-        completed_output["artifact_preparation_report_hash"] = artifact_preparation_report_hash
     output_path.write_text(
         json.dumps(completed_output, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

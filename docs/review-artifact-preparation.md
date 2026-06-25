@@ -6,14 +6,13 @@ Accepted for the provider-assigned review gate slice.
 
 ## Purpose
 
-Review artifact preparation is the deterministic step that turns declared review
-policy into concrete reviewer inputs. It sits before reviewer invocation:
+Review artifact preparation is an optional deterministic helper that turns
+declared review policy into concrete reviewer inputs:
 
 ```text
 review prompt contract draft
--> deterministic artifact preparation
+-> optional deterministic artifact preparation
 -> prepared review packets and rendered prompts
--> structured preparation evidence
 -> review invocation set
 ```
 
@@ -22,9 +21,9 @@ important, or whether a finding is valid. Those decisions remain workflow,
 project-binding, run or main-agent decisions. The script only materializes and
 hashes declared inputs.
 
-## Required Evidence
+## Preparation Evidence
 
-A completed preparation artifact records:
+A completed preparation artifact can record:
 
 - the review prompt contract path and current hash;
 - the material change id when the run has one;
@@ -36,22 +35,21 @@ A completed preparation artifact records:
 - reviewer assignments copied from the contract;
 - the predeclared review invocation set output path.
 
-Run-scope provider-assigned review gates must reference this preparation
-evidence through:
+Run-scope provider-assigned review gates must predeclare invocation evidence:
 
 ```yaml
 inputs:
-  artifact_preparation_report: Docs/agentsflow/runs/<run-id>/prepared-review-artifacts.json
   review_invocation_set: Docs/agentsflow/runs/<run-id>/review-invocation-set.json
 ```
 
 `inputs.evidence_report` remains available for ordinary verification evidence.
 It is not the review invocation set.
 
-`run_review_set.py` validates this preparation artifact before dispatch and the
-completed invocation set records both `artifact_preparation_report` and
-`artifact_preparation_report_hash`. Validators compare the recorded hash to the
-current preparation file so a later mutation cannot silently satisfy the gate.
+`run_review_set.py` validates the review prompt contract, assignment coverage,
+reviewer reports, external invocation metadata and the completed invocation set.
+It does not require a separate preparation artifact before dispatch. Projects
+may still use `prepare_review_set_artifacts.py` when they want deterministic
+packet/prompt materialization and dirty-worktree accounting.
 External reviewer collection is bounded by `--external-reviewer-timeout-seconds`
 (default 900). If one external reviewer hangs, the runner records the timeout and
 preserves any peer external reviewer evidence that completed before the gate
@@ -76,10 +74,10 @@ ordinary declared input artifact and hashed in the preparation evidence.
 
 ## Validation Boundary
 
-Repository validation can prove that current packets, prompts and invocation-set
-paths match the preparation evidence. It cannot prove that every semantically
-important file was selected unless that selection is encoded in project-bound
-policy, explicit includes or workflow evidence.
+Repository validation can prove that current packets, prompts, invocation-set
+paths and reviewer outputs are structurally consistent. Preparation evidence can
+add dirty-worktree and input-hash accounting, but it is not required for every
+review dispatch.
 
 Embedded file snapshots are checked by the preparation script when a current
 review packet is materialized. Historical committed run artifacts are evidence

@@ -39,32 +39,18 @@
   "review_requirements": {
     "required_reviews": [
       {
-        "id": "verification-codex",
-        "topic": "verification-evidence",
-        "role": "verification",
+        "id": "generalist-a",
+        "topic": "generalist-readiness",
+        "role": "generalist",
         "provider": "internal-agent",
         "required_live": false
       },
       {
-        "id": "verification-claude",
-        "topic": "verification-evidence",
-        "role": "verification",
-        "provider": "claude-code",
-        "required_live": true
-      },
-      {
-        "id": "architecture-codex",
-        "topic": "architecture-process",
-        "role": "architecture",
+        "id": "generalist-b",
+        "topic": "generalist-readiness",
+        "role": "generalist",
         "provider": "internal-agent",
         "required_live": false
-      },
-      {
-        "id": "architecture-claude",
-        "topic": "architecture-process",
-        "role": "architecture",
-        "provider": "claude-code",
-        "required_live": true
       },
       {
         "id": "adversarial-codex",
@@ -72,66 +58,36 @@
         "role": "adversarial",
         "provider": "internal-agent",
         "required_live": false
-      },
-      {
-        "id": "adversarial-claude",
-        "topic": "adversarial-authority",
-        "role": "adversarial",
-        "provider": "claude-code",
-        "required_live": true
       }
     ],
     "review_prompt_contract_path": "review-prompt-contract.yaml",
+    "review_invocation_set_path": "review-invocation-set.json",
     "rubric_path": "rubric.json"
   },
   "reviews": [
     {
-      "id": "verification-codex",
-      "topic": "verification-evidence",
+      "id": "generalist-a",
+      "topic": "generalist-readiness",
       "provider": "internal-agent",
       "status": "pass",
-      "packet_path": "review-packets/verification-codex.json",
-      "report_path": "reviewer-report.verification-codex.json",
+      "packet_path": "review-packets/generalist-a.json",
+      "report_path": "reviewer-report.generalist-a.json",
       "packet_prepared_at": "2026-06-22T10:00:00Z",
       "latest_material_change_at": "2026-06-22T09:30:00Z",
-      "prompt_path": "review-prompts/verification-codex.md",
-      "role_contract_path": "profiles/reviewer_roles/verification.yaml"
+      "prompt_path": "review-prompts/generalist-a.md",
+      "role_contract_path": "profiles/reviewer_roles/generalist.yaml"
     },
     {
-      "id": "verification-claude",
-      "topic": "verification-evidence",
-      "provider": "claude-code",
-      "status": "pass",
-      "packet_path": "review-packets/verification-claude.json",
-      "report_path": "reviewer-report.verification-claude.json",
-      "packet_prepared_at": "2026-06-22T10:00:00Z",
-      "latest_material_change_at": "2026-06-22T09:30:00Z",
-      "prompt_path": "review-prompts/verification-claude.md",
-      "role_contract_path": "profiles/reviewer_roles/verification.yaml"
-    },
-    {
-      "id": "architecture-codex",
-      "topic": "architecture-process",
+      "id": "generalist-b",
+      "topic": "generalist-readiness",
       "provider": "internal-agent",
       "status": "pass",
-      "packet_path": "review-packets/architecture-codex.json",
-      "report_path": "reviewer-report.architecture-codex.json",
+      "packet_path": "review-packets/generalist-b.json",
+      "report_path": "reviewer-report.generalist-b.json",
       "packet_prepared_at": "2026-06-22T10:00:00Z",
       "latest_material_change_at": "2026-06-22T09:30:00Z",
-      "prompt_path": "review-prompts/architecture-codex.md",
-      "role_contract_path": "profiles/reviewer_roles/architecture.yaml"
-    },
-    {
-      "id": "architecture-claude",
-      "topic": "architecture-process",
-      "provider": "claude-code",
-      "status": "pass",
-      "packet_path": "review-packets/architecture-claude.json",
-      "report_path": "reviewer-report.architecture-claude.json",
-      "packet_prepared_at": "2026-06-22T10:00:00Z",
-      "latest_material_change_at": "2026-06-22T09:30:00Z",
-      "prompt_path": "review-prompts/architecture-claude.md",
-      "role_contract_path": "profiles/reviewer_roles/architecture.yaml"
+      "prompt_path": "review-prompts/generalist-b.md",
+      "role_contract_path": "profiles/reviewer_roles/generalist.yaml"
     },
     {
       "id": "adversarial-codex",
@@ -144,64 +100,9 @@
       "latest_material_change_at": "2026-06-22T09:30:00Z",
       "prompt_path": "review-prompts/adversarial-codex.md",
       "role_contract_path": "profiles/reviewer_roles/adversarial.yaml"
-    },
-    {
-      "id": "adversarial-claude",
-      "topic": "adversarial-authority",
-      "provider": "claude-code",
-      "status": "pass",
-      "packet_path": "review-packets/adversarial-claude.json",
-      "report_path": "reviewer-report.adversarial-claude.json",
-      "packet_prepared_at": "2026-06-22T10:00:00Z",
-      "latest_material_change_at": "2026-06-22T09:30:00Z",
-      "prompt_path": "review-prompts/adversarial-claude.md",
-      "role_contract_path": "profiles/reviewer_roles/adversarial.yaml"
     }
   ],
-  "external_review_evidence": [
-    {
-      "provider": "claude-code",
-      "mode": "live",
-      "required_live": true,
-      "status": "pass",
-      "normalized_report_path": "reviewer-report.verification-claude.json",
-      "invocation_metadata_path": "reviewer-invocation.verification-claude.json",
-      "raw_output": {
-        "persistence": "redacted",
-        "redaction_reason": "live output may contain local workspace context",
-        "artifact_path": "evidence/raw/verification-claude.redacted-summary.md",
-        "artifact_hash": "sha256:c80a7acd5d82ef7b7ea7b37660d35c2351a59b3a063ece3da790ed94e2ba9da1"
-      }
-    },
-    {
-      "provider": "claude-code",
-      "mode": "live",
-      "required_live": true,
-      "status": "pass",
-      "normalized_report_path": "reviewer-report.architecture-claude.json",
-      "invocation_metadata_path": "reviewer-invocation.architecture-claude.json",
-      "raw_output": {
-        "persistence": "redacted",
-        "redaction_reason": "live output may contain local workspace context",
-        "artifact_path": "evidence/raw/architecture-claude.redacted-summary.md",
-        "artifact_hash": "sha256:0d802e47eafd0f953c5a922367bd367c028c28c4ed5612db11ed767440a4e4db"
-      }
-    },
-    {
-      "provider": "claude-code",
-      "mode": "live",
-      "required_live": true,
-      "status": "pass",
-      "normalized_report_path": "reviewer-report.adversarial-claude.json",
-      "invocation_metadata_path": "reviewer-invocation.adversarial-claude.json",
-      "raw_output": {
-        "persistence": "redacted",
-        "redaction_reason": "live output may contain local workspace context",
-        "artifact_path": "evidence/raw/adversarial-claude.redacted-summary.md",
-        "artifact_hash": "sha256:309de02fdc604bfc7b34ecd4b44134d0d367610950125da4268bd11481d7df58"
-      }
-    }
-  ],
+  "external_review_evidence": [],
   "candidate_findings": [],
   "human_decision": {
     "status": "accepted",
@@ -209,17 +110,8 @@
     "path": "human-decisions.yaml"
   },
   "github_publication": {
-    "decision_required": true,
-    "decision_id": "github.publication",
-    "decision_path": "human-decisions.yaml",
     "status": "skipped",
     "required_for_merge_readiness": false,
-    "publication_mode": "summary_comment",
-    "target": "pull_request",
-    "tool": "gh",
-    "action": "pr comment",
-    "body_path": "github-publication.md",
-    "result_path": "github-publication-result.json",
     "reason": "Human selected no GitHub PR publication for this fixture."
   },
   "self_application": {

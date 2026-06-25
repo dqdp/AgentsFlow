@@ -1,0 +1,11 @@
+{
+  "reviewer": "generalist-b",
+  "topic": "generalist-readiness",
+  "agentsflow_version": "0.2",
+  "workflow": "pr-merge-readiness",
+  "reviewer_instance_id": "generalist-b",
+  "reviewer_role": "generalist",
+  "run_id": "2026-06-22-pr-merge-readiness-example",
+  "material_change_id": "pr-merge-readiness-example-change",
+  "review_packet_path": "review-packets/generalist-b.json"
+}

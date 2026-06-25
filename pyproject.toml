@@ -11,7 +11,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project.optional-dependencies]
-dev = ["PyYAML", "pytest", "jsonschema"]
+dev = ["PyYAML", "pytest", "jsonschema", "ruff"]
 
 [tool.setuptools]
 packages = []
