@@ -537,6 +537,11 @@ def validate_review_prompt_contract_invariants(
         if not isinstance(assignments, list):
             errors.append(f"{path}: reviewer_assignments must be a list")
             assignments = []
+        inputs = data.get("inputs", {}) or {}
+        if not inputs.get("review_invocation_set"):
+            errors.append(f"{path}: reviewer_assignments require inputs.review_invocation_set")
+        if inputs.get("evidence_report") and str(inputs.get("evidence_report")) == str(inputs.get("review_invocation_set")):
+            errors.append(f"{path}: inputs.evidence_report must not match inputs.review_invocation_set")
         assignment_reviewers: list[str] = []
         provider_model_families: set[str] = set()
         for idx, assignment in enumerate(assignments):
@@ -1655,35 +1660,24 @@ def validate_enabled_review_minimum(
             baseline_missing = sorted({"generalist-a", "generalist-b"} - set(str(item) for item in reviewers))
             if baseline_missing:
                 errors.append(f"{path}: homogeneous-plus-focused missing baseline reviewers: {', '.join(baseline_missing)}")
-        if prompt_policy.get("baseline_same_prompt") is not True:
-            errors.append(f"{path}: {context}.prompt_policy.baseline_same_prompt must be true")
-        if prompt_policy.get("baseline_same_packet") is not True:
-            errors.append(f"{path}: {context}.prompt_policy.baseline_same_packet must be true")
-        if prompt_policy.get("baseline_same_rubric") is not True:
-            errors.append(f"{path}: {context}.prompt_policy.baseline_same_rubric must be true")
-        if prompt_policy.get("focused_reviewers_require_explicit_focus_zone") is not True:
-            errors.append(
-                f"{path}: {context}.prompt_policy.focused_reviewers_require_explicit_focus_zone must be true"
-            )
-        if prompt_policy.get("focus_zones_may_overlap") is not True:
-            errors.append(f"{path}: {context}.prompt_policy.focus_zones_may_overlap must be true")
-        if prompt_policy.get("all_reviewers_must_report_p0_p1_outside_focus") is not True:
-            errors.append(
-                f"{path}: {context}.prompt_policy.all_reviewers_must_report_p0_p1_outside_focus must be true"
-            )
+        for key in [
+            "baseline_same_prompt",
+            "baseline_same_packet",
+            "baseline_same_rubric",
+            "focused_reviewers_require_explicit_focus_zone",
+            "focus_zones_may_overlap",
+            "all_reviewers_must_report_p0_p1_outside_focus",
+        ]:
+            if prompt_policy.get(key) is not True:
+                errors.append(f"{path}: {context}.prompt_policy.{key} must be true")
     elif composition == "heterogeneous":
         if isinstance(reviewers, list) and len(reviewers) < 3:
             errors.append(f"{path}: heterogeneous review must use at least three reviewers")
         if isinstance(reviewers, list) and len(reviewers) > 8:
             errors.append(f"{path}: heterogeneous review must use no more than eight reviewers")
-        if prompt_policy.get("focus_prompts_required") is not True:
-            errors.append(f"{path}: {context}.prompt_policy.focus_prompts_required must be true")
-        if prompt_policy.get("focus_zones_may_overlap") is not True:
-            errors.append(f"{path}: {context}.prompt_policy.focus_zones_may_overlap must be true")
-        if prompt_policy.get("all_reviewers_must_report_p0_p1_outside_focus") is not True:
-            errors.append(
-                f"{path}: {context}.prompt_policy.all_reviewers_must_report_p0_p1_outside_focus must be true"
-            )
+        for key in ["focus_prompts_required", "focus_zones_may_overlap", "all_reviewers_must_report_p0_p1_outside_focus"]:
+            if prompt_policy.get(key) is not True:
+                errors.append(f"{path}: {context}.prompt_policy.{key} must be true")
 
     focus_zones = review.get("focus_zones", []) or []
     if composition in {"homogeneous-plus-focused", "heterogeneous"}:

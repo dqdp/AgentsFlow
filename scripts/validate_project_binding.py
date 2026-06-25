@@ -8,6 +8,8 @@ from pathlib import Path
 import jsonschema
 import yaml
 
+from repo_validation.review import validate_enabled_review_minimum
+
 VALID_GATE_INSTRUMENT_TYPES = {
     "tests",
     "deterministic_script",
@@ -107,102 +109,7 @@ def validate_review_policy(
         errors.append(f"{path}: review.topology unknown: {topology}")
     if topology == "single-reviewer" or topology == "collision-control":
         errors.append(f"{path}: review.topology {topology} is not valid for primary project bindings")
-    selected_surfaces = review.get("selected_risk_surfaces")
-    if selected_surfaces is not None:
-        if not isinstance(selected_surfaces, list):
-            errors.append(f"{path}: review.selected_risk_surfaces must be a list")
-        else:
-            blank_surfaces = [
-                str(index)
-                for index, surface in enumerate(selected_surfaces)
-                if isinstance(surface, str) and not surface.strip()
-            ]
-            if blank_surfaces:
-                errors.append(
-                    f"{path}: review.selected_risk_surfaces must not contain blank entries: {', '.join(blank_surfaces)}"
-                )
-    reviewers = review.get("reviewers")
-    if not isinstance(reviewers, list):
-        errors.append(f"{path}: review.reviewers must be a list")
-        reviewers = []
-    if len(reviewers) < 2:
-        errors.append(f"{path}: primary review requires at least two reviewers")
-    if len(reviewers) > 8:
-        errors.append(f"{path}: primary review allows at most eight reviewers")
-
-    composition = review.get("composition")
-    topology_rules = {
-        "homogeneous-dual": ("homogeneous", 2, 2),
-        "homogeneous-plus-focused": ("homogeneous-plus-focused", 3, 8),
-        "heterogeneous-variable": ("heterogeneous", 3, 8),
-    }
-    expected = topology_rules.get(str(topology))
-    if expected:
-        expected_composition, min_count, max_count = expected
-        if composition != expected_composition:
-            errors.append(f"{path}: review.composition must be {expected_composition} for {topology}")
-        if not (min_count <= len(reviewers) <= max_count):
-            errors.append(f"{path}: review topology {topology} requires {min_count}-{max_count} reviewers")
-
-    context = review.get("context_policy", {}) or {}
-    if context.get("start_mode") != "fresh_context":
-        errors.append(f"{path}: review.context_policy.start_mode must be fresh_context")
-    if context.get("fork_conversation_context") is not False:
-        errors.append(f"{path}: review.context_policy.fork_conversation_context must be false")
-
-    prompt_policy = review.get("prompt_policy", {}) or {}
-    if composition == "homogeneous":
-        for key in ["same_prompt", "same_packet", "same_rubric", "same_output_schema"]:
-            if prompt_policy.get(key) is not True:
-                errors.append(f"{path}: review.prompt_policy.{key} must be true for homogeneous review")
-    elif composition == "homogeneous-plus-focused":
-        baseline_missing = sorted({"generalist-a", "generalist-b"} - {str(item) for item in reviewers})
-        if baseline_missing:
-            errors.append(f"{path}: homogeneous-plus-focused missing baseline reviewers: {', '.join(baseline_missing)}")
-        for key in [
-            "baseline_same_prompt",
-            "baseline_same_packet",
-            "baseline_same_rubric",
-            "focused_reviewers_require_explicit_focus_zone",
-            "focus_zones_may_overlap",
-            "all_reviewers_must_report_p0_p1_outside_focus",
-        ]:
-            if prompt_policy.get(key) is not True:
-                errors.append(f"{path}: review.prompt_policy.{key} must be true")
-    elif composition == "heterogeneous":
-        for key in ["focus_prompts_required", "focus_zones_may_overlap", "all_reviewers_must_report_p0_p1_outside_focus"]:
-            if prompt_policy.get(key) is not True:
-                errors.append(f"{path}: review.prompt_policy.{key} must be true")
-
-    focus_zones = review.get("focus_zones", []) or []
-    if composition in {"homogeneous-plus-focused", "heterogeneous"}:
-        if not isinstance(focus_zones, list) or not focus_zones:
-            errors.append(f"{path}: review.focus_zones must list focused reviewers")
-        else:
-            reviewer_names = {str(item) for item in reviewers}
-            seen = set()
-            for idx, zone in enumerate(focus_zones):
-                if not isinstance(zone, dict):
-                    errors.append(f"{path}: review.focus_zones[{idx}] must be a mapping")
-                    continue
-                reviewer = str(zone.get("reviewer", ""))
-                role = str(zone.get("role", ""))
-                seen.add(reviewer)
-                if reviewer not in reviewer_names:
-                    errors.append(f"{path}: review.focus_zones[{idx}] references non-reviewer: {reviewer}")
-                if role not in reviewer_roles:
-                    errors.append(f"{path}: review.focus_zones[{idx}] references unknown role: {role}")
-                if not zone.get("primary_focus"):
-                    errors.append(f"{path}: review.focus_zones[{idx}] must include primary_focus")
-            if composition == "heterogeneous" and reviewer_names != seen:
-                missing = sorted(reviewer_names - seen)
-                if missing:
-                    errors.append(f"{path}: heterogeneous review.focus_zones missing: {', '.join(missing)}")
-            if composition == "homogeneous-plus-focused":
-                focused = reviewer_names - {"generalist-a", "generalist-b"}
-                missing = sorted(focused - seen)
-                if missing:
-                    errors.append(f"{path}: homogeneous-plus-focused review.focus_zones missing: {', '.join(missing)}")
+    errors.extend(validate_enabled_review_minimum(path, review, "review", reviewer_roles))
     return errors
 
 

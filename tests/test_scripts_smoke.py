@@ -2424,7 +2424,7 @@ def test_external_wrapper_rejects_divergent_homogeneous_plus_focused_baseline() 
     try:
         run_external_reviewer.validate_prompt_contract_invariants(focused)
     except ValueError as exc:
-        assert "baseline rendered_prompts must have matching shared_packet_content_hash" in str(exc)
+        assert "baseline rendered_prompts must share shared_packet_content_hash" in str(exc)
     else:
         raise AssertionError("divergent homogeneous-plus-focused baseline was accepted")
 
