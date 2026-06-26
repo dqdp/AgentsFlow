@@ -22,6 +22,9 @@ V0_2_UTILITY_WORKFLOWS = {
     'review-only-fusion',
     'pr-merge-readiness',
 }
+V0_2_STANDARD_REVIEW_CONTROL_WORKFLOWS = {
+    'project-initialization',
+}
 V0_2_REVIEW_CONTROL_WORKFLOWS = (
     V0_2_SUPPORTED_TARGET_WORKFLOWS | V0_2_UTILITY_WORKFLOWS
 )
@@ -38,6 +41,26 @@ RUN_ARTIFACT_MARKERS = (
     ("Docs", "agentsflow", "runs"),
     ("run-artifacts", "agentsflow", "runs"),
 )
+STANDARD_REVIEW_CONTROL_OVERRIDE_REASON_KEYS = {
+    "override_reason",
+    "standard_review_control_override_reason",
+}
+STANDARD_REVIEW_CONTROL_LOCAL_REVIEW_KEYS = {
+    "blocking_policy",
+}
+STANDARD_REVIEW_CONTROL_LOCAL_REVIEW_CYCLE_KEYS = {
+    "rerun_review_on",
+    "do_not_rerun_on",
+    "materiality_classification",
+    "blocking_default",
+    "validation_required_for",
+    "final_states",
+    "supplemental_review",
+}
+STANDARD_REVIEW_CONTROL_TOP_LEVEL_GLUE_KEYS = {
+    "fusion",
+    "review_agent_permissions",
+}
 
 
 def _is_agentsflow_run_artifact_path(path: Path) -> bool:
@@ -723,6 +746,68 @@ def validate_v02_review_control_phase_policy(path: Path, data: dict) -> list[str
     return []
 
 
+def _has_override_reason(data: dict) -> bool:
+    return any(
+        isinstance(data.get(key), str) and data.get(key).strip()
+        for key in STANDARD_REVIEW_CONTROL_OVERRIDE_REASON_KEYS
+    )
+
+
+def validate_standard_review_control_glue_guardrail(path: Path, data: dict) -> list[str]:
+    review = data.get("review")
+    if not isinstance(review, dict) or review.get("control_policy") != "standard-review-control":
+        return []
+
+    errors: list[str] = []
+    duplicated_review_keys = sorted(set(str(key) for key in review) & STANDARD_REVIEW_CONTROL_LOCAL_REVIEW_KEYS)
+    if duplicated_review_keys and not _has_override_reason(review):
+        errors.append(
+            f"{path}: review duplicates standard-review-control without override_reason: "
+            f"{', '.join(duplicated_review_keys)}"
+        )
+
+    controls = data.get("review_control_rules")
+    if isinstance(controls, dict):
+        duplicated_control_keys = sorted(
+            str(key)
+            for key in controls
+            if str(key) not in STANDARD_REVIEW_CONTROL_OVERRIDE_REASON_KEYS
+        )
+        if duplicated_control_keys and not _has_override_reason(controls):
+            errors.append(
+                f"{path}: review_control_rules duplicates standard-review-control without override_reason: "
+                f"{', '.join(duplicated_control_keys)}"
+            )
+
+    review_cycle = data.get("review_cycle")
+    if isinstance(review_cycle, dict) and review_cycle.get("policy") == "standard-review-control":
+        duplicated_cycle_keys = sorted(
+            set(str(key) for key in review_cycle)
+            & STANDARD_REVIEW_CONTROL_LOCAL_REVIEW_CYCLE_KEYS
+        )
+        if duplicated_cycle_keys and not _has_override_reason(review_cycle):
+            errors.append(
+                f"{path}: review_cycle duplicates standard-review-control without override_reason: "
+                f"{', '.join(duplicated_cycle_keys)}"
+            )
+
+    duplicated_top_level_keys: list[str] = []
+    for key in sorted(STANDARD_REVIEW_CONTROL_TOP_LEVEL_GLUE_KEYS):
+        if key not in data:
+            continue
+        value = data.get(key)
+        if _has_override_reason(data) or (isinstance(value, dict) and _has_override_reason(value)):
+            continue
+        duplicated_top_level_keys.append(key)
+    if duplicated_top_level_keys:
+        errors.append(
+            f"{path}: top-level fields duplicate standard-review-control without override_reason: "
+            f"{', '.join(duplicated_top_level_keys)}"
+        )
+
+    return errors
+
+
 def validate_required_review_gate_order(path: Path, data: dict) -> list[str]:
     required_by_workflow = {
         "big-feature-contract-first": {
@@ -822,10 +907,35 @@ def validate_review_fusion_validation_order(path: Path, data: dict) -> list[str]
 
 def validate_v02_review_control_materiality_policy(path: Path, data: dict) -> list[str]:
     errors: list[str] = []
-    if data.get("name") not in V0_2_REVIEW_CONTROL_WORKFLOWS:
+    review = data.get("review", {}) or {}
+    uses_standard_review_control = (
+        isinstance(review, dict)
+        and review.get("control_policy") == "standard-review-control"
+    )
+    workflow_requires_standard_control = data.get("name") in V0_2_STANDARD_REVIEW_CONTROL_WORKFLOWS
+    if workflow_requires_standard_control and not uses_standard_review_control:
+        errors.append(f"{path}: review.control_policy must be standard-review-control")
+    if data.get("name") not in V0_2_REVIEW_CONTROL_WORKFLOWS and not uses_standard_review_control and not workflow_requires_standard_control:
         return errors
     review_cycle = data.get("review_cycle")
     if not isinstance(review_cycle, dict):
+        if uses_standard_review_control:
+            errors.append(f"{path}: review_cycle is required for standard-review-control")
+        return errors
+    if uses_standard_review_control:
+        if review_cycle.get("default_exit_when") != "no_validated_blockers_or_mandatory_evidence_gaps":
+            errors.append(
+                f"{path}: review_cycle.default_exit_when must be no_validated_blockers_or_mandatory_evidence_gaps"
+            )
+        if review_cycle.get("policy") != "standard-review-control":
+            errors.append(f"{path}: review_cycle.policy must be standard-review-control")
+        sources = set(str(item) for item in review_cycle.get("materiality_classification_source", []) or [])
+        required_sources = {"finding-validation-report.md", "review-cycle-report.md"}
+        missing_sources = sorted(required_sources - sources)
+        if missing_sources:
+            errors.append(
+                f"{path}: review_cycle.materiality_classification_source missing: {', '.join(missing_sources)}"
+            )
         return errors
     do_not_rerun = set(str(item) for item in review_cycle.get("do_not_rerun_on", []) or [])
     if "nonblocking_findings_only" in do_not_rerun:

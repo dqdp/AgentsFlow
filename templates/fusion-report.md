@@ -102,7 +102,7 @@ For each candidate finding that could affect acceptance, the main/orchestrating 
 Default exit condition:
 
 ```text
-no_validated_blocking_findings
+no_validated_blockers_or_mandatory_evidence_gaps
 ```
 
 Fusion should recommend exiting the review cycle only when there are no unresolved

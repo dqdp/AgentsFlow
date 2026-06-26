@@ -11,7 +11,7 @@ Validator: `<main/orchestrating agent or human>`
 ## Review Cycle Policy
 
 ```yaml
-default_exit_when: no_validated_blocking_findings
+default_exit_when: no_validated_blockers_or_mandatory_evidence_gaps
 max_review_cycles: <n or omitted for no cycle-count cap>
 max_review_cycles_source: <project-operating-decisions|workflow-binding|none>
 max_review_cycles_absent_means: unlimited

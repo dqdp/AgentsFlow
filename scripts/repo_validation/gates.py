@@ -26,18 +26,22 @@ VALID_GATE_INSTRUMENT_TYPES = {
     'review_protocol_check',
 }
 
-TARGET_WORKFLOW_DECISION_CATEGORIES = {
-    "scope",
-    "adr",
-    "risk",
-    "risk-surface",
-    "failure-path-matrix",
-    "contract",
-    "gate",
-    "review",
-    "evidence",
-    "authority",
-    "workflow-design",
+TARGET_WORKFLOW_OPEN_DECISION_SCOPES = {
+    "run_scoped",
+    "persistent_policy_candidate",
+}
+TARGET_WORKFLOW_OPEN_DECISION_REQUIRED_FIELDS = {
+    "decision_id",
+    "owning_requirement_ref",
+    "decision_scope",
+    "classification",
+    "status",
+    "affected_artifacts",
+    "rationale",
+}
+TARGET_WORKFLOW_OPEN_DECISION_DEFERRAL_FIELDS = {
+    "deferral_constraints",
+    "residual_risk",
 }
 
 
@@ -88,13 +92,38 @@ def validate_gate_manifest(root: Path, path: Path, data: dict | None = None) -> 
         if not any("project-documentation-disposition.yaml" in item for item in required_evidence):
             errors.append(
                 f"{path}: {gate_id} required_evidence must include project-documentation-disposition.yaml"
-            )
+        )
         if gate_id == "target_workflow_readiness_gate":
-            decision_categories = set(str(item) for item in data.get("decision_categories", []) or [])
-            missing_categories = sorted(TARGET_WORKFLOW_DECISION_CATEGORIES - decision_categories)
-            if missing_categories:
+            open_packet = data.get("open_decision_packet", {}) or {}
+            if open_packet.get("packet_kind") != "target_workflow_open_decisions":
                 errors.append(
-                    f"{path}: target_workflow_readiness_gate decision_categories missing: {', '.join(missing_categories)}"
+                    f"{path}: target_workflow_readiness_gate open_decision_packet.packet_kind must be target_workflow_open_decisions"
+                )
+            if open_packet.get("owning_requirement_ref_required") is not True:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate must require owning_requirement_ref"
+                )
+            decision_scopes = set(str(item) for item in open_packet.get("allowed_decision_scopes", []) or [])
+            missing_scopes = sorted(TARGET_WORKFLOW_OPEN_DECISION_SCOPES - decision_scopes)
+            if missing_scopes:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate allowed_decision_scopes missing: {', '.join(missing_scopes)}"
+                )
+            required_fields = set(str(item) for item in open_packet.get("required_fields", []) or [])
+            missing_fields = sorted(TARGET_WORKFLOW_OPEN_DECISION_REQUIRED_FIELDS - required_fields)
+            if missing_fields:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate required_fields missing: {', '.join(missing_fields)}"
+                )
+            deferral_fields = set(str(item) for item in open_packet.get("deferral_requires", []) or [])
+            missing_deferral = sorted(TARGET_WORKFLOW_OPEN_DECISION_DEFERRAL_FIELDS - deferral_fields)
+            if missing_deferral:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate deferral_requires missing: {', '.join(missing_deferral)}"
+                )
+            if open_packet.get("persistent_policy_activation_allowed") is not False:
+                errors.append(
+                    f"{path}: target_workflow_readiness_gate must not activate persistent policy"
                 )
             if not any("existing project policy/workflow binding evidence" in item for item in inputs):
                 errors.append(

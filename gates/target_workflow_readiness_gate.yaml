@@ -3,20 +3,26 @@ name: Target Workflow Readiness Gate
 kind: gate
 purpose: Validate that prepare-workflow mode has a declared target workflow and
   enough project-bound operating context to prepare that workflow, or has captured
-  the missing context and material gate, review, evidence, risk-surface,
-  Failure Path Matrix, authority or design decisions as human-mediated evidence.
-decision_categories:
-- scope
-- adr
-- risk
-- risk-surface
-- failure-path-matrix
-- contract
-- gate
-- review
-- evidence
-- authority
-- workflow-design
+  bounded target-workflow open decisions as human-mediated evidence.
+open_decision_packet:
+  packet_kind: target_workflow_open_decisions
+  discovered_by: target_workflow_readiness_preflight
+  owning_requirement_ref_required: true
+  allowed_decision_scopes:
+  - run_scoped
+  - persistent_policy_candidate
+  required_fields:
+  - decision_id
+  - owning_requirement_ref
+  - decision_scope
+  - classification
+  - status
+  - affected_artifacts
+  - rationale
+  deferral_requires:
+  - deferral_constraints
+  - residual_risk
+  persistent_policy_activation_allowed: false
 runner: scripts/gates/run_gate.py
 may_modify_files: false
 inputs:
@@ -27,7 +33,7 @@ inputs:
 - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
 - existing project policy/workflow binding evidence when available
 - target workflow preflight findings when available
-- human decision packet when operating context is incomplete or material design decisions are discovered
+- human decision packet when operating context is incomplete or bounded target-workflow open decisions are discovered
 - human risk acceptance evidence when documentation_legacy_adoption.extraction_depth is light
 - extraction depth upgrade evidence when documentation_legacy_adoption.extraction_depth is light
 instruments:
@@ -48,7 +54,9 @@ required_evidence:
 - project-documentation-disposition.yaml as run-level target workflow context
 - project-knowledge-extraction.md as run-level target workflow context when documentation_legacy_adoption.mode is knowledge-extraction
 - existing project policy/workflow binding evidence or target workflow preflight findings
-- gate, review, evidence, risk-surface, Failure Path Matrix, authority and material design decision evidence or human decision packet
+- bounded target-workflow open decision evidence or human decision packet, with owning requirement references
+- target workflow risk-surface decision evidence with owning requirement references
+- target workflow Failure Path Matrix decision evidence with owning requirement references
 - human risk acceptance evidence when documentation_legacy_adoption.extraction_depth is light, or evidence that extraction_depth was upgraded to standard or deep
 outputs:
 - target-workflow-readiness-gate-report.md

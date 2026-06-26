@@ -43,7 +43,22 @@
             "type": "string",
             "enum": ["blocking-material", "nonblocking-follow-up", "nonblocking-known-limitation", "out-of-scope"]
           },
-          "rationale": {"type": "string"},
+          "owning_requirement_ref": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "decision_scope": {
+            "type": "string",
+            "enum": ["run_scoped", "persistent_policy_candidate"]
+          },
+          "rationale": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "residual_risk": {
+            "type": "string",
+            "pattern": "\\S"
+          },
           "deferral_constraints": {
             "type": "object",
             "required": ["constraints"],
@@ -92,6 +107,34 @@
             },
             "then": {
               "required": ["deferral_constraints"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "phase_id": {"const": "target_workflow_context_decision_packet"}
+              },
+              "required": ["phase_id"]
+            },
+            "then": {
+              "required": ["owning_requirement_ref", "decision_scope", "rationale"],
+              "properties": {
+                "answered_by": {
+                  "enum": ["human", "project-owner"]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "phase_id": {"const": "target_workflow_context_decision_packet"},
+                "status": {"const": "explicitly_deferred_with_constraints"}
+              },
+              "required": ["phase_id", "status"]
+            },
+            "then": {
+              "required": ["deferral_constraints", "residual_risk"]
             }
           }
         ]

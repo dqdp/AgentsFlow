@@ -108,7 +108,8 @@ In summary:
 - reviewer findings start as `candidate-unvalidated`;
 - P0/P1 candidate findings and mandatory evidence gaps must be preserved;
 - the main/orchestrating agent validates findings with a structured decision matrix;
-- the default review-cycle exit criterion is `no_validated_blocking_findings`;
+- the default review-cycle exit criterion is
+  `no_validated_blockers_or_mandatory_evidence_gaps`;
 - repeated review agents are not rerun when only non-blocking findings remain;
 - workflows may override review-cycle policy explicitly in `workflow.yaml`.
 
@@ -205,6 +206,24 @@ A workflow decides:
 - whether fusion is required;
 - what counts as pass/fail/needs-human-decision;
 - which checks belong inside the verification gate.
+
+Workflow definitions may reference the shared policy instead of duplicating it:
+
+```yaml
+review:
+  control_policy: standard-review-control
+review_cycle:
+  policy: standard-review-control
+  materiality_classification_source:
+    - finding-validation-report.md
+    - review-cycle-report.md
+```
+
+Under the standard policy, post-review materiality is recorded in the run's
+finding-validation or review-cycle report. Workflow YAML should not repeat the
+full materiality trigger list, blocker defaults or validation-required list
+unless the workflow intentionally overrides the shared policy and records the
+override reason.
 
 The core only requires that:
 

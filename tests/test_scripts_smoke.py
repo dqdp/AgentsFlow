@@ -103,6 +103,58 @@ def test_agentsflow_v02_behavior_contract_passes() -> None:
     assert binding_result.returncode == 0, binding_result.stdout + binding_result.stderr
 
 
+def test_behavior_binding_check_rejects_unknown_contract_scenario(tmp_path) -> None:
+    import yaml
+
+    contract_src = ROOT / "docs/contracts/agentsflow-v0.2-mvp.contract.md"
+    bindings_src = ROOT / "docs/contracts/agentsflow-v0.2-mvp.bindings.yaml"
+    contract_dst = tmp_path / contract_src.name
+    bindings_dst = tmp_path / bindings_src.name
+    contract_dst.write_text(contract_src.read_text(encoding="utf-8"), encoding="utf-8")
+    bindings = yaml.safe_load(bindings_src.read_text(encoding="utf-8"))
+    target_binding = next(binding for binding in bindings["bindings"] if binding["id"] == "AF-V02-BHV-008")
+    target_binding["scenario"] = "Prepare-workflow missing context or design forks use a run-level decision packet"
+    bindings_dst.write_text(yaml.safe_dump(bindings, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/bdd_binding_check.py", "--bindings", str(bindings_dst))
+    assert result.returncode != 0
+    assert "scenario is not declared in contract" in (result.stdout + result.stderr)
+
+
+def test_behavior_binding_check_rejects_missing_required_contract_source(tmp_path) -> None:
+    import yaml
+
+    contract_src = ROOT / "docs/contracts/agentsflow-v0.2-mvp.contract.md"
+    bindings_src = ROOT / "docs/contracts/agentsflow-v0.2-mvp.bindings.yaml"
+    contract_dst = tmp_path / contract_src.name
+    bindings_dst = tmp_path / bindings_src.name
+    contract_dst.write_text(contract_src.read_text(encoding="utf-8"), encoding="utf-8")
+    bindings = yaml.safe_load(bindings_src.read_text(encoding="utf-8"))
+    target_binding = next(binding for binding in bindings["bindings"] if binding["id"] == "AF-V02-BHV-008")
+    target_binding["source"]["path"] = "missing.contract.md"
+    bindings_dst.write_text(yaml.safe_dump(bindings, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/bdd_binding_check.py", "--bindings", str(bindings_dst))
+    assert result.returncode != 0
+    assert "source contract file does not exist" in (result.stdout + result.stderr)
+
+
+def test_behavior_binding_check_rejects_missing_task_contract_for_run_binding(tmp_path) -> None:
+    import yaml
+
+    bindings_src = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/behavior.bindings.yaml"
+    )
+    bindings = yaml.safe_load(bindings_src.read_text(encoding="utf-8"))
+    bindings_dst = tmp_path / "behavior.bindings.yaml"
+    bindings_dst.write_text(yaml.safe_dump(bindings, sort_keys=False), encoding="utf-8")
+
+    result = run("scripts/bdd_binding_check.py", "--bindings", str(bindings_dst))
+    assert result.returncode != 0
+    assert "contract file does not exist: task.contract.md" in (result.stdout + result.stderr)
+
+
 def test_behavior_binding_schema_allows_spec_only_bindings(tmp_path) -> None:
     import json
 
@@ -160,7 +212,7 @@ def test_behavior_binding_schema_allows_risk_path_metadata(tmp_path) -> None:
 
     binding_path = tmp_path / "risk.bindings.yaml"
     binding_path.write_text(yaml.safe_dump(binding), encoding="utf-8")
-    result = run("scripts/bdd_binding_check.py", "--bindings", str(binding_path))
+    result = run("scripts/bdd_binding_check.py", "--bindings", "templates/behavior-bindings.yaml")
     assert result.returncode == 0, result.stdout + result.stderr
 
 
@@ -1499,12 +1551,15 @@ def test_project_documentation_disposition_resolves_human_decision_record(tmp_pa
             "decision_id": "unrelated-confirmed-decision",
             "phase_id": "target_workflow_context_decision_packet",
             "question_ref": "unrelated-confirmed-decision",
+            "owning_requirement_ref": "project-initialization.documentation_disposition",
+            "decision_scope": "run_scoped",
             "answer": {
                 "unrelated": True,
             },
             "status": "confirmed",
             "answered_by": "project-owner",
             "classification": "blocking-material",
+            "rationale": "Fixture risk decision is intentionally unrelated.",
             "affected_artifacts": [
                 "human-decisions.yaml",
             ],
@@ -1539,12 +1594,15 @@ def test_project_documentation_disposition_resolves_human_decision_record(tmp_pa
             "decision_id": "documentation-extraction-light-risk",
             "phase_id": "target_workflow_context_decision_packet",
             "question_ref": "documentation-extraction-light-risk",
+            "owning_requirement_ref": "project-initialization.documentation_disposition",
+            "decision_scope": "run_scoped",
             "answer": {
                 "accepts_light_extraction_implementation_risk": True,
             },
             "status": "confirmed",
             "answered_by": "project-owner",
             "classification": "blocking-material",
+            "rationale": "Fixture accepts light extraction risk for implementation readiness.",
             "affected_artifacts": [
                 "project-documentation-disposition.yaml",
                 "target-workflow-readiness-gate-report.md",
@@ -1558,6 +1616,19 @@ def test_project_documentation_disposition_resolves_human_decision_record(tmp_pa
     assert not validate_repo.validate_project_documentation_disposition_artifact(
         ROOT, disposition_path
     )
+
+    invalid_schema_decisions = yaml.safe_load(yaml.safe_dump(risk_decisions))
+    invalid_schema_decision = next(
+        decision
+        for decision in invalid_schema_decisions["decisions"]
+        if decision["decision_id"] == "documentation-extraction-light-risk"
+    )
+    invalid_schema_decision.pop("owning_requirement_ref")
+    write_artifacts(decisions_data=invalid_schema_decisions, disposition_data=risk_disposition)
+    errors = validate_repo.validate_project_documentation_disposition_artifact(
+        ROOT, disposition_path
+    )
+    assert "schema error" in "\n".join(errors)
 
 
 def test_project_initialization_example_claimed_files_exist() -> None:
@@ -1708,6 +1779,43 @@ def test_human_decisions_reject_defaulted_blocking_material() -> None:
     blank_constraints = copy.deepcopy(deferred_blocking)
     blank_constraints["decisions"][0]["deferral_constraints"]["constraints"] = ["   "]
     assert list(validator.iter_errors(blank_constraints))
+
+
+def test_target_workflow_human_decisions_require_open_decision_fields() -> None:
+    import copy
+    import json
+
+    import jsonschema
+    import yaml
+
+    schema = json.loads((ROOT / "schemas/human-decisions.schema.json").read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    data = yaml.safe_load((ROOT / "templates/human-decisions.yaml").read_text(encoding="utf-8"))
+    target_decision = data["decisions"][1]
+    assert target_decision["phase_id"] == "target_workflow_context_decision_packet"
+    assert not list(validator.iter_errors(data))
+
+    for field in ["owning_requirement_ref", "decision_scope", "rationale"]:
+        missing = copy.deepcopy(data)
+        missing["decisions"][1].pop(field)
+        assert list(validator.iter_errors(missing))
+
+    for field in ["owning_requirement_ref", "rationale", "residual_risk"]:
+        blank = copy.deepcopy(data)
+        blank["decisions"][1][field] = "   "
+        assert list(validator.iter_errors(blank))
+
+    agent_owned = copy.deepcopy(data)
+    agent_owned["decisions"][1]["answered_by"] = "agent"
+    assert list(validator.iter_errors(agent_owned))
+
+    invalid_scope = copy.deepcopy(data)
+    invalid_scope["decisions"][1]["decision_scope"] = "global_policy"
+    assert list(validator.iter_errors(invalid_scope))
+
+    missing_residual_risk = copy.deepcopy(data)
+    missing_residual_risk["decisions"][1].pop("residual_risk")
+    assert list(validator.iter_errors(missing_residual_risk))
 
 
 def test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone() -> None:
@@ -2178,6 +2286,22 @@ def test_v02_review_control_fusion_requires_validation_after_fusion() -> None:
     assert "finding_validation phase must run after fusion" in "\n".join(errors)
 
 
+def test_bfcf_l3_keeps_fusion_required() -> None:
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / "workflows/big-feature-contract-first/workflow.yaml").read_text(encoding="utf-8"))
+    strictness = yaml.safe_load((ROOT / "profiles/strictness/L3.yaml").read_text(encoding="utf-8"))
+    review = workflow["review"]
+    phase_by_id = {phase["id"]: phase for phase in workflow["phases"] if "id" in phase}
+
+    assert workflow["default_strictness"] == "L3"
+    assert "fusion_report" in strictness["requires"]
+    assert review["fusion_required"] is True
+    assert "fusion_gate" in review["gates"]
+    assert "fusion_gate" in workflow["concrete_gates"]
+    assert "fusion" in phase_by_id["finding_validation"]["runs_after"]
+
+
 def test_review_only_fusion_requires_finding_validation_phase() -> None:
     import copy
     import sys
@@ -2215,7 +2339,7 @@ def test_reference_workflow_without_fusion_is_not_v02_review_control_surface() -
     assert not errors
 
 
-def test_v02_review_cycle_requires_materiality_policy() -> None:
+def test_v02_standard_review_control_uses_report_materiality_source() -> None:
     import copy
     import sys
 
@@ -2226,20 +2350,169 @@ def test_v02_review_cycle_requires_materiality_policy() -> None:
 
     path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    errors = validate_repo.validate_v02_review_control_materiality_policy(path, workflow)
+    assert not errors
+
     broken = copy.deepcopy(workflow)
-    broken["review_cycle"].pop("materiality_classification")
+    broken["review_cycle"].pop("materiality_classification_source")
 
     errors = validate_repo.validate_v02_review_control_materiality_policy(path, broken)
     assert errors
+    assert "review_cycle.materiality_classification_source missing" in "\n".join(errors)
+
+    init_path = ROOT / "workflows/project-initialization/workflow.yaml"
+    init_workflow = yaml.safe_load(init_path.read_text(encoding="utf-8"))
+    assert not validate_repo.validate_v02_review_control_materiality_policy(init_path, init_workflow)
+
+    missing_init_policy = copy.deepcopy(init_workflow)
+    missing_init_policy["review_cycle"].pop("policy")
+    errors = validate_repo.validate_v02_review_control_materiality_policy(init_path, missing_init_policy)
+    assert "review_cycle.policy must be standard-review-control" in "\n".join(errors)
+
+    missing_init_control_policy = copy.deepcopy(init_workflow)
+    missing_init_control_policy["review"].pop("control_policy")
+    errors = validate_repo.validate_v02_review_control_materiality_policy(init_path, missing_init_control_policy)
+    assert "review.control_policy must be standard-review-control" in "\n".join(errors)
+
+    missing_init_sources = copy.deepcopy(init_workflow)
+    missing_init_sources["review_cycle"].pop("materiality_classification_source")
+    errors = validate_repo.validate_v02_review_control_materiality_policy(init_path, missing_init_sources)
+    assert "review_cycle.materiality_classification_source missing" in "\n".join(errors)
+
+    weak_exit = copy.deepcopy(workflow)
+    weak_exit["review_cycle"]["default_exit_when"] = "no_validated_blocking_findings"
+    errors = validate_repo.validate_v02_review_control_materiality_policy(path, weak_exit)
+    assert "review_cycle.default_exit_when must be no_validated_blockers_or_mandatory_evidence_gaps" in "\n".join(errors)
+
+
+def test_standard_review_control_templates_use_mandatory_evidence_exit_token() -> None:
+    expected = "no_validated_blockers_or_mandatory_evidence_gaps"
+    stale = "no_validated_blocking_findings"
+    paths = [
+        ROOT / "templates/review-cycle-report.md",
+        ROOT / "templates/finding-validation-report.md",
+        ROOT / "templates/fusion-report.md",
+        ROOT / "docs/review-agent-interaction-protocol.md",
+        ROOT / "docs/review-fusion-model.md",
+    ]
+
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert expected in text, path
+        assert stale not in text, path
+
+
+def test_standard_review_control_rejects_duplicated_local_glue_without_override_reason() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    duplicated_rules = copy.deepcopy(workflow)
+    duplicated_rules["review_control_rules"] = {"review_agents_read_only": True}
+    errors = validate_repo.validate_standard_review_control_glue_guardrail(path, duplicated_rules)
+    assert "review_control_rules duplicates standard-review-control without override_reason" in "\n".join(errors)
+
+    duplicated_cycle = copy.deepcopy(workflow)
+    duplicated_cycle["review_cycle"]["rerun_review_on"] = ["accepted_blocker_fixed"]
+    duplicated_cycle["review_cycle"]["blocking_default"] = {"severities": ["P0", "P1"]}
+    errors = validate_repo.validate_standard_review_control_glue_guardrail(path, duplicated_cycle)
+    joined = "\n".join(errors)
+    assert "review_cycle duplicates standard-review-control without override_reason" in joined
+    assert "blocking_default" in joined
+    assert "rerun_review_on" in joined
+
+    duplicated_review = copy.deepcopy(workflow)
+    duplicated_review["review"]["blocking_policy"] = {"p0_blocks": True}
+    errors = validate_repo.validate_standard_review_control_glue_guardrail(path, duplicated_review)
+    assert "review duplicates standard-review-control without override_reason" in "\n".join(errors)
+
+    duplicated_top_level = copy.deepcopy(workflow)
+    duplicated_top_level["review_agent_permissions"] = {"default": {"read": True}}
+    duplicated_top_level["fusion"] = {"role": "read_only_synthesis"}
+    errors = validate_repo.validate_standard_review_control_glue_guardrail(path, duplicated_top_level)
+    joined = "\n".join(errors)
+    assert "top-level fields duplicate standard-review-control without override_reason" in joined
+    assert "fusion" in joined
+    assert "review_agent_permissions" in joined
+
+
+def test_standard_review_control_local_glue_requires_explicit_override_reason() -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    workflow["review_control_rules"] = {
+        "override_reason": "Fixture exercises an intentional local policy override.",
+        "review_agents_read_only": True,
+    }
+    workflow["review_cycle"]["override_reason"] = "Fixture exercises an intentional local cycle override."
+    workflow["review_cycle"]["rerun_review_on"] = ["accepted_blocker_fixed"]
+    workflow["review"]["override_reason"] = "Fixture exercises an intentional local review override."
+    workflow["review"]["blocking_policy"] = {"p0_blocks": True}
+    workflow["fusion"] = {
+        "override_reason": "Fixture exercises an intentional local fusion override.",
+        "role": "read_only_synthesis",
+    }
+
+    assert not validate_repo.validate_standard_review_control_glue_guardrail(path, workflow)
+
+
+def test_v02_local_review_cycle_override_requires_materiality_policy() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/big-feature-contract-first/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    local_override = copy.deepcopy(workflow)
+    local_override["review"].pop("control_policy")
+    local_override["review_cycle"].pop("policy")
+    local_override["review_cycle"].pop("materiality_classification_source")
+
+    errors = validate_repo.validate_v02_review_control_materiality_policy(path, local_override)
+    assert errors
     assert "review_cycle.materiality_classification is required" in "\n".join(errors)
 
-    broken_missing_token = copy.deepcopy(workflow)
-    broken_missing_token["review_cycle"]["do_not_rerun_on"].remove(
-        "nonblocking_findings_with_non_material_fixes_only"
-    )
-    broken_missing_token["review_cycle"].pop("materiality_classification")
+    broken_missing_token = copy.deepcopy(local_override)
+    broken_missing_token["review_cycle"]["do_not_rerun_on"] = [
+        "duplicate_consolidation",
+        "irrelevant_findings_rejected_with_reason",
+    ]
+    broken_missing_token["review_cycle"]["materiality_classification"] = {
+        "required_after_review_fixes": True,
+        "material_triggers_take_precedence_over_do_not_rerun": True,
+        "material_if_changes": [
+            "selected_risk_surfaces_or_failure_path_matrix",
+            "review_packet_content",
+        ],
+        "non_material_if_only": ["report_editorial_changes_only"],
+    }
     errors = validate_repo.validate_v02_review_control_materiality_policy(path, broken_missing_token)
     assert "do_not_rerun_on must include nonblocking_findings_with_non_material_fixes_only" in "\n".join(errors)
+
+    broken_missing_materiality = copy.deepcopy(local_override)
+    broken_missing_materiality["review_cycle"]["do_not_rerun_on"] = [
+        "nonblocking_findings_with_non_material_fixes_only"
+    ]
+    errors = validate_repo.validate_v02_review_control_materiality_policy(path, broken_missing_materiality)
     assert "review_cycle.materiality_classification is required" in "\n".join(errors)
 
 
@@ -2260,27 +2533,22 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     prepare_policy = workflow["intent_mode_phase_policy"]["prepare-workflow"]
     assert (
         prepare_policy["target_workflow_context_decision_packet"]
-        == "conditional_when_target_workflow_context_or_material_design_decision_is_missing"
+        == "conditional_when_bounded_target_workflow_open_decisions_are_discovered"
     )
     target_phase = next(
         phase
         for phase in workflow["phases"]
         if phase.get("id") == "target_workflow_context_decision_packet"
     )
-    required_decision_categories = {
-        "scope",
-        "adr",
-        "risk",
-        "risk-surface",
-        "failure-path-matrix",
-        "contract",
-        "gate",
-        "review",
-        "evidence",
-        "authority",
-        "workflow-design",
+    open_packet = target_phase["open_decision_packet"]
+    assert open_packet["packet_kind"] == "target_workflow_open_decisions"
+    assert open_packet["owning_requirement_ref_required"] is True
+    assert set(open_packet["allowed_decision_scopes"]) == {
+        "run_scoped",
+        "persistent_policy_candidate",
     }
-    assert set(target_phase["decision_categories"]) == required_decision_categories
+    assert "owning_requirement_ref" in open_packet["required_fields"]
+    assert open_packet["persistent_policy_activation_allowed"] is False
 
     broken = copy.deepcopy(workflow)
     broken["intent_mode_phase_policy"]["unknown-discovery"]["must_not_require"].remove("human_approval")
@@ -2360,7 +2628,7 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
     )
     broken_prepare_policy["intent_mode_phase_policy"]["prepare-workflow"][
         "operating_decisions_interview"
-    ] = "conditional_when_target_workflow_context_or_material_design_decision_is_missing"
+    ] = "conditional_when_bounded_target_workflow_open_decisions_are_discovered"
     errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_policy)
     joined = "\n".join(errors)
     assert "target_workflow_context_decision_packet" in joined
@@ -2371,14 +2639,14 @@ def test_project_initialization_intent_mode_policy_prevents_discovery_full_onboa
         "target_workflow_context_decision_packet"
     ] = "conditional_when_target_workflow_policy_is_missing"
     errors = validate_repo.validate_project_initialization_intent_mode_policy(path, broken_prepare_policy_value)
-    assert "missing context or material design decisions" in "\n".join(errors)
+    assert "bounded target-workflow open decisions" in "\n".join(errors)
 
-    broken_target_design_scope = copy.deepcopy(workflow)
-    for phase in broken_target_design_scope["phases"]:
+    broken_target_open_decision_shape = copy.deepcopy(workflow)
+    for phase in broken_target_open_decision_shape["phases"]:
         if phase.get("id") == "target_workflow_context_decision_packet":
-            phase["decision_categories"].remove("authority")
-    errors = validate_repo.validate_project_initialization_operating_decisions(path, broken_target_design_scope)
-    assert "target_workflow_context_decision_packet decision_categories missing: authority" in "\n".join(errors)
+            phase["open_decision_packet"]["required_fields"].remove("owning_requirement_ref")
+    errors = validate_repo.validate_project_initialization_operating_decisions(path, broken_target_open_decision_shape)
+    assert "target_workflow_context_decision_packet required_fields missing: owning_requirement_ref" in "\n".join(errors)
 
     broken_target_resume = copy.deepcopy(workflow)
     for phase in broken_target_resume["phases"]:
@@ -2616,19 +2884,6 @@ def test_target_workflow_readiness_gate_requires_documentation_disposition() -> 
     import yaml
 
     gate = yaml.safe_load((ROOT / "gates/target_workflow_readiness_gate.yaml").read_text(encoding="utf-8"))
-    required_decision_categories = {
-        "scope",
-        "adr",
-        "risk",
-        "risk-surface",
-        "failure-path-matrix",
-        "contract",
-        "gate",
-        "review",
-        "evidence",
-        "authority",
-        "workflow-design",
-    }
     assert "project-documentation-disposition.yaml" in gate["inputs"]
     assert any(
         "project-documentation-disposition.yaml" in evidence
@@ -2646,7 +2901,15 @@ def test_target_workflow_readiness_gate_requires_documentation_disposition() -> 
     assert any("Failure Path Matrix" in item for item in gate["required_evidence"])
     assert any("project-knowledge-extraction.md" in item for item in gate["required_evidence"])
     assert any("human risk acceptance evidence" in item for item in gate["required_evidence"])
-    assert set(gate["decision_categories"]) == required_decision_categories
+    open_packet = gate["open_decision_packet"]
+    assert open_packet["packet_kind"] == "target_workflow_open_decisions"
+    assert open_packet["owning_requirement_ref_required"] is True
+    assert set(open_packet["allowed_decision_scopes"]) == {
+        "run_scoped",
+        "persistent_policy_candidate",
+    }
+    assert "owning_requirement_ref" in open_packet["required_fields"]
+    assert open_packet["persistent_policy_activation_allowed"] is False
     assert "missing_light_extraction_risk_acceptance" in gate["pass_policy"]["needs_human_decision_on"]
     assert "missing_risk_surface_policy" in gate["pass_policy"]["needs_human_decision_on"]
     assert "missing_failure_path_matrix_policy" in gate["pass_policy"]["needs_human_decision_on"]
@@ -2669,15 +2932,15 @@ def test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisi
     errors = validate_repo.validate_gate_manifest(ROOT, path, broken_gate)
     assert "target_workflow_readiness_gate must block unresolved material design decisions" in "\n".join(errors)
 
-    broken_categories = copy.deepcopy(gate)
-    broken_categories["decision_categories"].remove("evidence")
-    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_categories)
-    assert "target_workflow_readiness_gate decision_categories missing: evidence" in "\n".join(errors)
+    broken_required_ref = copy.deepcopy(gate)
+    broken_required_ref["open_decision_packet"]["required_fields"].remove("owning_requirement_ref")
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_required_ref)
+    assert "target_workflow_readiness_gate required_fields missing: owning_requirement_ref" in "\n".join(errors)
 
-    broken_risk_surface = copy.deepcopy(gate)
-    broken_risk_surface["decision_categories"].remove("risk-surface")
-    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_risk_surface)
-    assert "target_workflow_readiness_gate decision_categories missing: risk-surface" in "\n".join(errors)
+    broken_scope = copy.deepcopy(gate)
+    broken_scope["open_decision_packet"]["allowed_decision_scopes"].remove("persistent_policy_candidate")
+    errors = validate_repo.validate_gate_manifest(ROOT, path, broken_scope)
+    assert "target_workflow_readiness_gate allowed_decision_scopes missing: persistent_policy_candidate" in "\n".join(errors)
 
     broken_existing_context = copy.deepcopy(gate)
     broken_existing_context["inputs"] = [

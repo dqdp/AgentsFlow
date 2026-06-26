@@ -5,18 +5,22 @@ from pathlib import Path
 from .common import parse_json, parse_yaml, safe_resolve, validate_against_schema
 
 
-TARGET_WORKFLOW_DECISION_CATEGORIES = {
-    "scope",
-    "adr",
-    "risk",
-    "risk-surface",
-    "failure-path-matrix",
-    "contract",
-    "gate",
-    "review",
-    "evidence",
-    "authority",
-    "workflow-design",
+TARGET_WORKFLOW_OPEN_DECISION_SCOPES = {
+    "run_scoped",
+    "persistent_policy_candidate",
+}
+TARGET_WORKFLOW_OPEN_DECISION_REQUIRED_FIELDS = {
+    "decision_id",
+    "owning_requirement_ref",
+    "decision_scope",
+    "classification",
+    "status",
+    "affected_artifacts",
+    "rationale",
+}
+TARGET_WORKFLOW_OPEN_DECISION_DEFERRAL_FIELDS = {
+    "deferral_constraints",
+    "residual_risk",
 }
 
 PROJECT_ASSESSMENT_ROLE_ARTIFACTS = {
@@ -184,6 +188,8 @@ def validate_documentation_adoption_decision_record(root: Path, path: Path, data
     except ValueError as exc:
         errors.append(str(exc))
         return errors
+    decisions_schema = parse_json(root / "schemas" / "human-decisions.schema.json")
+    errors.extend(validate_against_schema(decisions_path, decisions_data, decisions_schema))
     decisions = decisions_data.get("decisions", []) if isinstance(decisions_data, dict) else []
     if not isinstance(decisions, list):
         errors.append(f"{decisions_path}: decisions must be a list")
@@ -453,11 +459,40 @@ def validate_project_initialization_operating_decisions(path: Path, data: dict) 
         applies = set(str(item) for item in target_decisions.get("applies_to_intent_modes", []) or [])
         if applies != {"prepare-workflow"}:
             errors.append(f"{path}: target_workflow_context_decision_packet must apply only to prepare-workflow")
-        decision_categories = set(str(item) for item in target_decisions.get("decision_categories", []) or [])
-        missing_categories = sorted(TARGET_WORKFLOW_DECISION_CATEGORIES - decision_categories)
-        if missing_categories:
+        open_packet = target_decisions.get("open_decision_packet", {}) or {}
+        if open_packet.get("packet_kind") != "target_workflow_open_decisions":
             errors.append(
-                f"{path}: target_workflow_context_decision_packet decision_categories missing: {', '.join(missing_categories)}"
+                f"{path}: target_workflow_context_decision_packet open_decision_packet.packet_kind must be target_workflow_open_decisions"
+            )
+        if open_packet.get("discovered_by") != "target_workflow_readiness_preflight":
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet open_decision_packet.discovered_by must be target_workflow_readiness_preflight"
+            )
+        if open_packet.get("owning_requirement_ref_required") is not True:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet must require owning_requirement_ref"
+            )
+        decision_scopes = set(str(item) for item in open_packet.get("allowed_decision_scopes", []) or [])
+        missing_scopes = sorted(TARGET_WORKFLOW_OPEN_DECISION_SCOPES - decision_scopes)
+        if missing_scopes:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet allowed_decision_scopes missing: {', '.join(missing_scopes)}"
+            )
+        required_fields = set(str(item) for item in open_packet.get("required_fields", []) or [])
+        missing_fields = sorted(TARGET_WORKFLOW_OPEN_DECISION_REQUIRED_FIELDS - required_fields)
+        if missing_fields:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet required_fields missing: {', '.join(missing_fields)}"
+            )
+        deferral_fields = set(str(item) for item in open_packet.get("deferral_requires", []) or [])
+        missing_deferral = sorted(TARGET_WORKFLOW_OPEN_DECISION_DEFERRAL_FIELDS - deferral_fields)
+        if missing_deferral:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet deferral_requires missing: {', '.join(missing_deferral)}"
+            )
+        if open_packet.get("persistent_policy_activation_allowed") is not False:
+            errors.append(
+                f"{path}: target_workflow_context_decision_packet must not activate persistent policy"
             )
         outputs = set(str(item) for item in target_decisions.get("outputs", []) or [])
         if "target workflow human decision packet" not in outputs:
@@ -883,10 +918,10 @@ def validate_project_initialization_intent_mode_policy(path: Path, data: dict) -
         errors.append(f"{path}: prepare-workflow phase policy must require sufficient operating context")
     if (
         prepare_policy.get("target_workflow_context_decision_packet")
-        != "conditional_when_target_workflow_context_or_material_design_decision_is_missing"
+        != "conditional_when_bounded_target_workflow_open_decisions_are_discovered"
     ):
         errors.append(
-            f"{path}: prepare-workflow phase policy must use target_workflow_context_decision_packet for missing context or material design decisions"
+            f"{path}: prepare-workflow phase policy must use target_workflow_context_decision_packet for bounded target-workflow open decisions"
         )
     if "operating_decisions_interview" in prepare_policy:
         errors.append(f"{path}: prepare-workflow phase policy must not use operating_decisions_interview")

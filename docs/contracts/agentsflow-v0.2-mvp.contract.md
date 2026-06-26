@@ -101,11 +101,12 @@ Feature: AgentsFlow v0.2 MVP contract layer
     Then intake validation must fail
     And schema validation must accept only "big-feature-contract-first" as the v0.2 supported target workflow id
 
-  Scenario: Prepare-workflow missing context or design forks use a run-level decision packet
+  Scenario: Prepare-workflow bounded open decisions use a run-level decision packet
     Given project-initialization runs in prepare-workflow mode
-    When target workflow gate, review, evidence or authority context is missing
-    And a material scope, ADR, risk, contract, gate, review, evidence, authority or workflow-design fork may be discovered
+    When target workflow readiness preflight discovers bounded target-workflow open decisions
     Then the workflow may require target_workflow_context_decision_packet conditionally
+    And each packet item references its owning target workflow or project-binding requirement
+    And each packet item is run-scoped or a persistent policy candidate
     And it must not normalize that run-level packet into project-operating-decisions.yaml
     And unresolved blocking-material design decisions must block target workflow readiness
 
@@ -211,7 +212,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Primary e2e run metadata and reviewer reports are schema-valid | `pytest tests/test_scripts_smoke.py::test_primary_e2e_workflow_run_artifacts_schema_pass` |
 | Homogeneous plus focused keeps baseline reviewers unfocused | `pytest tests/test_scripts_smoke.py::test_review_packet_schema_allows_plus_focused_baseline_without_focus_zone` |
 | Prepare-workflow target is limited to the supported target workflow | `pytest tests/test_scripts_smoke.py::test_project_intake_prepare_workflow_requires_target_workflow`; `pytest tests/test_scripts_smoke.py::test_project_intake_schema_restricts_prepare_workflow_target` |
-| Prepare-workflow missing context or design forks use a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions` |
+| Prepare-workflow bounded open decisions use a run-level decision packet | `pytest tests/test_scripts_smoke.py::test_project_initialization_intent_mode_policy_prevents_discovery_full_onboarding_requirement`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions`; `pytest tests/test_scripts_smoke.py::test_target_workflow_human_decisions_require_open_decision_fields` |
 | Existing-project initialization records documentation disposition | `pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_schema_passes`; `pytest tests/test_scripts_smoke.py::test_project_documentation_disposition_resolves_human_decision_record`; `pytest tests/test_scripts_smoke.py::test_project_initialization_example_claimed_files_exist`; `pytest tests/test_scripts_smoke.py::test_project_initialization_requires_documentation_disposition_decision`; `pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_requires_documentation_disposition`; `pytest tests/test_scripts_smoke.py::test_repo_validation_checks_all_documentation_disposition_artifacts` |
 | Expert assessment role reports are schema-bound before synthesis | `pytest tests/test_scripts_smoke.py::test_project_assessment_schema_requires_triad_synthesis`; `pytest tests/test_scripts_smoke.py::test_project_assessment_synthesis_validates_referenced_role_reports`; `pytest tests/test_scripts_smoke.py::test_project_onboarding_assessment_skill_carries_schema_bound_contract`; `pytest tests/test_scripts_smoke.py::test_project_initialization_expert_assessment_requires_schema_bound_json_contract` |
 | Big-feature plan gate follows effective strictness | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2`; `pytest tests/test_scripts_smoke.py::test_project_binding_strictness_override_requires_reason`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_raw_strictness_without_override_source`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_unsupported_strictness_override`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_strictness_override_without_workflow_support_list`; `pytest tests/test_scripts_smoke.py::test_workflow_run_strictness_requires_source_and_override_reason`; `pytest tests/test_scripts_smoke.py::test_workflow_run_rejects_disguised_workflow_default_strictness` |
