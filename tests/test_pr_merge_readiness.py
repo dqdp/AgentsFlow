@@ -60,7 +60,7 @@ def write_github_publication_evidence(root: Path) -> None:
                 "action": "pr comment",
                 "status": "published",
                 "pr": 1,
-                "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+                "url": "https://github.com/org/repo/pull/1#issuecomment-1",
                 "body_path": "github-publication.md",
                 "body_hash": file_sha(body_path),
             },
@@ -401,7 +401,7 @@ def complete_report() -> dict:
             "result_path": "github-publication-result.json",
             "pr": 1,
             "body_hash": text_sha(GITHUB_PUBLICATION_BODY),
-            "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+            "url": "https://github.com/org/repo/pull/1#issuecomment-1",
         },
         "self_application": {
             "enabled": True,
@@ -729,7 +729,9 @@ def write_collision_control_fixture(
                     {
                         "id": finding_id,
                         "severity": "P1",
+                        "source_reviewer_id": "generalist-a",
                         "source_reviewer_report": "reviewer-report.generalist-a.json",
+                        "source_report_hash": file_sha(root / "reviewer-report.generalist-a.json"),
                     }
                 ],
                 "orchestrator_disposition": "rejected",
@@ -858,7 +860,7 @@ def test_published_github_publication_with_evidence_can_pass(tmp_path: Path) -> 
         "result_path": "github-publication-result.json",
         "pr": 1,
         "body_hash": text_sha(GITHUB_PUBLICATION_BODY),
-        "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+        "url": "https://github.com/org/repo/pull/1#issuecomment-1",
     }
     prepare_complete_evidence(tmp_path)
     write_github_publication_evidence(tmp_path)
@@ -897,7 +899,25 @@ def test_github_publication_must_match_pull_request_number(tmp_path: Path) -> No
 
 def test_github_publication_url_must_match_exact_pull_request_number(tmp_path: Path) -> None:
     report = complete_report()
-    wrong_url = "https://github.example.invalid/org/repo/pull/10#issuecomment-1"
+    wrong_url = "https://github.com/org/repo/pull/10#issuecomment-1"
+    report["github_publication"]["url"] = wrong_url
+    prepare_complete_evidence(tmp_path)
+    result_path = tmp_path / "github-publication-result.json"
+    result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+    result_payload["url"] = wrong_url
+    result_path.write_text(json.dumps(result_payload, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
+
+
+def test_github_publication_url_must_be_comment_url(tmp_path: Path) -> None:
+    report = complete_report()
+    wrong_url = "https://github.com/org/repo/pull/1"
     report["github_publication"]["url"] = wrong_url
     prepare_complete_evidence(tmp_path)
     result_path = tmp_path / "github-publication-result.json"
@@ -978,7 +998,7 @@ def test_published_github_publication_requires_result_artifact_url(
         "result_path": "github-publication-result.json",
         "pr": 1,
         "body_hash": text_sha(GITHUB_PUBLICATION_BODY),
-        "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+        "url": "https://github.com/org/repo/pull/1#issuecomment-1",
     }
     prepare_complete_evidence(tmp_path)
     write_evidence(tmp_path, "github-publication.md")
@@ -1023,7 +1043,7 @@ def test_published_github_publication_requires_default_result_shape(
         "result_path": "github-publication-result.json",
         "pr": 1,
         "body_hash": text_sha(GITHUB_PUBLICATION_BODY),
-        "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+        "url": "https://github.com/org/repo/pull/1#issuecomment-1",
     }
     prepare_complete_evidence(tmp_path)
     write_evidence(tmp_path, "github-publication.md")
@@ -2610,6 +2630,43 @@ def test_collision_control_requires_bound_evidence_packet(tmp_path: Path) -> Non
     evidence_path = tmp_path / "collision-control-evidence.json"
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     evidence.pop("source_findings")
+    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_collision_control"
+    assert result["accepted"] is False
+    assert "collision_control_evidence_invalid:F-001" in result["blockers"]
+
+
+def test_collision_control_requires_source_report_hash_binding(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_collision_control"
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "P1",
+            "status": "rejected",
+            **grounded_blocker_fields(),
+            "collision_control": {
+                "status": "completed",
+                "collision_batch_id": "collision-F-001",
+                "evidence_path": "collision-control-evidence.json",
+                "control_reviewer_count": 2,
+                "disputed_finding_ids": ["F-001"],
+                "control_reports": [
+                    {"path": "reviewer-report.collision-control-a.json"},
+                    {"path": "reviewer-report.collision-control-b.json"},
+                ],
+            },
+        }
+    ]
+    prepare_complete_evidence(tmp_path)
+    write_collision_control_fixture(tmp_path)
+    evidence_path = tmp_path / "collision-control-evidence.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["source_findings"][0]["source_report_hash"] = "sha256:" + "0" * 64
     evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
     path = write_report(tmp_path, report)
 

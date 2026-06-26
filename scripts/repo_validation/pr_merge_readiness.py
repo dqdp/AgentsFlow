@@ -89,8 +89,12 @@ def _contains_local_path(text: str) -> bool:
 
 def _github_pr_url_matches(url: str, expected_pr: int) -> bool:
     parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc != "github.com":
+        return False
+    if not parsed.fragment.startswith("issuecomment-"):
+        return False
     parts = [part for part in parsed.path.split("/") if part]
-    return len(parts) >= 2 and parts[-2] == "pull" and parts[-1] == str(expected_pr)
+    return len(parts) >= 4 and parts[-2] == "pull" and parts[-1] == str(expected_pr)
 
 
 def _parse_timestamp(value: object) -> datetime | None:
@@ -562,6 +566,7 @@ def _validate_collision_control_evidence(
     collision_batch_id: str,
     finding_status: str,
     latest_material_change_at: datetime | None,
+    reviewer_report_paths: dict[str, Path],
     missing: list[str],
     blockers: list[str],
 ) -> tuple[datetime | None, set[str]]:
@@ -590,11 +595,15 @@ def _validate_collision_control_evidence(
         blockers.append(f"collision_control_evidence_invalid:{finding_id}")
     source_findings = data.get("source_findings")
     if not isinstance(source_findings, list) or not any(
-        isinstance(source, dict)
-        and source.get("id") == finding_id
-        and source.get("severity") in BLOCKING_FINDING_SEVERITIES
-        and _nonempty_text(source.get("source_reviewer_report"))
+        _collision_source_finding_matches(
+            root,
+            report_path,
+            source,
+            finding_id,
+            reviewer_report_paths,
+        )
         for source in source_findings
+        if isinstance(source, dict)
     ):
         blockers.append(f"collision_control_evidence_invalid:{finding_id}")
     prepared_at = _parse_timestamp(data.get("prepared_at"))
@@ -611,6 +620,26 @@ def _validate_collision_control_evidence(
         blockers.append(f"collision_control_evidence_invalid:{finding_id}")
         return prepared_at, set()
     return prepared_at, {str(reviewer) for reviewer in expected_reviewers if str(reviewer).strip()}
+
+
+def _collision_source_finding_matches(
+    root: Path,
+    report_path: Path,
+    source: dict[str, Any],
+    finding_id: str,
+    reviewer_report_paths: dict[str, Path],
+) -> bool:
+    if source.get("id") != finding_id or source.get("severity") not in BLOCKING_FINDING_SEVERITIES:
+        return False
+    source_reviewer_id = str(source.get("source_reviewer_id") or "")
+    expected_path = reviewer_report_paths.get(source_reviewer_id)
+    if not expected_path:
+        return False
+    source_path = _safe_relative(report_path, root, source.get("source_reviewer_report"))
+    if not source_path or source_path.resolve() != expected_path.resolve():
+        return False
+    source_hash = source.get("source_report_hash")
+    return is_concrete_sha256(source_hash) and source_hash == sha256_file(source_path)
 
 
 def _has_matching_human_decision(
@@ -1445,6 +1474,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                 collision_batch_id if isinstance(collision_batch_id, str) else "",
                 status,
                 latest_material_change_at,
+                reviewer_report_paths,
                 missing_evidence,
                 blockers,
             )

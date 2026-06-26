@@ -63,7 +63,8 @@ The readiness evaluator treats these surfaces as blocking:
 - rejected or downgraded plausible blocker-path candidate findings without
   completed collision-control evidence from two control reviewers that explicitly
   address the same collision batch and disputed finding, support the orchestrator
-  disposition, and are fresh after the latest material change;
+  disposition, bind the source reviewer report by path and SHA-256 hash, and are
+  fresh after the latest material change;
 - sensitive raw external output without redaction or non-sensitive declaration;
 - required live external evidence whose raw output is declared `not_persisted`
   instead of non-sensitive raw output or a redacted/summary/pointer artifact;
@@ -172,8 +173,8 @@ private reasoning details or unnecessary absolute local paths.
 
 The readiness evaluator requires this default evidence shape before
 `awaiting_human_decision`. The report's branch PR number, publication PR number,
-result PR number, comment URL and body hash must match. Any other publication
-state blocks merge readiness as missing publication evidence.
+result PR number, GitHub issue-comment URL and body hash must match. Any other
+publication state blocks merge readiness as missing publication evidence.
 
 Each review packet must be anchored to the evaluated readiness report: packet
 `run_id` must match report `run_id`, and packet `material_change_id` must match
