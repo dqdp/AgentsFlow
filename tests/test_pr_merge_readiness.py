@@ -895,6 +895,24 @@ def test_github_publication_must_match_pull_request_number(tmp_path: Path) -> No
     assert "github_publication_evidence_invalid" in result["blockers"]
 
 
+def test_github_publication_url_must_match_exact_pull_request_number(tmp_path: Path) -> None:
+    report = complete_report()
+    wrong_url = "https://github.example.invalid/org/repo/pull/10#issuecomment-1"
+    report["github_publication"]["url"] = wrong_url
+    prepare_complete_evidence(tmp_path)
+    result_path = tmp_path / "github-publication-result.json"
+    result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+    result_payload["url"] = wrong_url
+    result_path.write_text(json.dumps(result_payload, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
+
+
 def test_github_publication_body_hash_must_match_body_file(tmp_path: Path) -> None:
     report = complete_report()
     report["github_publication"]["body_hash"] = "sha256:" + "0" * 64
@@ -916,6 +934,25 @@ def test_github_publication_body_rejects_absolute_local_paths(tmp_path: Path) ->
     result = json.loads(result_path.read_text(encoding="utf-8"))
     result["body_hash"] = file_sha(body_path)
     result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
+
+
+def test_github_publication_body_rejects_linux_absolute_local_paths(tmp_path: Path) -> None:
+    report = complete_report()
+    prepare_complete_evidence(tmp_path)
+    body_path = tmp_path / "github-publication.md"
+    body_path.write_text("Leaked local path: /home/alex/project/private.log\n", encoding="utf-8")
+    report["github_publication"]["body_hash"] = file_sha(body_path)
+    result_path = tmp_path / "github-publication-result.json"
+    result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+    result_payload["body_hash"] = file_sha(body_path)
+    result_path.write_text(json.dumps(result_payload, indent=2) + "\n", encoding="utf-8")
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -1158,6 +1195,65 @@ def test_review_packet_failed_green_gate_reference_blocks_readiness(tmp_path: Pa
     assert result["state"] == "blocked_missing_evidence"
     assert result["accepted"] is False
     assert "review_packet_invalid:generalist-a" in result["blockers"]
+
+
+def test_review_packet_failed_markdown_green_gate_reference_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    prepare_complete_evidence(tmp_path)
+    gate_path = tmp_path / "verification-gate-report.md"
+    gate_path.write_text("# Verification Gate Report\n\nStatus: fail\n", encoding="utf-8")
+    packet_path = tmp_path / "review-packets" / "generalist-a.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.md"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "review_packet_invalid:generalist-a" in result["blockers"]
+
+
+def test_review_packet_nested_material_change_mismatch_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    prepare_complete_evidence(tmp_path)
+    packet_path = tmp_path / "review-packets" / "generalist-a.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["evidence_freshness"]["material_change_id"] = "older-change"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "review_packet_context_mismatch:generalist-a:evidence_freshness.material_change_id" in result["blockers"]
+
+
+def test_review_packet_reviewer_identity_mismatch_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    prepare_complete_evidence(tmp_path)
+    packet_path = tmp_path / "review-packets" / "generalist-a.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["reviewer_instance_id"] = "generalist-b"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "review_packet_context_mismatch:generalist-a:reviewer_instance_id" in result["blockers"]
 
 
 def test_required_live_false_for_claude_blocks_readiness(tmp_path: Path) -> None:

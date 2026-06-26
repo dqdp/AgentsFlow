@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .common import is_concrete_sha256, parse_json, parse_yaml, sha256_file, validate_against_schema
 from .external_reviewers import validate_external_review_provider
@@ -24,6 +26,10 @@ MIN_REQUIRED_REVIEWERS = 2
 GITHUB_PUBLICATION_BODY_FORBIDDEN_MARKERS = (
     "/Users/",
     "/private/var/",
+)
+LOCAL_PATH_PATTERNS = (
+    re.compile(r"(?<!:)\/(?:Users|home|tmp|private\/var|var\/folders|var\/tmp|workspace|opt\/homebrew)\/[^\s)`'\"<>]+"),
+    re.compile(r"(?i)\b[A-Z]:[\\/](?:Users|Temp|tmp|workspace)[\\/][^\s)`'\"<>]+"),
 )
 
 
@@ -75,6 +81,16 @@ def _positive_int(value: object) -> int | None:
 
 def _contains_full_reviewer_report_dump(text: str) -> bool:
     return '"reviewer"' in text and '"findings"' in text and '"review_context"' in text
+
+
+def _contains_local_path(text: str) -> bool:
+    return any(pattern.search(text) for pattern in LOCAL_PATH_PATTERNS)
+
+
+def _github_pr_url_matches(url: str, expected_pr: int) -> bool:
+    parsed = urlparse(url)
+    parts = [part for part in parsed.path.split("/") if part]
+    return len(parts) >= 2 and parts[-2] == "pull" and parts[-1] == str(expected_pr)
 
 
 def _parse_timestamp(value: object) -> datetime | None:
@@ -513,6 +529,31 @@ def _validate_control_report(
     return str(reviewer["id"])
 
 
+def _validate_loaded_review_packet_binding(
+    loaded_packet: dict[str, Any],
+    review: dict[str, Any],
+    required: dict[str, Any],
+    report_material_change_id: str,
+    blockers: list[str],
+) -> None:
+    review_id = str(review.get("id", "<unknown>"))
+    if loaded_packet.get("reviewer_instance_id") != review_id:
+        blockers.append(f"review_packet_context_mismatch:{review_id}:reviewer_instance_id")
+    if loaded_packet.get("review_packet_path") and loaded_packet.get("review_packet_path") != review.get("packet_path"):
+        blockers.append(f"review_packet_context_mismatch:{review_id}:review_packet_path")
+    for key in ["topic", "provider"]:
+        if loaded_packet.get(key) and loaded_packet.get(key) != review.get(key):
+            blockers.append(f"review_packet_context_mismatch:{review_id}:{key}")
+    expected_role = required.get("role") or _role_from_contract_ref(review.get("role_contract_path"))
+    if expected_role and loaded_packet.get("reviewer_role") != expected_role:
+        blockers.append(f"review_packet_context_mismatch:{review_id}:reviewer_role")
+    if review.get("role_contract_path") and loaded_packet.get("role_contract") != review.get("role_contract_path"):
+        blockers.append(f"review_packet_context_mismatch:{review_id}:role_contract")
+    freshness = loaded_packet.get("evidence_freshness")
+    if not isinstance(freshness, dict) or freshness.get("material_change_id") != report_material_change_id:
+        blockers.append(f"review_packet_context_mismatch:{review_id}:evidence_freshness.material_change_id")
+
+
 def _validate_collision_control_evidence(
     root: Path,
     report_path: Path,
@@ -677,6 +718,8 @@ def _validate_github_publication_result(
             blockers.append("github_publication_evidence_invalid")
         if any(marker in body_text for marker in GITHUB_PUBLICATION_BODY_FORBIDDEN_MARKERS):
             blockers.append("github_publication_evidence_invalid")
+        if _contains_local_path(body_text):
+            blockers.append("github_publication_evidence_invalid")
         if _contains_full_reviewer_report_dump(body_text):
             blockers.append("github_publication_evidence_invalid")
         body_hash = publication.get("body_hash")
@@ -714,7 +757,7 @@ def _validate_github_publication_result(
     result_url = result.get("url")
     if not isinstance(result_url, str) or not result_url.strip():
         blockers.append("github_publication_evidence_missing")
-    elif expected_pr and f"/pull/{expected_pr}" not in result_url:
+    elif expected_pr and not _github_pr_url_matches(result_url, expected_pr):
         blockers.append("github_publication_evidence_invalid")
     report_url = publication.get("url")
     if isinstance(report_url, str) and report_url.strip() and result_url != report_url:
@@ -1068,6 +1111,15 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                     blockers.append(f"review_packet_context_mismatch:{review_id}:run_id")
                 if report_material_change_id and loaded_packet.get("material_change_id") != report_material_change_id:
                     blockers.append(f"review_packet_context_mismatch:{review_id}:material_change_id")
+                required = required_by_id.get(review_id, {})
+                if isinstance(required, dict):
+                    _validate_loaded_review_packet_binding(
+                        loaded_packet,
+                        review,
+                        required,
+                        report_material_change_id,
+                        blockers,
+                    )
         review_report: dict[str, Any] | None = None
         if review_report_path and review_report_path.is_file():
             try:

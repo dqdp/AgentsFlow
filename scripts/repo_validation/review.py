@@ -111,9 +111,13 @@ def _is_verification_gate_report_artifact(
         return False
     if path.suffix == ".md":
         try:
-            first_line = path.read_text(encoding="utf-8").splitlines()[0].strip()
+            lines = path.read_text(encoding="utf-8").splitlines()
+            first_line = lines[0].strip()
         except (IndexError, OSError, UnicodeDecodeError):
             return False
+        if require_green:
+            status = _markdown_verification_gate_status(lines)
+            return first_line == "# Verification Gate Report" and status in GREEN_VERIFICATION_GATE_RESULT_STATES
         return first_line == "# Verification Gate Report"
     if path.suffix == ".json":
         try:
@@ -132,6 +136,14 @@ def _is_verification_gate_report_artifact(
             and bool(data["checks"])
         )
     return False
+
+
+def _markdown_verification_gate_status(lines: list[str]) -> str | None:
+    for line in lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("status:"):
+            return stripped.split(":", 1)[1].strip().replace("-", "_")
+    return None
 
 
 def _resolve_verification_gate_report_ref(
