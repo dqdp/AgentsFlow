@@ -305,11 +305,6 @@ bindings:
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch"
         evidence:
           - pytest-output
-      - id: pytest-collision-control-pr-readiness
-        type: test
-        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_collision_control_reports_can_clear_rejected_blocker"
-        evidence:
-          - pytest-output
     gates:
       - verification_gate
   - id: AF-V02-BHV-012
@@ -354,9 +349,14 @@ bindings:
         command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_needs_more_evidence_p1_without_blocker_path_is_invalid_calibration"
         evidence:
           - pytest-output
-      - id: pytest-pr-readiness-rejected-p1-without-path-no-collision
+      - id: pytest-pr-readiness-rejected-p1-without-path-non-blocking
         type: test
-        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_rejected_p1_without_blocker_path_does_not_require_collision_control"
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_rejected_p1_without_blocker_path_is_calibrated_non_blocking"
+        evidence:
+          - pytest-output
+      - id: pytest-pr-readiness-rejected-blocker-fails-closed
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_pr_merge_readiness.py::test_rejected_blocker_findings_fail_closed_in_pr_readiness"
         evidence:
           - pytest-output
       - id: pytest-pr-readiness-validated-severity-authoritative

@@ -19,7 +19,8 @@ report and referenced artifacts.
 - hash-bound review requirements source artifact produced by the source
   workflow, project binding or explicit review gate;
 - external reviewer invocation metadata when external review is required;
-- finding-validation report and collision-control evidence when applicable;
+- finding-validation report for P0/P1 candidate findings and mandatory evidence
+  gaps;
 - human merge decision record when accepted merge-ready status is claimed;
 - GitHub PR summary-comment publication evidence before awaiting a human merge
   decision or claiming accepted merge-ready status.
@@ -44,8 +45,10 @@ report and referenced artifacts.
    SHA-256 hash.
 5. Record external reviewer evidence, including live-vs-mock status and
    invocation metadata, when an external-backed review is required.
-6. Reference finding-validation and collision-control evidence for accepted,
-   rejected, downgraded or duplicate blocker-path findings.
+6. Reference finding-validation output. Do not validate collision-control
+   closure from this skill; rejected or downgraded validated P0/P1 findings with
+   a grounded blocker path fail closed unless the source review/fusion workflow
+   has already produced a report without unresolved blocker findings.
 7. Publish a concise readiness summary as a GitHub PR comment and record both
    the exact comment body and publication result as evidence. Bind the evidence
    to the target PR number and comment body hash. Do this before entering

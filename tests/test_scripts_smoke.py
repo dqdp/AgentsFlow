@@ -492,7 +492,9 @@ def test_finding_validation_calibrates_blocker_severity() -> None:
     assert "plausible blocker-path candidate findings" in interaction_protocol
     assert "plausible blocker-path candidate findings" in fusion_model
     assert "plausible blocker-path candidate findings" in collision_profile
-    assert "plausible blocker-path candidate findings have" in pr_readiness_workflow
+    assert "fail closed" in pr_readiness_workflow
+    assert "source review/fusion" in pr_readiness_workflow
+    assert "not by this readiness evaluator" in pr_readiness_workflow
     assert "plausible blocker-path candidate findings" in pr_readiness_docs
     assert "yes if mandatory evidence or grounded p0/p1 blocker path" in validation_template
     assert "rejected or downgraded plausible blocker-path findings" in review_cycle_template
