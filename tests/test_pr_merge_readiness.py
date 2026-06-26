@@ -1875,6 +1875,54 @@ def test_reviewer_report_p1_can_be_rejected_with_calibration(tmp_path: Path) -> 
     assert "unresolved_blocking_finding:P1-SOURCE" not in result["blockers"]
 
 
+def test_reviewer_report_p1_rejection_requires_calibration(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "rejected"
+    report["candidate_findings"] = [
+        {
+            "id": "P1-SOURCE",
+            "severity": "P3",
+            "status": "rejected",
+            "source_findings": [{"reviewer": "generalist-a", "id": "P1-SOURCE"}],
+        }
+    ]
+    prepare_complete_evidence(tmp_path)
+    (tmp_path / "reviewer-report.generalist-a.json").write_text(
+        json.dumps(
+            {
+                "reviewer": {
+                    "id": "generalist-a",
+                    "provider": "internal-agent",
+                    "role": "generalist",
+                    "model": "codex",
+                },
+                "summary": "Found blocker.",
+                "review_context": review_context("generalist-a"),
+                "findings": [
+                    {
+                        "id": "P1-SOURCE",
+                        "severity": "P1",
+                        "title": "Source blocker",
+                        "evidence": ["example evidence"],
+                        "status": "candidate-unvalidated",
+                        **grounded_blocker_fields(),
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "rejected"
+    assert result["accepted"] is False
+    assert "source_finding_calibration_reason_missing:generalist-a:P1-SOURCE" in result["blockers"]
+
+
 def test_reviewer_report_p1_cannot_disappear_as_duplicate_without_resolution(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "rejected"

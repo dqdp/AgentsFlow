@@ -388,6 +388,14 @@ def _candidate_handles_source_finding(candidate: dict[str, Any], review_id: str,
     return False
 
 
+def _candidate_preserves_source_blocker_decision(candidate: dict[str, Any]) -> bool:
+    if _candidate_severity(candidate) in BLOCKING_FINDING_SEVERITIES:
+        return True
+    if _is_mandatory_evidence_gap(candidate):
+        return True
+    return _has_calibration_reason(candidate)
+
+
 def _candidate_severity(candidate: dict[str, Any]) -> str:
     validated_severity = str(candidate.get("validated_severity", ""))
     candidate_severity = str(candidate.get("severity", ""))
@@ -1263,16 +1271,26 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             continue
 
     for source in source_blocking_findings:
-        if not any(
-            _candidate_handles_source_finding(
+        handling_candidates = [
+            candidate
+            for candidate in candidate_findings
+            if _candidate_handles_source_finding(
                 candidate,
                 source["review_id"],
                 source["finding_id"],
             )
-            for candidate in candidate_findings
-        ):
+        ]
+        if not handling_candidates:
             blockers.append(
                 "unhandled_source_blocking_finding:"
+                f"{source['review_id']}:{source['finding_id']}"
+            )
+        elif not any(
+            _candidate_preserves_source_blocker_decision(candidate)
+            for candidate in handling_candidates
+        ):
+            blockers.append(
+                "source_finding_calibration_reason_missing:"
                 f"{source['review_id']}:{source['finding_id']}"
             )
 
