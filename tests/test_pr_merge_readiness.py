@@ -1826,9 +1826,8 @@ def test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_re
     assert "unhandled_source_blocking_finding:generalist-a:MANDATORY-GAP" in result["blockers"]
 
 
-def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) -> None:
+def test_reviewer_report_p1_can_be_rejected_with_calibration(tmp_path: Path) -> None:
     report = complete_report()
-    report["status"] = "rejected"
     report["candidate_findings"] = [
         {
             "id": "P1-SOURCE",
@@ -1870,9 +1869,10 @@ def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) ->
 
     result = load_evaluator()(tmp_path, path)
 
-    assert result["state"] == "rejected"
-    assert result["accepted"] is False
-    assert "unresolved_blocking_finding:P1-SOURCE" in result["blockers"]
+    assert result["state"] == "accepted_merge_ready"
+    assert result["accepted"] is True
+    assert "unhandled_source_blocking_finding:generalist-a:P1-SOURCE" not in result["blockers"]
+    assert "unresolved_blocking_finding:P1-SOURCE" not in result["blockers"]
 
 
 def test_reviewer_report_p1_cannot_disappear_as_duplicate_without_resolution(tmp_path: Path) -> None:

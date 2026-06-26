@@ -12,7 +12,6 @@ from .review import validate_review_packet_artifact
 
 
 BLOCKING_FINDING_SEVERITIES = {"P0", "P1"}
-SEVERITY_RANK = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "NOTE": 4}
 REQUIRED_CLAUDE_FORBIDDEN_ENV = {
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
@@ -389,23 +388,10 @@ def _candidate_handles_source_finding(candidate: dict[str, Any], review_id: str,
     return False
 
 
-def _more_blocking(left: str, right: str) -> str:
-    if SEVERITY_RANK.get(left, 99) <= SEVERITY_RANK.get(right, 99):
-        return left
-    return right
-
-
-def _effective_candidate_severity(
-    candidate: dict[str, Any],
-    source_blocking_findings: list[dict[str, Any]],
-) -> str:
+def _candidate_severity(candidate: dict[str, Any]) -> str:
     validated_severity = str(candidate.get("validated_severity", ""))
     candidate_severity = str(candidate.get("severity", ""))
-    effective = validated_severity or candidate_severity
-    for source in source_blocking_findings:
-        if _candidate_handles_source_finding(candidate, source["review_id"], source["finding_id"]):
-            effective = _more_blocking(effective, source["severity"])
-    return effective
+    return validated_severity or candidate_severity
 
 
 def _nonempty_text(value: object) -> bool:
@@ -438,32 +424,6 @@ def _has_calibration_reason(finding: dict[str, Any]) -> bool:
 
 def _is_mandatory_evidence_gap(finding: dict[str, Any]) -> bool:
     return finding.get("mandatory_evidence_gap") is True
-
-
-def _effective_grounded_blocker_path(
-    candidate: dict[str, Any],
-    source_blocking_findings: list[dict[str, Any]],
-) -> bool:
-    if _has_grounded_blocker_path(candidate):
-        return True
-    return any(
-        _candidate_handles_source_finding(candidate, source["review_id"], source["finding_id"])
-        and _has_grounded_blocker_path(source)
-        for source in source_blocking_findings
-    )
-
-
-def _effective_mandatory_evidence_gap(
-    candidate: dict[str, Any],
-    source_blocking_findings: list[dict[str, Any]],
-) -> bool:
-    if _is_mandatory_evidence_gap(candidate):
-        return True
-    return any(
-        _candidate_handles_source_finding(candidate, source["review_id"], source["finding_id"])
-        and _is_mandatory_evidence_gap(source)
-        for source in source_blocking_findings
-    )
 
 
 def _validate_loaded_review_packet_binding(
@@ -1279,11 +1239,11 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
     for finding in candidate_findings:
         if not isinstance(finding, dict):
             continue
-        severity = _effective_candidate_severity(finding, source_blocking_findings)
+        severity = _candidate_severity(finding)
         status = str(finding.get("status", ""))
         finding_id = str(finding.get("id", "<unknown>"))
-        has_blocker_path = _effective_grounded_blocker_path(finding, source_blocking_findings)
-        has_mandatory_gap = _effective_mandatory_evidence_gap(finding, source_blocking_findings)
+        has_blocker_path = _has_grounded_blocker_path(finding)
+        has_mandatory_gap = _is_mandatory_evidence_gap(finding)
         if severity not in BLOCKING_FINDING_SEVERITIES and not has_mandatory_gap:
             continue
         if not has_blocker_path and not has_mandatory_gap:
