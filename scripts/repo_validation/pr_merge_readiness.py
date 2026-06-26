@@ -87,14 +87,19 @@ def _contains_local_path(text: str) -> bool:
     return any(pattern.search(text) for pattern in LOCAL_PATH_PATTERNS)
 
 
-def _github_pr_url_matches(url: str, expected_pr: int) -> bool:
+def _github_pr_url_matches(url: str, expected_pr: int, expected_repository: str) -> bool:
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.netloc != "github.com":
         return False
     if not parsed.fragment.startswith("issuecomment-"):
         return False
     parts = [part for part in parsed.path.split("/") if part]
-    return len(parts) >= 4 and parts[-2] == "pull" and parts[-1] == str(expected_pr)
+    return (
+        len(parts) == 4
+        and f"{parts[0]}/{parts[1]}" == expected_repository
+        and parts[2] == "pull"
+        and parts[3] == str(expected_pr)
+    )
 
 
 def _parse_timestamp(value: object) -> datetime | None:
@@ -466,17 +471,25 @@ def _validate_control_report(
     root: Path,
     report_path: Path,
     ref: object,
+    packet_ref: object,
     reviewer_report_schema: dict,
     missing: list[str],
     blockers: list[str],
     finding_id: str,
     collision_batch_id: str,
+    report_run_id: str,
+    report_material_change_id: str,
     latest_material_change_at: datetime | None,
     collision_prompt_prepared_at: datetime | None,
 ) -> str | None:
     _record_missing(report_path, root, ref, missing)
+    _record_missing(report_path, root, packet_ref, missing)
     resolved = _safe_relative(report_path, root, ref)
     if not resolved or not resolved.is_file():
+        return None
+    packet_path = _safe_relative(report_path, root, packet_ref)
+    if not packet_path or not packet_path.is_file():
+        blockers.append(f"collision_control_report_invalid:{finding_id}")
         return None
     try:
         data = parse_json(resolved)
@@ -492,6 +505,29 @@ def _validate_control_report(
     reviewer = data.get("reviewer")
     if not isinstance(reviewer, dict) or not reviewer.get("id"):
         blockers.append(f"collision_control_report_invalid:{finding_id}")
+        return None
+    reviewer_id = str(reviewer["id"])
+    context = data.get("review_context")
+    if (
+        not isinstance(context, dict)
+        or context.get("run_id") != report_run_id
+        or context.get("material_change_id") != report_material_change_id
+        or context.get("reviewer_instance_id") != reviewer_id
+        or context.get("review_packet_path") != packet_ref
+    ):
+        blockers.append(f"collision_control_report_invalid:{finding_id}")
+        return None
+    if _validate_collision_control_packet(
+        root,
+        packet_path,
+        packet_ref,
+        finding_id,
+        collision_batch_id,
+        reviewer_id,
+        report_run_id,
+        report_material_change_id,
+        blockers,
+    ):
         return None
     collision = data.get("collision_control")
     if not isinstance(collision, dict):
@@ -530,7 +566,58 @@ def _validate_control_report(
         except TypeError:
             blockers.append(f"collision_control_report_invalid:{finding_id}")
             return None
-    return str(reviewer["id"])
+    return reviewer_id
+
+
+def _validate_collision_control_packet(
+    root: Path,
+    packet_path: Path,
+    packet_ref: object,
+    finding_id: str,
+    collision_batch_id: str,
+    reviewer_id: str,
+    report_run_id: str,
+    report_material_change_id: str,
+    blockers: list[str],
+) -> bool:
+    try:
+        packet = parse_json(packet_path)
+    except ValueError:
+        blockers.append(f"collision_control_packet_invalid:{finding_id}")
+        return True
+    if not isinstance(packet, dict):
+        blockers.append(f"collision_control_packet_invalid:{finding_id}")
+        return True
+    if validate_review_packet_artifact(
+        root,
+        packet_path,
+        check_references=True,
+        require_green_verification_gate=True,
+    ):
+        blockers.append(f"collision_control_packet_invalid:{finding_id}")
+        return True
+    collision = packet.get("collision_control")
+    disputed = collision.get("disputed_findings") if isinstance(collision, dict) else None
+    invalid = (
+        packet.get("run_id") != report_run_id
+        or packet.get("material_change_id") != report_material_change_id
+        or packet.get("reviewer_instance_id") != reviewer_id
+        or packet.get("review_packet_path") != packet_ref
+        or packet.get("review_profile") != "collision-control"
+        or packet.get("composition") != "control"
+        or not isinstance(collision, dict)
+        or collision.get("collision_batch_id") != collision_batch_id
+        or not isinstance(disputed, list)
+        or not any(
+            isinstance(item, dict)
+            and item.get("finding_id") == finding_id
+            and item.get("original_severity") in BLOCKING_FINDING_SEVERITIES
+            for item in disputed
+        )
+    )
+    if invalid:
+        blockers.append(f"collision_control_packet_invalid:{finding_id}")
+    return invalid
 
 
 def _validate_loaded_review_packet_binding(
@@ -722,6 +809,7 @@ def _validate_github_publication_result(
     report_path: Path,
     publication: dict[str, Any],
     expected_pr: int | None,
+    expected_repository: str | None,
     blockers: list[str],
     missing_evidence: list[str],
 ) -> None:
@@ -786,7 +874,11 @@ def _validate_github_publication_result(
     result_url = result.get("url")
     if not isinstance(result_url, str) or not result_url.strip():
         blockers.append("github_publication_evidence_missing")
-    elif expected_pr and not _github_pr_url_matches(result_url, expected_pr):
+    elif (
+        not expected_pr
+        or not expected_repository
+        or not _github_pr_url_matches(result_url, expected_pr, expected_repository)
+    ):
         blockers.append("github_publication_evidence_invalid")
     report_url = publication.get("url")
     if isinstance(report_url, str) and report_url.strip() and result_url != report_url:
@@ -1486,11 +1578,14 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                             root,
                             report_path,
                             control_report.get("path"),
+                            control_report.get("packet_path"),
                             reviewer_report_schema,
                             missing_evidence,
                             blockers,
                             finding_id,
                             collision_batch_id,
+                            report_run_id,
+                            report_material_change_id,
                             latest_material_change_at,
                             control_prepared_at,
                         )
@@ -1499,11 +1594,14 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                             root,
                             report_path,
                             control_report,
+                            None,
                             reviewer_report_schema,
                             missing_evidence,
                             blockers,
                             finding_id,
                             collision_batch_id,
+                            report_run_id,
+                            report_material_change_id,
                             latest_material_change_at,
                             control_prepared_at,
                         )
@@ -1565,6 +1663,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
     }
     branch = data.get("branch")
     expected_pr = _positive_int(branch.get("pull_request")) if isinstance(branch, dict) else None
+    expected_repository = str(branch.get("repository") or "") if isinstance(branch, dict) else ""
     if isinstance(github_publication, dict):
         status = str(github_publication.get("status", "missing"))
         required_for_merge_readiness = github_publication.get("required_for_merge_readiness") is True
@@ -1580,6 +1679,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                 report_path,
                 github_publication,
                 expected_pr,
+                expected_repository,
                 blockers,
                 missing_evidence,
             )

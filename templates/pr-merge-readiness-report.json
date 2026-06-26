@@ -9,7 +9,8 @@
     "base": "<base-branch>",
     "commit_range": "<base>..HEAD",
     "worktree_state": "<clean|documented-dirty>",
-    "pull_request": 123
+    "pull_request": 123,
+    "repository": "<owner>/<repo>"
   },
   "status": "awaiting_human_decision",
   "checks": [

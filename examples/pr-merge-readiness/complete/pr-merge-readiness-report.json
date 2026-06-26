@@ -14,7 +14,8 @@
     "base": "main",
     "commit_range": "main..HEAD",
     "worktree_state": "clean",
-    "pull_request": 1
+    "pull_request": 1,
+    "repository": "org/repo"
   },
   "status": "incomplete",
   "checks": [

@@ -176,6 +176,19 @@ def review_context(reviewer: str) -> dict:
     }
 
 
+def collision_control_report_refs() -> list[dict[str, str]]:
+    return [
+        {
+            "path": "reviewer-report.collision-control-a.json",
+            "packet_path": "review-packets/collision-control-a.json",
+        },
+        {
+            "path": "reviewer-report.collision-control-b.json",
+            "packet_path": "review-packets/collision-control-b.json",
+        },
+    ]
+
+
 def invocation_metadata(reviewer: str) -> dict:
     reviewer_role = reviewer.removesuffix("-claude").removesuffix("-codex")
     return {
@@ -331,6 +344,7 @@ def complete_report() -> dict:
             "commit_range": "main..HEAD",
             "worktree_state": "clean",
             "pull_request": 1,
+            "repository": "org/repo",
         },
         "status": "accepted_merge_ready",
         "checks": [
@@ -696,6 +710,29 @@ def write_collision_control_fixture(
     prepared_at: str = "2026-06-22T10:00:00Z",
 ) -> None:
     for reviewer in ["collision-control-a", "collision-control-b"]:
+        packet_path = root / "review-packets" / f"{reviewer}.json"
+        packet = base_review_packet(reviewer, "internal-agent", "generalist")
+        packet["review_profile"] = "collision-control"
+        packet["composition"] = "control"
+        packet["collision_control"] = {
+            "trigger": "rejected_or_downgraded_blocker_collision",
+            "collision_batch_id": collision_batch_id,
+            "control_reviewer_count": 2,
+            "disputed_findings": [
+                {
+                    "finding_id": finding_id,
+                    "original_severity": "P1",
+                    "source_reviewer_report": "reviewer-report.generalist-a.json",
+                    "orchestrator_action": "rejected",
+                }
+            ],
+            "orchestrator_collision_reason": "Main agent rejected a grounded blocker-path finding.",
+            "evidence_references_checked": [
+                "reviewer-report.generalist-a.json",
+                "collision-control-evidence.json",
+            ],
+        }
+        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
         (root / f"reviewer-report.{reviewer}.json").write_text(
             json.dumps(
                 {
@@ -706,6 +743,7 @@ def write_collision_control_fixture(
                         "model": "codex",
                     },
                     "summary": "Control reviewer accepts the orchestrator disposition.",
+                    "review_context": review_context(reviewer),
                     "findings": [],
                     "collision_control": {
                         "collision_batch_id": collision_batch_id,
@@ -743,8 +781,14 @@ def write_collision_control_fixture(
                     "collision-control-b",
                 ],
                 "control_reports": [
-                    "reviewer-report.collision-control-a.json",
-                    "reviewer-report.collision-control-b.json",
+                    {
+                        "path": "reviewer-report.collision-control-a.json",
+                        "packet_path": "review-packets/collision-control-a.json",
+                    },
+                    {
+                        "path": "reviewer-report.collision-control-b.json",
+                        "packet_path": "review-packets/collision-control-b.json",
+                    },
                 ],
             },
             indent=2,
@@ -900,6 +944,24 @@ def test_github_publication_must_match_pull_request_number(tmp_path: Path) -> No
 def test_github_publication_url_must_match_exact_pull_request_number(tmp_path: Path) -> None:
     report = complete_report()
     wrong_url = "https://github.com/org/repo/pull/10#issuecomment-1"
+    report["github_publication"]["url"] = wrong_url
+    prepare_complete_evidence(tmp_path)
+    result_path = tmp_path / "github-publication-result.json"
+    result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+    result_payload["url"] = wrong_url
+    result_path.write_text(json.dumps(result_payload, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
+
+
+def test_github_publication_url_must_match_repository(tmp_path: Path) -> None:
+    report = complete_report()
+    wrong_url = "https://github.com/other/repo/pull/1#issuecomment-1"
     report["github_publication"]["url"] = wrong_url
     prepare_complete_evidence(tmp_path)
     result_path = tmp_path / "github-publication-result.json"
@@ -2530,6 +2592,73 @@ def test_self_declared_collision_control_reports_require_valid_control_reports(t
     assert "collision_control_incomplete:F-001" in result["blockers"]
 
 
+def test_collision_control_requires_control_report_packet_binding(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_collision_control"
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "P1",
+            "status": "rejected",
+            **grounded_blocker_fields(),
+            "collision_control": {
+                "status": "completed",
+                "collision_batch_id": "collision-F-001",
+                "evidence_path": "collision-control-evidence.json",
+                "control_reviewer_count": 2,
+                "disputed_finding_ids": ["F-001"],
+                "control_reports": [
+                    {"path": "reviewer-report.collision-control-a.json"},
+                    {"path": "reviewer-report.collision-control-b.json"},
+                ],
+            },
+        }
+    ]
+    prepare_complete_evidence(tmp_path)
+    write_collision_control_fixture(tmp_path)
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_collision_control"
+    assert result["accepted"] is False
+    assert "collision_control_report_invalid:F-001" in result["blockers"]
+
+
+def test_collision_control_requires_control_report_context_binding(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_collision_control"
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "P1",
+            "status": "rejected",
+            **grounded_blocker_fields(),
+            "collision_control": {
+                "status": "completed",
+                "collision_batch_id": "collision-F-001",
+                "evidence_path": "collision-control-evidence.json",
+                "control_reviewer_count": 2,
+                "disputed_finding_ids": ["F-001"],
+                "control_reports": collision_control_report_refs(),
+            },
+        }
+    ]
+    prepare_complete_evidence(tmp_path)
+    write_collision_control_fixture(tmp_path)
+    control_report_path = tmp_path / "reviewer-report.collision-control-a.json"
+    control_report = json.loads(control_report_path.read_text(encoding="utf-8"))
+    control_report["review_context"]["material_change_id"] = "stale-change"
+    control_report_path.write_text(json.dumps(control_report, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_collision_control"
+    assert result["accepted"] is False
+    assert "collision_control_report_invalid:F-001" in result["blockers"]
+
+
 def test_stale_collision_control_does_not_clear_rejected_blocker(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "blocked_collision_control"
@@ -2542,13 +2671,10 @@ def test_stale_collision_control_does_not_clear_rejected_blocker(tmp_path: Path)
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
-                                "evidence_path": "collision-control-evidence.json",
+                "evidence_path": "collision-control-evidence.json",
                 "control_reviewer_count": 2,
                 "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "reviewer-report.collision-control-a.json"},
-                    {"path": "reviewer-report.collision-control-b.json"},
-                ],
+                "control_reports": collision_control_report_refs(),
             },
         }
     ]
@@ -2579,13 +2705,10 @@ def test_unsupported_collision_control_conclusion_does_not_clear_rejected_blocke
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
-                                "evidence_path": "collision-control-evidence.json",
+                "evidence_path": "collision-control-evidence.json",
                 "control_reviewer_count": 2,
                 "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "reviewer-report.collision-control-a.json"},
-                    {"path": "reviewer-report.collision-control-b.json"},
-                ],
+                "control_reports": collision_control_report_refs(),
             },
         }
     ]
@@ -2618,10 +2741,7 @@ def test_collision_control_requires_bound_evidence_packet(tmp_path: Path) -> Non
                 "evidence_path": "collision-control-evidence.json",
                 "control_reviewer_count": 2,
                 "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "reviewer-report.collision-control-a.json"},
-                    {"path": "reviewer-report.collision-control-b.json"},
-                ],
+                "control_reports": collision_control_report_refs(),
             },
         }
     ]
@@ -2655,10 +2775,7 @@ def test_collision_control_requires_source_report_hash_binding(tmp_path: Path) -
                 "evidence_path": "collision-control-evidence.json",
                 "control_reviewer_count": 2,
                 "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "reviewer-report.collision-control-a.json"},
-                    {"path": "reviewer-report.collision-control-b.json"},
-                ],
+                "control_reports": collision_control_report_refs(),
             },
         }
     ]
@@ -2688,13 +2805,10 @@ def test_collision_control_reports_can_clear_rejected_blocker(tmp_path: Path) ->
             "collision_control": {
                 "status": "completed",
                 "collision_batch_id": "collision-F-001",
-                                "evidence_path": "collision-control-evidence.json",
+                "evidence_path": "collision-control-evidence.json",
                 "control_reviewer_count": 2,
                 "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "reviewer-report.collision-control-a.json"},
-                    {"path": "reviewer-report.collision-control-b.json"},
-                ],
+                "control_reports": collision_control_report_refs(),
             },
         }
     ]

@@ -64,13 +64,14 @@
     "branch": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["name", "base", "commit_range", "worktree_state", "pull_request"],
+      "required": ["name", "base", "commit_range", "worktree_state", "pull_request", "repository"],
       "properties": {
         "name": {"type": "string", "minLength": 1},
         "base": {"type": "string", "minLength": 1},
         "commit_range": {"type": "string", "minLength": 1},
         "worktree_state": {"type": "string", "minLength": 1},
-        "pull_request": {"type": "integer", "minimum": 1}
+        "pull_request": {"type": "integer", "minimum": 1},
+        "repository": {"type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$"}
       }
     },
     "checks": {

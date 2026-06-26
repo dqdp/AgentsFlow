@@ -172,9 +172,10 @@ private reasoning details or unnecessary absolute local paths.
 ```
 
 The readiness evaluator requires this default evidence shape before
-`awaiting_human_decision`. The report's branch PR number, publication PR number,
-result PR number, GitHub issue-comment URL and body hash must match. Any other
-publication state blocks merge readiness as missing publication evidence.
+`awaiting_human_decision`. The report's branch repository and PR number,
+publication PR number, result PR number, GitHub issue-comment URL and body hash
+must match. Any other publication state blocks merge readiness as missing
+publication evidence.
 
 Each review packet must be anchored to the evaluated readiness report: packet
 `run_id` must match report `run_id`, and packet `material_change_id` must match
@@ -182,6 +183,9 @@ report `material_change_id`. Review packets must also retain valid references
 to their verification gate report, role contract and output schema. Internal
 reviewer reports must carry matching `review_context` for the same run, material
 change, packet path and reviewer id.
+Collision-control reports must also be bound to their control review packet and
+the same evaluated run/material change before they can clear a rejected or
+downgraded blocker.
 
 The evaluator is intentionally small. It checks declared artifacts and computes
 the readiness state from the report. It validates review and external-provider
