@@ -11,22 +11,25 @@ Important policy:
   variables are present in the process environment or Claude settings files.
 - The v0.2 default reviewer invocation uses Claude Code `--model opus --effort max`.
 - Claude output remains candidate findings and must be validated by the main/orchestrating agent.
-- The reviewer receives a bounded review packet and must not modify files or run tests.
+- The reviewer receives a bounded lite review bundle and must not modify files or run tests.
 
 Files:
 
 - `claude-code.yaml` — provider configuration.
-- `review-packet.architecture.json` — sample input packet.
 - `mock-raw-output.json` — sample provider output used for smoke tests without calling Claude.
-- `reviewer-invocation.claude-architecture.json` — sample invocation metadata.
 
 Example smoke invocation:
 
 ```bash
-python3 scripts/reviewers/run_external_reviewer.py \
+python3 scripts/reviewers/run_external_review_lite.py \
   --provider claude-code \
   --config examples/external-reviewers/claude-code/claude-code.yaml \
-  --input examples/external-reviewers/claude-code/review-packet.architecture.json \
+  --output-dir /tmp/external-review-lite \
+  --goal "Smoke-test external reviewer normalization." \
+  --run-id external-reviewer-smoke \
+  --base-ref HEAD \
+  --head-ref HEAD \
+  --include-uncommitted \
   --mock-response examples/external-reviewers/claude-code/mock-raw-output.json \
-  --output /tmp/reviewer-report.claude-architecture.json
+  --replace-output-dir
 ```

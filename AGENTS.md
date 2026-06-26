@@ -188,9 +188,12 @@ When applying AgentsFlow to a concrete project:
   `CLAUDE_CODE_USE_VERTEX`.
 - External reviewer outputs are candidate findings, not authoritative truth.
 - External reviewers do not replace verification gates and do not modify files or run tests by default.
-- Store review packets, normalized reviewer report and invocation metadata as
-  run evidence. Store raw provider output only when explicitly non-sensitive;
+- Store review request bundles, normalized reviewer report and invocation
+  metadata as run evidence. Store raw provider output only when explicitly non-sensitive;
   otherwise store a redacted artifact, summary or pointer.
+- External review uses `scripts/reviewers/run_external_review_lite.py`: a small
+  review request plus referenced review-bundle artifacts and hashes. Do not
+  bypass project-bound wrappers with direct provider calls.
 
 ## Validation
 
@@ -202,12 +205,17 @@ python3 scripts/validate_repo.py --root .
 python3 -m pytest -q
 
 # external reviewer wrapper smoke test (no live Claude call):
-python3 scripts/reviewers/run_external_reviewer.py \
+python3 scripts/reviewers/run_external_review_lite.py \
   --provider claude-code \
   --config examples/external-reviewers/claude-code/claude-code.yaml \
-  --input examples/external-reviewers/claude-code/review-packet.architecture.json \
+  --output-dir /tmp/external-review-lite \
+  --goal "Smoke-test external reviewer normalization." \
+  --run-id external-reviewer-smoke \
+  --base-ref HEAD \
+  --head-ref HEAD \
+  --include-uncommitted \
   --mock-response examples/external-reviewers/claude-code/mock-raw-output.json \
-  --output /tmp/reviewer-report.claude-architecture.json
+  --replace-output-dir
 ```
 
 ## Evidence discipline

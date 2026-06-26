@@ -106,10 +106,10 @@ prompt_policy:
   same_rubric: true
 ```
 
-The assembled prompt set is recorded in `review-prompt-contract.yaml`. That
-contract records reviewer instances, role contract paths, prompt component
-sources, rendered prompt hashes, packet envelope hashes, shared prompt and packet
-content hashes, rubric hashes and output schema hashes.
+The review packet records reviewer role, context policy, prompt policy,
+referenced evidence, freshness, forbidden actions and output schema. Project
+bindings may add reviewer assignment metadata, but reviewers remain read-only
+candidate-finding producers.
 
 Heterogeneous review requires:
 

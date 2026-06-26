@@ -44,12 +44,7 @@ from .review import (
     validate_review_fusion_validation_order,
     validate_review_manifest_collection,
     validate_review_packet_artifact,
-    validate_review_prompt_contract_invariants,
-    validate_review_prompt_contract_run_references,
-    validate_review_prompt_contract_template,
     validate_phase_skills_declared,
-    validate_review_artifact_preparation_artifact,
-    validate_reviewer_invocation_artifact,
     validate_reviewer_report_artifact,
     validate_supported_review_topologies,
     validate_upstream_review_cycle_policy,
@@ -166,7 +161,16 @@ def _tracked_or_all(paths: set[Path], tracked_files: set[Path]) -> set[Path]:
     return {path for path in paths if path.resolve() in tracked_files}
 
 
-def validate_repository(root: Path) -> list[str]:
+def _resolve_cli_path(root: Path, path: Path) -> Path:
+    if path.is_absolute():
+        return path.resolve()
+    return (root / path).resolve()
+
+
+def validate_repository(
+    root: Path,
+    pr_merge_readiness_reports: tuple[Path, ...] = (),
+) -> list[str]:
     root = root.resolve()
     errors: list[str] = []
     tracked_files = _tracked_files(root)
@@ -236,24 +240,8 @@ def validate_repository(root: Path) -> list[str]:
         errors.extend(validate_behavior_binding_gate_refs(binding, set(gates.keys())))
 
     errors.extend(validate_review_manifest_collection(root))
-    errors.extend(validate_review_prompt_contract_template(root))
     errors.extend(validate_review_packet_artifact(root, root / 'templates' / 'review-packet.json', False))
     errors.extend(validate_evidence_probe_report_artifact(root, root / 'templates' / 'evidence-probe-report.json'))
-    errors.extend(
-        validate_review_packet_artifact(
-            root,
-            root / 'examples' / 'external-reviewers' / 'claude-code' / 'review-packet.architecture.json',
-            True,
-        )
-    )
-    errors.extend(validate_reviewer_invocation_artifact(root, root / 'templates' / 'reviewer-invocation.json'))
-    errors.extend(validate_review_artifact_preparation_artifact(root, root / 'templates' / 'review-artifact-preparation.json'))
-    errors.extend(
-        validate_reviewer_invocation_artifact(
-            root,
-            root / 'examples' / 'external-reviewers' / 'claude-code' / 'reviewer-invocation.claude-architecture.json',
-        )
-    )
     errors.extend(validate_workflow_run_artifact(root, root / 'templates' / 'workflow-run.yaml'))
     documentation_disposition_paths = {
         root / 'templates' / 'project-documentation-disposition.yaml',
@@ -280,23 +268,6 @@ def validate_repository(root: Path) -> list[str]:
         for path in root.glob(pattern)
     }, tracked_files):
         errors.extend(validate_workflow_run_artifact(root, run_artifact))
-    review_prompt_contract_patterns = [
-        'Docs/agentsflow/runs/*/review-prompt-contract.yaml',
-        'examples/**/Docs/agentsflow/runs/*/review-prompt-contract.yaml',
-    ]
-    for prompt_contract in sorted(_tracked_or_all({
-        path
-        for pattern in review_prompt_contract_patterns
-        for path in root.glob(pattern)
-    }, tracked_files)):
-        schema = parse_json(root / 'schemas' / 'review-prompt-contract.schema.json')
-        data = parse_yaml(prompt_contract) or {}
-        if not isinstance(data, dict):
-            errors.append(f'{prompt_contract}: review prompt contract must be a mapping')
-        else:
-            errors.extend(validate_against_schema(prompt_contract, data, schema))
-            errors.extend(validate_review_prompt_contract_invariants(root, prompt_contract, data, True))
-            errors.extend(validate_review_prompt_contract_run_references(root, prompt_contract, data))
     review_packet_patterns = [
         'Docs/agentsflow/runs/*/review-packets/*.json',
         'examples/**/Docs/agentsflow/runs/*/review-packets/*.json',
@@ -323,6 +294,12 @@ def validate_repository(root: Path) -> list[str]:
 
     for report_path in sorted(root.glob('examples/pr-merge-readiness/**/pr-merge-readiness-report.json')):
         errors.extend(validate_pr_merge_readiness_report(root, report_path))
+    for report_path in pr_merge_readiness_reports:
+        resolved_report_path = _resolve_cli_path(root, report_path)
+        if not resolved_report_path.is_file():
+            errors.append(f"missing pr-merge-readiness report: {report_path}")
+            continue
+        errors.extend(validate_pr_merge_readiness_report(root, resolved_report_path))
 
     for rel in REQUIRED_FILES:
         if not (root / rel).exists():
@@ -414,9 +391,24 @@ def main() -> int:
         action='store_true',
         help='validate a temporary snapshot containing only files listed by git ls-files',
     )
+    ap.add_argument(
+        '--pr-merge-readiness-report',
+        action='append',
+        default=[],
+        type=Path,
+        help='validate a concrete pr-merge-readiness-report.json artifact',
+    )
     args = ap.parse_args()
     root = Path(args.root)
-    errors = validate_tracked_repository(root) if args.tracked_only else validate_repository(root)
+    if args.tracked_only and args.pr_merge_readiness_report:
+        print('Repository validation failed:')
+        print('- --tracked-only cannot be combined with --pr-merge-readiness-report')
+        return 1
+    errors = (
+        validate_tracked_repository(root)
+        if args.tracked_only
+        else validate_repository(root, tuple(args.pr_merge_readiness_report))
+    )
     if errors:
         print('Repository validation failed:')
         for err in errors:

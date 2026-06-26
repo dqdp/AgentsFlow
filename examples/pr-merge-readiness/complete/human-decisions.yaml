@@ -11,13 +11,4 @@ decisions:
   affected_artifacts:
   - pr-merge-readiness-report.json
   material_change_id: pr-merge-readiness-example-change
-  report_hash: sha256:6807d190380ce5fc8158219a92cd380beb12140bbde9e321aed1a67fba0bd32c
-- decision_id: github.publication
-  phase_id: readiness_intake
-  question_ref: github.publication
-  answer: skip
-  status: confirmed
-  answered_by: human
-  classification: nonblocking-follow-up
-  affected_artifacts:
-  - pr-merge-readiness-report.json
+  report_hash: sha256:32494caf20c7f9f3f3ccaaa738b7ca9f743da2ae5c0e8bdb99fd4a0120bac94f

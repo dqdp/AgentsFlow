@@ -257,7 +257,7 @@
           "additionalProperties": true,
           "properties": {
             "assignment_source": {
-              "const": "review_prompt_contract.reviewer_assignments"
+              "const": "review_requirements.required_reviews"
             },
             "default_internal_provider": {
               "const": "internal-agent"

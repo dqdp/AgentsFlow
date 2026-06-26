@@ -13,14 +13,34 @@ Reviewer findings are candidate findings. They become accepted issues only after
 ## Severity Calibration Rule
 
 Reviewer severity is a candidate label. A P0/P1 candidate validates as a blocker
-only when this report records a grounded blocker path: the contract, accepted
-decision, gate policy, safety rule, authority boundary or mandatory evidence
-requirement at risk; the evidence checked; and the concrete consequence for
-accepting the artifact unchanged.
+only when this report records all four blocker fields:
+
+- violated requirement: the contract, accepted decision, ADR, gate policy,
+  safety rule, authority boundary or mandatory evidence requirement at risk;
+- concrete evidence: reviewed artifact, diff, report, log or recorded evidence
+  reference;
+- blocker path: how acceptance can fail if the artifact is unchanged;
+- acceptance consequence: why the workflow cannot accept before fix, explicit
+  deferral or human decision.
 
 Risk-surface or Failure Path Matrix membership alone is not enough to validate
 P0/P1 severity. It may justify focused review or additional evidence, but the
 validated severity must come from acceptance impact.
+
+If an accepted P0/P1 appears after an earlier review cycle, classify why it was
+late:
+
+- `contract_gap`
+- `verification_gap`
+- `review_packet_gap`
+- `material_fix_regression`
+- `valid_late_discovery`
+- `false_positive`
+- `process_hygiene_nonblocking`
+
+If the discovery class is `contract_gap`, update the task contract, Failure Path
+Matrix or verification binding before treating the fix loop as complete. Do not
+use another review cycle as a substitute for recording the missing requirement.
 
 ## Boundary Trace
 
@@ -82,13 +102,15 @@ artifact when the workflow requires them.
 - [ ] relevant ADRs / accepted decisions
 - [ ] workflow profile / effective strictness / topology
 - [ ] scope and non-goals
-- [ ] selected risk surfaces / Failure Path Matrix
+- [ ] packet relevance inputs: focus zone, selected risk surfaces, Failure Path
+      Matrix, changed files, verification gate report, evidence freshness and
+      known blockers
 
 ## Validation Table
 
-| Finding ID | Source | Candidate severity | Candidate blocker? | Candidate finding | Proposed blocker path | Risk/FPM refs | Relevance status | Validated severity | Blocking? | Reason | Evidence checked | Decision impact | Rerun required? |
-|---|---|---:|---:|---|---|---|---|---:|---:|---|---|---|---:|
-| F-001 | reviewer-architecture | P1 | yes | ... | contract/gate/evidence -> acceptance consequence | ... | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | P1/P2/P3/NOTE | yes/no | ... | contract, diff, gate report, ADR | ... | yes/no |
+| Finding ID | Source | Candidate severity | Candidate blocker? | Candidate finding | Violated requirement | Concrete evidence | Blocker path | Acceptance consequence | Relevance input refs | Relevance status | Validated severity | Blocking? | Discovery class | Reason | Rerun required? |
+|---|---|---:|---:|---|---|---|---|---|---|---|---:|---:|---|---|---:|
+| F-001 | reviewer-architecture | P1 | yes | ... | contract/gate/evidence | diff/report/log | failure path | acceptance consequence | focus_zone / FPM row / changed file / evidence ref / known blocker | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | P1/P2/P3/NOTE | yes/no | contract_gap / verification_gap / review_packet_gap / material_fix_regression / valid_late_discovery / false_positive / process_hygiene_nonblocking | ... | yes/no |
 
 ## Canonical Finding Groups Checked
 
@@ -102,8 +124,8 @@ Use this section when fusion grouped findings before validation.
 
 | Condition | Validation status | Blocking? | Default action |
 |---|---|---:|---|
-| Finding is supported by contract/evidence and has a grounded P0/P1 blocker path | accepted-relevant | yes | Fix/revise, then rerun verification gate and relevant review cycle. |
-| Finding is tagged P0/P1 but lacks a grounded blocker path | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | no by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
+| Finding has violated requirement, concrete evidence, blocker path and acceptance consequence | accepted-relevant | yes | Fix/revise, then rerun verification gate and an acceptance-capable review cycle. |
+| Finding is tagged P0/P1 but lacks any blocker field | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | no by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
 | Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | no | Record follow-up; no review rerun by default. |
 | Finding may be valid but required evidence is missing | needs-more-evidence | yes if mandatory evidence or grounded P0/P1 blocker path | Produce evidence through the verification gate or a narrow evidence-probe objective; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | no | Record reason; no rerun. |
@@ -170,6 +192,11 @@ no_validated_blocking_findings
 
 Repeated review agents are not rerun when all P0/P1 candidate findings have been
 validated and no validated blockers or mandatory evidence gaps remain.
+
+Closure-only review can confirm previous finding closure, but it is not an
+acceptance-capable review after a material change. A material fix requires a
+full current review packet and a prompt that asks reviewers to look for new
+P0/P1 blockers across the changed scope.
 
 ## Final Triage Decision
 

@@ -311,12 +311,20 @@
               "prompt_policy": {
                 "required": [
                   "baseline_same_prompt",
+                  "baseline_same_packet",
+                  "baseline_same_rubric",
                   "focused_reviewers_require_explicit_focus_zone",
                   "focus_zones_may_overlap",
                   "all_reviewers_must_report_p0_p1_outside_focus"
                 ],
                 "properties": {
                   "baseline_same_prompt": {
+                    "const": true
+                  },
+                  "baseline_same_packet": {
+                    "const": true
+                  },
+                  "baseline_same_rubric": {
                     "const": true
                   },
                   "focused_reviewers_require_explicit_focus_zone": {

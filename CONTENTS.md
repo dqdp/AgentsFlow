@@ -2,6 +2,7 @@
 
 Generated for AgentsFlow v0.2 readiness snapshot.
 
+- .github/workflows/validate.yml
 - .gitignore
 - AGENTS.md
 - CONTENTS.md
@@ -29,6 +30,8 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - docs/adr/ADR-0018-phase-transition-control.md
 - docs/adr/ADR-0019-workflow-default-strictness.md
 - docs/adr/ADR-0020-agentsflow-as-agent-operating-protocol.md
+- docs/adr/ADR-0021-review-observability-and-external-provider-evidence.md
+- docs/adr/ADR-0022-review-loop-health-check.md
 - docs/architecture.md
 - docs/bdd-style-guide.md
 - docs/behavior-binding-model.md
@@ -62,6 +65,7 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - docs/plans/phase-transition-control-adr-assessment.md
 - docs/plans/phase-transition-control-slice.md
 - docs/plans/v0.2-next-slices.md
+- docs/pr-merge-readiness.md
 - docs/project-application-model.md
 - docs/project-binding-model.md
 - docs/project-initialization-model.md
@@ -70,11 +74,9 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - docs/retrospectives/bird-eye-pass-2026-06-17-v0.1.10.md
 - docs/retrospectives/documentation-consistency-review-2026-06-17-v0.1.13.md
 - docs/review-agent-interaction-protocol.md
-- docs/review-artifact-preparation.md
 - docs/review-control-model.md
 - docs/review-fusion-model.md
 - docs/review-profile-model.md
-- docs/review-prompt-contract.md
 - docs/risk-and-strictness.md
 - docs/script-contract.md
 - docs/skill-contract.md
@@ -101,10 +103,6 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json
 - examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-b.json
 - examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/shared-content.json
-- examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompt-contract.yaml
-- examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-a.md
-- examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/generalist-b.md
-- examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-prompts/shared-content.md
 - examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-a.json
 - examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-a.md
 - examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/reviewer-report.generalist-b.json
@@ -119,15 +117,27 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - examples/external-reviewers/claude-code/README.md
 - examples/external-reviewers/claude-code/claude-code.yaml
 - examples/external-reviewers/claude-code/mock-raw-output.json
-- examples/external-reviewers/claude-code/review-packet.architecture.json
-- examples/external-reviewers/claude-code/review-prompt-contract.architecture.yaml
-- examples/external-reviewers/claude-code/reviewer-invocation.claude-architecture.json
 - examples/legacy-adoption/README.md
 - examples/memory-policy/Docs/contracts/memory-policy.bindings.yaml
 - examples/memory-policy/Docs/contracts/memory-policy.contract.md
 - examples/memory-policy/changed-files.txt
 - examples/memory-policy/evidence-report.md
 - examples/memory-policy/impact-map.yaml
+- examples/pr-merge-readiness/README.md
+- examples/pr-merge-readiness/complete/evidence/make-check.log
+- examples/pr-merge-readiness/complete/evidence/pytest.log
+- examples/pr-merge-readiness/complete/evidence/repo-validation.log
+- examples/pr-merge-readiness/complete/human-decisions.yaml
+- examples/pr-merge-readiness/complete/pr-merge-readiness-report.json
+- examples/pr-merge-readiness/complete/profiles/reviewer_roles/adversarial.yaml
+- examples/pr-merge-readiness/complete/profiles/reviewer_roles/generalist.yaml
+- examples/pr-merge-readiness/complete/review-packets/adversarial-codex.json
+- examples/pr-merge-readiness/complete/review-packets/generalist-a.json
+- examples/pr-merge-readiness/complete/review-packets/generalist-b.json
+- examples/pr-merge-readiness/complete/review-requirements.yaml
+- examples/pr-merge-readiness/complete/reviewer-report.adversarial-codex.json
+- examples/pr-merge-readiness/complete/reviewer-report.generalist-a.json
+- examples/pr-merge-readiness/complete/reviewer-report.generalist-b.json
 - examples/project-initialization/Docs/adr/ADR-0001.md
 - examples/project-initialization/README.md
 - examples/project-initialization/human-decisions.yaml
@@ -206,12 +216,15 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - schemas/actor.schema.json
 - schemas/behavior-binding.schema.json
 - schemas/evidence-probe-report.schema.json
+- schemas/external-review-lite-invocation.schema.json
+- schemas/external-review-lite-request.schema.json
 - schemas/external-review-provider.schema.json
 - schemas/gate.schema.json
 - schemas/human-decisions.schema.json
 - schemas/human-questions.schema.json
 - schemas/legacy-adoption-decision.schema.json
 - schemas/legacy-agent-system-inventory.schema.json
+- schemas/pr-merge-readiness-report.schema.json
 - schemas/project-assessment.schema.json
 - schemas/project-binding.schema.json
 - schemas/project-documentation-disposition.schema.json
@@ -219,14 +232,10 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - schemas/project-inventory.schema.json
 - schemas/project-operating-decisions.schema.json
 - schemas/project-raw-scan.schema.json
-- schemas/review-artifact-preparation.schema.json
 - schemas/review-cycle.schema.json
-- schemas/review-invocation-set.schema.json
 - schemas/review-packet.schema.json
 - schemas/review-profile.schema.json
-- schemas/review-prompt-contract.schema.json
 - schemas/review-topology.schema.json
-- schemas/reviewer-invocation.schema.json
 - schemas/reviewer-report.schema.json
 - schemas/reviewer-role.schema.json
 - schemas/reviewer.schema.json
@@ -247,11 +256,9 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - scripts/contracts/evidence_validate.yaml
 - scripts/contracts/gherkin_lint.yaml
 - scripts/contracts/impact_map_check.yaml
-- scripts/contracts/prepare_review_set_artifacts.yaml
 - scripts/contracts/project_raw_scan.yaml
-- scripts/contracts/run_external_reviewer.yaml
+- scripts/contracts/run_external_review_lite.yaml
 - scripts/contracts/run_gate.yaml
-- scripts/contracts/run_review_set.yaml
 - scripts/contracts/validate_project_binding.yaml
 - scripts/contracts/validate_project_intake.yaml
 - scripts/contracts/validate_project_inventory.yaml
@@ -280,6 +287,8 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - scripts/repo_validation/common.py
 - scripts/repo_validation/external_reviewers.py
 - scripts/repo_validation/gates.py
+- scripts/repo_validation/portable_paths.py
+- scripts/repo_validation/pr_merge_readiness.py
 - scripts/repo_validation/project_initialization.py
 - scripts/repo_validation/project_overlay.py
 - scripts/repo_validation/required_files.py
@@ -288,11 +297,10 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - scripts/repo_validation/workflow_runs.py
 - scripts/repo_validation/workflows.py
 - scripts/reviewers/README.md
-- scripts/reviewers/prepare_review_set_artifacts.py
+- scripts/reviewers/external_common.py
 - scripts/reviewers/prompt_rendering.py
 - scripts/reviewers/providers/claude_code.py
-- scripts/reviewers/run_external_reviewer.py
-- scripts/reviewers/run_review_set.py
+- scripts/reviewers/run_external_review_lite.py
 - scripts/validate_project_binding.py
 - scripts/validate_project_intake.py
 - scripts/validate_project_inventory.py
@@ -317,6 +325,8 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - skills/legacy-agent-system-discovery/skill.yaml
 - skills/plan-validation/SKILL.md
 - skills/plan-validation/skill.yaml
+- skills/pr-merge-readiness/SKILL.md
+- skills/pr-merge-readiness/skill.yaml
 - skills/problem-framing/SKILL.md
 - skills/problem-framing/skill.yaml
 - skills/project-intake-analysis/SKILL.md
@@ -375,6 +385,7 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - templates/legacy-backup-manifest.yaml
 - templates/plan-gate-report.md
 - templates/plan.md
+- templates/pr-merge-readiness-report.json
 - templates/problem-frame.md
 - templates/project-assessment.json
 - templates/project-assessment.md
@@ -389,12 +400,9 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - templates/repository-grounding-report.md
 - templates/research-assignment.unknown-project.md
 - templates/research-brief.md
-- templates/review-artifact-preparation.json
 - templates/review-cycle-report.md
 - templates/review-packet.json
-- templates/review-prompt-contract.yaml
 - templates/review-prompts/base.md
-- templates/reviewer-invocation.json
 - templates/reviewer-report.md
 - templates/script-contract.yaml
 - templates/skill.yaml
@@ -407,6 +415,7 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - templates/workflow-run.yaml
 - templates/workflow.binding.yaml
 - templates/workflow.yaml
+- tests/test_pr_merge_readiness.py
 - tests/test_scripts_smoke.py
 - workflows/agentic-system-hardening/README.md
 - workflows/agentic-system-hardening/workflow.yaml
@@ -416,6 +425,7 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - workflows/bugfix-regression-capture/workflow.yaml
 - workflows/new-project-spec-first/README.md
 - workflows/new-project-spec-first/workflow.yaml
+- workflows/pr-merge-readiness/workflow.yaml
 - workflows/project-initialization/README.md
 - workflows/project-initialization/workflow.yaml
 - workflows/prompt-behavior-eval/README.md

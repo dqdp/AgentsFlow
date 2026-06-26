@@ -159,7 +159,7 @@ the latest material change is not authoritative for the changed scope.
 |---|---|---|
 | `big-feature-contract-first` | supported target | Implement a large feature through contract, BDD scenarios, impact map, verification, evidence. |
 | `review-only-fusion` | utility | Run independent review and fusion on an existing artifact or diff. |
-| `pr-merge-readiness` | utility | Decide whether a branch has enough validation, review, finding-validation and human approval evidence to open, accept or merge as a PR. |
+| `pr-merge-readiness` | utility | Evaluate whether a branch has enough already-produced validation, review, finding-validation and human approval evidence to open, accept or merge as a PR. |
 | `new-project-spec-first` | reference/next | Start a new project with problem framing, specs, ADR seeds, and initial contracts. |
 | `bugfix-regression-capture` | reference/next | Reproduce a bug, fix it, and convert it into a regression scenario. |
 | `agentic-system-hardening` | reference/experimental | Harden agent systems: prompts, tools, memory, context, policy, model router, traces. |

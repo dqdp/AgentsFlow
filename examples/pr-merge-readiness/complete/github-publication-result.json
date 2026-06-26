@@ -1,0 +1,10 @@
+{
+  "provider": "github",
+  "tool": "gh",
+  "action": "pr comment",
+  "status": "published",
+  "pr": 1,
+  "url": "https://github.com/org/repo/pull/1#issuecomment-1",
+  "body_path": "github-publication.md",
+  "body_hash": "sha256:ad22ca6b1aea7c302f5c63d8643b2d40f04a4f97321c96ab270cc7dea3f03530"
+}

@@ -128,11 +128,12 @@ Reviewer severity is a candidate label. The main/orchestrating agent validates
 severity separately from relevance before a finding can block acceptance.
 
 To validate a finding as P0/P1, the validation report must record a grounded
-blocker path:
+blocker path with four fields:
 
-- the contract clause, accepted decision, gate policy, safety rule, authority
-  boundary or mandatory evidence requirement at risk;
-- the current evidence showing the violation, contradiction or evidence gap;
+- the violated requirement: contract clause, accepted decision, ADR, gate policy,
+  safety rule, authority boundary or mandatory evidence requirement;
+- the concrete evidence showing the violation, contradiction or evidence gap;
+- the blocker path showing how acceptance can fail if unchanged;
 - the concrete acceptance consequence if the artifact is accepted unchanged;
 - why P2/P3/NOTE would understate the acceptance risk.
 
@@ -169,7 +170,7 @@ downgrades, marks duplicate or escalates the finding.
 
 Boundary impact is not severity. A boundary label can show where a finding,
 evidence requirement or decision may be lost between layers, but P0/P1 severity
-still requires the grounded blocker path above.
+still requires the four-part grounded blocker path above.
 
 Do not require Boundary Trace for every P2/P3/NOTE finding, optional backlog
 item or editorial cleanup. A non-blocking finding may still receive a Boundary
@@ -366,9 +367,9 @@ For each finding, the main agent must inspect the available relevant inputs:
 
 | Condition | Validation status | Blocking? | Default action |
 |---|---|---:|---|
-| Finding is supported by contract/evidence and has a grounded P0/P1 blocker path | accepted-relevant | Yes | Fix/revise, then rerun verification gate and relevant review cycle. |
+| Finding has violated requirement, concrete evidence, blocker path and acceptance consequence | accepted-relevant | Yes | Fix/revise, then rerun verification gate and an acceptance-capable review cycle. |
 | Finding is supported by contract/evidence but severity is P2/P3/NOTE | accepted-relevant | No | Record follow-up or fix if cheap; no review rerun by default. |
-| Finding is tagged P0/P1 but lacks a grounded blocker path | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | No by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
+| Finding is tagged P0/P1 but lacks any blocker field | needs-more-evidence / rejected-irrelevant / accepted-relevant with downgraded severity | No by default | Record calibration reason; produce evidence only if needed; no primary review rerun by default. |
 | Finding may be valid but required evidence is missing | needs-more-evidence | Yes if mandatory evidence or grounded P0/P1 blocker path; otherwise workflow-defined | Run verification gate/checks; rerun review only if evidence materially changes. |
 | Finding concerns an explicit non-goal or out-of-scope preference | rejected-irrelevant | No | Record reason; no rerun. |
 | Finding is factually contradicted by contract/diff/evidence | rejected-irrelevant | No | Record contradiction; no rerun. |

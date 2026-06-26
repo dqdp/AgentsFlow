@@ -1,0 +1,18 @@
+version: 1
+artifact_kind: review_requirements
+required_reviews:
+  - id: generalist-a
+    topic: generalist-readiness
+    role: generalist
+    provider: internal-agent
+    required_live: false
+  - id: generalist-b
+    topic: generalist-readiness
+    role: generalist
+    provider: internal-agent
+    required_live: false
+  - id: adversarial-codex
+    topic: adversarial-authority
+    role: adversarial
+    provider: internal-agent
+    required_live: false

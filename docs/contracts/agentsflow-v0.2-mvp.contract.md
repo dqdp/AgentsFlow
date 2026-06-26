@@ -59,18 +59,17 @@ validators, JSON Schemas and prose docs.
 
 Feature: AgentsFlow v0.2 MVP contract layer
 
-  Scenario: Live external reviewer requires run-scope prompt contract
-    Given an external reviewer invocation would call a live provider
-    And the review prompt contract has artifact_scope "example"
-    When the external reviewer wrapper validates the invocation
-    Then the wrapper must fail before invoking the provider
-    And the failure must explain that live reviews require artifact_scope "run"
+  Scenario: External reviewer lite wrapper generates bounded bundle
+    Given a lite external reviewer request with referenced bundle artifacts
+    When the external reviewer wrapper prepares the request
+    Then it must record the review request, normalized reviewer report and invocation metadata
+    And it must bind referenced input, prompt, schema and output artifacts by concrete sha256 hashes
 
-  Scenario: Homogeneous dual review requires shared prompt and packet hashes
-    Given a homogeneous-dual review prompt contract
-    When a rendered prompt omits shared_prompt_content_hash or shared_packet_content_hash
-    Then the prompt contract validation must fail
-    And a run-scope contract must require concrete sha256 shared hashes
+  Scenario: External reviewer lite wrapper records provider output failures
+    Given a lite external reviewer receives malformed provider output
+    When normalization fails
+    Then it must write failure invocation metadata
+    And it must preserve the configured raw-output disposition, path and hash evidence
 
   Scenario: Project gate binding must match the upstream gate id
     Given a workflow requires verification_gate
@@ -153,7 +152,7 @@ Feature: AgentsFlow v0.2 MVP contract layer
     And a valid probe report must keep may_decide_findings false
 
   Scenario: Collision control uses one batch and two control reviewers
-    Given a collision-control review packet or prompt contract
+    Given a collision-control review packet or reviewer report
     When collision_control is missing or control_reviewer_count is not 2
     Then schema validation must fail
     And valid collision context must include the disputed finding batch and orchestrator collision reason
@@ -201,42 +200,12 @@ Feature: AgentsFlow v0.2 MVP contract layer
     And normalized project operating decisions must record risk-surface and evidence freshness policy
     And actual per-run proof that selected Failure Path Matrix rows were bound before red capture remains project-bound gate evidence unless a deterministic runner is configured
 
-  Scenario: Provider-assigned review gates require structured artifact preparation
-    Given a run-scope review prompt contract declares reviewer_assignments
-    When review packets and rendered prompts are prepared for internal or external reviewers
-    Then the contract must reference artifact_preparation_report
-    And the contract must reference review_invocation_set separately from evidence_report
-    And the preparation evidence must bind the current contract, generated packets, rendered prompts, included artifacts and worktree status
-    And validation must fail when current packets or prompts no longer match preparation evidence
-
-  Scenario: Review artifact preparation fails closed on uncovered dirty paths
-    Given the worktree has modified or untracked paths
-    When prepare_review_set_artifacts runs
-    Then every dirty path must be explicitly included as an input artifact or excluded with a reason
-    And uncovered dirty paths must stop preparation before reviewer packets are written
-
-  Scenario: Review set dispatch starts external reviewers asynchronously
-    Given a provider-assigned review prompt contract includes multiple external reviewers
-    And the same review set also includes internal report-present reviewers
-    When run_review_set dispatches the review set
-    Then external reviewer subprocesses must be started before the runner waits for their results
-    And the invocation set must record external-first async scheduling evidence
-    And internal report-present validation must not serialize the external provider calls
-
-  Scenario: Review set collection preserves completed external reviewer evidence on timeout
-    Given a provider-assigned review prompt contract includes multiple external reviewers
-    And one external reviewer process completes while another external reviewer process hangs
-    When run_review_set reaches the configured external reviewer timeout
-    Then the completed external reviewer report and invocation metadata must remain recorded
-    And the hung external reviewer must be killed and recorded as timed out
-    And the invocation set must fail closed instead of hanging indefinitely
-
 ## Verification Binding
 
 | Scenario | Verification |
 |---|---|
-| Live external reviewer requires run-scope prompt contract | `pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_rejects_live_example_scope` |
-| Homogeneous dual review requires shared prompt and packet hashes | `pytest tests/test_scripts_smoke.py::test_review_prompt_contract_rejects_missing_shared_hash` |
+| External reviewer lite wrapper generates bounded bundle | `pytest tests/test_scripts_smoke.py::test_external_reviewer_lite_mock_generates_bounded_bundle` |
+| External reviewer lite wrapper records provider output failures | `pytest tests/test_scripts_smoke.py::test_external_reviewer_lite_malformed_output_preserves_failure_raw_hash` |
 | Project gate binding must match the upstream gate id | `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_wrong_upstream_gate_id` |
 | v0.2 review-control workflow requires top-level review policy | `pytest tests/test_scripts_smoke.py::test_v02_review_control_phase_requires_top_level_review_policy` |
 | Primary e2e run metadata and reviewer reports are schema-valid | `pytest tests/test_scripts_smoke.py::test_primary_e2e_workflow_run_artifacts_schema_pass` |
@@ -247,17 +216,13 @@ Feature: AgentsFlow v0.2 MVP contract layer
 | Expert assessment role reports are schema-bound before synthesis | `pytest tests/test_scripts_smoke.py::test_project_assessment_schema_requires_triad_synthesis`; `pytest tests/test_scripts_smoke.py::test_project_assessment_synthesis_validates_referenced_role_reports`; `pytest tests/test_scripts_smoke.py::test_project_onboarding_assessment_skill_carries_schema_bound_contract`; `pytest tests/test_scripts_smoke.py::test_project_initialization_expert_assessment_requires_schema_bound_json_contract` |
 | Big-feature plan gate follows effective strictness | `pytest tests/test_scripts_smoke.py::test_project_binding_requires_strictness_applicable_gates`; `pytest tests/test_scripts_smoke.py::test_project_binding_does_not_require_higher_strictness_gate_for_l2`; `pytest tests/test_scripts_smoke.py::test_project_binding_strictness_override_requires_reason`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_raw_strictness_without_override_source`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_unsupported_strictness_override`; `pytest tests/test_scripts_smoke.py::test_project_binding_rejects_strictness_override_without_workflow_support_list`; `pytest tests/test_scripts_smoke.py::test_workflow_run_strictness_requires_source_and_override_reason`; `pytest tests/test_scripts_smoke.py::test_workflow_run_rejects_disguised_workflow_default_strictness` |
 | Evidence probe reports are evidence-only | `pytest tests/test_scripts_smoke.py::test_evidence_probe_report_schema_rejects_decision_fields_and_unbound_sources` |
-| Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch`; `pytest tests/test_scripts_smoke.py::test_collision_control_prompt_contract_requires_non_null_batch` |
+| Collision control uses one batch and two control reviewers | `pytest tests/test_scripts_smoke.py::test_collision_control_review_packet_requires_non_null_batch` |
 | Review cycle caps are optional project policy or workflow binding | `pytest tests/test_scripts_smoke.py::test_upstream_review_cycle_rejects_hardcoded_max_cycles`; `pytest tests/test_scripts_smoke.py::test_workflow_binding_rejects_too_low_max_review_cycles` |
-| Finding validation calibrates blocker severity | `pytest tests/test_scripts_smoke.py::test_finding_validation_calibrates_blocker_severity`; `pytest tests/test_scripts_smoke.py::test_external_reviewer_wrapper_normalizes_claude_code_envelope`; `pytest tests/test_pr_merge_readiness.py::test_accepted_p1_without_blocker_path_is_invalid_calibration`; `pytest tests/test_pr_merge_readiness.py::test_needs_more_evidence_p1_without_blocker_path_is_invalid_calibration`; `pytest tests/test_pr_merge_readiness.py::test_rejected_p1_without_blocker_path_does_not_require_collision_control`; `pytest tests/test_pr_merge_readiness.py::test_validated_blocker_severity_overrides_lower_candidate_severity`; `pytest tests/test_pr_merge_readiness.py::test_mandatory_evidence_gap_blocks_regardless_of_candidate_severity`; `pytest tests/test_pr_merge_readiness.py::test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_readiness` |
+| Finding validation calibrates blocker severity | `pytest tests/test_pr_merge_readiness.py::test_accepted_p1_without_blocker_path_is_invalid_calibration`; `pytest tests/test_pr_merge_readiness.py::test_needs_more_evidence_p1_without_blocker_path_is_invalid_calibration`; `pytest tests/test_pr_merge_readiness.py::test_rejected_p1_without_blocker_path_is_calibrated_non_blocking`; `pytest tests/test_pr_merge_readiness.py::test_rejected_blocker_findings_fail_closed_in_pr_readiness`; `pytest tests/test_pr_merge_readiness.py::test_validated_blocker_severity_overrides_lower_candidate_severity`; `pytest tests/test_pr_merge_readiness.py::test_mandatory_evidence_gap_blocks_regardless_of_candidate_severity`; `pytest tests/test_pr_merge_readiness.py::test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_readiness` |
 | Finding validation traces boundary impact only when triggered | `pytest tests/test_scripts_smoke.py::test_finding_validation_boundary_trace_is_trigger_based` |
-| Reviewer fresh-context is protocol-level in v0.2 | Manual evidence: `docs/review-agent-interaction-protocol.md`, `docs/review-prompt-contract.md`, `schemas/review-prompt-contract.schema.json` |
+| Reviewer fresh-context is protocol-level in v0.2 | Manual evidence: `docs/review-agent-interaction-protocol.md`, `docs/external-reviewer-provider-model.md` |
 | Workflow run phase guard rejects future-phase artifacts | `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_future_phase_artifact`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_unlisted_artifact_without_explicit_forbidden`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_phase_evidence_and_status_artifacts`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_list_shaped_phase_evidence`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_draft_artifact_as_evidence_or_output`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_allowed_and_draft_overlap`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_uses_top_level_draft_slot`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_checks_review_and_evidence_phase_status_keys`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_rejects_malformed_artifacts_root_paths`; `pytest tests/test_scripts_smoke.py::test_repo_validation_checks_top_level_workflow_run_phase_guard`; `pytest tests/test_scripts_smoke.py::test_workflow_run_phase_guard_allows_current_phase_artifacts` |
 | Risk surface and Failure Path Matrix metadata are represented for contract-first implementation | `pytest tests/test_scripts_smoke.py::test_behavior_binding_schema_allows_risk_path_metadata`; `pytest tests/test_scripts_smoke.py::test_project_operating_decisions_schema_passes`; `pytest tests/test_scripts_smoke.py::test_review_packet_schema_accepts_risk_surface_context` |
-| Provider-assigned review gates require structured artifact preparation | `pytest tests/test_scripts_smoke.py::test_review_artifact_preparation_schema_passes`; `pytest tests/test_scripts_smoke.py::test_review_prompt_contract_assignments_require_preparation_evidence`; `pytest tests/test_scripts_smoke.py::test_review_prompt_contract_binds_preparation_evidence_to_current_artifacts` |
-| Review artifact preparation fails closed on uncovered dirty paths | `pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_rejects_uncovered_dirty_paths`; `pytest tests/test_scripts_smoke.py::test_prepare_review_set_artifacts_generates_packets_prompts_and_evidence` |
-| Review set dispatch starts external reviewers asynchronously | `pytest tests/test_scripts_smoke.py::test_run_review_set_starts_external_reviewers_asynchronously` |
-| Review set collection preserves completed external reviewer evidence on timeout | `pytest tests/test_scripts_smoke.py::test_run_review_set_times_out_hung_external_without_losing_completed_peer` |
 
 ## Evidence Required
 

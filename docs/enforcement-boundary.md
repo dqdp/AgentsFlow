@@ -60,10 +60,8 @@ The repository validator is expected to enforce:
 - Active review gates declare review composition and prompt policy; homogeneous
   review must use the same prompt, packet and rubric, while focused/heterogeneous
   review must declare explicit focus zones.
-- `review-prompt-contract.yaml` has a schema-validated assembly shape and
-  records rendered prompt, packet, rubric, role-contract and output-schema hashes.
-- Claude Code external reviewer configs and packets declare fresh-context/no-fork
-  context policy and no session persistence.
+- Claude Code external reviewer configs and lite invocation metadata declare
+  fresh-context/no-fork context policy and no session persistence.
 - `project-initialization` wires the human operating-decisions interview and
   `project-operating-decisions.yaml`.
 - `project-initialization` wires project documentation disposition for existing

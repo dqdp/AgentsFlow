@@ -3,12 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from .common import (
-    compare_hash,
     parse_json,
     parse_yaml,
     safe_resolve,
-    sha256_file,
-    sha256_text,
     validate_against_schema,
 )
 from .gates import STRICTNESS_OVERRIDE_SOURCES, supported_workflow_strictness
@@ -80,7 +77,6 @@ def _collect_phase_status_artifact_paths(value: object, prefix: str) -> list[tup
         "review_packets",
         "review_packet_summary",
         "review_packet_summaries",
-        "review_prompt_contract",
         "reviewer_report",
         "reviewer_reports",
         "reviewer_report_summaries",

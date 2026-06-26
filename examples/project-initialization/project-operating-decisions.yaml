@@ -115,7 +115,7 @@ review_policy:
   preferred_external_provider: null
   allow_different_models: false
   provider_strategy:
-    assignment_source: review_prompt_contract.reviewer_assignments
+    assignment_source: review_requirements.required_reviews
     default_internal_provider: internal-agent
     supported_external_providers:
       - claude-code
@@ -125,7 +125,7 @@ review_policy:
   candidate_findings_require_main_validation: true
   external_reviewer_context_policy:
     full_repo_access: false
-    packet_only: true
+    review_bundle_only: true
     raw_logs_allowed: false
 
 review_cycle_policy:
@@ -227,7 +227,7 @@ decision_log:
     source: human-dialogue
   - id: review.allow_different_models
     question: Should review use different models or harnesses when available?
-    answer: "false; if changed to true, the review prompt contract must include reviewer_assignments with at least two distinct provider/model-family pairs."
+    answer: "false; if changed to true, review_requirements.required_reviews must include the distinct provider/model-family assignments and the readiness report must bind them to the source review-requirements artifact."
     status: confirmed
     source: human-dialogue
   - id: review_cycle.max_review_cycles

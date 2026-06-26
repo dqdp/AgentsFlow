@@ -76,7 +76,7 @@ project-initialization.prepare-workflow -> big-feature-contract-first
 | [project-initialization](workflows/project-initialization/workflow.yaml) | application workflow | Onboard or analyze a project, capture operating decisions, and prepare a target workflow. |
 | [big-feature-contract-first](workflows/big-feature-contract-first/workflow.yaml) | supported target workflow | Implement a substantial feature through contract, design acceptance, red capture, implementation, green verification and review. |
 | [review-only-fusion](workflows/review-only-fusion/workflow.yaml) | utility workflow | Review an existing artifact or evidence bundle without implementation. |
-| [pr-merge-readiness](workflows/pr-merge-readiness/workflow.yaml) | utility workflow | Decide whether a branch is ready to open, accept or merge as a PR. |
+| [pr-merge-readiness](workflows/pr-merge-readiness/workflow.yaml) | lightweight utility workflow / gate recipe | Evaluate whether a branch is ready to open, accept or merge as a PR from already-produced evidence. |
 
 Reference and experimental workflows remain schema-valid but are not supported
 `prepare-workflow` targets in v0.2:
@@ -156,7 +156,6 @@ methodology source in [docs/](docs/) and project-style `Docs/` run history.
 | Run project initialization | [docs/project-initialization-model.md](docs/project-initialization-model.md) |
 | Model gates and behavior bindings | [docs/gate-executability-model.md](docs/gate-executability-model.md), [docs/behavior-binding-model.md](docs/behavior-binding-model.md) |
 | Run review, fusion and finding validation | [docs/review-control-model.md](docs/review-control-model.md), [docs/review-fusion-model.md](docs/review-fusion-model.md) |
-| Prepare review packets and prompts | [docs/review-prompt-contract.md](docs/review-prompt-contract.md), [docs/review-artifact-preparation.md](docs/review-artifact-preparation.md) |
 | Use Claude Code as an external reviewer | [docs/external-reviewer-provider-model.md](docs/external-reviewer-provider-model.md) |
 | Decide PR merge readiness | [docs/pr-merge-readiness.md](docs/pr-merge-readiness.md) |
 | See all repository files | [CONTENTS.md](CONTENTS.md) |
@@ -176,12 +175,17 @@ python3 -m pytest -q
 Run the CI-safe external reviewer smoke test without calling live Claude:
 
 ```bash
-python3 scripts/reviewers/run_external_reviewer.py \
+python3 scripts/reviewers/run_external_review_lite.py \
   --provider claude-code \
   --config examples/external-reviewers/claude-code/claude-code.yaml \
-  --input examples/external-reviewers/claude-code/review-packet.architecture.json \
+  --output-dir /tmp/external-review-lite \
+  --goal "Smoke-test external reviewer normalization." \
+  --run-id external-reviewer-smoke \
+  --base-ref HEAD \
+  --head-ref HEAD \
+  --include-uncommitted \
   --mock-response examples/external-reviewers/claude-code/mock-raw-output.json \
-  --output /tmp/reviewer-report.claude-architecture.json
+  --replace-output-dir
 ```
 
 Useful targeted checks:
@@ -203,12 +207,13 @@ v0.2 includes a narrow Claude Code external reviewer provider:
 | Billing/auth | Subscription-local Claude Code CLI only. |
 | API keys | Forbidden; configured Claude API/proxy environment routes fail fast. |
 | Authority | Read-only reviewer; no tests, no patches, no verification authority. |
-| Input | Bounded review packet and rendered prompt. |
+| Input | Lite review request bundle with referenced artifacts and hashes. |
 | Output | Schema-bound `reviewer-report.json` plus invocation metadata. |
 | Findings | Candidate findings until main-agent relevance validation. |
 
 Provider/model diversity is not inferred from role names. It is proven through
-reviewer assignments, invocation-set evidence and normalized reviewer reports.
+declared reviewer requirements, invocation metadata and normalized reviewer
+reports.
 
 See [docs/external-reviewer-provider-model.md](docs/external-reviewer-provider-model.md)
 and [scripts/reviewers/README.md](scripts/reviewers/README.md).
@@ -231,9 +236,10 @@ rationale, or sent through the workflow's collision-control path.
 
 ## PR Merge Readiness
 
-The [pr-merge-readiness](docs/pr-merge-readiness.md) utility composes existing
-verification, review, finding-validation and human-decision artifacts into a
-branch-scoped readiness report.
+The [pr-merge-readiness](docs/pr-merge-readiness.md) utility is a lightweight
+gate recipe: it composes existing verification, review, finding-validation and
+human-decision artifacts into a branch-scoped readiness report, then relies on
+the deterministic evaluator to compute readiness.
 
 Accepted merge-ready status requires:
 
@@ -241,10 +247,12 @@ Accepted merge-ready status requires:
 - fresh required review evidence;
 - live Claude evidence when a Claude-backed review is required;
 - no validated P0/P1 blockers or mandatory evidence gaps;
+- published GitHub PR summary-comment evidence bound to the target PR and
+  comment body hash;
 - a hash-bound human `merge.acceptance` decision.
 
-If the human selects GitHub publication, the workflow may publish a single PR
-summary comment after final local acceptance and record the publication result.
+The PR summary comment is published before `awaiting_human_decision`; final
+local acceptance still requires the hash-bound human merge decision.
 
 ## Repository Layout
 

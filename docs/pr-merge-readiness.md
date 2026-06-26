@@ -1,13 +1,16 @@
 # PR Merge Readiness
 
-`pr-merge-readiness` is a v0.2 utility workflow for deciding whether a branch is
-ready to open, accept or merge as a pull request.
+`pr-merge-readiness` is a lightweight v0.2 utility workflow / gate recipe for
+deciding whether a branch is ready to open, accept or merge as a pull request.
 
 It is not a release platform and does not merge branches or change branch state.
-It composes existing AgentsFlow evidence, review, fusion, finding-validation and
-human-decision artifacts into a branch-scoped readiness report. When explicitly
-requested by the human, it may publish the readiness summary as a GitHub PR
-comment and record that publication evidence.
+It also does not own a separate review-gate implementation: reviewer topology,
+provider assignment, fusion and finding validation belong to the source workflow,
+project binding or explicit review gate. For PR acceptance, review-gate evidence
+is still mandatory. This workflow composes the produced AgentsFlow evidence,
+review, finding-validation and human-decision artifacts into a branch-scoped
+readiness report, then relies on the deterministic evaluator to compute
+readiness.
 
 ## Scope
 
@@ -18,33 +21,26 @@ The workflow records:
 - deterministic check evidence, such as repository validation and tests;
 - review packet and reviewer report references;
 - external reviewer evidence, including live-vs-mock Claude distinction;
-- finding validation and collision-control evidence for rejected or downgraded
-  plausible blocker-path candidate findings;
+- finding-validation output for P0/P1 candidate findings and mandatory evidence
+  gaps;
 - stale review detection when material changes postdate review packets;
-- human merge decision status;
-- optional GitHub PR publication intent and evidence.
+- GitHub PR summary-comment publication evidence;
+- human merge decision status.
 
-Accepted merge-ready status requires a recorded human decision. Green checks and
-review evidence alone produce `awaiting_human_decision`, not acceptance.
+Accepted merge-ready status requires fresh required review-gate evidence and a
+recorded human decision. Green checks without review evidence are blocked;
+green checks plus review evidence alone produce `awaiting_human_decision`, not
+acceptance.
 An accepted human decision must point to a human-authored decision record with a
 matching `run_id`, `decision_id`, `answered_by: human`, `status: confirmed` and
 accepted answer. For `merge.acceptance`, the decision record must also bind the
 accepted artifact by `material_change_id` and the exact readiness report
 `report_hash`. An in-band `{status: accepted}` field is not sufficient.
 
-The readiness intake asks whether the readiness summary should be published back
-to the GitHub PR after final acceptance. This publication is optional: a human
-`skip` or `defer` answer does not block merge readiness. A human `publish`
-answer authorizes an automated post-acceptance publication step, but publication
-failure does not change local merge readiness.
-
-Because the final report hash is only known near the end of the run,
-`pr-merge-readiness` separates the intake publication policy from final
-acceptance. Intake records `github.publication`. After review and finding
-validation, the run produces the readiness report, records the final
-`merge.acceptance` decision with the exact `report_hash`, runs the final
-readiness validation, and only then performs optional GitHub publication when
-previously authorized.
+The readiness summary must be published back to the GitHub PR before the run can
+enter `awaiting_human_decision`. Publication evidence is part of the readiness
+proof: green checks and clean review evidence without the PR comment remain
+blocked as missing evidence.
 
 The readiness evaluator treats these surfaces as blocking:
 
@@ -53,20 +49,18 @@ The readiness evaluator treats these surfaces as blocking:
 - malformed or stale review timestamps;
 - review packets whose `run_id` or `material_change_id` do not match the
   evaluated readiness report;
-- omitted provider-mirrored target review topology entries;
+- missing or mismatched hash-bound review requirements source;
+- omitted declared required review entries;
 - missing live Claude invocation evidence for a Claude-backed review;
 - mock or failed external reviewer invocation metadata when live Claude evidence
   is required;
-- live Claude invocation hashes that do not match the current packet, prompt,
-  role contract, prompt contract, rubric, output schema or normalized report;
+- live Claude invocation hashes that do not match the declared review input,
+  output schema or normalized report;
 - accepted or `needs-more-evidence` validated P0/P1 findings with a grounded
   blocker path, or mandatory evidence gaps;
 - P0/P1 source findings represented as lower-severity or duplicate candidate
   findings without blocker-path calibration;
-- rejected or downgraded plausible blocker-path candidate findings without
-  completed collision-control evidence from two control reviewers that explicitly
-  address the same collision batch and disputed finding, support the orchestrator
-  disposition, and complete after the collision-control prompt is prepared;
+- rejected or downgraded validated P0/P1 findings with a grounded blocker path;
 - sensitive raw external output without redaction or non-sensitive declaration;
 - required live external evidence whose raw output is declared `not_persisted`
   instead of non-sensitive raw output or a redacted/summary/pointer artifact;
@@ -78,24 +72,31 @@ The readiness evaluator treats these surfaces as blocking:
   pointer persistence;
 - redacted, summary or pointer raw-output evidence without a concrete artifact
   path and hash;
-- missing GitHub publication decision, or claimed published GitHub publication
-  without recorded publication result evidence and URL;
+- missing, requested, skipped, failed or malformed GitHub PR summary-comment
+  publication evidence;
 - self-application reports that claim the bootstrap run proves itself.
 
-## Review Model
+## Review Evidence
 
-The target review topology is `heterogeneous-variable` with provider-mirrored
-topic pairs:
+`pr-merge-readiness` consumes review evidence produced by the source workflow,
+project binding or an explicit review gate. It does not remove review gates from
+PR acceptance; it keeps their execution separate from the final readiness
+evaluator. The evidence producer owns reviewer count, topology, provider
+assignment, fusion and finding validation.
 
-| Topic | Role | Providers |
-|---|---|---|
-| `verification-evidence` | `verification` | `internal-agent`, `claude-code` |
-| `architecture-process` | `architecture` | `internal-agent`, `claude-code` |
-| `adversarial-authority` | `adversarial` | `internal-agent`, `claude-code` |
+The readiness report must bind `review_requirements.required_reviews` to a
+source artifact using `review_requirements.source.path` and
+`review_requirements.source.artifact_hash`. That source artifact is the
+normalized review-requirements output of the source workflow, project binding or
+explicit review gate. The evaluator compares the report's declared required
+reviews with that source artifact before it evaluates reviewer packet/report
+evidence.
 
-The mirrored pair shape is a target workflow policy. A workflow used to develop
-`pr-merge-readiness` may choose a smaller development review gate when its own
-contract records that decision.
+Readiness records PR facts, deterministic check evidence, reviewer packet/report
+references, finding validation and the final readiness report. Internal
+reviewers are bound by schema-valid reviewer reports, current review context and
+fresh timestamps. Claude-backed reviewers are bound by normalized reviewer
+reports and live lite invocation metadata.
 
 ## Report Validation
 
@@ -106,8 +107,12 @@ schemas/pr-merge-readiness-report.schema.json
 templates/pr-merge-readiness-report.json
 ```
 
-The deterministic repository validator checks example readiness reports through
-`scripts/repo_validation/pr_merge_readiness.py`.
+The deterministic repository validator checks curated example readiness reports
+and must be invoked with the concrete run report for real PR readiness gates:
+
+```bash
+python3 scripts/validate_repo.py --root . --pr-merge-readiness-report <path>
+```
 
 The final human merge decision is content-bound, not only path-bound. The
 `human-decisions.yaml#merge.acceptance` record must use
@@ -118,23 +123,18 @@ sufficient for accepted merge-ready status. A report may have been generated
 before that decision was recorded; the evaluator computes the final state from
 the report plus the external hash-bound human decision record.
 
-The same `human-decisions.yaml` artifact also records the intake
-`github.publication` policy. This record must be human-authored and confirmed.
-Valid answers are:
-
-- `publish`: publish a summary or review comment to GitHub after final
-  acceptance and record evidence;
-- `skip`: do not publish; this is non-blocking;
-- `defer`: leave publication to a later out-of-band step; this is non-blocking.
-
-The default publication mode is a single PR summary comment:
+Before `awaiting_human_decision`, the default publication mode is a single PR
+summary comment:
 
 ```yaml
 publication_mode: summary_comment
+required_for_merge_readiness: true
 target: pull_request
+pr: 123
 tool: gh
 action: pr comment
 body_path: github-publication.md
+body_hash: sha256:<64-hex-digest>
 result_path: github-publication-result.json
 ```
 
@@ -152,8 +152,7 @@ result_path: github-publication-result.json
 It must not include raw Claude output, full reviewer reports, long command logs,
 private reasoning details or unnecessary absolute local paths.
 
-If publication runs, `github-publication-result.json` records the publication
-result:
+`github-publication-result.json` records the publication result:
 
 ```json
 {
@@ -163,25 +162,36 @@ result:
   "status": "published",
   "pr": 123,
   "url": "https://github.com/org/repo/pull/123#issuecomment-...",
-  "body_path": "github-publication.md"
+  "body_path": "github-publication.md",
+  "body_hash": "sha256:<64-hex-digest>"
 }
 ```
 
-When the report claims `github_publication.status: published`, the readiness
-evaluator requires this default evidence shape. A `github.publication: publish`
-intake decision with `github_publication.status: requested` means publication is
-authorized but not yet performed; it does not block merge readiness. `skip` and
-`defer` also do not block merge readiness.
+The readiness evaluator requires this default evidence shape before
+`awaiting_human_decision`. The report's branch repository and PR number,
+publication PR number, result PR number, GitHub issue-comment URL and body hash
+must match. Any other publication state blocks merge readiness as missing
+publication evidence.
 
 Each review packet must be anchored to the evaluated readiness report: packet
 `run_id` must match report `run_id`, and packet `material_change_id` must match
-report `material_change_id`. Internal reviewer reports must also carry matching
-`review_context` for the same run, material change, packet path and reviewer id.
+report `material_change_id`. Review packets must also retain valid references
+to their verification gate report, role contract and output schema. Internal
+reviewer reports must carry matching `review_context` for the same run, material
+change, packet path and reviewer id.
+
+`pr-merge-readiness` intentionally does not validate collision-control closure
+for plausible blocker-path candidate findings that were rejected or downgraded.
+Collision control belongs to the source review/fusion workflow. If a readiness
+report still contains a rejected or downgraded validated P0/P1 finding with a
+grounded blocker path, the readiness evaluator fails closed instead of trying to
+prove that disposition.
 
 The evaluator is intentionally small. It checks declared artifacts and computes
-the readiness state from the report. It validates external reviewer invocation
-metadata shape for live Claude evidence, but it does not run CI, launch
-reviewers, call GitHub/GitLab or perform merges.
+the readiness state from the report. It validates review and external-provider
+evidence directly from the report references. It does not run CI, launch
+reviewers, run fusion, validate findings from scratch, call GitHub/GitLab or
+perform merges.
 
 Reports marked with `fixture.not_real_readiness_evidence: true` are schema and
 evaluator fixtures only. The evaluator returns `incomplete` for them rather than

@@ -148,16 +148,22 @@ The Claude provider is in v0.2 MVP scope, but narrowly:
 - API-key usage forbidden;
 - configured Claude API/proxy environment variables must fail fast;
 - project-bound wrapper only;
-- review packet in, normalized reviewer report out;
+- lite review request bundle in, normalized reviewer report out;
 - invocation metadata stored, with raw output stored only when explicitly
   non-sensitive;
+- standalone external review uses a bounded lite review request with referenced
+  artifact paths and hashes;
 - Codex-launched live runs use escalated sandbox access for subscription-local
   auth. Stdin packet transport disables Claude Code tools with `--tools ""`;
   file prompt transport may use only `--tools Read` for the generated prompt
   file in an isolated temporary directory;
-- provider/model diversity is proved through assignment, invocation-set and
+- provider/model diversity is proved through assignment, invocation metadata and
   reviewer-report evidence, not by role names alone;
 - findings remain candidate/unvalidated.
+
+`run_external_review_lite.py` is the helper for standalone live external review
+and PR-readiness external review evidence. Live runs must not bypass
+project-bound wrappers with direct provider commands.
 
 ## Release / PR readiness note
 
@@ -173,10 +179,11 @@ add branch-scoped evidence such as:
 - relevance validation for P0/P1 candidate findings;
 - human merge decision and post-merge verification plan.
 
-This repository defines `pr-merge-readiness` as a dedicated utility workflow for
-that branch-scoped decision. It stays small and composes existing validation,
-review, finding-validation and human-decision artifacts instead of becoming a
-general release-management runtime.
+This repository defines `pr-merge-readiness` as a lightweight utility workflow /
+gate recipe for that branch-scoped decision. It stays small and composes
+existing validation, review, finding-validation and human-decision artifacts
+instead of running review/fusion itself or becoming a general release-management
+runtime.
 
 ## Workflow-specific notes
 

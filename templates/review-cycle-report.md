@@ -31,9 +31,13 @@ collision_control:
 
 ## Relevance Validation Matrix
 
-| Finding ID | Grounded? | In scope? | Factually supported? | Acceptance impact? | Validation status | Blocking? | Action |
-|---|---:|---:|---:|---:|---|---:|---|
-| F-001 | yes/no | yes/no | yes/no/uncertain | yes/no/uncertain | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | yes/no | fix / verify / rerun-review / follow-up / escalate / exit |
+| Finding ID | Violated requirement? | Concrete evidence? | Blocker path? | Acceptance consequence? | Validation status | Blocking? | Discovery class | Action |
+|---|---:|---:|---:|---:|---|---:|---|---|
+| F-001 | yes/no | yes/no | yes/no | yes/no | accepted-relevant / rejected-irrelevant / needs-more-evidence / duplicate / human-decision-required | yes/no | contract_gap / verification_gap / review_packet_gap / material_fix_regression / valid_late_discovery / false_positive / process_hygiene_nonblocking | fix / verify / rerun-review / follow-up / escalate / exit |
+
+P0/P1 validates only when all four blocker columns are `yes`. Otherwise record
+the calibration reason and classify as needs-more-evidence, downgraded severity,
+contract gap or rejected finding.
 
 ## Validated Blocking Findings
 
@@ -76,6 +80,11 @@ Material changes include contract/scope changes, workflow or review-cycle policy
 changes, schema/validator changes, project overlay or binding changes, mandatory
 evidence changes, verification-result changes, and examples used as current
 evidence. A P2 finding can produce a material fix.
+
+Closure-only review may confirm that old findings are fixed, but it cannot close
+acceptance after a material change. If review rerun is required, use the full
+current review packet and ask reviewers to check both prior finding closure and
+new P0/P1 blockers across the changed scope.
 
 ## Rerun Decision
 

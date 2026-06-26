@@ -20,16 +20,19 @@ same prompt, packet, rubric and output schema.
 ## Procedure
 
 1. Read only the provided review packet and referenced artifacts.
-2. Check contract and accepted-decision consistency.
-3. Check verification evidence, including missing mandatory checks and red/green
+2. Start with the packet's relevance inputs: `focus_zone` when present,
+   `risk_surface_profile`, `failure_path_matrix`, `changed_files`,
+   `verification_gate_report`, `evidence_freshness`, and `known_blockers`.
+3. Check contract and accepted-decision consistency.
+4. Check verification evidence, including missing mandatory checks and red/green
    evidence when required.
-4. Check selected risk surfaces, Failure Path Matrix rows, path-class bindings,
+5. Check selected risk surfaces, Failure Path Matrix rows, path-class bindings,
    known blockers and evidence freshness when present in the packet.
-5. Check scope boundaries and non-goals.
-6. Look for obvious architecture, reliability, safety, workflow or evidence risks.
-7. Report any plausible P0/P1 candidate blocker, even if it spans multiple rubric
+6. Check scope boundaries and non-goals.
+7. Look for obvious architecture, reliability, safety, workflow or evidence risks.
+8. Report any plausible P0/P1 candidate blocker, even if it spans multiple rubric
    sections.
-8. Return candidate findings only.
+9. Return candidate findings only.
 
 ## Homogeneous Execution Rule
 
@@ -54,6 +57,11 @@ packet's selected risk surfaces, focus zones, Failure Path Matrix coverage or
 freshness evidence appear inconsistent, incomplete or stale. Missing selected
 risk-surface/FPM evidence is a candidate evidence gap, not proof that the
 implementation is wrong.
+
+A P0/P1 finding should cite the relevant packet input when applicable. If no
+relevance input applies, classify the issue as a contract, review-packet,
+verification or valid-late-discovery gap instead of treating it as an ordinary
+implementation blocker.
 
 ## Candidate Finding Rule
 

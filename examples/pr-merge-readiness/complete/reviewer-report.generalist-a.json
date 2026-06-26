@@ -1,15 +1,15 @@
 {
   "reviewer": {
-    "id": "verification-claude",
-    "provider": "claude-code",
-    "role": "verification"
+    "id": "generalist-a",
+    "provider": "internal-agent",
+    "role": "generalist"
   },
   "summary": "No blockers in example fixture.",
   "findings": [],
   "review_context": {
     "run_id": "2026-06-22-pr-merge-readiness-example",
     "material_change_id": "pr-merge-readiness-example-change",
-    "review_packet_path": "review-packets/verification-claude.json",
-    "reviewer_instance_id": "verification-claude"
+    "review_packet_path": "review-packets/generalist-a.json",
+    "reviewer_instance_id": "generalist-a"
   }
 }

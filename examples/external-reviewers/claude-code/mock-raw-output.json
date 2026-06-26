@@ -1,11 +1,11 @@
 {
   "reviewer": {
-    "id": "claude-architecture-reviewer",
+    "id": "generalist-claude",
     "provider": "claude-code",
-    "role": "architecture",
+    "role": "generalist",
     "model": "opus"
   },
-  "summary": "No blocking architecture findings in the sample packet.",
+  "summary": "No blocking findings in the sample packet.",
   "findings": [
     {
       "id": "CR-001",

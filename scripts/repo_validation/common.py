@@ -15,6 +15,13 @@ def parse_yaml(path: Path) -> object:
         raise ValueError(f"YAML parse error in {path}: {exc}") from exc
 
 
+def parse_yaml_mapping(path: Path) -> dict:
+    data = parse_yaml(path)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a YAML mapping")
+    return data
+
+
 class UniqueKeyLoader(yaml.SafeLoader):
     """YAML loader that rejects duplicate mapping keys."""
 
@@ -51,12 +58,26 @@ def parse_json(path: Path) -> object:
         raise ValueError(f"JSON parse error in {path}: {exc}") from exc
 
 
+def parse_json_mapping(path: Path) -> dict:
+    data = parse_json(path)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
 def sha256_file(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def sha256_text(value: str) -> str:
     return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def provider_models_include_family(provider_models: object, model_family: str) -> bool:
+    family = str(model_family).lower()
+    if not family or not isinstance(provider_models, list):
+        return False
+    return any(family in str(model).lower() for model in provider_models)
 
 
 def is_concrete_sha256(value: object) -> bool:
@@ -98,6 +119,18 @@ def validate_against_schema(path: Path, data: object, schema: dict) -> list[str]
     for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
         errors.append(f"{path}: schema error at {schema_error_path(error)}: {error.message}")
     return errors
+
+
+def raise_schema_validation_error(data: object, schema: dict, label: str) -> None:
+    errors = sorted(
+        jsonschema.Draft202012Validator(schema).iter_errors(data),
+        key=lambda error: list(error.path),
+    )
+    if not errors:
+        return
+    first = errors[0]
+    location = ".".join(str(part) for part in first.path) or "<root>"
+    raise ValueError(f"{label} schema validation failed at {location}: {first.message}")
 
 
 def safe_resolve(base: Path, ref: object, label: str, errors: list[str]) -> Path | None:

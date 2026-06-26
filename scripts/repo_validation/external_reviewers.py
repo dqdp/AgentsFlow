@@ -30,8 +30,10 @@ def validate_external_review_provider(path: Path) -> list[str]:
     if missing_env:
         errors.append(f"{path}: claude-code fail_if_env_present missing: {', '.join(missing_env)}")
     permissions = data.get("permissions", {}) or {}
-    if permissions.get("read_packet_only") is not True:
-        errors.append(f"{path}: claude-code permission read_packet_only must be true")
+    if permissions.get("read_packet_only") is not False:
+        errors.append(f"{path}: claude-code permission read_packet_only must be false")
+    if permissions.get("read_review_bundle_only") is not True:
+        errors.append(f"{path}: claude-code permission read_review_bundle_only must be true")
     for key in ["write_files", "run_tests", "run_verification_instruments", "run_tools"]:
         if permissions.get(key) is not False:
             errors.append(f"{path}: claude-code permission {key} must be false")
@@ -78,7 +80,16 @@ def validate_external_review_provider(path: Path) -> list[str]:
         errors.append(f"{path}: claude-code context_policy.fork_conversation_context must be false")
     if context_policy.get("session_persistence") is not False:
         errors.append(f"{path}: claude-code context_policy.session_persistence must be false")
+    if context_policy.get("input_mode") != "review_bundle":
+        errors.append(f"{path}: claude-code context_policy.input_mode must be review_bundle")
+    inputs = data.get("inputs", {}) or {}
+    if inputs.get("review_request_schema") != "schemas/external-review-lite-request.schema.json":
+        errors.append(f"{path}: external provider must input schemas/external-review-lite-request.schema.json")
+    if "review_packet_schema" in inputs:
+        errors.append(f"{path}: external provider must not require review_packet_schema")
     outputs = data.get("outputs", {}) or {}
     if outputs.get("reviewer_report_schema") != "schemas/reviewer-report.schema.json":
         errors.append(f"{path}: external provider must output schemas/reviewer-report.schema.json")
+    if outputs.get("invocation_metadata_schema") != "schemas/external-review-lite-invocation.schema.json":
+        errors.append(f"{path}: external provider must output schemas/external-review-lite-invocation.schema.json")
     return errors

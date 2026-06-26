@@ -16,7 +16,7 @@ from repo_validation.project_initialization import *  # noqa: F401,F403
 from repo_validation.project_overlay import *  # noqa: F401,F403
 from repo_validation.pr_merge_readiness import *  # noqa: F401,F403
 from repo_validation.review import *  # noqa: F401,F403
-from repo_validation.runner import main, validate_repository
+from repo_validation.runner import main, validate_repository  # noqa: F401
 from repo_validation.workflow_runs import *  # noqa: F401,F403
 from repo_validation.workflows import *  # noqa: F401,F403
 

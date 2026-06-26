@@ -67,7 +67,7 @@ questions:
         impact: Lower setup complexity.
       - id: diverse-models
         label: Prefer different model/harness
-        impact: More independence; requires provider setup and review-prompt-contract reviewer assignments.
+        impact: More independence; requires provider setup and declared reviewer requirements.
       - id: unresolved
         label: Leave unresolved
         impact: Overlay remains draft-only.

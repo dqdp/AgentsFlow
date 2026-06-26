@@ -22,17 +22,20 @@ Independently review artifacts for architecture consistency, modularity, scope, 
 
 ## Procedure
 
-1. Read contract and fixed decisions.
-2. Check boundary preservation.
-3. Check module design.
-4. Check whether selected architecture-relevant risk surfaces, such as
+1. Start with the packet's relevance inputs: `focus_zone` when present,
+   `risk_surface_profile`, `failure_path_matrix`, `changed_files`,
+   `verification_gate_report`, `evidence_freshness`, and `known_blockers`.
+2. Read contract and fixed decisions.
+3. Check boundary preservation.
+4. Check module design.
+5. Check whether selected architecture-relevant risk surfaces, such as
    `authority_boundary`, `public_api_contract`, `state_migration`,
    `persistence_consistency` or project-local surfaces, are reflected in
    boundaries and FPM rows.
-5. Check review topology rationale for role/focus-zone fit when the packet
+6. Check review topology rationale for role/focus-zone fit when the packet
    claims risk-driven focused or heterogeneous review.
-6. Flag architecture drift.
-7. Classify issues by severity.
+7. Flag architecture drift.
+8. Classify issues by severity.
 
 
 ## Quality bar
@@ -92,3 +95,8 @@ Treat selected risk surfaces, Failure Path Matrix rows, evidence freshness and
 known blockers as review inputs. Report missing or stale risk evidence as
 candidate findings. Do not infer unselected risk surfaces as mandatory scope
 unless the contract, ADRs or project policy make the omission a plausible P0/P1.
+
+A P0/P1 finding should cite the relevant packet input when applicable. If no
+relevance input applies, classify the issue as a contract, review-packet,
+verification or valid-late-discovery gap instead of treating it as an ordinary
+implementation blocker.

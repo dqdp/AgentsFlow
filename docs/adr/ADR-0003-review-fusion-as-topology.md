@@ -15,6 +15,14 @@ Updated for default strictness: review topology remains separate from strictness
 Workflows own their normal depth through `default_strictness`; project or run
 overrides are explicit deviations, not routine setup choices.
 
+Proposed follow-up: ADR-0021 should make provider and invocation evidence
+observable for mixed-provider review gates. `homogeneous-plus-focused` keeps the
+homogeneous baseline property: the baseline generalists receive the same
+substantive packet, prompt, rubric and output schema, while provider transport
+metadata may differ. Focused reviewers receive the full review packet plus an
+explicit focus zone; the focus zone does not prevent them from reporting
+plausible P0/P1 blockers outside that focus.
+
 ## Context
 
 Multi-model review and fusion are valuable but should not become a separate heavyweight mode that competes with workflows.

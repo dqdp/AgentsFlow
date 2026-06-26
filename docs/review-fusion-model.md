@@ -147,7 +147,8 @@ After reviewer reports arrive, the shared pipeline is:
 6. Main-agent relevance validation: accept, reject, downgrade, mark duplicate,
    request more evidence or escalate findings against contract, diff/artifact,
    evidence, accepted decisions, scope and non-goals. P0/P1 validation must
-   record a grounded blocker path; reviewer severity is not accepted severity.
+   record the violated requirement, concrete evidence, blocker path and
+   acceptance consequence; reviewer severity is not accepted severity.
 7. Collision-control: if the orchestrator rejects or downgrades plausible
    blocker-path candidate findings, batch those collisions and send them to two
    fresh-context control reviewers before final triage.
@@ -162,6 +163,12 @@ hand off the asserted blocker path when the reviewer provided one: the violated
 contract, accepted decision, gate policy, authority boundary or mandatory
 evidence requirement; the evidence reference; and the concrete consequence for
 acceptance.
+
+The main/orchestrating agent validates P0/P1 only when all four parts are
+present: violated requirement, concrete evidence, blocker path and acceptance
+consequence. A candidate blocker missing any part is not accepted as P0/P1 by
+default; classify it as needs-more-evidence, downgraded severity, contract gap
+or rejected finding.
 
 If a reviewer marks a finding P0/P1 based only on risk-surface or Failure Path
 Matrix membership, fusion must preserve the candidate finding but flag that the
@@ -204,6 +211,12 @@ no_validated_blocking_findings
 Repeated review agents are not rerun when all P0/P1 candidate findings have been
 validated and no validated blockers or mandatory evidence gaps remain. P2/P3/NOTE
 findings can become follow-up work without forcing another review cycle.
+
+A closure-only review is not an acceptance-capable rerun after a material
+change. If a fix changes reviewed behavior, contracts, schemas, validators,
+workflow policy, project bindings, mandatory evidence or green evidence, the
+acceptance-capable rerun must use the full current review packet and ask
+reviewers to find new P0/P1 blockers as well as confirm closure of old findings.
 
 ## Result states
 

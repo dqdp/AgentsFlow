@@ -16,10 +16,6 @@
   },
   "role_contract": "profiles/reviewer_roles/generalist.yaml",
   "role_contract_hash": "sha256:<generalist-role-contract>",
-  "review_prompt_contract": {
-    "path": "Docs/agentsflow/runs/<run-id>/review-prompt-contract.yaml",
-    "schema": "schemas/review-prompt-contract.schema.json"
-  },
   "context_policy": {
     "start_mode": "fresh_context",
     "fork_conversation_context": false,
@@ -54,7 +50,6 @@
   "evidence_summary": "...",
   "evidence_freshness": {
     "material_change_id": "<latest-material-change-id-or-none>",
-    "latest_green_gate": "Docs/agentsflow/runs/<run-id>/verification-gate-report.md",
     "review_packet_generated_after_latest_green_gate": true,
     "stale_evidence_marked_or_excluded": true
   },

@@ -21,6 +21,7 @@ compatible_workflows:
   - safe-refactor
   - new-project-spec-first
   - project-initialization
+  - pr-merge-readiness
   - review-only-fusion
 quality_bar:
   - Findings are grounded in contract, diff/artifact, gate evidence or accepted decisions.

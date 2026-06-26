@@ -39,8 +39,11 @@ def main() -> None:
 
     text = read_text(args.contract)
     boundaries = extract_section(text, "Boundaries")
-    allowed = [normalize_prefix(l) for l in extract_subsection_lines(boundaries, "Allowed Paths")]
-    forbidden = [normalize_prefix(l) for l in extract_subsection_lines(boundaries, "Forbidden Paths Without Approval")]
+    allowed = [normalize_prefix(line) for line in extract_subsection_lines(boundaries, "Allowed Paths")]
+    forbidden = [
+        normalize_prefix(line)
+        for line in extract_subsection_lines(boundaries, "Forbidden Paths Without Approval")
+    ]
     allowed = [p for p in allowed if p]
     forbidden = [p for p in forbidden if p]
 
