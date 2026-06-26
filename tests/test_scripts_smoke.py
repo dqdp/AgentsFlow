@@ -3955,7 +3955,7 @@ def test_external_reviewer_lite_mock_generates_bounded_bundle(tmp_path) -> None:
     assert invocation["wrapper"] == "scripts/reviewers/run_external_review_lite.py"
     assert invocation["prompt_transport"] == "file"
     assert invocation["tools"] == "Read"
-    assert invocation["max_turns"] == 10
+    assert invocation["max_turns"] == 42
     assert invocation["sandbox_mode"] == "require_escalated"
     assert invocation["effective_provider_config_path"] == str(effective_config_path)
     assert invocation["effective_provider_config_hash"] != invocation["provider_config_hash"]
@@ -4235,7 +4235,7 @@ def test_external_reviewer_lite_provider_exception_writes_failure_invocation(tmp
     config_path.write_text(
         (ROOT / "examples/external-reviewers/claude-code/claude-code.yaml")
         .read_text(encoding="utf-8")
-        .replace("timeout_seconds: 900", "timeout_seconds: 0"),
+        .replace("timeout_seconds: 1500", "timeout_seconds: 0"),
         encoding="utf-8",
     )
     bundle_dir = tmp_path / "external-review-lite"

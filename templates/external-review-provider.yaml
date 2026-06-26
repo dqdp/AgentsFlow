@@ -29,8 +29,8 @@ execution:
   tools: Read
   model: opus
   effort: max
-  timeout_seconds: 900
-  max_turns: 10
+  timeout_seconds: 1500
+  max_turns: 42
   use_bare_mode: false
   no_session_persistence: true
 
