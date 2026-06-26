@@ -137,6 +137,25 @@ membership alone is never a blocker path.
 Candidate blockers must be explicitly validated, rejected with reason, marked as
 duplicate, escalated, or resolved by additional evidence.
 
+### Remediation triage before fix loops
+
+Validated findings do not automatically authorize adding new workflow machinery.
+Before starting a fix-loop, the main/orchestrating agent records the remediation
+layer in the existing finding-validation or review-cycle report.
+
+Use this order by default:
+
+1. remove responsibility that belongs to another layer;
+2. fail closed and require proof from the owning workflow or evidence producer;
+3. use an existing contract, field or evidence reference;
+4. add a small local check;
+5. add a new schema field, artifact class or mechanism only with explicit
+   rationale for why simpler remediations are insufficient.
+
+If a finding exposes a wrong-layer responsibility, the preferred fix is to reduce
+or move that responsibility, not to make the current evaluator or workflow prove
+more of the system.
+
 ### Default exit rule
 
 The default exit rule is:

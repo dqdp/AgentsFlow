@@ -45,6 +45,24 @@ acceptance-capable review must inspect the full current review packet and must
 ask reviewers both to confirm closure of prior validated findings and to look
 for new P0/P1 blockers across the changed scope.
 
+After a finding is validated and before a fix-loop starts, the
+main/orchestrating agent must choose the remediation layer. Validating a P0/P1
+finding does not imply that the current workflow, evaluator or schema should gain
+new responsibilities.
+
+The default remediation order is:
+
+1. remove misplaced responsibility from the current layer;
+2. fail closed and defer proof to the owning workflow or evidence producer;
+3. use an existing contract, field or evidence reference;
+4. add a small local check;
+5. add a new schema field, artifact class or mechanism only with an explicit
+   rationale for why the first four options are insufficient.
+
+The chosen remediation layer and rationale should be recorded in the existing
+finding-validation or review-cycle report. No separate schema is required unless
+a workflow needs deterministic validation of that record.
+
 Important P2/P3 findings may be fixed while a validated blocker loop is already
 open. P2/P3-only findings do not trigger another review gate unless the fix
 materially changes contract, schema, validator behavior, mandatory evidence,

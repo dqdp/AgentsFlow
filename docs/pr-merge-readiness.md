@@ -21,8 +21,8 @@ The workflow records:
 - deterministic check evidence, such as repository validation and tests;
 - review packet and reviewer report references;
 - external reviewer evidence, including live-vs-mock Claude distinction;
-- finding validation and collision-control evidence for rejected or downgraded
-  plausible blocker-path candidate findings;
+- finding-validation output for P0/P1 candidate findings and mandatory evidence
+  gaps;
 - stale review detection when material changes postdate review packets;
 - GitHub PR summary-comment publication evidence;
 - human merge decision status.
@@ -60,11 +60,7 @@ The readiness evaluator treats these surfaces as blocking:
   blocker path, or mandatory evidence gaps;
 - P0/P1 source findings represented as lower-severity or duplicate candidate
   findings without blocker-path calibration;
-- rejected or downgraded plausible blocker-path candidate findings without
-  completed collision-control evidence from two control reviewers that explicitly
-  address the same collision batch and disputed finding, support the orchestrator
-  disposition, bind the source reviewer report by path and SHA-256 hash, and are
-  fresh after the latest material change;
+- rejected or downgraded validated P0/P1 findings with a grounded blocker path;
 - sensitive raw external output without redaction or non-sensitive declaration;
 - required live external evidence whose raw output is declared `not_persisted`
   instead of non-sensitive raw output or a redacted/summary/pointer artifact;
@@ -183,9 +179,13 @@ report `material_change_id`. Review packets must also retain valid references
 to their verification gate report, role contract and output schema. Internal
 reviewer reports must carry matching `review_context` for the same run, material
 change, packet path and reviewer id.
-Collision-control reports must also be bound to their control review packet and
-the same evaluated run/material change before they can clear a rejected or
-downgraded blocker.
+
+`pr-merge-readiness` intentionally does not validate collision-control closure
+for plausible blocker-path candidate findings that were rejected or downgraded.
+Collision control belongs to the source review/fusion workflow. If a readiness
+report still contains a rejected or downgraded validated P0/P1 finding with a
+grounded blocker path, the readiness evaluator fails closed instead of trying to
+prove that disposition.
 
 The evaluator is intentionally small. It checks declared artifacts and computes
 the readiness state from the report. It validates review and external-provider

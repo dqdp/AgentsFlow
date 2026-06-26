@@ -54,7 +54,6 @@
         "blocked_missing_evidence",
         "blocked_external_review",
         "blocked_sensitive_raw_evidence",
-        "blocked_collision_control",
         "blocked_stale_review",
         "blocked_cyclic_self_proof",
         "incomplete",
@@ -215,8 +214,7 @@
           "mandatory_evidence_gap": {"type": "boolean"},
           "validation_rationale": {"type": "string", "minLength": 1},
           "calibration_reason": {"type": "string", "minLength": 1},
-          "no_blocker_path_reason": {"type": "string", "minLength": 1},
-          "collision_control": {"type": "object"}
+          "no_blocker_path_reason": {"type": "string", "minLength": 1}
         }
       }
     },

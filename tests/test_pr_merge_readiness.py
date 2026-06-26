@@ -176,19 +176,6 @@ def review_context(reviewer: str) -> dict:
     }
 
 
-def collision_control_report_refs() -> list[dict[str, str]]:
-    return [
-        {
-            "path": "reviewer-report.collision-control-a.json",
-            "packet_path": "review-packets/collision-control-a.json",
-        },
-        {
-            "path": "reviewer-report.collision-control-b.json",
-            "packet_path": "review-packets/collision-control-b.json",
-        },
-    ]
-
-
 def invocation_metadata(reviewer: str) -> dict:
     reviewer_role = reviewer.removesuffix("-claude").removesuffix("-codex")
     return {
@@ -696,104 +683,6 @@ def prepare_complete_evidence(root: Path) -> None:
             },
             sort_keys=False,
         ),
-        encoding="utf-8",
-    )
-
-
-def write_collision_control_fixture(
-    root: Path,
-    *,
-    finding_id: str = "F-001",
-    collision_batch_id: str = "collision-F-001",
-    control_conclusion: str = "orchestrator-disposition-supported",
-    completed_at: str = "2026-06-22T10:00:00Z",
-    prepared_at: str = "2026-06-22T10:00:00Z",
-) -> None:
-    for reviewer in ["collision-control-a", "collision-control-b"]:
-        packet_path = root / "review-packets" / f"{reviewer}.json"
-        packet = base_review_packet(reviewer, "internal-agent", "generalist")
-        packet["review_profile"] = "collision-control"
-        packet["composition"] = "control"
-        packet["collision_control"] = {
-            "trigger": "rejected_or_downgraded_blocker_collision",
-            "collision_batch_id": collision_batch_id,
-            "control_reviewer_count": 2,
-            "disputed_findings": [
-                {
-                    "finding_id": finding_id,
-                    "original_severity": "P1",
-                    "source_reviewer_report": "reviewer-report.generalist-a.json",
-                    "orchestrator_action": "rejected",
-                }
-            ],
-            "orchestrator_collision_reason": "Main agent rejected a grounded blocker-path finding.",
-            "evidence_references_checked": [
-                "reviewer-report.generalist-a.json",
-                "collision-control-evidence.json",
-            ],
-        }
-        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
-        (root / f"reviewer-report.{reviewer}.json").write_text(
-            json.dumps(
-                {
-                    "reviewer": {
-                        "id": reviewer,
-                        "provider": "internal-agent",
-                        "role": "generalist",
-                        "model": "codex",
-                    },
-                    "summary": "Control reviewer accepts the orchestrator disposition.",
-                    "review_context": review_context(reviewer),
-                    "findings": [],
-                    "collision_control": {
-                        "collision_batch_id": collision_batch_id,
-                        "disputed_finding_ids": [finding_id],
-                        "control_conclusion": control_conclusion,
-                        "completed_at": completed_at,
-                    },
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-    (root / "collision-control-evidence.json").write_text(
-        json.dumps(
-            {
-                "collision_batch_id": collision_batch_id,
-                "finding_id": finding_id,
-                "disputed_finding_ids": [finding_id],
-                "source_findings": [
-                    {
-                        "id": finding_id,
-                        "severity": "P1",
-                        "source_reviewer_id": "generalist-a",
-                        "source_reviewer_report": "reviewer-report.generalist-a.json",
-                        "source_report_hash": file_sha(root / "reviewer-report.generalist-a.json"),
-                    }
-                ],
-                "orchestrator_disposition": "rejected",
-                "disposition_rationale": "Main agent recorded a grounded rejection rationale.",
-                "prepared_at": prepared_at,
-                "control_reviewer_count": 2,
-                "control_reviewers": [
-                    "collision-control-a",
-                    "collision-control-b",
-                ],
-                "control_reports": [
-                    {
-                        "path": "reviewer-report.collision-control-a.json",
-                        "packet_path": "review-packets/collision-control-a.json",
-                    },
-                    {
-                        "path": "reviewer-report.collision-control-b.json",
-                        "packet_path": "review-packets/collision-control-b.json",
-                    },
-                ],
-            },
-            indent=2,
-        )
-        + "\n",
         encoding="utf-8",
     )
 
@@ -1939,7 +1828,7 @@ def test_reviewer_report_mandatory_gap_omitted_from_candidate_findings_blocks_re
 
 def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) -> None:
     report = complete_report()
-    report["status"] = "blocked_collision_control"
+    report["status"] = "rejected"
     report["candidate_findings"] = [
         {
             "id": "P1-SOURCE",
@@ -1981,9 +1870,9 @@ def test_reviewer_report_p1_cannot_be_cleared_by_p3_candidate(tmp_path: Path) ->
 
     result = load_evaluator()(tmp_path, path)
 
-    assert result["state"] == "blocked_collision_control"
+    assert result["state"] == "rejected"
     assert result["accepted"] is False
-    assert "collision_control_missing:P1-SOURCE" in result["blockers"]
+    assert "unresolved_blocking_finding:P1-SOURCE" in result["blockers"]
 
 
 def test_reviewer_report_p1_cannot_disappear_as_duplicate_without_resolution(tmp_path: Path) -> None:
@@ -2443,7 +2332,7 @@ def test_needs_more_evidence_p1_without_blocker_path_is_invalid_calibration(tmp_
     assert "unresolved_blocking_finding:F-001" not in result["blockers"]
 
 
-def test_rejected_p1_without_blocker_path_does_not_require_collision_control(tmp_path: Path) -> None:
+def test_rejected_p1_without_blocker_path_is_calibrated_non_blocking(tmp_path: Path) -> None:
     report = complete_report()
     report["candidate_findings"] = [
         {
@@ -2458,12 +2347,11 @@ def test_rejected_p1_without_blocker_path_does_not_require_collision_control(tmp
 
     assert result["state"] == "accepted_merge_ready"
     assert result["accepted"] is True
-    assert "collision_control_missing:F-001" not in result["blockers"]
 
 
-def test_rejected_blocker_findings_require_collision_control(tmp_path: Path) -> None:
+def test_rejected_blocker_findings_fail_closed_in_pr_readiness(tmp_path: Path) -> None:
     report = complete_report()
-    report["status"] = "blocked_collision_control"
+    report["status"] = "rejected"
     report["candidate_findings"] = [
         {
             "id": "F-001",
@@ -2476,14 +2364,14 @@ def test_rejected_blocker_findings_require_collision_control(tmp_path: Path) -> 
 
     result = evaluate(tmp_path, report)
 
-    assert result["state"] == "blocked_collision_control"
+    assert result["state"] == "rejected"
     assert result["accepted"] is False
-    assert "collision_control_missing:F-001" in result["blockers"]
+    assert "unresolved_blocking_finding:F-001" in result["blockers"]
 
 
-def test_placeholder_collision_control_does_not_clear_rejected_blocker(tmp_path: Path) -> None:
+def test_collision_control_claim_does_not_clear_rejected_blocker(tmp_path: Path) -> None:
     report = complete_report()
-    report["status"] = "blocked_collision_control"
+    report["status"] = "rejected"
     report["candidate_findings"] = [
         {
             "id": "F-001",
@@ -2496,331 +2384,9 @@ def test_placeholder_collision_control_does_not_clear_rejected_blocker(tmp_path:
 
     result = evaluate(tmp_path, report)
 
-    assert result["state"] == "blocked_collision_control"
+    assert result["state"] == "rejected"
     assert result["accepted"] is False
-    assert "collision_control_incomplete:F-001" in result["blockers"]
-
-
-def test_arbitrary_files_do_not_satisfy_collision_control(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "evidence_path": "evidence/repo-validation.log",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "evidence/repo-validation.log"},
-                    {"path": "evidence/pytest.log"},
-                ],
-            },
-        }
-    ]
-
-    result = evaluate(tmp_path, report)
-
-    assert result["state"] == "blocked_collision_control"
-    assert result["accepted"] is False
-    assert "collision_control_report_invalid:F-001" in result["blockers"]
-
-
-def test_unrelated_valid_reports_do_not_satisfy_collision_control(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "evidence/repo-validation.log",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "reviewer-report.generalist-a.json"},
-                    {"path": "reviewer-report.generalist-b.json"},
-                ],
-            },
-        }
-    ]
-
-    result = evaluate(tmp_path, report)
-
-    assert result["state"] == "blocked_collision_control"
-    assert result["accepted"] is False
-    assert "collision_control_report_invalid:F-001" in result["blockers"]
-
-
-def test_self_declared_collision_control_reports_require_valid_control_reports(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "evidence/repo-validation.log",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "reviewer-report.collision-control-a.json"},
-                    {"path": "reviewer-report.collision-control-b.json"},
-                ],
-            },
-        }
-    ]
-    prepare_complete_evidence(tmp_path)
-    path = write_report(tmp_path, report)
-
-    result = load_evaluator()(tmp_path, path)
-
-    assert result["state"] == "blocked_missing_evidence"
-    assert result["accepted"] is False
-    assert "collision_control_incomplete:F-001" in result["blockers"]
-
-
-def test_collision_control_requires_control_report_packet_binding(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "collision-control-evidence.json",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": [
-                    {"path": "reviewer-report.collision-control-a.json"},
-                    {"path": "reviewer-report.collision-control-b.json"},
-                ],
-            },
-        }
-    ]
-    prepare_complete_evidence(tmp_path)
-    write_collision_control_fixture(tmp_path)
-    path = write_report(tmp_path, report)
-
-    result = load_evaluator()(tmp_path, path)
-
-    assert result["state"] == "blocked_collision_control"
-    assert result["accepted"] is False
-    assert "collision_control_report_invalid:F-001" in result["blockers"]
-
-
-def test_collision_control_requires_control_report_context_binding(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "collision-control-evidence.json",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": collision_control_report_refs(),
-            },
-        }
-    ]
-    prepare_complete_evidence(tmp_path)
-    write_collision_control_fixture(tmp_path)
-    control_report_path = tmp_path / "reviewer-report.collision-control-a.json"
-    control_report = json.loads(control_report_path.read_text(encoding="utf-8"))
-    control_report["review_context"]["material_change_id"] = "stale-change"
-    control_report_path.write_text(json.dumps(control_report, indent=2) + "\n", encoding="utf-8")
-    path = write_report(tmp_path, report)
-
-    result = load_evaluator()(tmp_path, path)
-
-    assert result["state"] == "blocked_collision_control"
-    assert result["accepted"] is False
-    assert "collision_control_report_invalid:F-001" in result["blockers"]
-
-
-def test_stale_collision_control_does_not_clear_rejected_blocker(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "collision-control-evidence.json",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": collision_control_report_refs(),
-            },
-        }
-    ]
-    prepare_complete_evidence(tmp_path)
-    write_collision_control_fixture(
-        tmp_path,
-        completed_at="2026-06-22T08:00:00Z",
-        prepared_at="2026-06-22T08:00:00Z",
-    )
-    path = write_report(tmp_path, report)
-
-    result = load_evaluator()(tmp_path, path)
-
-    assert result["state"] == "blocked_collision_control"
-    assert result["accepted"] is False
-    assert "collision_control_stale:F-001" in result["blockers"]
-
-
-def test_unsupported_collision_control_conclusion_does_not_clear_rejected_blocker(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "collision-control-evidence.json",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": collision_control_report_refs(),
-            },
-        }
-    ]
-    prepare_complete_evidence(tmp_path)
-    write_collision_control_fixture(
-        tmp_path,
-        control_conclusion="orchestrator-disposition-unsupported",
-    )
-    path = write_report(tmp_path, report)
-
-    result = load_evaluator()(tmp_path, path)
-
-    assert result["state"] == "blocked_collision_control"
-    assert result["accepted"] is False
-    assert "collision_control_unsupported:F-001" in result["blockers"]
-
-
-def test_collision_control_requires_bound_evidence_packet(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "collision-control-evidence.json",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": collision_control_report_refs(),
-            },
-        }
-    ]
-    prepare_complete_evidence(tmp_path)
-    write_collision_control_fixture(tmp_path)
-    evidence_path = tmp_path / "collision-control-evidence.json"
-    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-    evidence.pop("source_findings")
-    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
-    path = write_report(tmp_path, report)
-
-    result = load_evaluator()(tmp_path, path)
-
-    assert result["state"] == "blocked_collision_control"
-    assert result["accepted"] is False
-    assert "collision_control_evidence_invalid:F-001" in result["blockers"]
-
-
-def test_collision_control_requires_source_report_hash_binding(tmp_path: Path) -> None:
-    report = complete_report()
-    report["status"] = "blocked_collision_control"
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "collision-control-evidence.json",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": collision_control_report_refs(),
-            },
-        }
-    ]
-    prepare_complete_evidence(tmp_path)
-    write_collision_control_fixture(tmp_path)
-    evidence_path = tmp_path / "collision-control-evidence.json"
-    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-    evidence["source_findings"][0]["source_report_hash"] = "sha256:" + "0" * 64
-    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
-    path = write_report(tmp_path, report)
-
-    result = load_evaluator()(tmp_path, path)
-
-    assert result["state"] == "blocked_collision_control"
-    assert result["accepted"] is False
-    assert "collision_control_evidence_invalid:F-001" in result["blockers"]
-
-
-def test_collision_control_reports_can_clear_rejected_blocker(tmp_path: Path) -> None:
-    report = complete_report()
-    report["candidate_findings"] = [
-        {
-            "id": "F-001",
-            "severity": "P1",
-            "status": "rejected",
-            **grounded_blocker_fields(),
-            "collision_control": {
-                "status": "completed",
-                "collision_batch_id": "collision-F-001",
-                "evidence_path": "collision-control-evidence.json",
-                "control_reviewer_count": 2,
-                "disputed_finding_ids": ["F-001"],
-                "control_reports": collision_control_report_refs(),
-            },
-        }
-    ]
-    prepare_complete_evidence(tmp_path)
-    write_collision_control_fixture(tmp_path)
-    path = write_report(tmp_path, report)
-
-    result = load_evaluator()(tmp_path, path)
-
-    assert result["state"] == "accepted_merge_ready"
-    assert result["accepted"] is True
-    assert result["blockers"] == []
+    assert "unresolved_blocking_finding:F-001" in result["blockers"]
 
 
 def test_review_packet_older_than_material_change_is_stale(tmp_path: Path) -> None:

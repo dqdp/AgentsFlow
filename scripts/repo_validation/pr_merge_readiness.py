@@ -12,7 +12,6 @@ from .review import validate_review_packet_artifact
 
 
 BLOCKING_FINDING_SEVERITIES = {"P0", "P1"}
-SUPPORTED_COLLISION_CONTROL_CONCLUSION = "orchestrator-disposition-supported"
 SEVERITY_RANK = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "NOTE": 4}
 REQUIRED_CLAUDE_FORBIDDEN_ENV = {
     "ANTHROPIC_API_KEY",
@@ -467,159 +466,6 @@ def _effective_mandatory_evidence_gap(
     )
 
 
-def _validate_control_report(
-    root: Path,
-    report_path: Path,
-    ref: object,
-    packet_ref: object,
-    reviewer_report_schema: dict,
-    missing: list[str],
-    blockers: list[str],
-    finding_id: str,
-    collision_batch_id: str,
-    report_run_id: str,
-    report_material_change_id: str,
-    latest_material_change_at: datetime | None,
-    collision_prompt_prepared_at: datetime | None,
-) -> str | None:
-    _record_missing(report_path, root, ref, missing)
-    _record_missing(report_path, root, packet_ref, missing)
-    resolved = _safe_relative(report_path, root, ref)
-    if not resolved or not resolved.is_file():
-        return None
-    packet_path = _safe_relative(report_path, root, packet_ref)
-    if not packet_path or not packet_path.is_file():
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    try:
-        data = parse_json(resolved)
-    except ValueError:
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    if not isinstance(data, dict):
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    if validate_against_schema(resolved, data, reviewer_report_schema):
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    reviewer = data.get("reviewer")
-    if not isinstance(reviewer, dict) or not reviewer.get("id"):
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    reviewer_id = str(reviewer["id"])
-    context = data.get("review_context")
-    if (
-        not isinstance(context, dict)
-        or context.get("run_id") != report_run_id
-        or context.get("material_change_id") != report_material_change_id
-        or context.get("reviewer_instance_id") != reviewer_id
-        or context.get("review_packet_path") != packet_ref
-    ):
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    if _validate_collision_control_packet(
-        root,
-        packet_path,
-        packet_ref,
-        finding_id,
-        collision_batch_id,
-        reviewer_id,
-        report_run_id,
-        report_material_change_id,
-        blockers,
-    ):
-        return None
-    collision = data.get("collision_control")
-    if not isinstance(collision, dict):
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    disputed = collision.get("disputed_finding_ids")
-    control_conclusion = collision.get("control_conclusion")
-    if (
-        collision.get("collision_batch_id") != collision_batch_id
-        or not isinstance(disputed, list)
-        or finding_id not in disputed
-        or not control_conclusion
-    ):
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    if control_conclusion != SUPPORTED_COLLISION_CONTROL_CONCLUSION:
-        blockers.append(f"collision_control_unsupported:{finding_id}")
-        return None
-    completed_at = _parse_timestamp(collision.get("completed_at"))
-    if not completed_at:
-        blockers.append(f"collision_control_report_invalid:{finding_id}")
-        return None
-    if latest_material_change_at:
-        try:
-            if completed_at < latest_material_change_at:
-                blockers.append(f"collision_control_stale:{finding_id}")
-                return None
-        except TypeError:
-            blockers.append(f"collision_control_report_invalid:{finding_id}")
-            return None
-    if collision_prompt_prepared_at:
-        try:
-            if completed_at < collision_prompt_prepared_at:
-                blockers.append(f"collision_control_stale:{finding_id}")
-                return None
-        except TypeError:
-            blockers.append(f"collision_control_report_invalid:{finding_id}")
-            return None
-    return reviewer_id
-
-
-def _validate_collision_control_packet(
-    root: Path,
-    packet_path: Path,
-    packet_ref: object,
-    finding_id: str,
-    collision_batch_id: str,
-    reviewer_id: str,
-    report_run_id: str,
-    report_material_change_id: str,
-    blockers: list[str],
-) -> bool:
-    try:
-        packet = parse_json(packet_path)
-    except ValueError:
-        blockers.append(f"collision_control_packet_invalid:{finding_id}")
-        return True
-    if not isinstance(packet, dict):
-        blockers.append(f"collision_control_packet_invalid:{finding_id}")
-        return True
-    if validate_review_packet_artifact(
-        root,
-        packet_path,
-        check_references=True,
-        require_green_verification_gate=True,
-    ):
-        blockers.append(f"collision_control_packet_invalid:{finding_id}")
-        return True
-    collision = packet.get("collision_control")
-    disputed = collision.get("disputed_findings") if isinstance(collision, dict) else None
-    invalid = (
-        packet.get("run_id") != report_run_id
-        or packet.get("material_change_id") != report_material_change_id
-        or packet.get("reviewer_instance_id") != reviewer_id
-        or packet.get("review_packet_path") != packet_ref
-        or packet.get("review_profile") != "collision-control"
-        or packet.get("composition") != "control"
-        or not isinstance(collision, dict)
-        or collision.get("collision_batch_id") != collision_batch_id
-        or not isinstance(disputed, list)
-        or not any(
-            isinstance(item, dict)
-            and item.get("finding_id") == finding_id
-            and item.get("original_severity") in BLOCKING_FINDING_SEVERITIES
-            for item in disputed
-        )
-    )
-    if invalid:
-        blockers.append(f"collision_control_packet_invalid:{finding_id}")
-    return invalid
-
-
 def _validate_loaded_review_packet_binding(
     loaded_packet: dict[str, Any],
     review: dict[str, Any],
@@ -643,90 +489,6 @@ def _validate_loaded_review_packet_binding(
     freshness = loaded_packet.get("evidence_freshness")
     if not isinstance(freshness, dict) or freshness.get("material_change_id") != report_material_change_id:
         blockers.append(f"review_packet_context_mismatch:{review_id}:evidence_freshness.material_change_id")
-
-
-def _validate_collision_control_evidence(
-    root: Path,
-    report_path: Path,
-    ref: object,
-    finding_id: str,
-    collision_batch_id: str,
-    finding_status: str,
-    latest_material_change_at: datetime | None,
-    reviewer_report_paths: dict[str, Path],
-    missing: list[str],
-    blockers: list[str],
-) -> tuple[datetime | None, set[str]]:
-    _record_missing(report_path, root, ref, missing)
-    resolved = _safe_relative(report_path, root, ref)
-    if not resolved or not resolved.is_file():
-        blockers.append(f"collision_control_incomplete:{finding_id}")
-        return None, set()
-    try:
-        data = parse_json(resolved)
-    except ValueError:
-        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-        return None, set()
-    if not isinstance(data, dict):
-        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-        return None, set()
-    if data.get("collision_batch_id") != collision_batch_id:
-        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-    disputed = data.get("disputed_finding_ids")
-    if not isinstance(disputed, list) or finding_id not in disputed:
-        if data.get("finding_id") != finding_id:
-            blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-    if data.get("orchestrator_disposition") != finding_status:
-        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-    if not _nonempty_text(data.get("disposition_rationale")):
-        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-    source_findings = data.get("source_findings")
-    if not isinstance(source_findings, list) or not any(
-        _collision_source_finding_matches(
-            root,
-            report_path,
-            source,
-            finding_id,
-            reviewer_report_paths,
-        )
-        for source in source_findings
-        if isinstance(source, dict)
-    ):
-        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-    prepared_at = _parse_timestamp(data.get("prepared_at"))
-    if not prepared_at:
-        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-    elif latest_material_change_at:
-        try:
-            if prepared_at < latest_material_change_at:
-                blockers.append(f"collision_control_stale:{finding_id}")
-        except TypeError:
-            blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-    expected_reviewers = data.get("control_reviewers")
-    if not isinstance(expected_reviewers, list) or len(expected_reviewers) < 2:
-        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
-        return prepared_at, set()
-    return prepared_at, {str(reviewer) for reviewer in expected_reviewers if str(reviewer).strip()}
-
-
-def _collision_source_finding_matches(
-    root: Path,
-    report_path: Path,
-    source: dict[str, Any],
-    finding_id: str,
-    reviewer_report_paths: dict[str, Path],
-) -> bool:
-    if source.get("id") != finding_id or source.get("severity") not in BLOCKING_FINDING_SEVERITIES:
-        return False
-    source_reviewer_id = str(source.get("source_reviewer_id") or "")
-    expected_path = reviewer_report_paths.get(source_reviewer_id)
-    if not expected_path:
-        return False
-    source_path = _safe_relative(report_path, root, source.get("source_reviewer_report"))
-    if not source_path or source_path.resolve() != expected_path.resolve():
-        return False
-    source_hash = source.get("source_report_hash")
-    return is_concrete_sha256(source_hash) and source_hash == sha256_file(source_path)
 
 
 def _has_matching_human_decision(
@@ -1077,8 +839,6 @@ def _classify_state(
         return "blocked_external_review"
     if any(blocker.startswith("raw_") for blocker in blockers):
         return "blocked_sensitive_raw_evidence"
-    if any(blocker.startswith("collision_control_") for blocker in blockers):
-        return "blocked_collision_control"
     if any(blocker.startswith("github_publication_evidence_") for blocker in blockers):
         return "blocked_missing_evidence"
     if stale_reviews:
@@ -1539,78 +1299,8 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             blockers.append(f"unresolved_duplicate_blocking_finding:{finding_id}")
             continue
         if status in {"rejected", "downgraded"}:
-            control = finding.get("collision_control")
-            if not isinstance(control, dict) or control.get("status") != "completed":
-                blockers.append(f"collision_control_missing:{finding_id}")
-                continue
-            evidence_path = control.get("evidence_path")
-            control_reports = control.get("control_reports")
-            disputed_finding_ids = control.get("disputed_finding_ids")
-            collision_batch_id = control.get("collision_batch_id")
-            if (
-                not evidence_path
-                or not isinstance(collision_batch_id, str)
-                or not collision_batch_id.strip()
-                or control.get("control_reviewer_count") != 2
-                or not isinstance(control_reports, list)
-                or len(control_reports) < 2
-                or not isinstance(disputed_finding_ids, list)
-                or finding_id not in disputed_finding_ids
-            ):
-                blockers.append(f"collision_control_incomplete:{finding_id}")
-            control_prepared_at, expected_control_reviewers = _validate_collision_control_evidence(
-                root,
-                report_path,
-                evidence_path,
-                finding_id,
-                collision_batch_id if isinstance(collision_batch_id, str) else "",
-                status,
-                latest_material_change_at,
-                reviewer_report_paths,
-                missing_evidence,
-                blockers,
-            )
-            control_reviewer_ids: set[str] = set()
-            if isinstance(control_reports, list):
-                for control_report in control_reports:
-                    if isinstance(control_report, dict):
-                        reviewer_id = _validate_control_report(
-                            root,
-                            report_path,
-                            control_report.get("path"),
-                            control_report.get("packet_path"),
-                            reviewer_report_schema,
-                            missing_evidence,
-                            blockers,
-                            finding_id,
-                            collision_batch_id,
-                            report_run_id,
-                            report_material_change_id,
-                            latest_material_change_at,
-                            control_prepared_at,
-                        )
-                    else:
-                        reviewer_id = _validate_control_report(
-                            root,
-                            report_path,
-                            control_report,
-                            None,
-                            reviewer_report_schema,
-                            missing_evidence,
-                            blockers,
-                            finding_id,
-                            collision_batch_id,
-                            report_run_id,
-                            report_material_change_id,
-                            latest_material_change_at,
-                            control_prepared_at,
-                        )
-                    if reviewer_id:
-                        control_reviewer_ids.add(reviewer_id)
-            if isinstance(control_reports, list) and len(control_reviewer_ids) < 2:
-                blockers.append(f"collision_control_incomplete:{finding_id}")
-            if expected_control_reviewers and control_reviewer_ids != expected_control_reviewers:
-                blockers.append(f"collision_control_incomplete:{finding_id}")
+            blockers.append(f"unresolved_blocking_finding:{finding_id}")
+            continue
 
     for source in source_blocking_findings:
         if not any(
