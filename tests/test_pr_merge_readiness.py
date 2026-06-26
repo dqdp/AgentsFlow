@@ -33,6 +33,7 @@ FORBIDDEN_CLAUDE_ENV = [
     "CLAUDE_CODE_USE_BEDROCK",
     "CLAUDE_CODE_USE_VERTEX",
 ]
+GITHUB_PUBLICATION_BODY = "PR readiness summary fixture.\n"
 
 
 def load_evaluator():
@@ -49,7 +50,8 @@ def write_evidence(root: Path, *paths: str) -> None:
 
 
 def write_github_publication_evidence(root: Path) -> None:
-    write_evidence(root, "github-publication.md")
+    body_path = root / "github-publication.md"
+    body_path.write_text(GITHUB_PUBLICATION_BODY, encoding="utf-8")
     (root / "github-publication-result.json").write_text(
         json.dumps(
             {
@@ -60,6 +62,7 @@ def write_github_publication_evidence(root: Path) -> None:
                 "pr": 1,
                 "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
                 "body_path": "github-publication.md",
+                "body_hash": file_sha(body_path),
             },
             indent=2,
         )
@@ -327,6 +330,7 @@ def complete_report() -> dict:
             "base": "main",
             "commit_range": "main..HEAD",
             "worktree_state": "clean",
+            "pull_request": 1,
         },
         "status": "accepted_merge_ready",
         "checks": [
@@ -395,6 +399,8 @@ def complete_report() -> dict:
             "action": "pr comment",
             "body_path": "github-publication.md",
             "result_path": "github-publication-result.json",
+            "pr": 1,
+            "body_hash": text_sha(GITHUB_PUBLICATION_BODY),
             "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
         },
         "self_application": {
@@ -718,7 +724,22 @@ def write_collision_control_fixture(
             {
                 "collision_batch_id": collision_batch_id,
                 "finding_id": finding_id,
+                "disputed_finding_ids": [finding_id],
+                "source_findings": [
+                    {
+                        "id": finding_id,
+                        "severity": "P1",
+                        "source_reviewer_report": "reviewer-report.generalist-a.json",
+                    }
+                ],
+                "orchestrator_disposition": "rejected",
+                "disposition_rationale": "Main agent recorded a grounded rejection rationale.",
+                "prepared_at": prepared_at,
                 "control_reviewer_count": 2,
+                "control_reviewers": [
+                    "collision-control-a",
+                    "collision-control-b",
+                ],
                 "control_reports": [
                     "reviewer-report.collision-control-a.json",
                     "reviewer-report.collision-control-b.json",
@@ -835,6 +856,8 @@ def test_published_github_publication_with_evidence_can_pass(tmp_path: Path) -> 
         "action": "pr comment",
         "body_path": "github-publication.md",
         "result_path": "github-publication-result.json",
+        "pr": 1,
+        "body_hash": text_sha(GITHUB_PUBLICATION_BODY),
         "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
     }
     prepare_complete_evidence(tmp_path)
@@ -861,6 +884,47 @@ def test_github_publication_must_be_required_for_merge_readiness(
     assert "github_publication_evidence_invalid" in result["blockers"]
 
 
+def test_github_publication_must_match_pull_request_number(tmp_path: Path) -> None:
+    report = complete_report()
+    report["github_publication"]["pr"] = 2
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
+
+
+def test_github_publication_body_hash_must_match_body_file(tmp_path: Path) -> None:
+    report = complete_report()
+    report["github_publication"]["body_hash"] = "sha256:" + "0" * 64
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
+
+
+def test_github_publication_body_rejects_absolute_local_paths(tmp_path: Path) -> None:
+    report = complete_report()
+    prepare_complete_evidence(tmp_path)
+    body_path = tmp_path / "github-publication.md"
+    body_path.write_text("Leaked local path: /Users/alex/AgentsFlow/private.log\n", encoding="utf-8")
+    report["github_publication"]["body_hash"] = file_sha(body_path)
+    result_path = tmp_path / "github-publication-result.json"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    result["body_hash"] = file_sha(body_path)
+    result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
+
+
 def test_published_github_publication_requires_result_artifact_url(
     tmp_path: Path,
 ) -> None:
@@ -875,6 +939,8 @@ def test_published_github_publication_requires_result_artifact_url(
         "action": "pr comment",
         "body_path": "github-publication.md",
         "result_path": "github-publication-result.json",
+        "pr": 1,
+        "body_hash": text_sha(GITHUB_PUBLICATION_BODY),
         "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
     }
     prepare_complete_evidence(tmp_path)
@@ -888,6 +954,7 @@ def test_published_github_publication_requires_result_artifact_url(
                 "status": "published",
                 "pr": 1,
                 "body_path": "github-publication.md",
+                "body_hash": text_sha("evidence for github-publication.md\n"),
             },
             indent=2,
         )
@@ -917,6 +984,8 @@ def test_published_github_publication_requires_default_result_shape(
         "action": "pr comment",
         "body_path": "github-publication.md",
         "result_path": "github-publication-result.json",
+        "pr": 1,
+        "body_hash": text_sha(GITHUB_PUBLICATION_BODY),
         "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
     }
     prepare_complete_evidence(tmp_path)
@@ -1065,6 +1134,23 @@ def test_review_packet_missing_green_gate_reference_blocks_readiness(tmp_path: P
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
     packet["verification_gate_report"]["path"] = "missing-verification-gate-report.json"
     packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "review_packet_invalid:generalist-a" in result["blockers"]
+
+
+def test_review_packet_failed_green_gate_reference_blocks_readiness(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    prepare_complete_evidence(tmp_path)
+    gate_path = tmp_path / "verification-gate-report.json"
+    gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    gate["result_state"] = "fail"
+    gate_path.write_text(json.dumps(gate, indent=2) + "\n", encoding="utf-8")
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -2399,6 +2485,43 @@ def test_unsupported_collision_control_conclusion_does_not_clear_rejected_blocke
     assert result["state"] == "blocked_collision_control"
     assert result["accepted"] is False
     assert "collision_control_unsupported:F-001" in result["blockers"]
+
+
+def test_collision_control_requires_bound_evidence_packet(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_collision_control"
+    report["candidate_findings"] = [
+        {
+            "id": "F-001",
+            "severity": "P1",
+            "status": "rejected",
+            **grounded_blocker_fields(),
+            "collision_control": {
+                "status": "completed",
+                "collision_batch_id": "collision-F-001",
+                "evidence_path": "collision-control-evidence.json",
+                "control_reviewer_count": 2,
+                "disputed_finding_ids": ["F-001"],
+                "control_reports": [
+                    {"path": "reviewer-report.collision-control-a.json"},
+                    {"path": "reviewer-report.collision-control-b.json"},
+                ],
+            },
+        }
+    ]
+    prepare_complete_evidence(tmp_path)
+    write_collision_control_fixture(tmp_path)
+    evidence_path = tmp_path / "collision-control-evidence.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence.pop("source_findings")
+    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_collision_control"
+    assert result["accepted"] is False
+    assert "collision_control_evidence_invalid:F-001" in result["blockers"]
 
 
 def test_collision_control_reports_can_clear_rejected_blocker(tmp_path: Path) -> None:

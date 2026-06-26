@@ -64,12 +64,13 @@
     "branch": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["name", "base", "commit_range", "worktree_state"],
+      "required": ["name", "base", "commit_range", "worktree_state", "pull_request"],
       "properties": {
         "name": {"type": "string", "minLength": 1},
         "base": {"type": "string", "minLength": 1},
         "commit_range": {"type": "string", "minLength": 1},
-        "worktree_state": {"type": "string", "minLength": 1}
+        "worktree_state": {"type": "string", "minLength": 1},
+        "pull_request": {"type": "integer", "minimum": 1}
       }
     },
     "checks": {
@@ -253,7 +254,9 @@
         "tool": {"type": "string", "enum": ["gh"]},
         "action": {"type": "string", "enum": ["pr comment"]},
         "body_path": {"type": "string"},
+        "body_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
         "result_path": {"type": "string"},
+        "pr": {"type": "integer", "minimum": 1},
         "url": {"type": "string"},
         "reason": {"type": "string"}
       }

@@ -247,10 +247,12 @@ Accepted merge-ready status requires:
 - fresh required review evidence;
 - live Claude evidence when a Claude-backed review is required;
 - no validated P0/P1 blockers or mandatory evidence gaps;
+- published GitHub PR summary-comment evidence bound to the target PR and
+  comment body hash;
 - a hash-bound human `merge.acceptance` decision.
 
-If the human selects GitHub publication, the workflow may publish a single PR
-summary comment after final local acceptance and record the publication result.
+The PR summary comment is published before `awaiting_human_decision`; final
+local acceptance still requires the hash-bound human merge decision.
 
 ## Repository Layout
 

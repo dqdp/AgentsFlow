@@ -86,7 +86,8 @@ exit_criteria:
   change, bound to the source workflow/project binding/explicit review-gate
   requirements artifact and validated by the deterministic evaluator.
 - "Awaiting-human and accepted merge-ready states have published GitHub PR
-  summary-comment evidence with `required_for_merge_readiness: true`."
+  summary-comment evidence with `required_for_merge_readiness: true`, target PR
+  binding and comment body hash binding."
 - Accepted merge-ready status has a human merge decision bound to the current
   material change and exact readiness report hash.
 - Missing evidence, stale review evidence and live-vs-mock external review gaps

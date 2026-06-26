@@ -47,9 +47,10 @@ report and referenced artifacts.
 6. Reference finding-validation and collision-control evidence for accepted,
    rejected, downgraded or duplicate blocker-path findings.
 7. Publish a concise readiness summary as a GitHub PR comment and record both
-   the exact comment body and publication result as evidence. Do this before
-   entering `awaiting_human_decision`; skipped, requested, failed or missing
-   publication evidence is a blocker.
+   the exact comment body and publication result as evidence. Bind the evidence
+   to the target PR number and comment body hash. Do this before entering
+   `awaiting_human_decision`; skipped, requested, failed or missing publication
+   evidence is a blocker.
 8. Reference the human merge decision only when it is human-authored,
    confirmed, and bound to the current material change and readiness report
    hash.
@@ -68,7 +69,8 @@ report and referenced artifacts.
 - Review agents and external providers produce candidate findings only.
 - Accepted merge-ready status requires fresh required review-gate evidence.
 - `awaiting_human_decision` requires published GitHub PR summary-comment
-  evidence; it is not a purely local report state.
+  evidence bound to the target PR and body hash; it is not a purely local
+  report state.
 
 ## Anti-Patterns
 

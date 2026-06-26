@@ -133,9 +133,11 @@ summary comment:
 publication_mode: summary_comment
 required_for_merge_readiness: true
 target: pull_request
+pr: 123
 tool: gh
 action: pr comment
 body_path: github-publication.md
+body_hash: sha256:<64-hex-digest>
 result_path: github-publication-result.json
 ```
 
@@ -163,13 +165,15 @@ private reasoning details or unnecessary absolute local paths.
   "status": "published",
   "pr": 123,
   "url": "https://github.com/org/repo/pull/123#issuecomment-...",
-  "body_path": "github-publication.md"
+  "body_path": "github-publication.md",
+  "body_hash": "sha256:<64-hex-digest>"
 }
 ```
 
 The readiness evaluator requires this default evidence shape before
-`awaiting_human_decision`. Any other publication state blocks merge readiness as
-missing publication evidence.
+`awaiting_human_decision`. The report's branch PR number, publication PR number,
+result PR number, comment URL and body hash must match. Any other publication
+state blocks merge readiness as missing publication evidence.
 
 Each review packet must be anchored to the evaluated readiness report: packet
 `run_id` must match report `run_id`, and packet `material_change_id` must match

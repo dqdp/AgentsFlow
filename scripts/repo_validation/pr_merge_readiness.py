@@ -21,6 +21,10 @@ REQUIRED_CLAUDE_FORBIDDEN_ENV = {
 }
 REQUIRED_REVIEW_FIELDS = ("id", "topic", "provider", "role", "required_live")
 MIN_REQUIRED_REVIEWERS = 2
+GITHUB_PUBLICATION_BODY_FORBIDDEN_MARKERS = (
+    "/Users/",
+    "/private/var/",
+)
 
 
 def _schema(root: Path) -> dict:
@@ -59,6 +63,18 @@ def _record_missing(
         return
     if not _path_exists(report_path, root, ref):
         missing.append(str(ref))
+
+
+def _positive_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    return None
+
+
+def _contains_full_reviewer_report_dump(text: str) -> bool:
+    return '"reviewer"' in text and '"findings"' in text and '"review_context"' in text
 
 
 def _parse_timestamp(value: object) -> datetime | None:
@@ -497,6 +513,65 @@ def _validate_control_report(
     return str(reviewer["id"])
 
 
+def _validate_collision_control_evidence(
+    root: Path,
+    report_path: Path,
+    ref: object,
+    finding_id: str,
+    collision_batch_id: str,
+    finding_status: str,
+    latest_material_change_at: datetime | None,
+    missing: list[str],
+    blockers: list[str],
+) -> tuple[datetime | None, set[str]]:
+    _record_missing(report_path, root, ref, missing)
+    resolved = _safe_relative(report_path, root, ref)
+    if not resolved or not resolved.is_file():
+        blockers.append(f"collision_control_incomplete:{finding_id}")
+        return None, set()
+    try:
+        data = parse_json(resolved)
+    except ValueError:
+        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+        return None, set()
+    if not isinstance(data, dict):
+        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+        return None, set()
+    if data.get("collision_batch_id") != collision_batch_id:
+        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+    disputed = data.get("disputed_finding_ids")
+    if not isinstance(disputed, list) or finding_id not in disputed:
+        if data.get("finding_id") != finding_id:
+            blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+    if data.get("orchestrator_disposition") != finding_status:
+        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+    if not _nonempty_text(data.get("disposition_rationale")):
+        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+    source_findings = data.get("source_findings")
+    if not isinstance(source_findings, list) or not any(
+        isinstance(source, dict)
+        and source.get("id") == finding_id
+        and source.get("severity") in BLOCKING_FINDING_SEVERITIES
+        and _nonempty_text(source.get("source_reviewer_report"))
+        for source in source_findings
+    ):
+        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+    prepared_at = _parse_timestamp(data.get("prepared_at"))
+    if not prepared_at:
+        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+    elif latest_material_change_at:
+        try:
+            if prepared_at < latest_material_change_at:
+                blockers.append(f"collision_control_stale:{finding_id}")
+        except TypeError:
+            blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+    expected_reviewers = data.get("control_reviewers")
+    if not isinstance(expected_reviewers, list) or len(expected_reviewers) < 2:
+        blockers.append(f"collision_control_evidence_invalid:{finding_id}")
+        return prepared_at, set()
+    return prepared_at, {str(reviewer) for reviewer in expected_reviewers if str(reviewer).strip()}
+
+
 def _has_matching_human_decision(
     root: Path,
     report_path: Path,
@@ -576,6 +651,7 @@ def _validate_github_publication_result(
     root: Path,
     report_path: Path,
     publication: dict[str, Any],
+    expected_pr: int | None,
     blockers: list[str],
     missing_evidence: list[str],
 ) -> None:
@@ -595,6 +671,17 @@ def _validate_github_publication_result(
     if not body_path or not body_path.is_file():
         missing_evidence.append(str(body_ref or "github_publication.body_path"))
         blockers.append("github_publication_evidence_missing")
+    else:
+        body_text = body_path.read_text(encoding="utf-8", errors="replace")
+        if not body_text.strip():
+            blockers.append("github_publication_evidence_invalid")
+        if any(marker in body_text for marker in GITHUB_PUBLICATION_BODY_FORBIDDEN_MARKERS):
+            blockers.append("github_publication_evidence_invalid")
+        if _contains_full_reviewer_report_dump(body_text):
+            blockers.append("github_publication_evidence_invalid")
+        body_hash = publication.get("body_hash")
+        if not is_concrete_sha256(body_hash) or body_hash != sha256_file(body_path):
+            blockers.append("github_publication_evidence_invalid")
     if not result_path or not result_path.is_file():
         missing_evidence.append(str(result_ref or "github_publication.result_path"))
         blockers.append("github_publication_evidence_missing")
@@ -618,9 +705,17 @@ def _validate_github_publication_result(
         blockers.append("github_publication_evidence_missing")
     if result.get("body_path") != body_ref:
         blockers.append("github_publication_evidence_invalid")
+    if result.get("body_hash") != publication.get("body_hash"):
+        blockers.append("github_publication_evidence_invalid")
+    publication_pr = _positive_int(publication.get("pr"))
+    result_pr = _positive_int(result.get("pr"))
+    if not expected_pr or publication_pr != expected_pr or result_pr != expected_pr:
+        blockers.append("github_publication_evidence_invalid")
     result_url = result.get("url")
     if not isinstance(result_url, str) or not result_url.strip():
         blockers.append("github_publication_evidence_missing")
+    elif expected_pr and f"/pull/{expected_pr}" not in result_url:
+        blockers.append("github_publication_evidence_invalid")
     report_url = publication.get("url")
     if isinstance(report_url, str) and report_url.strip() and result_url != report_url:
         blockers.append("github_publication_evidence_invalid")
@@ -962,7 +1057,12 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             if not isinstance(loaded_packet, dict):
                 blockers.append(f"review_packet_invalid:{review_id}")
             else:
-                if validate_review_packet_artifact(root, review_packet_path, check_references=True):
+                if validate_review_packet_artifact(
+                    root,
+                    review_packet_path,
+                    check_references=True,
+                    require_green_verification_gate=True,
+                ):
                     blockers.append(f"review_packet_invalid:{review_id}")
                 if report_run_id and loaded_packet.get("run_id") != report_run_id:
                     blockers.append(f"review_packet_context_mismatch:{review_id}:run_id")
@@ -1285,7 +1385,17 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                 or finding_id not in disputed_finding_ids
             ):
                 blockers.append(f"collision_control_incomplete:{finding_id}")
-            _record_missing(report_path, root, evidence_path, missing_evidence)
+            control_prepared_at, expected_control_reviewers = _validate_collision_control_evidence(
+                root,
+                report_path,
+                evidence_path,
+                finding_id,
+                collision_batch_id if isinstance(collision_batch_id, str) else "",
+                status,
+                latest_material_change_at,
+                missing_evidence,
+                blockers,
+            )
             control_reviewer_ids: set[str] = set()
             if isinstance(control_reports, list):
                 for control_report in control_reports:
@@ -1300,7 +1410,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                             finding_id,
                             collision_batch_id,
                             latest_material_change_at,
-                            None,
+                            control_prepared_at,
                         )
                     else:
                         reviewer_id = _validate_control_report(
@@ -1313,11 +1423,13 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                             finding_id,
                             collision_batch_id,
                             latest_material_change_at,
-                            None,
+                            control_prepared_at,
                         )
                     if reviewer_id:
                         control_reviewer_ids.add(reviewer_id)
             if isinstance(control_reports, list) and len(control_reviewer_ids) < 2:
+                blockers.append(f"collision_control_incomplete:{finding_id}")
+            if expected_control_reviewers and control_reviewer_ids != expected_control_reviewers:
                 blockers.append(f"collision_control_incomplete:{finding_id}")
 
     for source in source_blocking_findings:
@@ -1369,6 +1481,8 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
     github_publication_summary: dict[str, Any] = {
         "status": "missing",
     }
+    branch = data.get("branch")
+    expected_pr = _positive_int(branch.get("pull_request")) if isinstance(branch, dict) else None
     if isinstance(github_publication, dict):
         status = str(github_publication.get("status", "missing"))
         required_for_merge_readiness = github_publication.get("required_for_merge_readiness") is True
@@ -1383,6 +1497,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                 root,
                 report_path,
                 github_publication,
+                expected_pr,
                 blockers,
                 missing_evidence,
             )

@@ -8,7 +8,8 @@
     "name": "<branch>",
     "base": "<base-branch>",
     "commit_range": "<base>..HEAD",
-    "worktree_state": "<clean|documented-dirty>"
+    "worktree_state": "<clean|documented-dirty>",
+    "pull_request": 123
   },
   "status": "awaiting_human_decision",
   "checks": [
@@ -91,7 +92,9 @@
     "tool": "gh",
     "action": "pr comment",
     "body_path": "github-publication.md",
+    "body_hash": "sha256:<64-hex-digest>",
     "result_path": "github-publication-result.json",
+    "pr": 123,
     "url": "<github-pr-comment-url>"
   },
   "self_application": {

@@ -33,6 +33,7 @@ VERIFICATION_GATE_RESULT_STATES = {
     "needs_human_decision",
     "blocked",
 }
+GREEN_VERIFICATION_GATE_RESULT_STATES = {"pass", "pass_with_notes"}
 RUN_ARTIFACT_MARKERS = (
     ("Docs", "agentsflow", "runs"),
     ("run-artifacts", "agentsflow", "runs"),
@@ -100,7 +101,11 @@ def _resolve_review_packet_ref(root: Path, packet_path: Path, ref: object) -> Pa
     return None
 
 
-def _is_verification_gate_report_artifact(path: Path) -> bool:
+def _is_verification_gate_report_artifact(
+    path: Path,
+    *,
+    require_green: bool = False,
+) -> bool:
     normalized_name = path.name.replace("_", "-")
     if "verification-gate-report" not in normalized_name:
         return False
@@ -117,18 +122,27 @@ def _is_verification_gate_report_artifact(path: Path) -> bool:
             return False
         if not isinstance(data, dict):
             return False
+        result_state = data.get("result_state")
+        if require_green and result_state not in GREEN_VERIFICATION_GATE_RESULT_STATES:
+            return False
         return (
             data.get("kind") == "verification_gate_report"
-            and data.get("result_state") in VERIFICATION_GATE_RESULT_STATES
+            and result_state in VERIFICATION_GATE_RESULT_STATES
             and isinstance(data.get("checks"), list)
             and bool(data["checks"])
         )
     return False
 
 
-def _resolve_verification_gate_report_ref(root: Path, packet_path: Path, ref: object) -> Path | None:
+def _resolve_verification_gate_report_ref(
+    root: Path,
+    packet_path: Path,
+    ref: object,
+    *,
+    require_green: bool = False,
+) -> Path | None:
     resolved = _resolve_review_packet_ref(root, packet_path, ref)
-    if not resolved or not _is_verification_gate_report_artifact(resolved):
+    if not resolved or not _is_verification_gate_report_artifact(resolved, require_green=require_green):
         return None
     return resolved
 
@@ -154,13 +168,24 @@ def _verification_gate_refs_match(
     right: object,
     *,
     allow_placeholders: bool = False,
+    require_green: bool = False,
 ) -> bool:
     left_text = str(left).strip()
     right_text = str(right).strip()
     if allow_placeholders and left_text == right_text and _is_placeholder_ref(left_text):
         return True
-    left_resolved = _resolve_verification_gate_report_ref(root, packet_path, left_text)
-    right_resolved = _resolve_verification_gate_report_ref(root, packet_path, right_text)
+    left_resolved = _resolve_verification_gate_report_ref(
+        root,
+        packet_path,
+        left_text,
+        require_green=require_green,
+    )
+    right_resolved = _resolve_verification_gate_report_ref(
+        root,
+        packet_path,
+        right_text,
+        require_green=require_green,
+    )
     return bool(left_resolved and right_resolved and left_resolved == right_resolved)
 
 
@@ -244,10 +269,16 @@ def _validate_latest_green_gate_ref(
     errors: list[str],
     expected_ref: object | None = None,
     expected_label: str = "verification_gate_report.path",
+    require_green: bool = False,
 ) -> None:
     allow_placeholders = _allows_placeholder_verification_refs(packet_path, data)
     if expected_ref and not (allow_placeholders and _is_placeholder_ref(expected_ref)):
-        expected_resolved = _resolve_verification_gate_report_ref(root, packet_path, expected_ref)
+        expected_resolved = _resolve_verification_gate_report_ref(
+            root,
+            packet_path,
+            expected_ref,
+            require_green=require_green,
+        )
         if not expected_resolved:
             errors.append(f"{packet_path}: {expected_label} must reference a verification gate report artifact: {expected_ref}")
         else:
@@ -273,13 +304,19 @@ def _validate_latest_green_gate_ref(
             latest_green_gate,
             expected_ref,
             allow_placeholders=allow_placeholders,
+            require_green=require_green,
         ):
             errors.append(
                 f"{packet_path}: evidence_freshness.latest_green_gate must match {expected_label}"
             )
 
     if not (allow_placeholders and _is_placeholder_ref(latest_green_gate)):
-        latest_resolved = _resolve_verification_gate_report_ref(root, packet_path, latest_green_gate)
+        latest_resolved = _resolve_verification_gate_report_ref(
+            root,
+            packet_path,
+            latest_green_gate,
+            require_green=require_green,
+        )
         if not latest_resolved:
             errors.append(
                 f"{packet_path}: evidence_freshness.latest_green_gate must reference a verification gate report artifact: {latest_green_gate}"
@@ -403,7 +440,13 @@ def validate_upstream_review_cycle_policy(path: Path, data: dict) -> list[str]:
     return errors
 
 
-def validate_review_packet_artifact(root: Path, path: Path, check_references: bool) -> list[str]:
+def validate_review_packet_artifact(
+    root: Path,
+    path: Path,
+    check_references: bool,
+    *,
+    require_green_verification_gate: bool = False,
+) -> list[str]:
     errors: list[str] = []
     schema = parse_json(root / "schemas" / "review-packet.schema.json")
     data = parse_json(path)
@@ -435,7 +478,14 @@ def validate_review_packet_artifact(root: Path, path: Path, check_references: bo
     )
     if not verification_gate_ref:
         errors.append(f"{path}: verification_gate_report.path is required")
-    _validate_latest_green_gate_ref(root, path, data, errors, verification_gate_ref)
+    _validate_latest_green_gate_ref(
+        root,
+        path,
+        data,
+        errors,
+        verification_gate_ref,
+        require_green=require_green_verification_gate,
+    )
 
     role_ref = data.get("role_contract")
     if role_ref:

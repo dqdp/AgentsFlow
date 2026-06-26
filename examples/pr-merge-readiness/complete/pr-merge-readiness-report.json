@@ -13,7 +13,8 @@
     "name": "codex/pr-merge-readiness",
     "base": "main",
     "commit_range": "main..HEAD",
-    "worktree_state": "clean"
+    "worktree_state": "clean",
+    "pull_request": 1
   },
   "status": "incomplete",
   "checks": [
@@ -113,7 +114,9 @@
     "tool": "gh",
     "action": "pr comment",
     "body_path": "github-publication.md",
+    "body_hash": "sha256:ad22ca6b1aea7c302f5c63d8643b2d40f04a4f97321c96ab270cc7dea3f03530",
     "result_path": "github-publication-result.json",
+    "pr": 1,
     "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1"
   },
   "self_application": {
