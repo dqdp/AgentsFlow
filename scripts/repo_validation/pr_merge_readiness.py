@@ -1371,10 +1371,13 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
     }
     if isinstance(github_publication, dict):
         status = str(github_publication.get("status", "missing"))
+        required_for_merge_readiness = github_publication.get("required_for_merge_readiness") is True
         github_publication_summary = {
             "status": status,
-            "required_for_merge_readiness": github_publication.get("required_for_merge_readiness") is True,
+            "required_for_merge_readiness": required_for_merge_readiness,
         }
+        if not required_for_merge_readiness:
+            blockers.append("github_publication_evidence_invalid")
         if status == "published":
             _validate_github_publication_result(
                 root,
@@ -1383,6 +1386,10 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
                 blockers,
                 missing_evidence,
             )
+        else:
+            blockers.append("github_publication_evidence_missing")
+    else:
+        blockers.append("github_publication_evidence_missing")
 
     self_application = data.get("self_application")
     if isinstance(self_application, dict) and self_application.get("enabled") is True:

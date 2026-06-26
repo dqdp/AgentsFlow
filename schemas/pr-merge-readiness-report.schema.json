@@ -246,7 +246,7 @@
             "unavailable"
           ]
         },
-        "required_for_merge_readiness": {"type": "boolean"},
+        "required_for_merge_readiness": {"const": true},
         "evidence_path": {"type": "string"},
         "publication_mode": {"type": "string", "enum": ["summary_comment"]},
         "target": {"type": "string", "enum": ["pull_request"]},

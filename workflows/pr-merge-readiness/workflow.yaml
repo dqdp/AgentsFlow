@@ -8,10 +8,13 @@ entry_criteria:
 - Branch, base branch and intended commit range are known.
 - Verification, review and finding-validation evidence already exists or is
   explicitly marked missing/blocked.
+- GitHub PR access is available when the run is expected to enter
+  awaiting_human_decision.
 - A human merge decision record exists when accepted merge-ready status is
   claimed.
 outputs:
 - pr-merge-readiness report
+- GitHub PR summary-comment body and publication result evidence
 - deterministic readiness evaluation result
 uses:
   skills:
@@ -55,6 +58,8 @@ phases:
   - pr-merge-readiness
   outputs:
   - pr-merge-readiness-report.json
+  - github-publication.md
+  - github-publication-result.json
 - name: readiness-gate
   id: readiness_gate
   kind: gate
@@ -80,6 +85,8 @@ exit_criteria:
 - Required review-gate evidence is present, fresh for the current material
   change, bound to the source workflow/project binding/explicit review-gate
   requirements artifact and validated by the deterministic evaluator.
+- "Awaiting-human and accepted merge-ready states have published GitHub PR
+  summary-comment evidence with `required_for_merge_readiness: true`."
 - Accepted merge-ready status has a human merge decision bound to the current
   material change and exact readiness report hash.
 - Missing evidence, stale review evidence and live-vs-mock external review gaps

@@ -84,9 +84,15 @@
     "status": "missing"
   },
   "github_publication": {
-    "status": "skipped",
-    "required_for_merge_readiness": false,
-    "reason": "Human selected no GitHub PR publication for this readiness run."
+    "status": "published",
+    "required_for_merge_readiness": true,
+    "publication_mode": "summary_comment",
+    "target": "pull_request",
+    "tool": "gh",
+    "action": "pr comment",
+    "body_path": "github-publication.md",
+    "result_path": "github-publication-result.json",
+    "url": "<github-pr-comment-url>"
   },
   "self_application": {
     "enabled": false,

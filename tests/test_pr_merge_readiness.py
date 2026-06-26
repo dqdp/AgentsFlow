@@ -48,6 +48,26 @@ def write_evidence(root: Path, *paths: str) -> None:
         path.write_text(f"evidence for {ref}\n", encoding="utf-8")
 
 
+def write_github_publication_evidence(root: Path) -> None:
+    write_evidence(root, "github-publication.md")
+    (root / "github-publication-result.json").write_text(
+        json.dumps(
+            {
+                "provider": "github",
+                "tool": "gh",
+                "action": "pr comment",
+                "status": "published",
+                "pr": 1,
+                "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
+                "body_path": "github-publication.md",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def write_report(root: Path, report: dict) -> Path:
     path = root / "pr-merge-readiness-report.json"
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
@@ -367,9 +387,15 @@ def complete_report() -> dict:
             "path": "human-decisions.yaml",
         },
         "github_publication": {
-            "status": "skipped",
-            "required_for_merge_readiness": False,
-            "reason": "Human selected no GitHub PR publication for this fixture.",
+            "status": "published",
+            "required_for_merge_readiness": True,
+            "publication_mode": "summary_comment",
+            "target": "pull_request",
+            "tool": "gh",
+            "action": "pr comment",
+            "body_path": "github-publication.md",
+            "result_path": "github-publication-result.json",
+            "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
         },
         "self_application": {
             "enabled": True,
@@ -535,6 +561,7 @@ def prepare_complete_evidence(root: Path) -> None:
         "evidence/repo-validation.log",
         "evidence/pytest.log",
     )
+    write_github_publication_evidence(root)
     for source_path, matrix in [
         (DEFAULT_REQUIREMENTS_SOURCE, PR_REVIEW_MATRIX),
         (WITH_CLAUDE_REQUIREMENTS_SOURCE, PR_REVIEW_MATRIX + [CLAUDE_REVIEW]),
@@ -769,7 +796,7 @@ def test_hash_bound_human_decision_accepts_candidate_report_without_self_status(
     assert result["human_decision"]["status"] == "accepted"
 
 
-def test_github_publication_is_not_required_for_readiness(
+def test_github_publication_is_required_before_human_decision(
     tmp_path: Path,
 ) -> None:
     report = complete_report()
@@ -779,12 +806,12 @@ def test_github_publication_is_not_required_for_readiness(
 
     result = load_evaluator()(tmp_path, path)
 
-    assert result["state"] == "accepted_merge_ready"
-    assert result["accepted"] is True
-    assert result["blockers"] == []
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_missing" in result["blockers"]
 
 
-def test_requested_github_publication_is_nonblocking_before_publication(tmp_path: Path) -> None:
+def test_requested_github_publication_blocks_before_human_decision(tmp_path: Path) -> None:
     report = complete_report()
     report["github_publication"]["status"] = "requested"
     prepare_complete_evidence(tmp_path)
@@ -792,16 +819,16 @@ def test_requested_github_publication_is_nonblocking_before_publication(tmp_path
 
     result = load_evaluator()(tmp_path, path)
 
-    assert result["state"] == "accepted_merge_ready"
-    assert result["accepted"] is True
-    assert "github_publication_evidence_missing" not in result["blockers"]
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_missing" in result["blockers"]
 
 
 def test_published_github_publication_with_evidence_can_pass(tmp_path: Path) -> None:
     report = complete_report()
     report["github_publication"] = {
         "status": "published",
-        "required_for_merge_readiness": False,
+        "required_for_merge_readiness": True,
         "publication_mode": "summary_comment",
         "target": "pull_request",
         "tool": "gh",
@@ -811,23 +838,7 @@ def test_published_github_publication_with_evidence_can_pass(tmp_path: Path) -> 
         "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
     }
     prepare_complete_evidence(tmp_path)
-    write_evidence(tmp_path, "github-publication.md")
-    (tmp_path / "github-publication-result.json").write_text(
-        json.dumps(
-            {
-                "provider": "github",
-                "tool": "gh",
-                "action": "pr comment",
-                "status": "published",
-                "pr": 1,
-                "url": "https://github.example.invalid/org/repo/pull/1#issuecomment-1",
-                "body_path": "github-publication.md",
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    write_github_publication_evidence(tmp_path)
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)
@@ -837,6 +848,19 @@ def test_published_github_publication_with_evidence_can_pass(tmp_path: Path) -> 
     assert result["blockers"] == []
 
 
+def test_github_publication_must_be_required_for_merge_readiness(
+    tmp_path: Path,
+) -> None:
+    report = complete_report()
+    report["github_publication"]["required_for_merge_readiness"] = False
+
+    result = evaluate(tmp_path, report)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "github_publication_evidence_invalid" in result["blockers"]
+
+
 def test_published_github_publication_requires_result_artifact_url(
     tmp_path: Path,
 ) -> None:
@@ -844,7 +868,7 @@ def test_published_github_publication_requires_result_artifact_url(
     report["status"] = "blocked_missing_evidence"
     report["github_publication"] = {
         "status": "published",
-        "required_for_merge_readiness": False,
+        "required_for_merge_readiness": True,
         "publication_mode": "summary_comment",
         "target": "pull_request",
         "tool": "gh",
@@ -879,14 +903,14 @@ def test_published_github_publication_requires_result_artifact_url(
     assert "github_publication_evidence_missing" in result["blockers"]
 
 
-def test_requested_github_publication_requires_default_result_shape(
+def test_published_github_publication_requires_default_result_shape(
     tmp_path: Path,
 ) -> None:
     report = complete_report()
     report["status"] = "blocked_missing_evidence"
     report["github_publication"] = {
         "status": "published",
-        "required_for_merge_readiness": False,
+        "required_for_merge_readiness": True,
         "publication_mode": "summary_comment",
         "target": "pull_request",
         "tool": "gh",

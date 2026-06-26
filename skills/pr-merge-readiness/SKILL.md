@@ -21,7 +21,8 @@ report and referenced artifacts.
 - external reviewer invocation metadata when external review is required;
 - finding-validation report and collision-control evidence when applicable;
 - human merge decision record when accepted merge-ready status is claimed;
-- optional GitHub publication evidence when publication is claimed.
+- GitHub PR summary-comment publication evidence before awaiting a human merge
+  decision or claiming accepted merge-ready status.
 
 ## Outputs
 
@@ -45,12 +46,16 @@ report and referenced artifacts.
    invocation metadata, when an external-backed review is required.
 6. Reference finding-validation and collision-control evidence for accepted,
    rejected, downgraded or duplicate blocker-path findings.
-7. Reference the human merge decision only when it is human-authored,
+7. Publish a concise readiness summary as a GitHub PR comment and record both
+   the exact comment body and publication result as evidence. Do this before
+   entering `awaiting_human_decision`; skipped, requested, failed or missing
+   publication evidence is a blocker.
+8. Reference the human merge decision only when it is human-authored,
    confirmed, and bound to the current material change and readiness report
    hash.
-8. Mark missing, stale or blocked evidence explicitly instead of inferring
+9. Mark missing, stale or blocked evidence explicitly instead of inferring
    success.
-9. Run the deterministic readiness evaluator through repository validation with
+10. Run the deterministic readiness evaluator through repository validation with
    the concrete report path:
    `python3 scripts/validate_repo.py --root . --pr-merge-readiness-report <path>`.
 
@@ -62,6 +67,8 @@ report and referenced artifacts.
   incomplete readiness states.
 - Review agents and external providers produce candidate findings only.
 - Accepted merge-ready status requires fresh required review-gate evidence.
+- `awaiting_human_decision` requires published GitHub PR summary-comment
+  evidence; it is not a purely local report state.
 
 ## Anti-Patterns
 
@@ -70,5 +77,7 @@ report and referenced artifacts.
   report when the source workflow or project binding already owns it.
 - Treating green tests plus reviewer approval as accepted merge-ready without a
   hash-bound human decision.
+- Entering `awaiting_human_decision` before the PR readiness summary comment is
+  published to GitHub and captured as evidence.
 - Treating green tests without required review-gate evidence as merge-ready.
 - Treating mock external reviewer evidence as live provider evidence.

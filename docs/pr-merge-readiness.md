@@ -24,8 +24,8 @@ The workflow records:
 - finding validation and collision-control evidence for rejected or downgraded
   plausible blocker-path candidate findings;
 - stale review detection when material changes postdate review packets;
-- human merge decision status;
-- optional GitHub PR publication intent and evidence.
+- GitHub PR summary-comment publication evidence;
+- human merge decision status.
 
 Accepted merge-ready status requires fresh required review-gate evidence and a
 recorded human decision. Green checks without review evidence are blocked;
@@ -37,10 +37,10 @@ accepted answer. For `merge.acceptance`, the decision record must also bind the
 accepted artifact by `material_change_id` and the exact readiness report
 `report_hash`. An in-band `{status: accepted}` field is not sufficient.
 
-The readiness summary may be published back to the GitHub PR after final
-acceptance by a separate operator action. Publication evidence may be referenced
-when the report claims publication, but publication is outside the acceptance
-proof and is not part of this utility's workflow orchestration.
+The readiness summary must be published back to the GitHub PR before the run can
+enter `awaiting_human_decision`. Publication evidence is part of the readiness
+proof: green checks and clean review evidence without the PR comment remain
+blocked as missing evidence.
 
 The readiness evaluator treats these surfaces as blocking:
 
@@ -75,8 +75,8 @@ The readiness evaluator treats these surfaces as blocking:
   pointer persistence;
 - redacted, summary or pointer raw-output evidence without a concrete artifact
   path and hash;
-- claimed published GitHub publication without recorded publication result
-  evidence and URL;
+- missing, requested, skipped, failed or malformed GitHub PR summary-comment
+  publication evidence;
 - self-application reports that claim the bootstrap run proves itself.
 
 ## Review Evidence
@@ -126,11 +126,12 @@ sufficient for accepted merge-ready status. A report may have been generated
 before that decision was recorded; the evaluator computes the final state from
 the report plus the external hash-bound human decision record.
 
-If a separate publication action runs, the default publication mode is a single
-PR summary comment:
+Before `awaiting_human_decision`, the default publication mode is a single PR
+summary comment:
 
 ```yaml
 publication_mode: summary_comment
+required_for_merge_readiness: true
 target: pull_request
 tool: gh
 action: pr comment
@@ -152,8 +153,7 @@ result_path: github-publication-result.json
 It must not include raw Claude output, full reviewer reports, long command logs,
 private reasoning details or unnecessary absolute local paths.
 
-If publication runs, `github-publication-result.json` records the publication
-result:
+`github-publication-result.json` records the publication result:
 
 ```json
 {
@@ -167,9 +167,9 @@ result:
 }
 ```
 
-When the report claims `github_publication.status: published`, the readiness
-evaluator requires this default evidence shape. Other publication states do not
-block merge readiness.
+The readiness evaluator requires this default evidence shape before
+`awaiting_human_decision`. Any other publication state blocks merge readiness as
+missing publication evidence.
 
 Each review packet must be anchored to the evaluated readiness report: packet
 `run_id` must match report `run_id`, and packet `material_change_id` must match
