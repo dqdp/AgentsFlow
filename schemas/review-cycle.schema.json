@@ -8,6 +8,7 @@
     "default_exit_when": {
       "enum": [
         "no_validated_blocking_findings",
+        "no_validated_blockers_or_mandatory_evidence_gaps",
         "workflow_defined",
         "human_decision"
       ]

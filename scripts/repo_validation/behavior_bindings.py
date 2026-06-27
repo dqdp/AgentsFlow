@@ -12,6 +12,30 @@ VALID_BINDING_CHECK_TYPES = {
 }
 
 
+def _contract_scenarios(contract_path: Path) -> set[str]:
+    try:
+        lines = contract_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return set()
+    scenarios: set[str] = set()
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("Scenario:"):
+            scenario = stripped.split("Scenario:", 1)[1].strip()
+            if scenario:
+                scenarios.add(scenario)
+    return scenarios
+
+
+def _allows_placeholder_contract_refs(path: Path) -> bool:
+    return path.name == "behavior-bindings.yaml" and path.parent.name == "templates"
+
+
+def _is_placeholder_contract_ref(path: Path, contract_ref: object) -> bool:
+    text = str(contract_ref)
+    return _allows_placeholder_contract_refs(path) and (text == "task.contract.md" or ("<" in text and ">" in text))
+
+
 def validate_behavior_binding(path: Path) -> list[str]:
     errors: list[str] = []
     data = parse_yaml(path) or {}
@@ -23,6 +47,12 @@ def validate_behavior_binding(path: Path) -> list[str]:
     bindings = data.get("bindings", []) or []
     if not isinstance(bindings, list):
         return errors + [f"{path}: bindings must be a list"]
+    default_contract = data.get("contract")
+    default_contract_scenarios: set[str] | None = None
+    if default_contract and not _allows_placeholder_contract_refs(path):
+        default_contract_path = path.parent / str(default_contract)
+        if default_contract_path.is_file():
+            default_contract_scenarios = _contract_scenarios(default_contract_path)
     seen: set[str] = set()
     for idx, item in enumerate(bindings):
         if not isinstance(item, dict):
@@ -35,6 +65,25 @@ def validate_behavior_binding(path: Path) -> list[str]:
         for key in ["id", "scenario", "required", "checks", "gates"]:
             if key not in item:
                 errors.append(f"{path}: binding {bid} missing {key}")
+        scenario = item.get("scenario")
+        source = item.get("source") or {}
+        source_path = source.get("path") if isinstance(source, dict) else None
+        source_scenarios = default_contract_scenarios
+        if source_path and source_path != default_contract:
+            source_contract_path = path.parent / str(source_path)
+            if source_contract_path.is_file():
+                source_scenarios = _contract_scenarios(source_contract_path)
+            elif item.get("required") is True and not _is_placeholder_contract_ref(path, source_path):
+                errors.append(f"{path}: binding {bid} source contract file does not exist: {source_path}")
+        elif (
+            item.get("required") is True
+            and default_contract
+            and default_contract_scenarios is None
+            and not _is_placeholder_contract_ref(path, default_contract)
+        ):
+            errors.append(f"{path}: binding {bid} contract file does not exist: {default_contract}")
+        if item.get("required") is True and isinstance(scenario, str) and source_scenarios is not None and scenario not in source_scenarios:
+            errors.append(f"{path}: binding {bid} scenario is not declared in contract: {scenario}")
         if item.get("required") is True and not item.get("checks"):
             errors.append(f"{path}: required binding {bid} has no checks")
         if item.get("required") is True and not item.get("gates"):

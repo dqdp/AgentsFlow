@@ -223,13 +223,14 @@ that as an answered human decision. When `knowledge-extraction` is selected, the
 agent must also record the human-confirmed extraction depth as `light`,
 `standard` or `deep`.
 `target_workflow_context_decision_packet` is conditional for `prepare-workflow`:
-it captures missing target-workflow gate, review, evidence or authority context,
-plus material scope, ADR, risk-surface, Failure Path Matrix, contract, gate,
-review, evidence, authority or workflow-design forks discovered during
-target-workflow preparation, as a run-level decision packet. It does not
-normalize those answers into
-`project-operating-decisions.yaml` unless the human explicitly chooses onboarding
-or persistent policy activation.
+it captures bounded target-workflow open decisions discovered by readiness
+preflight as a run-level decision packet. Each decision references the owning
+target workflow or project-binding requirement, records whether it is run-scoped
+or a persistent policy candidate, and includes rationale. Deferred target-workflow
+decisions must include deferral constraints and residual risk. The packet does
+not normalize those answers into `project-operating-decisions.yaml` or activate
+persistent policy unless the human explicitly chooses onboarding or persistent
+policy activation.
 
 ### Human-mediated design decision checkpoints
 
@@ -242,7 +243,7 @@ resumes the workflow.
 The checkpoint may exit only when:
 
 ```text
-- blocking-material decisions are confirmed or explicitly deferred with stated constraints;
+- blocking-material decisions are confirmed or explicitly deferred with stated constraints and residual risk;
 - decision packet and preflight run artifacts are updated;
 - unresolved nonblocking questions are recorded as defaults, limitations or follow-ups;
 - no unresolved design decision blocks the next workflow gate.

@@ -44,11 +44,12 @@ that risk or the workflow upgrades depth to `standard` or `deep`.
 The human operating-decisions step is conversational. In `adoption-onboarding`,
 the agent asks focused questions, summarizes decisions back to the human, and
 records the normalized long-lived result as `project-operating-decisions.yaml`.
-In `prepare-workflow`, missing target-workflow gate/review/evidence/authority
-context and material target-workflow design forks are captured as a run-level
-human decision packet instead of being promoted into project operating policy.
-Unresolved blocking-material forks block target workflow readiness unless they
-are explicitly deferred with stated constraints.
+In `prepare-workflow`, bounded target-workflow open decisions are captured as a
+run-level human decision packet instead of being promoted into project operating
+policy. Each item references its owning requirement and records whether it is
+run-scoped or a persistent policy candidate. Unresolved blocking-material forks
+block target workflow readiness unless they are explicitly deferred with stated
+constraints and residual risk.
 Target workflow binding/readiness handoff artifacts are drafted after the
 readiness gate, not before it.
 The human is not asked to manually fill a YAML or JSON file.
@@ -56,5 +57,9 @@ The human is not asked to manually fill a YAML or JSON file.
 Draft overlay artifacts, including `active-instruction-map.yaml`, remain
 non-active until human approval. They are produced only by modes that draft or
 activate project bindings/policy.
+
+Initialization review uses the standard review-control pipeline. The workflow
+selects where initialization review applies; shared review-control rules own
+candidate finding semantics, materiality classification and review-cycle exit.
 
 This is a lifecycle/onboarding workflow, not a normal development workflow.

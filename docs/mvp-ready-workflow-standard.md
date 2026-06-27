@@ -221,7 +221,7 @@ adoption-onboarding
 prepare-workflow
   require target_workflow -> documentation disposition with explicit human-confirmed documentation adoption mode
   -> confirm sufficient target workflow operating context
-  -> capture missing target workflow decisions or material design forks as a run-level decision packet
+  -> capture bounded target-workflow open decisions as a run-level decision packet
   -> target workflow readiness gate
   -> draft target workflow binding/readiness handoff only when ready
   -> initialization review -> finding validation

@@ -205,7 +205,7 @@ Fusion may recommend a cycle decision, but the default AgentsFlow exit criterion
 validated by the main/orchestrating agent:
 
 ```text
-no_validated_blocking_findings
+no_validated_blockers_or_mandatory_evidence_gaps
 ```
 
 Repeated review agents are not rerun when all P0/P1 candidate findings have been

@@ -126,7 +126,7 @@ bindings:
     gates:
       - verification_gate
   - id: AF-V02-BHV-008
-    scenario: "Prepare-workflow missing context or design forks use a run-level decision packet"
+    scenario: "Prepare-workflow bounded open decisions use a run-level decision packet"
     required: true
     status: executable
     source:
@@ -143,6 +143,11 @@ bindings:
       - id: pytest-prepare-readiness-blocks-material-design
         type: test
         command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_target_workflow_readiness_gate_blocks_unresolved_material_design_decisions"
+        evidence:
+          - pytest-output
+      - id: pytest-target-workflow-human-decisions-open-fields
+        type: test
+        command: ".venv/bin/python -m pytest tests/test_scripts_smoke.py::test_target_workflow_human_decisions_require_open_decision_fields"
         evidence:
           - pytest-output
     gates:

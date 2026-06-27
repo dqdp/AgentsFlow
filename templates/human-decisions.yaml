@@ -16,11 +16,14 @@ decisions:
   - decision_id: target_workflow.deferred_scope_boundary
     phase_id: target_workflow_context_decision_packet
     question_ref: target_workflow.deferred_scope_boundary
+    owning_requirement_ref: big-feature-contract-first.scope
+    decision_scope: run_scoped
     answer: defer-with-explicit-boundary
     status: explicitly_deferred_with_constraints
     answered_by: human
     classification: blocking-material
     rationale: "The deferred scope is not needed for the current target workflow run."
+    residual_risk: "The deferred scope must not be treated as implemented or accepted policy."
     deferral_constraints:
       constraints:
         - The target workflow binding must mark the deferred scope out of scope for this run.

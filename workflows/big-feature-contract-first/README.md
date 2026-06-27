@@ -70,3 +70,9 @@ After review, fixes are classified as material or non-material before deciding
 whether another review cycle is required. A P2 finding can still produce a
 material fix if the fix changes schemas, validators, workflow policy, bindings,
 mandatory evidence or examples used as evidence.
+
+The workflow uses the standard review-control pipeline instead of duplicating
+review/fusion/finding-validation internals in `workflow.yaml`. Because
+big-feature-contract-first defaults to L3, fusion remains required here; the
+shared review-control model owns the detailed fusion and finding-validation
+semantics.

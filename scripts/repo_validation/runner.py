@@ -46,6 +46,7 @@ from .review import (
     validate_review_packet_artifact,
     validate_phase_skills_declared,
     validate_reviewer_report_artifact,
+    validate_standard_review_control_glue_guardrail,
     validate_supported_review_topologies,
     validate_upstream_review_cycle_policy,
     validate_v02_review_control_materiality_policy,
@@ -337,6 +338,7 @@ def validate_repository(
         errors.extend(validate_supported_review_topologies(wf, data))
         errors.extend(validate_upstream_review_cycle_policy(wf, data))
         errors.extend(validate_v02_review_control_phase_policy(wf, data))
+        errors.extend(validate_standard_review_control_glue_guardrail(wf, data))
         errors.extend(validate_required_review_gate_order(wf, data))
         errors.extend(validate_review_fusion_validation_order(wf, data))
         errors.extend(validate_v02_review_control_materiality_policy(wf, data))

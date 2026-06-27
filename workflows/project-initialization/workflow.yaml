@@ -120,7 +120,7 @@ mode_gated_outputs:
   - project-documentation-disposition.yaml
   - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
   - target workflow binding draft
-  - target workflow human decision packet when target workflow operating context is missing or material design decisions are discovered
+  - target workflow human decision packet when bounded target-workflow open decisions are discovered
   - finding-validation-report.md
   - review-cycle-report.md
   legacy-cleanup:
@@ -165,7 +165,7 @@ intent_mode_phase_policy:
   prepare-workflow:
     requires_target_workflow: true
     requires_sufficient_operating_context: true
-    target_workflow_context_decision_packet: conditional_when_target_workflow_context_or_material_design_decision_is_missing
+    target_workflow_context_decision_packet: conditional_when_bounded_target_workflow_open_decisions_are_discovered
     overlay_scope: target_workflow_binding_and_gate_readiness_only
     requires:
     - documentation_disposition_decision
@@ -467,25 +467,29 @@ phases:
   kind: decision
   applies_to_intent_modes:
   - prepare-workflow
-  purpose: Capture missing gate, review, evidence or authority context, plus
-    material scope, ADR, risk-surface, Failure Path Matrix, contract, gate,
-    review, evidence, authority or workflow-design decisions discovered while
-    preparing the declared target workflow, as a run-level decision packet.
-    This phase must not promote those answers into long-lived project operating
-    policy unless the human explicitly switches to onboarding or policy
-    activation.
-  decision_categories:
-  - scope
-  - adr
-  - risk
-  - risk-surface
-  - failure-path-matrix
-  - contract
-  - gate
-  - review
-  - evidence
-  - authority
-  - workflow-design
+  purpose: Capture bounded target-workflow open decisions discovered by readiness
+    preflight. Each decision references the owning target workflow or project
+    binding requirement, records whether it is run-scoped or a persistent policy
+    candidate, and must not activate persistent project policy by itself.
+  open_decision_packet:
+    packet_kind: target_workflow_open_decisions
+    discovered_by: target_workflow_readiness_preflight
+    owning_requirement_ref_required: true
+    allowed_decision_scopes:
+    - run_scoped
+    - persistent_policy_candidate
+    required_fields:
+    - decision_id
+    - owning_requirement_ref
+    - decision_scope
+    - classification
+    - status
+    - affected_artifacts
+    - rationale
+    deferral_requires:
+    - deferral_constraints
+    - residual_risk
+    persistent_policy_activation_allowed: false
   mode: human_guided
   coordinator: main-agent
   human_interaction:
@@ -547,8 +551,7 @@ phases:
   - target_workflow_context_decision_packet
   runs_after_policy: after_conditional_target_workflow_context_decision_packet_when_required
   purpose: Validate that prepare-workflow has a declared target workflow and enough
-    project-bound operating context, or has captured the missing gate, review,
-    evidence, risk-surface, Failure Path Matrix, authority and material design
+    project-bound operating context, or has captured bounded target-workflow open
     decisions as a human decision packet.
   outputs:
   - target-workflow-readiness-gate-report.md
@@ -568,7 +571,7 @@ phases:
   - project-documentation-disposition.yaml
   - project-knowledge-extraction.md when documentation_legacy_adoption.mode is knowledge-extraction
   - target-workflow-readiness-gate-report.md
-  - target workflow human decision packet when prepare-workflow mode has missing context or material design decisions
+  - target workflow human decision packet when prepare-workflow mode has bounded target-workflow open decisions
   - existing project policy/workflow binding when prepare-workflow mode already has sufficient context
   outputs:
   - target workflow binding draft for prepare-workflow
@@ -646,10 +649,10 @@ exit_criteria:
 - For adoption-onboarding, human operating decisions were collected through an
   agent-led dialogue or explicitly marked as unresolved before overlay drafting.
 - For prepare-workflow, sufficient target workflow operating context was found
-  or missing gate/review/evidence/risk-surface/Failure Path Matrix/authority
-  context and material target-workflow design decisions were confirmed or
-  explicitly deferred with stated constraints in a human decision packet.
-  Unresolved blocking-material decisions block target workflow readiness.
+  or bounded target-workflow open decisions were confirmed or explicitly
+  deferred with owning requirement references, stated constraints and residual
+  risk in a human decision packet. Unresolved blocking-material decisions block
+  target workflow readiness.
 - For unknown-discovery and risk-domain-assessment, overlay drafting and human
   approval were not required unless explicitly requested.
 - Project overlay or target workflow binding was drafted or explicitly deferred
@@ -662,13 +665,10 @@ exit_criteria:
   onboarding was in scope.
 - Active instruction map exists or is explicitly deferred for non-existing legacy
   artifacts.
-review_control_rules:
-  review_findings_are_candidate_findings: true
-  main_agent_must_validate_finding_relevance: true
-  post_fix_materiality_classification_required: true
 review:
   topology: homogeneous-dual
   composition: homogeneous
+  control_policy: standard-review-control
   reviewers:
   - generalist-a
   - generalist-b
@@ -688,34 +688,11 @@ review:
   - target_workflow_readiness_gate
   fusion_required: false
 review_cycle:
-  default_exit_when: no_validated_blocking_findings
+  policy: standard-review-control
+  default_exit_when: no_validated_blockers_or_mandatory_evidence_gaps
   max_review_cycles_required: false
   max_review_cycles_source: project_policy_or_workflow_binding
   max_review_cycles_absent_means: unlimited
-  rerun_review_on:
-  - project_overlay_materially_changed
-  - mandatory_evidence_added
-  - human_requested
-  do_not_rerun_on:
-  - nonblocking_findings_with_non_material_fixes_only
-  - irrelevant_findings_rejected_with_reason
-  materiality_classification:
-    required_after_review_fixes: true
-    material_triggers_take_precedence_over_do_not_rerun: true
-    material_if_changes:
-    - task_contract_or_scope
-    - selected_risk_surfaces_or_failure_path_matrix
-    - behavior_bindings
-    - affected_implementation_behavior
-    - review_packet_content
-    - target_workflow_context_decision_packet
-    - project_overlay_or_binding
-    - workflow_or_gate_policy
-    - review_cycle_policy
-    - schema_or_validator
-    - mandatory_evidence
-    - examples_used_as_evidence
-    non_material_if_only:
-    - report_editorial_changes_only
-    - duplicate_consolidation
-    - non_source_of_truth_notes
+  materiality_classification_source:
+  - finding-validation-report.md
+  - review-cycle-report.md

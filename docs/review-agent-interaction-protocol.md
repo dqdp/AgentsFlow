@@ -395,7 +395,7 @@ Each workflow may define:
 
 ```yaml
 review_cycle:
-  default_exit_when: no_validated_blocking_findings
+  default_exit_when: no_validated_blockers_or_mandatory_evidence_gaps
   max_review_cycles_required: false
   max_review_cycles_source: project_policy_or_workflow_binding
   max_review_cycles_absent_means: unlimited

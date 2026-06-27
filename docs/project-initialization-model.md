@@ -39,9 +39,10 @@ No review-agent-to-human questioning; human interaction is mediated by the main 
 ```
 
 `prepare-workflow` may use existing project policy/workflow binding evidence, or
-record missing target-workflow gate/review/evidence/authority context and
-material target-workflow design decisions in the run-level
-`target_workflow_context_decision_packet`. That packet is not a substitute for
+record bounded target-workflow open decisions in the run-level
+`target_workflow_context_decision_packet`. Each open decision references its
+owning target workflow or project-binding requirement and is classified as
+run-scoped or a persistent policy candidate. That packet is not a substitute for
 persistent `project-operating-decisions.yaml` unless the human explicitly chooses
 onboarding or policy activation.
 
@@ -287,11 +288,13 @@ The agent must ask focused questions, offer conservative defaults when supported
 by evidence, and summarize decisions back to the human. For
 `adoption-onboarding` or explicit persistent policy activation, the normalized
 result is `project-operating-decisions.yaml`. For `prepare-workflow`, missing
-target-workflow operating context and material scope, ADR, risk-surface, Failure
-Path Matrix, contract, gate, review, evidence, authority or workflow-design
-decisions are recorded in the run-level `target_workflow_context_decision_packet`
-unless the human explicitly switches to onboarding or persistent policy
-activation.
+target-workflow operating context and material target-workflow decisions are
+recorded in the run-level `target_workflow_context_decision_packet` unless the
+human explicitly switches to onboarding or persistent policy activation. The
+packet is bounded: each open decision references the owning target workflow or
+project-binding requirement, is classified as `run_scoped` or
+`persistent_policy_candidate`, and cannot activate persistent project policy by
+itself.
 
 For `prepare-workflow`, a material design decision is any human-owned choice that
 can change the target workflow binding, gate set, evidence policy, authority
@@ -300,8 +303,8 @@ implementation scope. It is a declared human-mediated checkpoint: the
 main/orchestrating agent groups options, pauses for the human answer, records the
 answer in the decision packet and preflight run artifacts, and resumes only when
 blocking-material decisions are confirmed or explicitly deferred with stated
-constraints and no unresolved decision blocks the next gate. Target workflow
-binding/readiness handoff artifacts are drafted only after
+constraints plus residual risk and no unresolved decision blocks the next gate.
+Target workflow binding/readiness handoff artifacts are drafted only after
 `target_workflow_readiness_gate` accepts the operating context.
 
 Each material decision is marked as one of:
@@ -359,9 +362,9 @@ prepare-workflow
   Confirm `target_workflow`, record run-level `project-documentation-disposition.yaml`
   with a human-confirmed documentation legacy adoption mode,
   check whether sufficient gate/review/evidence/risk-surface, Failure Path Matrix and authority context exists,
-  capture missing context or material design forks in a run-level target workflow
-  human decision packet and ask grouped human questions for missing material
-  context, block readiness on unresolved blocking-material forks, run
+  capture bounded target-workflow open decisions in a run-level human decision
+  packet and ask grouped human questions for missing material context, block
+  readiness on unresolved blocking-material forks, run
   `target_workflow_readiness_gate`, then draft only target-workflow
   binding/readiness handoff artifacts when ready.
 
