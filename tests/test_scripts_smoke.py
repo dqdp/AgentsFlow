@@ -2376,6 +2376,32 @@ def test_review_only_fusion_requires_finding_validation_phase() -> None:
     assert "must include finding_validation phase" in "\n".join(errors)
 
 
+def test_project_initialization_review_validation_order_is_covered() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/project-initialization/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    phases = broken["phases"]
+    review_index = next(index for index, phase in enumerate(phases) if phase.get("id") == "initialization_review")
+    validation_index = next(index for index, phase in enumerate(phases) if phase.get("id") == "finding_validation")
+    phases[review_index], phases[validation_index] = phases[validation_index], phases[review_index]
+    for phase in phases:
+        if phase.get("id") == "finding_validation":
+            phase["runs_after"] = []
+
+    errors = validate_repo.validate_review_fusion_validation_order(path, broken)
+    joined = "\n".join(errors)
+    assert "review/validation order must be review -> finding_validation" in joined
+    assert "finding_validation phase must run after review" in joined
+
+
 def test_reference_workflow_without_fusion_is_not_v02_review_control_surface() -> None:
     import copy
     import sys

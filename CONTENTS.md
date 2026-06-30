@@ -62,6 +62,8 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - docs/legacy-agent-system-adoption-model.md
 - docs/mvp-ready-workflow-standard.md
 - docs/philosophy.md
+- docs/plans/core-workflow-simplification-audit.md
+- docs/plans/core-workflow-simplification-contract.md
 - docs/plans/phase-transition-control-adr-assessment.md
 - docs/plans/phase-transition-control-slice.md
 - docs/plans/v0.2-next-slices.md
@@ -127,6 +129,8 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - examples/pr-merge-readiness/complete/evidence/make-check.log
 - examples/pr-merge-readiness/complete/evidence/pytest.log
 - examples/pr-merge-readiness/complete/evidence/repo-validation.log
+- examples/pr-merge-readiness/complete/github-publication-result.json
+- examples/pr-merge-readiness/complete/github-publication.md
 - examples/pr-merge-readiness/complete/human-decisions.yaml
 - examples/pr-merge-readiness/complete/pr-merge-readiness-report.json
 - examples/pr-merge-readiness/complete/profiles/reviewer_roles/adversarial.yaml

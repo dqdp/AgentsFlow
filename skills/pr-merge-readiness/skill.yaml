@@ -13,7 +13,6 @@ inputs:
 - review_reports
 - external_reviewer_invocation_metadata
 - finding_validation_report
-- collision_control_evidence
 - human_merge_decision
 outputs:
 - pr_merge_readiness_report
