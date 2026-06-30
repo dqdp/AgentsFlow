@@ -2356,6 +2356,44 @@ def test_review_packet_rejects_green_markdown_gate_with_failed_checks_executed_r
     )
 
 
+def test_review_packet_accepts_template_shaped_markdown_green_gate(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-markdown-template-shaped-green",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    evidence_path = packet_path.parent.parent / "evidence/pytest.log"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("pytest passed\nexit_code=0\n", encoding="utf-8")
+    report_path.write_text(
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Checks executed by gate",
+                "",
+                "| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |",
+                "|---|---|---|---|---:|---|---|",
+                "| Unit tests | pytest |  |  | yes | pass | passed |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert _validate_required_green_review_packet(root, packet_path) == []
+
+
 def test_review_packet_rejects_green_markdown_headerless_nonzero_exit_code(tmp_path) -> None:
     _assert_required_green_review_packet_rejected(
         tmp_path,

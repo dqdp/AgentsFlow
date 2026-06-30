@@ -128,6 +128,7 @@ MARKDOWN_TABLE_HEADER_CELLS = {
     "instrument",
     "notes",
     "output summary",
+    "path class",
     "raw log path",
     "required",
     "result",
