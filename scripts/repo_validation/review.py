@@ -276,12 +276,44 @@ def _markdown_green_evidence_row_is_valid(cells: list[str], headers: list[str] |
     return any(_markdown_cell_has_material(cells[index]) for index in evidence_indexes)
 
 
+def _markdown_optional_skip_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
+    if headers is None:
+        return False
+    required_indexes = [
+        index
+        for index, header in enumerate(headers[: len(cells)])
+        if header == "required"
+    ]
+    state_indexes = _markdown_state_indexes(headers, cells)
+    if not required_indexes or not state_indexes:
+        return False
+    required_values = {
+        cells[index].strip().lower()
+        for index in required_indexes
+        if index < len(cells)
+    }
+    if not (required_values & {"no", "false"}):
+        return False
+    normalized_cells = [_normalize_gate_state(cell) for cell in cells]
+    if not all(normalized_cells[index] in {"skip", "skipped"} for index in state_indexes):
+        return False
+    notes_indexes = [
+        index
+        for index, header in enumerate(headers[: len(cells)])
+        if header == "notes"
+    ]
+    return any(_markdown_cell_has_material(cells[index]) for index in notes_indexes)
+
+
 def _markdown_green_state_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
     if headers is None:
         return False
     identity = cells[0].strip()
     if not _markdown_cell_has_material(identity) or identity.lower() in MARKDOWN_TABLE_HEADER_CELLS:
         return False
+
+    if _markdown_optional_skip_row_is_valid(cells, headers):
+        return True
 
     normalized_cells = [_normalize_gate_state(cell) for cell in cells]
     if any(state in MARKDOWN_NON_GREEN_RESULT_STATES for state in normalized_cells):
@@ -489,7 +521,13 @@ def _json_exit_code_is_zero(value: object) -> bool:
 def _json_verification_check_has_material_evidence(check: dict, *, report_path: Path) -> bool:
     path_keys = [key for key in JSON_PATH_EVIDENCE_KEYS if key in check]
     if path_keys:
-        return all(_json_path_value_has_existing_evidence(check[key], report_path=report_path) for key in path_keys)
+        material_path_values = [
+            check[key]
+            for key in path_keys
+            if _json_value_has_material(check[key])
+        ]
+        if material_path_values:
+            return all(_json_path_value_has_existing_evidence(value, report_path=report_path) for value in material_path_values)
     return any(_json_value_has_material(check.get(key)) for key in JSON_SUMMARY_EVIDENCE_KEYS if key in check)
 
 

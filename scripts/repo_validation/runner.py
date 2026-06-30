@@ -98,11 +98,11 @@ def _tracked_file_refs(root: Path) -> tuple[list[Path], list[str]]:
 
 
 def _is_agentsflow_local_run_artifact(rel: Path) -> bool:
-    return rel.parts[:1] == ("run-artifacts",)
+    return rel.parts[:1] in {(".agentsflow",), ("run-artifacts",)}
 
 
 def _is_tracked_agentsflow_local_artifact(rel: Path) -> bool:
-    return rel.parts[:1] in {(".agentsflow",), ("run-artifacts",)}
+    return _is_agentsflow_local_run_artifact(rel)
 
 
 def _is_agentsflow_local_run_artifact_path(root: Path, path: Path) -> bool:

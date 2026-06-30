@@ -2356,6 +2356,85 @@ def test_review_packet_rejects_green_markdown_gate_with_failed_checks_executed_r
     )
 
 
+def test_review_packet_accepts_green_markdown_gate_with_optional_skipped_check(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-markdown-optional-skip-green",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    evidence_path = packet_path.parent.parent / "evidence/pytest.log"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("pytest passed\nexit_code=0\n", encoding="utf-8")
+    report_path.write_text(
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Checks executed by gate",
+                "",
+                "| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |",
+                "|---|---|---|---|---:|---|---|",
+                "| Optional integration | pytest -m integration |  |  | no | skip | not applicable to this slice |",
+                "| Unit tests | pytest |  |  | yes | pass | passed |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert _validate_required_green_review_packet(root, packet_path) == []
+
+
+def test_review_packet_rejects_green_markdown_gate_with_required_skipped_check(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-markdown-required-skip",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    evidence_path = packet_path.parent.parent / "evidence/ruff.log"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("ruff passed\nexit_code=0\n", encoding="utf-8")
+    report_path.write_text(
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "Status: pass",
+                "",
+                "## Checks executed by gate",
+                "",
+                "| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |",
+                "|---|---|---|---|---:|---|---|",
+                "| Unit tests | pytest |  |  | yes | skip | not run |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| ruff | 0 | pass | lint passed | evidence/ruff.log | evidence/ruff.log |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_required_green_review_packet(root, packet_path)
+
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
 def test_review_packet_accepts_template_shaped_markdown_green_gate(tmp_path) -> None:
     root, packet_path = _copy_example_review_packet(
         tmp_path,
@@ -2559,6 +2638,7 @@ def test_review_packet_accepts_green_json_gate_with_artifact_kind_and_status(tmp
                         "id": "pytest",
                         "status": "pass",
                         "exit_code": 0,
+                        "artifact_paths": [],
                         "raw_log_path": "evidence/pytest.log",
                     }
                 ],
@@ -3955,8 +4035,7 @@ def test_validate_repo_tracked_only_ignores_untracked_files(tmp_path) -> None:
     untracked.write_text("duplicate: one\nduplicate: two\n", encoding="utf-8")
 
     default_result = run("scripts/validate_repo.py", "--root", str(root))
-    assert default_result.returncode != 0
-    assert "duplicate YAML key" in (default_result.stdout + default_result.stderr)
+    assert default_result.returncode == 0, default_result.stdout + default_result.stderr
 
     tracked_result = run("scripts/validate_repo.py", "--root", str(root), "--tracked-only")
     assert tracked_result.returncode == 0, tracked_result.stdout + tracked_result.stderr
