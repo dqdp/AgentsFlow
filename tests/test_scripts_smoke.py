@@ -2328,6 +2328,52 @@ def test_review_packet_rejects_green_markdown_gate_with_named_row_without_eviden
     )
 
 
+def test_review_packet_rejects_green_markdown_gate_with_failed_checks_executed_row(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-failed-check-row",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Checks executed by gate",
+                "",
+                "| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |",
+                "|---|---|---|---|---:|---|---|",
+                "| Unit tests | pytest |  |  | yes | fail | failed |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| ruff | 0 | pass | lint passed | evidence/ruff.log | evidence/ruff.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_headerless_nonzero_exit_code(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-headerless-nonzero-exit",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| pytest | 1 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+    )
+
+
 def test_review_packet_rejects_green_json_gate_with_failed_check(tmp_path) -> None:
     import json
     import shutil
@@ -2407,6 +2453,39 @@ def test_review_packet_rejects_green_json_gate_without_material_evidence(tmp_pat
             "kind": "verification_gate_report",
             "result_state": "pass",
             "checks": [{"id": "repo-validation", "status": "pass", "exit_code": 0}],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_missing_raw_log_path(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-missing-raw-log",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "exit_code": 0,
+                    "raw_log_path": "evidence/missing.log",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_boolean_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-boolean-evidence",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [{"id": "repo-validation", "status": "pass", "exit_code": 0, "evidence": False}],
         },
         "verification-gate-report.json",
     )

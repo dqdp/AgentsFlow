@@ -90,14 +90,16 @@ MARKDOWN_EMPTY_EVIDENCE_VALUES = {
     "tbd",
     "todo",
 }
-JSON_EVIDENCE_KEYS = {
+JSON_PATH_EVIDENCE_KEYS = {
     "artifact_path",
     "artifact_paths",
-    "evidence",
     "evidence_path",
     "log_path",
-    "output_summary",
     "raw_log_path",
+}
+JSON_SUMMARY_EVIDENCE_KEYS = {
+    "evidence",
+    "output_summary",
 }
 MARKDOWN_TABLE_HEADER_CELLS = {
     "artifact paths",
@@ -195,6 +197,11 @@ def _markdown_exit_code_is_zero(cell: str) -> bool:
         return False
 
 
+def _markdown_cell_looks_like_exit_code(cell: str) -> bool:
+    text = cell.strip()
+    return bool(text) and text.lstrip("+-").isdigit()
+
+
 def _markdown_state_indexes(headers: list[str] | None, cells: list[str]) -> list[int]:
     if headers:
         indexes = [
@@ -244,9 +251,26 @@ def _markdown_green_evidence_row_is_valid(cells: list[str], headers: list[str] |
         for index, header in enumerate(headers[: len(cells)]):
             if header == "exit code" and not _markdown_exit_code_is_zero(cells[index]):
                 return False
+    elif len(cells) > 2 and _markdown_cell_looks_like_exit_code(cells[1]) and not _markdown_exit_code_is_zero(cells[1]):
+        return False
 
     evidence_indexes = _markdown_evidence_indexes(headers, cells, state_indexes)
     return any(_markdown_cell_has_material(cells[index]) for index in evidence_indexes)
+
+
+def _markdown_green_state_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
+    identity = cells[0].strip()
+    if not _markdown_cell_has_material(identity) or identity.lower() in MARKDOWN_TABLE_HEADER_CELLS:
+        return False
+
+    normalized_cells = [_normalize_gate_state(cell) for cell in cells]
+    if any(state in MARKDOWN_NON_GREEN_RESULT_STATES for state in normalized_cells):
+        return False
+
+    state_indexes = _markdown_state_indexes(headers, cells)
+    return bool(state_indexes) and all(
+        normalized_cells[index] in MARKDOWN_GREEN_RESULT_STATES for index in state_indexes
+    )
 
 
 def _markdown_table_evidence_state(lines: list[str], heading: str) -> tuple[bool, bool]:
@@ -276,13 +300,41 @@ def _markdown_table_evidence_state(lines: list[str], heading: str) -> tuple[bool
     return has_rows, all_rows_valid
 
 
+def _markdown_table_gate_state(lines: list[str], heading: str) -> tuple[bool, bool]:
+    in_section = False
+    headers: list[str] | None = None
+    has_rows = False
+    all_rows_valid = True
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            in_section = stripped == heading
+            headers = None
+            continue
+        if not in_section or not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if not cells or all(not cell for cell in cells):
+            continue
+        if _is_markdown_separator_row(cells):
+            continue
+        if _is_markdown_header_row(cells):
+            headers = [cell.strip().lower() for cell in cells]
+            continue
+        has_rows = True
+        if not _markdown_green_state_row_is_valid(cells, headers):
+            all_rows_valid = False
+    return has_rows, all_rows_valid
+
+
 def _markdown_verification_gate_has_command_evidence(lines: list[str]) -> bool:
     evidence_states = [
         _markdown_table_evidence_state(lines, "## Structured command evidence"),
         _markdown_table_evidence_state(lines, "## Instruments"),
     ]
     states_with_rows = [all_rows_valid for has_rows, all_rows_valid in evidence_states if has_rows]
-    return bool(states_with_rows) and all(states_with_rows)
+    checks_has_rows, checks_all_valid = _markdown_table_gate_state(lines, "## Checks executed by gate")
+    return bool(states_with_rows) and all(states_with_rows) and (not checks_has_rows or checks_all_valid)
 
 
 def _allows_placeholder_verification_refs(path: Path, data: dict) -> bool:
@@ -347,7 +399,7 @@ def _is_verification_gate_report_artifact(
         if require_green and (
             not isinstance(checks, list)
             or not checks
-            or any(not _json_verification_check_is_green(check) for check in checks)
+            or any(not _json_verification_check_is_green(check, report_path=path) for check in checks)
         ):
             return False
         return (
@@ -367,7 +419,7 @@ def _markdown_verification_gate_status(lines: list[str]) -> str | None:
     return None
 
 
-def _json_verification_check_is_green(check: object) -> bool:
+def _json_verification_check_is_green(check: object, *, report_path: Path) -> bool:
     if not isinstance(check, dict):
         return False
     if not str(check.get("id") or check.get("command_id") or check.get("instrument_id") or "").strip():
@@ -377,7 +429,7 @@ def _json_verification_check_is_green(check: object) -> bool:
         return False
     if "exit_code" in check and not _json_exit_code_is_zero(check["exit_code"]):
         return False
-    if not _json_verification_check_has_material_evidence(check):
+    if not _json_verification_check_has_material_evidence(check, report_path=report_path):
         return False
     return True
 
@@ -406,8 +458,11 @@ def _json_exit_code_is_zero(value: object) -> bool:
     return False
 
 
-def _json_verification_check_has_material_evidence(check: dict) -> bool:
-    return any(_json_value_has_material(check.get(key)) for key in JSON_EVIDENCE_KEYS if key in check)
+def _json_verification_check_has_material_evidence(check: dict, *, report_path: Path) -> bool:
+    path_keys = [key for key in JSON_PATH_EVIDENCE_KEYS if key in check]
+    if path_keys:
+        return all(_json_path_value_has_existing_evidence(check[key], report_path=report_path) for key in path_keys)
+    return any(_json_value_has_material(check.get(key)) for key in JSON_SUMMARY_EVIDENCE_KEYS if key in check)
 
 
 def _json_value_has_material(value: object) -> bool:
@@ -417,7 +472,30 @@ def _json_value_has_material(value: object) -> bool:
         return any(_json_value_has_material(item) for item in value)
     if isinstance(value, dict):
         return any(_json_value_has_material(item) for item in value.values())
-    return value is not None
+    return False
+
+
+def _json_material_strings(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value] if _markdown_cell_has_material(value) else []
+    if isinstance(value, list):
+        return [item for entry in value for item in _json_material_strings(entry)]
+    if isinstance(value, dict):
+        return [item for entry in value.values() for item in _json_material_strings(entry)]
+    return []
+
+
+def _json_path_value_has_existing_evidence(value: object, *, report_path: Path) -> bool:
+    refs = _json_material_strings(value)
+    return bool(refs) and all(_json_evidence_path_exists(ref, report_path=report_path) for ref in refs)
+
+
+def _json_evidence_path_exists(ref: str, *, report_path: Path) -> bool:
+    text = ref.strip().strip("`")
+    ref_path = Path(text)
+    if ref_path.is_absolute() or ".." in ref_path.parts:
+        return False
+    return (report_path.parent / ref_path).exists()
 
 
 def _resolve_verification_gate_report_ref(
