@@ -6,10 +6,8 @@ __pycache__/
 .DS_Store
 *.swp
 .*.swp
-.agentsflow/
-run-artifacts/agentsflow/
-run-artifacts/**/evidence/stale-review-reports/
-run-artifacts/**/evidence/raw/*.raw.json
+/.agentsflow/
+/run-artifacts/
 build/
 dist/
 *.egg-info/

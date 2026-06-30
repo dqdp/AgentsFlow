@@ -80,6 +80,7 @@ Generated for AgentsFlow v0.2 readiness snapshot.
 - docs/review-fusion-model.md
 - docs/review-profile-model.md
 - docs/risk-and-strictness.md
+- docs/run-artifact-curation.md
 - docs/script-contract.md
 - docs/skill-contract.md
 - docs/specification-and-plan-mode.md
