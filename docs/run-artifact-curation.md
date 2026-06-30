@@ -36,6 +36,6 @@ bundles, stale-review evidence, or generated work-in-progress run directories.
 ## Enforcement
 
 `scripts/validate_repo.py --root .` rejects tracked local run artifacts under
-root `run-artifacts/`. Use
+root `.agentsflow/` and `run-artifacts/`. Use
 `scripts/validate_repo.py --root . --tracked-only` when checking a commit or PR
 for tracked-only repository state.

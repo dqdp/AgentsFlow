@@ -3853,6 +3853,7 @@ def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
     report = json.loads((root / "templates/evidence-probe-report.json").read_text(encoding="utf-8"))
     report["commands_run"][0]["instrument_id"] = "not-declared"
@@ -3872,6 +3873,7 @@ def test_repo_validation_checks_all_documentation_disposition_artifacts(tmp_path
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     rogue_dir = root / "examples" / "symlinked-initialization"
     rogue_dir.mkdir()
     (rogue_dir / "project-documentation-disposition.yaml").symlink_to(
@@ -3904,6 +3906,7 @@ def test_repo_validation_rejects_duplicate_yaml_keys(tmp_path) -> None:
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     workflow = root / "workflows/big-feature-contract-first/workflow.yaml"
     workflow.write_text(
         workflow.read_text(encoding="utf-8") + "\n_duplicate_test: one\n_duplicate_test: two\n",
@@ -3924,6 +3927,7 @@ def test_validate_repo_tracked_only_ignores_untracked_files(tmp_path) -> None:
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
     subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
 
@@ -3948,6 +3952,7 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
     run_artifact = root / "run-artifacts" / "agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
     run_artifact.parent.mkdir(parents=True)
@@ -3955,12 +3960,16 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
     other_run_artifact = root / "run-artifacts" / "other" / "provider-output.json"
     other_run_artifact.parent.mkdir(parents=True)
     other_run_artifact.write_text('{"local":"artifact"}\n', encoding="utf-8")
+    agentsflow_artifact = root / ".agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
+    agentsflow_artifact.parent.mkdir(parents=True)
+    agentsflow_artifact.write_text("run_id: 2026-06-24-local-run\n", encoding="utf-8")
     subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
 
     result = run("scripts/validate_repo.py", "--root", str(root))
     assert result.returncode != 0
     output = result.stdout + result.stderr
     assert "tracked local run artifact is not allowed" in output
+    assert ".agentsflow/runs/2026-06-24-local-run/run.yaml" in output
     assert "run-artifacts/agentsflow/runs/2026-06-24-local-run/run.yaml" in output
     assert "run-artifacts/other/provider-output.json" in output
 
@@ -3968,6 +3977,7 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
     assert tracked_result.returncode != 0
     tracked_output = tracked_result.stdout + tracked_result.stderr
     assert "tracked local run artifact is not allowed" in tracked_output
+    assert ".agentsflow/runs/2026-06-24-local-run/run.yaml" in tracked_output
     assert "run-artifacts/other/provider-output.json" in tracked_output
 
 

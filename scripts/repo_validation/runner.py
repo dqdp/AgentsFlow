@@ -101,6 +101,10 @@ def _is_agentsflow_local_run_artifact(rel: Path) -> bool:
     return rel.parts[:1] == ("run-artifacts",)
 
 
+def _is_tracked_agentsflow_local_artifact(rel: Path) -> bool:
+    return rel.parts[:1] in {(".agentsflow",), ("run-artifacts",)}
+
+
 def _is_agentsflow_local_run_artifact_path(root: Path, path: Path) -> bool:
     try:
         rel = path.resolve().relative_to(root.resolve())
@@ -116,7 +120,7 @@ def _validate_no_tracked_agentsflow_run_artifacts(refs: list[Path]) -> list[str]
             "(promote curated examples under examples/ instead)"
         )
         for rel in refs
-        if _is_agentsflow_local_run_artifact(rel)
+        if _is_tracked_agentsflow_local_artifact(rel)
     ]
 
 
