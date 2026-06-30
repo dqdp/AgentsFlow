@@ -62,6 +62,10 @@ Choose one:
 - `needs_human_decision`
 - `blocked`
 
+Record the selected result in machine-readable form:
+
+Status:
+
 ## Handoff to review agents
 
 Review agents may inspect this report and the evidence bundle. They must not run

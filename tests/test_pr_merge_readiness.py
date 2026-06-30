@@ -1643,6 +1643,29 @@ def test_malformed_reviewer_report_blocks_readiness(tmp_path: Path) -> None:
     assert "reviewer_report_invalid:generalist-a" in result["blockers"]
 
 
+def test_stale_reviewer_report_normalization_blocks_readiness(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    prepare_complete_evidence(tmp_path)
+    raw_path = tmp_path / "reviewer-report.generalist-a.raw.md"
+    raw_path.write_text("Original raw reviewer output.\n", encoding="utf-8")
+    report_path = tmp_path / "reviewer-report.generalist-a.json"
+    reviewer_report = json.loads(report_path.read_text(encoding="utf-8"))
+    reviewer_report["normalization"] = {
+        "source_path": raw_path.name,
+        "source_hash": file_sha(raw_path),
+    }
+    report_path.write_text(json.dumps(reviewer_report, indent=2) + "\n", encoding="utf-8")
+    raw_path.write_text("Mutated raw reviewer output.\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "reviewer_report_invalid:generalist-a" in result["blockers"]
+
+
 def test_internal_reviewer_report_without_current_context_blocks_readiness(tmp_path: Path) -> None:
     report = complete_report()
     report["status"] = "blocked_missing_evidence"

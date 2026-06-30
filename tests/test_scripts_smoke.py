@@ -2991,6 +2991,19 @@ def test_v02_standard_review_control_uses_report_materiality_source() -> None:
     errors = validate_repo.validate_v02_review_control_materiality_policy(init_path, missing_init_control_policy)
     assert "review.control_policy must be standard-review-control" in "\n".join(errors)
 
+    missing_bfcf_control_policy = copy.deepcopy(workflow)
+    missing_bfcf_control_policy["review"].pop("control_policy")
+    errors = validate_repo.validate_v02_review_control_materiality_policy(path, missing_bfcf_control_policy)
+    assert "review.control_policy must be standard-review-control" in "\n".join(errors)
+
+    missing_review_only_control_policy = copy.deepcopy(review_only_workflow)
+    missing_review_only_control_policy["review"].pop("control_policy")
+    errors = validate_repo.validate_v02_review_control_materiality_policy(
+        review_only_path,
+        missing_review_only_control_policy,
+    )
+    assert "review.control_policy must be standard-review-control" in "\n".join(errors)
+
     missing_init_sources = copy.deepcopy(init_workflow)
     missing_init_sources["review_cycle"].pop("materiality_classification_source")
     errors = validate_repo.validate_v02_review_control_materiality_policy(init_path, missing_init_sources)
@@ -3017,6 +3030,12 @@ def test_standard_review_control_templates_use_mandatory_evidence_exit_token() -
         text = path.read_text(encoding="utf-8")
         assert expected in text, path
         assert stale not in text, path
+
+
+def test_verification_gate_template_declares_machine_readable_status() -> None:
+    template = (ROOT / "templates/verification-gate-report.md").read_text(encoding="utf-8")
+
+    assert "\nStatus:\n" in template
 
 
 def test_workflow_template_uses_standard_review_control_without_local_glue() -> None:

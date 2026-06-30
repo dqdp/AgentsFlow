@@ -24,7 +24,9 @@ V0_2_UTILITY_WORKFLOWS = {
     'pr-merge-readiness',
 }
 V0_2_STANDARD_REVIEW_CONTROL_WORKFLOWS = {
+    'big-feature-contract-first',
     'project-initialization',
+    'review-only-fusion',
 }
 V0_2_REVIEW_CONTROL_WORKFLOWS = (
     V0_2_SUPPORTED_TARGET_WORKFLOWS | V0_2_UTILITY_WORKFLOWS | V0_2_STANDARD_REVIEW_CONTROL_WORKFLOWS
