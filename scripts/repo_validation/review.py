@@ -347,7 +347,6 @@ def _markdown_table_gate_state(lines: list[str], heading: str) -> tuple[bool, bo
 def _markdown_verification_gate_has_command_evidence(lines: list[str], *, report_path: Path) -> bool:
     evidence_states = [
         _markdown_table_evidence_state(lines, "## Structured command evidence", report_path=report_path),
-        _markdown_table_evidence_state(lines, "## Instruments", report_path=report_path),
     ]
     states_with_rows = [all_rows_valid for has_rows, all_rows_valid in evidence_states if has_rows]
     checks_has_rows, checks_all_valid = _markdown_table_gate_state(lines, "## Checks executed by gate")

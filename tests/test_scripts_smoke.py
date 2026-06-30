@@ -2643,7 +2643,7 @@ def test_review_packet_rejects_stale_canonical_green_gate_without_latest_green_m
     assert "verification_gate_report.path material_change_id must match evidence_freshness.material_change_id" in "\n".join(errors)
 
 
-def test_review_packet_accepts_green_markdown_gate_with_instruments() -> None:
+def test_review_packet_accepts_green_markdown_gate_with_structured_command_evidence() -> None:
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
@@ -2942,6 +2942,25 @@ def test_standard_review_control_templates_use_mandatory_evidence_exit_token() -
         text = path.read_text(encoding="utf-8")
         assert expected in text, path
         assert stale not in text, path
+
+
+def test_workflow_template_uses_standard_review_control_without_local_glue() -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "templates/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    assert workflow["review"]["control_policy"] == "standard-review-control"
+    assert workflow["review_cycle"]["policy"] == "standard-review-control"
+    assert "review_agent_permissions" not in workflow
+    assert "fusion" not in workflow
+    assert "blocking_policy" not in workflow["review"]
+    assert not validate_repo.validate_standard_review_control_glue_guardrail(path, workflow)
 
 
 def test_standard_review_control_rejects_duplicated_local_glue_without_override_reason() -> None:
