@@ -280,7 +280,14 @@ def validate_repository(
     }, tracked_files)):
         if review_packet.name in {'shared-content.json', 'shared-source.json'}:
             continue
-        errors.extend(validate_review_packet_artifact(root, review_packet, True))
+        errors.extend(
+            validate_review_packet_artifact(
+                root,
+                review_packet,
+                True,
+                require_green_verification_gate=True,
+            )
+        )
     for reviewer_report in root.glob('examples/**/Docs/agentsflow/runs/*/reviewer-report*.json'):
         errors.extend(validate_reviewer_report_artifact(root, reviewer_report))
     for probe_report in root.glob('examples/**/Docs/agentsflow/runs/*/evidence-probe-report*.json'):

@@ -2147,10 +2147,65 @@ def test_review_packet_rejects_stale_latest_green_gate_reference(tmp_path) -> No
     packet["evidence_freshness"]["latest_green_gate"] = "missing-green-report.md"
     packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
 
-    errors = validate_repo.validate_review_packet_artifact(root, packet_path, True)
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
     joined = "\n".join(errors)
     assert "evidence_freshness.latest_green_gate must match verification_gate_report.path" in joined
     assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+
+
+def test_review_packet_rejects_green_markdown_gate_without_command_evidence(tmp_path) -> None:
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-skeletal-green"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    report_path.write_text("# Verification Gate Report\n\nStatus: pass\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
+    joined = "\n".join(errors)
+    assert "verification_gate_report.path must reference a verification gate report artifact" in joined
+    assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+
+
+def test_review_packet_accepts_green_markdown_gate_with_instruments() -> None:
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    packet_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+
+    assert not validate_repo.validate_review_packet_artifact(
+        ROOT,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
 
 
 def test_review_packet_rejects_selected_surface_without_fpm_row(tmp_path) -> None:
@@ -2353,6 +2408,12 @@ def test_v02_standard_review_control_uses_report_materiality_source() -> None:
 
     errors = validate_repo.validate_v02_review_control_materiality_policy(path, workflow)
     assert not errors
+    assert not validate_repo.validate_standard_review_control_glue_guardrail(path, workflow)
+
+    review_only_path = ROOT / "workflows/review-only-fusion/workflow.yaml"
+    review_only_workflow = yaml.safe_load(review_only_path.read_text(encoding="utf-8"))
+    assert not validate_repo.validate_v02_review_control_materiality_policy(review_only_path, review_only_workflow)
+    assert not validate_repo.validate_standard_review_control_glue_guardrail(review_only_path, review_only_workflow)
 
     broken = copy.deepcopy(workflow)
     broken["review_cycle"].pop("materiality_classification_source")

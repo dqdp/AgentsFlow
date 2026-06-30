@@ -42,6 +42,7 @@ supported_profiles:
 review:
   topology: homogeneous-dual
   composition: homogeneous
+  control_policy: standard-review-control
   reviewers:
   - generalist-a
   - generalist-b
@@ -59,11 +60,6 @@ review:
   gates:
   - evidence_gate
   fusion_required: true
-  blocking_policy:
-    p0_blocks: true
-    p1_blocks: true
-    majority_cannot_override_blocker: true
-    missing_evidence: needs-additional-verification
 phases:
 - name: evidence-availability-gate
   purpose: Validate that required evidence exists before independent reviewers run.
@@ -127,75 +123,15 @@ exit_criteria:
 - Required scripts pass or skipped items are explicitly justified.
 - Evidence is sufficient for the effective strictness.
 - Fusion candidate blockers were relevance-validated before final decision support.
-review_control_rules:
-  review_agents_read_only: true
-  review_agents_run_after: evidence_gate
-  review_agents_may_run_tests: false
-  review_agents_may_modify_files: false
-  review_findings_are_candidate_findings: true
-  main_agent_must_validate_finding_relevance: true
-  unvalidated_findings_are_not_truth: true
-  p0_p1_findings_must_not_be_silently_discarded: true
-  missing_verification_is_reported_as_finding: true
-  candidate_blockers_must_be_validated: true
-  default_exit_when_no_validated_blocking_findings: true
-  missing_mandatory_evidence_blocks_acceptance: true
-  p0_p1_findings_require_recorded_validation: true
-  post_fix_materiality_classification_required: true
 review_cycle:
-  default_exit_when: no_validated_blocking_findings
+  policy: standard-review-control
+  default_exit_when: no_validated_blockers_or_mandatory_evidence_gaps
   max_review_cycles_required: false
   max_review_cycles_source: project_policy_or_workflow_binding
   max_review_cycles_absent_means: unlimited
-  rerun_review_on:
-  - accepted_blocker_fixed
-  - mandatory_evidence_added
-  - contract_changed
-  - material_artifact_change
-  - verification_gate_materially_changed
-  - human_requested
-  do_not_rerun_on:
-  - nonblocking_findings_with_non_material_fixes_only
-  - duplicate_consolidation
-  - irrelevant_findings_rejected_with_reason
-  - fusion_rewording_only
-  materiality_classification:
-    required_after_review_fixes: true
-    material_triggers_take_precedence_over_do_not_rerun: true
-    material_if_changes:
-    - reviewed_artifact_or_scope
-    - selected_risk_surfaces_or_failure_path_matrix
-    - affected_reviewed_behavior
-    - workflow_or_gate_policy
-    - review_cycle_policy
-    - schema_or_validator
-    - project_overlay_or_binding
-    - review_packet_content
-    - mandatory_evidence
-    - verification_gate_output
-    - examples_used_as_evidence
-    non_material_if_only:
-    - report_editorial_changes_only
-    - duplicate_consolidation
-    - non_source_of_truth_notes
-  blocking_default:
-    severities:
-    - P0
-    - P1
-    missing_mandatory_evidence_blocks: true
-    majority_cannot_override_candidate_blocker: true
-  validation_required_for:
-  - P0
-  - P1
-  - fusion_candidate_blockers
-  - mandatory_evidence_gaps
-  final_states:
-  - pass
-  - pass-with-notes
-  - needs-changes
-  - needs-verification-evidence
-  - human-decision-required
-  - blocked
+  materiality_classification_source:
+  - finding-validation-report.md
+  - review-cycle-report.md
 actor_model:
   planning:
     mode: human_guided
@@ -220,21 +156,6 @@ verification:
   - benchmarks
   - security_scanners
   - domain_tools
-review_agent_permissions:
-  default:
-    read: true
-    write: false
-    run_tests: false
-    run_verification_instruments: false
-    run_tools: false
-  explicit_tool_exceptions_allowed: true
-  tool_exception_rule: Must be declared in workflow, reviewer manifest, or prompt;
-    observations remain candidate findings.
-fusion:
-  role: read_only_synthesis
-  may_launch_reviewers: false
-  may_run_gates: false
-  may_request_additional_review: true
 mvp_status: v0.2-utility
 binding_model:
   upstream_workflow_definition: true

@@ -100,6 +100,35 @@ def _is_placeholder_ref(ref: object) -> bool:
     return ("<" in text and ">" in text) or "YYYY-MM-DD-task-slug" in text
 
 
+def _markdown_table_has_evidence_row(lines: list[str], heading: str) -> bool:
+    in_section = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            in_section = stripped == heading
+            continue
+        if not in_section or not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if not cells or all(not cell for cell in cells):
+            continue
+        lowered = {cell.lower() for cell in cells}
+        if {"---", "---:"} & lowered:
+            continue
+        if {"command id", "instrument"} & lowered:
+            continue
+        if any(cell and cell not in {"optional"} for cell in cells):
+            return True
+    return False
+
+
+def _markdown_verification_gate_has_command_evidence(lines: list[str]) -> bool:
+    return (
+        _markdown_table_has_evidence_row(lines, "## Structured command evidence")
+        or _markdown_table_has_evidence_row(lines, "## Instruments")
+    )
+
+
 def _allows_placeholder_verification_refs(path: Path, data: dict) -> bool:
     return (
         not _is_agentsflow_run_artifact_path(path)
@@ -140,7 +169,11 @@ def _is_verification_gate_report_artifact(
             return False
         if require_green:
             status = _markdown_verification_gate_status(lines)
-            return first_line == "# Verification Gate Report" and status in GREEN_VERIFICATION_GATE_RESULT_STATES
+            return (
+                first_line == "# Verification Gate Report"
+                and status in GREEN_VERIFICATION_GATE_RESULT_STATES
+                and _markdown_verification_gate_has_command_evidence(lines)
+            )
         return first_line == "# Verification Gate Report"
     if path.suffix == ".json":
         try:
