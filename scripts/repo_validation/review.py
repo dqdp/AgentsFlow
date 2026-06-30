@@ -63,8 +63,12 @@ STANDARD_REVIEW_CONTROL_TOP_LEVEL_GLUE_KEYS = {
     "review_agent_permissions",
 }
 STANDARD_REVIEW_CONTROL_REVIEW_PHASE_GLUE_KEYS = {
+    "actor_class",
     "default_permissions",
     "explicit_tool_exceptions_allowed",
+    "may_modify_files",
+    "may_run_tests",
+    "read_only",
     "review_agent_permissions",
 }
 STANDARD_REVIEW_CONTROL_FUSION_PHASE_GLUE_KEYS = {
@@ -448,7 +452,7 @@ def _json_verification_check_is_green(check: object, *, report_path: Path) -> bo
     states = _json_present_state_values(check)
     if not states or any(state not in GREEN_VERIFICATION_GATE_RESULT_STATES for state in states):
         return False
-    if "exit_code" in check and not _json_exit_code_is_zero(check["exit_code"]):
+    if "exit_code" not in check or not _json_exit_code_is_zero(check["exit_code"]):
         return False
     if not _json_verification_check_has_material_evidence(check, report_path=report_path):
         return False

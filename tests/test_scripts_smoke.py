@@ -2501,6 +2501,26 @@ def test_review_packet_rejects_green_json_gate_without_material_evidence(tmp_pat
     )
 
 
+def test_review_packet_rejects_green_json_gate_without_exit_code(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-no-exit-code",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "material_change_id": "2026-06-17-add-calculator-green",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "output_summary": "repo validation passed",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+    )
+
+
 def test_review_packet_rejects_green_json_gate_with_missing_raw_log_path(tmp_path) -> None:
     _assert_required_green_review_packet_rejected(
         tmp_path,
@@ -2969,7 +2989,11 @@ def test_standard_review_control_rejects_duplicated_local_glue_without_override_
         {
             "id": "extra_review",
             "kind": "review",
+            "actor_class": "review_agent",
             "default_permissions": {"read": True, "write": False},
+            "may_modify_files": False,
+            "may_run_tests": False,
+            "read_only": True,
         }
     )
     duplicated_phase["phases"].append(
@@ -2982,7 +3006,11 @@ def test_standard_review_control_rejects_duplicated_local_glue_without_override_
     errors = validate_repo.validate_standard_review_control_glue_guardrail(path, duplicated_phase)
     joined = "\n".join(errors)
     assert "phase extra_review duplicates standard-review-control without override_reason" in joined
+    assert "actor_class" in joined
     assert "default_permissions" in joined
+    assert "may_modify_files" in joined
+    assert "may_run_tests" in joined
+    assert "read_only" in joined
     assert "phase extra_fusion duplicates standard-review-control without override_reason" in joined
     assert "may_run_gates" in joined
 
