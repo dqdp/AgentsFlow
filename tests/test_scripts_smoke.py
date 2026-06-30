@@ -2191,6 +2191,7 @@ def _assert_required_green_review_packet_rejected(
     name: str,
     report_body: str | dict,
     report_name: str = "verification-gate-report.md",
+    expected_error: str = "verification_gate_report.path must reference a verification gate report artifact",
 ) -> None:
     root, packet_path = _copy_example_review_packet(tmp_path, name)
     report_path = packet_path.parent.parent / report_name
@@ -2206,7 +2207,7 @@ def _assert_required_green_review_packet_rejected(
 
     errors = _validate_required_green_review_packet(root, packet_path)
 
-    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+    assert expected_error in "\n".join(errors)
 
 
 def test_review_packet_rejects_green_markdown_gate_without_command_evidence(tmp_path) -> None:
@@ -2374,6 +2375,48 @@ def test_review_packet_rejects_green_markdown_headerless_nonzero_exit_code(tmp_p
     )
 
 
+def test_review_packet_rejects_green_markdown_headerless_result_before_exit_code(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-headerless-result-before-exit",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| pytest | pass | 1 | tests passed | evidence/pytest.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_missing_raw_log_path(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-missing-raw-log",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed |  | evidence/missing.log |",
+                "",
+            ]
+        ),
+    )
+
+
 def test_review_packet_rejects_green_json_gate_with_failed_check(tmp_path) -> None:
     import json
     import shutil
@@ -2488,6 +2531,28 @@ def test_review_packet_rejects_green_json_gate_with_boolean_evidence(tmp_path) -
             "checks": [{"id": "repo-validation", "status": "pass", "exit_code": 0, "evidence": False}],
         },
         "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_gate_material_change_mismatch(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-stale-material-change",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "material_change_id": "older-green",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "exit_code": 0,
+                    "output_summary": "repo validation passed",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+        "evidence_freshness.latest_green_gate material_change_id must match evidence_freshness.material_change_id",
     )
 
 
@@ -2832,6 +2897,28 @@ def test_standard_review_control_rejects_duplicated_local_glue_without_override_
     assert "fusion" in joined
     assert "review_agent_permissions" in joined
 
+    duplicated_phase = copy.deepcopy(workflow)
+    duplicated_phase["phases"].append(
+        {
+            "id": "extra_review",
+            "kind": "review",
+            "default_permissions": {"read": True, "write": False},
+        }
+    )
+    duplicated_phase["phases"].append(
+        {
+            "id": "extra_fusion",
+            "kind": "fusion",
+            "may_run_gates": False,
+        }
+    )
+    errors = validate_repo.validate_standard_review_control_glue_guardrail(path, duplicated_phase)
+    joined = "\n".join(errors)
+    assert "phase extra_review duplicates standard-review-control without override_reason" in joined
+    assert "default_permissions" in joined
+    assert "phase extra_fusion duplicates standard-review-control without override_reason" in joined
+    assert "may_run_gates" in joined
+
 
 def test_standard_review_control_local_glue_requires_explicit_override_reason() -> None:
     import sys
@@ -2855,6 +2942,14 @@ def test_standard_review_control_local_glue_requires_explicit_override_reason() 
         "override_reason": "Fixture exercises an intentional local fusion override.",
         "role": "read_only_synthesis",
     }
+    workflow["phases"].append(
+        {
+            "id": "extra_review",
+            "kind": "review",
+            "override_reason": "Fixture exercises an intentional local phase override.",
+            "default_permissions": {"read": True, "write": False},
+        }
+    )
 
     assert not validate_repo.validate_standard_review_control_glue_guardrail(path, workflow)
 

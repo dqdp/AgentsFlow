@@ -85,13 +85,6 @@ phases:
   - review reports
   id: independent_review
   kind: review
-  default_permissions:
-    read: true
-    write: false
-    run_tests: false
-    run_verification_instruments: false
-    run_tools: false
-  explicit_tool_exceptions_allowed: true
 - name: fusion
   purpose: Synthesize agreement/disagreement/blockers.
   runs_after:
@@ -103,11 +96,6 @@ phases:
   - fusion report
   id: fusion
   kind: fusion
-  actor_class: fusion_agent
-  role: read_only_synthesis
-  may_launch_reviewers: false
-  may_run_gates: false
-  may_request_additional_review: true
 - name: finding-validation
   purpose: Validate reviewer and fusion candidate findings against the reviewed
     artifact, evidence gate output, accepted decisions, scope and non-goals.

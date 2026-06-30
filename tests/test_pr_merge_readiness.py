@@ -582,6 +582,7 @@ def prepare_complete_evidence(root: Path) -> None:
             {
                 "kind": "verification_gate_report",
                 "result_state": "pass",
+                "material_change_id": "pr-merge-readiness-example-change",
                 "checks": [
                     {
                         "id": "repo-validation",

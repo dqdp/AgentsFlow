@@ -2,6 +2,8 @@
 
 Status: pass
 
+Material change id: 2026-06-17-add-calculator-green
+
 This is the green verification phase. It re-runs the behavior that failed in
 `red-capture-gate-report.md`.
 
