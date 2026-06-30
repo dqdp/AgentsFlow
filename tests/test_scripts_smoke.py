@@ -2399,6 +2399,19 @@ def test_review_packet_rejects_green_json_gate_with_string_nonzero_exit_code(tmp
     )
 
 
+def test_review_packet_rejects_green_json_gate_without_material_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-skeletal-green",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [{"id": "repo-validation", "status": "pass", "exit_code": 0}],
+        },
+        "verification-gate-report.json",
+    )
+
+
 def test_review_packet_accepts_green_markdown_gate_with_instruments() -> None:
     import sys
 

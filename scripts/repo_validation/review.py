@@ -90,6 +90,15 @@ MARKDOWN_EMPTY_EVIDENCE_VALUES = {
     "tbd",
     "todo",
 }
+JSON_EVIDENCE_KEYS = {
+    "artifact_path",
+    "artifact_paths",
+    "evidence",
+    "evidence_path",
+    "log_path",
+    "output_summary",
+    "raw_log_path",
+}
 MARKDOWN_TABLE_HEADER_CELLS = {
     "artifact paths",
     "check",
@@ -368,6 +377,8 @@ def _json_verification_check_is_green(check: object) -> bool:
         return False
     if "exit_code" in check and not _json_exit_code_is_zero(check["exit_code"]):
         return False
+    if not _json_verification_check_has_material_evidence(check):
+        return False
     return True
 
 
@@ -393,6 +404,20 @@ def _json_exit_code_is_zero(value: object) -> bool:
         except ValueError:
             return False
     return False
+
+
+def _json_verification_check_has_material_evidence(check: dict) -> bool:
+    return any(_json_value_has_material(check.get(key)) for key in JSON_EVIDENCE_KEYS if key in check)
+
+
+def _json_value_has_material(value: object) -> bool:
+    if isinstance(value, str):
+        return _markdown_cell_has_material(value)
+    if isinstance(value, list):
+        return any(_json_value_has_material(item) for item in value)
+    if isinstance(value, dict):
+        return any(_json_value_has_material(item) for item in value.values())
+    return value is not None
 
 
 def _resolve_verification_gate_report_ref(

@@ -582,7 +582,15 @@ def prepare_complete_evidence(root: Path) -> None:
             {
                 "kind": "verification_gate_report",
                 "result_state": "pass",
-                "checks": [{"id": "repo-validation", "status": "pass"}],
+                "checks": [
+                    {
+                        "id": "repo-validation",
+                        "command": "python3 scripts/validate_repo.py --root .",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "raw_log_path": "evidence/repo-validation.log",
+                    }
+                ],
             },
             indent=2,
         )
