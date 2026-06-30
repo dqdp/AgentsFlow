@@ -2521,6 +2521,40 @@ def test_review_packet_rejects_green_json_gate_with_missing_raw_log_path(tmp_pat
     )
 
 
+def test_review_packet_rejects_green_json_gate_with_directory_raw_log_path(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(tmp_path, "agentsflow-json-directory-raw-log")
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    (packet_path.parent.parent / "evidence").mkdir(exist_ok=True)
+    report_path.write_text(
+        json.dumps(
+            {
+                "kind": "verification_gate_report",
+                "result_state": "pass",
+                "material_change_id": "2026-06-17-add-calculator-green",
+                "checks": [
+                    {
+                        "id": "repo-validation",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "raw_log_path": "evidence",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = _validate_required_green_review_packet(root, packet_path)
+
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
 def test_review_packet_rejects_green_json_gate_with_boolean_evidence(tmp_path) -> None:
     _assert_required_green_review_packet_rejected(
         tmp_path,
@@ -2554,6 +2588,39 @@ def test_review_packet_rejects_green_gate_material_change_mismatch(tmp_path) -> 
         "verification-gate-report.json",
         "evidence_freshness.latest_green_gate material_change_id must match evidence_freshness.material_change_id",
     )
+
+
+def test_review_packet_rejects_stale_canonical_green_gate_without_latest_green_mirror(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(tmp_path, "agentsflow-json-stale-canonical-gate")
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "kind": "verification_gate_report",
+                "result_state": "pass",
+                "material_change_id": "older-green",
+                "checks": [
+                    {
+                        "id": "repo-validation",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "output_summary": "repo validation passed",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"].pop("latest_green_gate", None)
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = _validate_required_green_review_packet(root, packet_path)
+
+    assert "verification_gate_report.path material_change_id must match evidence_freshness.material_change_id" in "\n".join(errors)
 
 
 def test_review_packet_accepts_green_markdown_gate_with_instruments() -> None:
@@ -3763,17 +3830,23 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
     run_artifact = root / "run-artifacts" / "agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
     run_artifact.parent.mkdir(parents=True)
     run_artifact.write_text("run_id: 2026-06-24-local-run\n", encoding="utf-8")
+    other_run_artifact = root / "run-artifacts" / "other" / "provider-output.json"
+    other_run_artifact.parent.mkdir(parents=True)
+    other_run_artifact.write_text('{"local":"artifact"}\n', encoding="utf-8")
     subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
 
     result = run("scripts/validate_repo.py", "--root", str(root))
     assert result.returncode != 0
-    assert "tracked local AgentsFlow run artifact is not allowed" in (result.stdout + result.stderr)
+    output = result.stdout + result.stderr
+    assert "tracked local run artifact is not allowed" in output
+    assert "run-artifacts/agentsflow/runs/2026-06-24-local-run/run.yaml" in output
+    assert "run-artifacts/other/provider-output.json" in output
 
     tracked_result = run("scripts/validate_repo.py", "--root", str(root), "--tracked-only")
     assert tracked_result.returncode != 0
-    assert "tracked local AgentsFlow run artifact is not allowed" in (
-        tracked_result.stdout + tracked_result.stderr
-    )
+    tracked_output = tracked_result.stdout + tracked_result.stderr
+    assert "tracked local run artifact is not allowed" in tracked_output
+    assert "run-artifacts/other/provider-output.json" in tracked_output
 
 
 def test_validate_repo_accepts_explicit_pr_merge_readiness_report() -> None:

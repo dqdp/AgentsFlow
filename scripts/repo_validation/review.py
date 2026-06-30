@@ -516,7 +516,7 @@ def _json_evidence_path_exists(ref: str, *, report_path: Path) -> bool:
     ref_path = Path(text)
     if ref_path.is_absolute() or ".." in ref_path.parts:
         return False
-    return (report_path.parent / ref_path).exists()
+    return (report_path.parent / ref_path).is_file()
 
 
 def _markdown_path_refs(cell: str) -> list[str]:
@@ -699,6 +699,18 @@ def _validate_latest_green_gate_ref(
                 expected_label,
                 errors,
             )
+            freshness = data.get("evidence_freshness")
+            if require_green and isinstance(freshness, dict):
+                expected_material_change_id = str(
+                    freshness.get("material_change_id") or data.get("material_change_id") or ""
+                ).strip()
+                if expected_material_change_id:
+                    report_material_change_id = _verification_gate_material_change_id(expected_resolved)
+                    if report_material_change_id != expected_material_change_id:
+                        errors.append(
+                            f"{packet_path}: {expected_label} material_change_id must match "
+                            f"evidence_freshness.material_change_id"
+                        )
 
     freshness = data.get("evidence_freshness")
     if not isinstance(freshness, dict):
