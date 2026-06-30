@@ -2189,6 +2189,96 @@ def test_review_packet_rejects_green_markdown_gate_without_command_evidence(tmp_
     assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
 
 
+def test_review_packet_rejects_green_markdown_gate_with_placeholder_table(tmp_path) -> None:
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-placeholder-green"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    report_path.write_text(
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "|  |  | pass/fail/skip/blocked |  |  | optional |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
+def test_review_packet_rejects_green_json_gate_with_failed_check(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-json-failed-check"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "kind": "verification_gate_report",
+                "result_state": "pass",
+                "checks": [{"id": "pytest", "result": "fail", "exit_code": 1}],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
 def test_review_packet_accepts_green_markdown_gate_with_instruments() -> None:
     import sys
 

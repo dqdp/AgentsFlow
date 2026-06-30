@@ -61,6 +61,23 @@ STANDARD_REVIEW_CONTROL_TOP_LEVEL_GLUE_KEYS = {
     "fusion",
     "review_agent_permissions",
 }
+MARKDOWN_GREEN_RESULT_STATES = {"pass", "pass_with_notes"}
+MARKDOWN_TABLE_HEADER_CELLS = {
+    "artifact paths",
+    "check",
+    "command / mechanism",
+    "command id",
+    "evidence",
+    "exit code",
+    "instrument",
+    "notes",
+    "output summary",
+    "raw log path",
+    "required",
+    "result",
+    "risk surface",
+    "status",
+}
 
 
 def _is_agentsflow_run_artifact_path(path: Path) -> bool:
@@ -100,6 +117,28 @@ def _is_placeholder_ref(ref: object) -> bool:
     return ("<" in text and ">" in text) or "YYYY-MM-DD-task-slug" in text
 
 
+def _normalize_gate_state(value: object) -> str:
+    return str(value or "").strip().lower().replace("-", "_")
+
+
+def _is_markdown_separator_cell(cell: str) -> bool:
+    text = cell.strip()
+    if not text:
+        return False
+    text = text.strip(":")
+    return len(text) >= 3 and set(text) == {"-"}
+
+
+def _is_markdown_separator_row(cells: list[str]) -> bool:
+    nonempty = [cell for cell in cells if cell.strip()]
+    return bool(nonempty) and all(_is_markdown_separator_cell(cell) for cell in nonempty)
+
+
+def _is_markdown_header_row(cells: list[str]) -> bool:
+    normalized = {cell.strip().lower() for cell in cells if cell.strip()}
+    return bool(normalized) and normalized.issubset(MARKDOWN_TABLE_HEADER_CELLS)
+
+
 def _markdown_table_has_evidence_row(lines: list[str], heading: str) -> bool:
     in_section = False
     for line in lines:
@@ -112,12 +151,12 @@ def _markdown_table_has_evidence_row(lines: list[str], heading: str) -> bool:
         cells = [cell.strip() for cell in stripped.strip("|").split("|")]
         if not cells or all(not cell for cell in cells):
             continue
-        lowered = {cell.lower() for cell in cells}
-        if {"---", "---:"} & lowered:
+        if _is_markdown_separator_row(cells) or _is_markdown_header_row(cells):
             continue
-        if {"command id", "instrument"} & lowered:
+        identity = cells[0].strip()
+        if not identity or identity.lower() in MARKDOWN_TABLE_HEADER_CELLS:
             continue
-        if any(cell and cell not in {"optional"} for cell in cells):
+        if any(_normalize_gate_state(cell) in MARKDOWN_GREEN_RESULT_STATES for cell in cells[1:]):
             return True
     return False
 
@@ -182,14 +221,21 @@ def _is_verification_gate_report_artifact(
             return False
         if not isinstance(data, dict):
             return False
-        result_state = data.get("result_state")
+        result_state = _normalize_gate_state(data.get("result_state"))
         if require_green and result_state not in GREEN_VERIFICATION_GATE_RESULT_STATES:
+            return False
+        checks = data.get("checks")
+        if require_green and (
+            not isinstance(checks, list)
+            or not checks
+            or any(not _json_verification_check_is_green(check) for check in checks)
+        ):
             return False
         return (
             data.get("kind") == "verification_gate_report"
             and result_state in VERIFICATION_GATE_RESULT_STATES
-            and isinstance(data.get("checks"), list)
-            and bool(data["checks"])
+            and isinstance(checks, list)
+            and bool(checks)
         )
     return False
 
@@ -198,8 +244,20 @@ def _markdown_verification_gate_status(lines: list[str]) -> str | None:
     for line in lines:
         stripped = line.strip()
         if stripped.lower().startswith("status:"):
-            return stripped.split(":", 1)[1].strip().replace("-", "_")
+            return _normalize_gate_state(stripped.split(":", 1)[1])
     return None
+
+
+def _json_verification_check_is_green(check: object) -> bool:
+    if not isinstance(check, dict):
+        return False
+    if not str(check.get("id") or check.get("command_id") or check.get("instrument_id") or "").strip():
+        return False
+    state = _normalize_gate_state(check.get("result") or check.get("status") or check.get("result_state"))
+    if state not in GREEN_VERIFICATION_GATE_RESULT_STATES:
+        return False
+    exit_code = check.get("exit_code")
+    return not (isinstance(exit_code, int) and exit_code != 0)
 
 
 def _resolve_verification_gate_report_ref(

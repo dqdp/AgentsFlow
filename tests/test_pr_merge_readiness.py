@@ -1168,6 +1168,24 @@ def test_review_packet_failed_green_gate_reference_blocks_readiness(tmp_path: Pa
     assert "review_packet_invalid:generalist-a" in result["blockers"]
 
 
+def test_review_packet_pass_gate_with_failed_check_blocks_readiness(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    prepare_complete_evidence(tmp_path)
+    gate_path = tmp_path / "verification-gate-report.json"
+    gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    gate["result_state"] = "pass"
+    gate["checks"] = [{"id": "repo-validation", "status": "fail", "exit_code": 1}]
+    gate_path.write_text(json.dumps(gate, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "review_packet_invalid:generalist-a" in result["blockers"]
+
+
 def test_review_packet_failed_markdown_green_gate_reference_blocks_readiness(
     tmp_path: Path,
 ) -> None:
