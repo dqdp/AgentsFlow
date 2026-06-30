@@ -407,9 +407,9 @@ def _is_verification_gate_report_artifact(
             return False
         if not isinstance(data, dict):
             return False
-        result_state = _normalize_gate_state(data.get("result_state"))
+        kind = data.get("kind") or data.get("artifact_kind")
+        states = _json_present_state_values(data)
         if require_green:
-            states = _json_present_state_values(data)
             if not states or any(state not in GREEN_VERIFICATION_GATE_RESULT_STATES for state in states):
                 return False
         checks = data.get("checks")
@@ -420,8 +420,9 @@ def _is_verification_gate_report_artifact(
         ):
             return False
         return (
-            data.get("kind") == "verification_gate_report"
-            and result_state in VERIFICATION_GATE_RESULT_STATES
+            kind == "verification_gate_report"
+            and bool(states)
+            and all(state in VERIFICATION_GATE_RESULT_STATES for state in states)
             and isinstance(checks, list)
             and bool(checks)
         )

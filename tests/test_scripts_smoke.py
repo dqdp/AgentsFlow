@@ -2539,6 +2539,43 @@ def test_review_packet_rejects_green_json_gate_without_material_evidence(tmp_pat
     )
 
 
+def test_review_packet_accepts_green_json_gate_with_artifact_kind_and_status(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-json-artifact-kind-status-green",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    evidence_path = packet_path.parent.parent / "evidence/pytest.log"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("pytest passed\nexit_code=0\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "verification_gate_report",
+                "status": "pass",
+                "material_change_id": "2026-06-17-add-calculator-green",
+                "checks": [
+                    {
+                        "id": "pytest",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "raw_log_path": "evidence/pytest.log",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    assert _validate_required_green_review_packet(root, packet_path) == []
+
+
 def test_review_packet_rejects_green_json_gate_without_exit_code(tmp_path) -> None:
     _assert_required_green_review_packet_rejected(
         tmp_path,
