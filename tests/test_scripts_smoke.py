@@ -2731,6 +2731,73 @@ def test_review_packet_accepts_green_json_gate_with_artifact_kind_and_status(tmp
     assert _validate_required_green_review_packet(root, packet_path) == []
 
 
+def test_review_packet_accepts_green_json_gate_with_commands_shape(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-json-commands-green",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    log_path = packet_path.parent.parent / "logs/validate-repo.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("Repository validation passed.\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "verification_gate_report",
+                "status": "pass",
+                "material_change_id": "2026-06-17-add-calculator-green",
+                "commands": [
+                    {
+                        "command_id": "validate-repo",
+                        "command": ".venv/bin/python scripts/validate_repo.py --root .",
+                        "exit_code": 0,
+                        "result": "pass",
+                        "raw_log_path": "logs/validate-repo.log",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    assert _validate_required_green_review_packet(root, packet_path) == []
+
+
+def test_review_packet_rejects_green_json_gate_with_failed_command_even_when_checks_pass(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-failed-command",
+        {
+            "artifact_kind": "verification_gate_report",
+            "status": "pass",
+            "material_change_id": "2026-06-17-add-calculator-green",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "exit_code": 0,
+                    "output_summary": "repository validation passed",
+                }
+            ],
+            "commands": [
+                {
+                    "command_id": "pytest",
+                    "result": "fail",
+                    "exit_code": 1,
+                    "output_summary": "tests failed",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+    )
+
+
 def test_review_packet_rejects_green_json_gate_without_exit_code(tmp_path) -> None:
     _assert_required_green_review_packet_rejected(
         tmp_path,

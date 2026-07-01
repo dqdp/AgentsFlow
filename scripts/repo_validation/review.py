@@ -488,19 +488,19 @@ def _is_verification_gate_report_artifact(
         if require_green:
             if not states or any(state not in GREEN_VERIFICATION_GATE_RESULT_STATES for state in states):
                 return False
-        checks = data.get("checks")
+        check_rows = _json_verification_gate_check_rows(data)
         if require_green and (
-            not isinstance(checks, list)
-            or not checks
-            or any(not _json_verification_check_is_green(check, report_path=path) for check in checks)
+            check_rows is None
+            or not check_rows
+            or any(not _json_verification_check_is_green(check, report_path=path) for check in check_rows)
         ):
             return False
         return (
             kind == "verification_gate_report"
             and bool(states)
             and all(state in VERIFICATION_GATE_RESULT_STATES for state in states)
-            and isinstance(checks, list)
-            and bool(checks)
+            and check_rows is not None
+            and bool(check_rows)
         )
     return False
 
@@ -534,6 +534,18 @@ def _json_verification_check_is_green(check: object, *, report_path: Path) -> bo
     if not _json_verification_check_has_material_evidence(check, report_path=report_path):
         return False
     return True
+
+
+def _json_verification_gate_check_rows(data: dict) -> list[object] | None:
+    rows: list[object] = []
+    for key in ("checks", "commands"):
+        if key not in data:
+            continue
+        value = data.get(key)
+        if not isinstance(value, list):
+            return None
+        rows.extend(value)
+    return rows
 
 
 def _json_present_state_values(data: dict) -> list[str]:
