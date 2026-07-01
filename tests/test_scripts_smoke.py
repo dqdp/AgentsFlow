@@ -2395,44 +2395,6 @@ def test_review_packet_accepts_green_markdown_gate_with_optional_skipped_check(t
     assert _validate_required_green_review_packet(root, packet_path) == []
 
 
-def test_review_packet_accepts_green_markdown_gate_with_deferred_fpm_coverage(tmp_path) -> None:
-    root, packet_path = _copy_example_review_packet(
-        tmp_path,
-        "agentsflow-markdown-deferred-fpm-green",
-    )
-    report_path = packet_path.parent.parent / "verification-gate-report.md"
-    evidence_path = packet_path.parent.parent / "evidence/pytest.log"
-    evidence_path.parent.mkdir(parents=True)
-    evidence_path.write_text("pytest passed\nexit_code=0\n", encoding="utf-8")
-    report_path.write_text(
-        "\n".join(
-            [
-                "# Verification Gate Report",
-                "",
-                "Status: pass",
-                "",
-                "Material change id: 2026-06-17-add-calculator-green",
-                "",
-                "## Failure Path Matrix Coverage",
-                "",
-                "| FPM ID | Risk surface | Path class | Covered by | Result | Notes |",
-                "|---|---|---|---|---|---|",
-                "| FPM-001 | authority_boundary | denied_call | human-approved deferral | deferred | approved in human-decisions.yaml#HD-001 |",
-                "",
-                "## Structured command evidence",
-                "",
-                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
-                "|---|---:|---|---|---|---|",
-                "| pytest | 0 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    assert _validate_required_green_review_packet(root, packet_path) == []
-
-
 def test_review_packet_rejects_green_markdown_gate_without_exit_code_column(tmp_path) -> None:
     _assert_required_green_review_packet_rejected(
         tmp_path,
@@ -2469,6 +2431,33 @@ def test_review_packet_rejects_green_markdown_gate_with_failed_fpm_coverage(tmp_
                 "| FPM ID | Risk surface | Path class | Covered by | Result | Notes |",
                 "|---|---|---|---|---|---|",
                 "| FPM-001 | authority_boundary | denied_call | tests | fail | not covered |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_deferred_fpm_coverage(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-deferred-fpm-row",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Failure Path Matrix Coverage",
+                "",
+                "| FPM ID | Risk surface | Path class | Covered by | Result | Notes |",
+                "|---|---|---|---|---|---|",
+                "| FPM-001 | authority_boundary | denied_call | human-approved deferral | deferred | approved in human-decisions.yaml#HD-001 |",
                 "",
                 "## Structured command evidence",
                 "",
@@ -4147,6 +4136,9 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
     agentsflow_artifact = root / ".agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
     agentsflow_artifact.parent.mkdir(parents=True)
     agentsflow_artifact.write_text("run_id: 2026-06-24-local-run\n", encoding="utf-8")
+    docs_artifact = root / "docs" / "agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
+    docs_artifact.parent.mkdir(parents=True)
+    docs_artifact.write_text("run_id: 2026-06-24-local-run\n", encoding="utf-8")
     subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
 
     result = run("scripts/validate_repo.py", "--root", str(root))
@@ -4154,6 +4146,7 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
     output = result.stdout + result.stderr
     assert "tracked local run artifact is not allowed" in output
     assert ".agentsflow/runs/2026-06-24-local-run/run.yaml" in output
+    assert "docs/agentsflow/runs/2026-06-24-local-run/run.yaml" in output
     assert "run-artifacts/agentsflow/runs/2026-06-24-local-run/run.yaml" in output
     assert "run-artifacts/other/provider-output.json" in output
 
@@ -4162,6 +4155,7 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
     tracked_output = tracked_result.stdout + tracked_result.stderr
     assert "tracked local run artifact is not allowed" in tracked_output
     assert ".agentsflow/runs/2026-06-24-local-run/run.yaml" in tracked_output
+    assert "docs/agentsflow/runs/2026-06-24-local-run/run.yaml" in tracked_output
     assert "run-artifacts/other/provider-output.json" in tracked_output
 
 

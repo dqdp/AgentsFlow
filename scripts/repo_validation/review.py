@@ -310,23 +310,6 @@ def _markdown_optional_skip_row_is_valid(cells: list[str], headers: list[str] | 
     return any(_markdown_cell_has_material(cells[index]) for index in notes_indexes)
 
 
-def _markdown_deferred_fpm_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
-    if headers is None:
-        return False
-    state_indexes = _markdown_state_indexes(headers, cells)
-    if not state_indexes:
-        return False
-    normalized_cells = [_normalize_gate_state(cell) for cell in cells]
-    if not all(normalized_cells[index] == "deferred" for index in state_indexes):
-        return False
-    notes_indexes = [
-        index
-        for index, header in enumerate(headers[: len(cells)])
-        if header == "notes"
-    ]
-    return any(_markdown_cell_has_material(cells[index]) for index in notes_indexes)
-
-
 def _markdown_green_state_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
     if headers is None:
         return False
@@ -348,7 +331,7 @@ def _markdown_green_state_row_is_valid(cells: list[str], headers: list[str] | No
 
 
 def _markdown_fpm_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
-    return _markdown_deferred_fpm_row_is_valid(cells, headers) or _markdown_green_state_row_is_valid(cells, headers)
+    return _markdown_green_state_row_is_valid(cells, headers)
 
 
 def _markdown_table_evidence_state(lines: list[str], heading: str, *, report_path: Path) -> tuple[bool, bool]:
