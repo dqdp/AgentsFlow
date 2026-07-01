@@ -597,7 +597,8 @@ def _json_evidence_path_exists(ref: str, *, report_path: Path) -> bool:
     ref_path = Path(text)
     if ref_path.is_absolute() or ".." in ref_path.parts:
         return False
-    return (report_path.parent / ref_path).is_file()
+    resolved = (report_path.parent / ref_path).resolve()
+    return resolved != report_path.resolve() and resolved.is_file()
 
 
 def _markdown_path_refs(cell: str) -> list[str]:

@@ -2632,6 +2632,29 @@ def test_review_packet_rejects_green_markdown_gate_with_summary_only_evidence(tm
     )
 
 
+def test_review_packet_rejects_green_markdown_gate_with_self_referential_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-self-referential-evidence",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed |  | verification-gate-report.md |",
+                "",
+            ]
+        ),
+    )
+
+
 def test_review_packet_rejects_green_json_gate_with_failed_check(tmp_path) -> None:
     import json
     import shutil
@@ -2729,6 +2752,26 @@ def test_review_packet_rejects_green_json_gate_with_summary_only_evidence(tmp_pa
                     "status": "pass",
                     "exit_code": 0,
                     "output_summary": "repository validation passed",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_self_referential_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-self-referential-evidence",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "exit_code": 0,
+                    "raw_log_path": "verification-gate-report.json",
                 }
             ],
         },
