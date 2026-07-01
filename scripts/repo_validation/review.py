@@ -116,10 +116,6 @@ JSON_PATH_EVIDENCE_KEYS = {
     "log_path",
     "raw_log_path",
 }
-JSON_SUMMARY_EVIDENCE_KEYS = {
-    "evidence",
-    "output_summary",
-}
 MARKDOWN_TABLE_HEADER_CELLS = {
     "artifact paths",
     "check",
@@ -236,19 +232,6 @@ def _markdown_state_indexes(headers: list[str] | None, cells: list[str]) -> list
     ]
 
 
-def _markdown_evidence_indexes(headers: list[str] | None, cells: list[str], state_indexes: list[int]) -> list[int]:
-    if headers:
-        indexes = [
-            index
-            for index, header in enumerate(headers[: len(cells)])
-            if header in MARKDOWN_EVIDENCE_HEADERS
-        ]
-        if indexes:
-            return indexes
-    last_state_index = max(state_indexes) if state_indexes else 0
-    return list(range(last_state_index + 1, len(cells)))
-
-
 def _markdown_green_evidence_row_is_valid(cells: list[str], headers: list[str] | None, *, report_path: Path) -> bool:
     if headers is None:
         return False
@@ -269,16 +252,15 @@ def _markdown_green_evidence_row_is_valid(cells: list[str], headers: list[str] |
     if "exit code" not in headers:
         return False
 
-    if headers:
-        for index, header in enumerate(headers[: len(cells)]):
-            if header == "exit code" and not _markdown_exit_code_is_zero(cells[index]):
+    has_file_backed_evidence = False
+    for index, header in enumerate(headers[: len(cells)]):
+        if header == "exit code" and not _markdown_exit_code_is_zero(cells[index]):
+            return False
+        if header in {"artifact paths", "raw log path"} and _markdown_cell_has_material(cells[index]):
+            if not _markdown_path_cell_has_existing_evidence(cells[index], report_path=report_path):
                 return False
-            if header in {"artifact paths", "raw log path"} and _markdown_cell_has_material(cells[index]):
-                if not _markdown_path_cell_has_existing_evidence(cells[index], report_path=report_path):
-                    return False
-
-    evidence_indexes = _markdown_evidence_indexes(headers, cells, state_indexes)
-    return any(_markdown_cell_has_material(cells[index]) for index in evidence_indexes)
+            has_file_backed_evidence = True
+    return has_file_backed_evidence
 
 
 def _markdown_optional_skip_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
@@ -582,7 +564,7 @@ def _json_verification_check_has_material_evidence(check: dict, *, report_path: 
         ]
         if material_path_values:
             return all(_json_path_value_has_existing_evidence(value, report_path=report_path) for value in material_path_values)
-    return any(_json_value_has_material(check.get(key)) for key in JSON_SUMMARY_EVIDENCE_KEYS if key in check)
+    return False
 
 
 def _json_value_has_material(value: object) -> bool:
