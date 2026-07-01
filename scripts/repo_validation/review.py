@@ -90,12 +90,6 @@ MARKDOWN_NON_GREEN_RESULT_STATES = VERIFICATION_GATE_RESULT_STATES - GREEN_VERIF
     "skip",
     "skipped",
 }
-MARKDOWN_EVIDENCE_HEADERS = {
-    "artifact paths",
-    "evidence",
-    "output summary",
-    "raw log path",
-}
 MARKDOWN_EMPTY_EVIDENCE_VALUES = {
     "",
     "-",
