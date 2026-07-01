@@ -125,8 +125,10 @@ MARKDOWN_TABLE_HEADER_CELLS = {
     "check",
     "command / mechanism",
     "command id",
+    "covered by",
     "evidence",
     "exit code",
+    "fpm id",
     "instrument",
     "notes",
     "output summary",
@@ -264,6 +266,9 @@ def _markdown_green_evidence_row_is_valid(cells: list[str], headers: list[str] |
     if any(normalized_cells[index] not in MARKDOWN_GREEN_RESULT_STATES for index in state_indexes):
         return False
 
+    if "exit code" not in headers:
+        return False
+
     if headers:
         for index, header in enumerate(headers[: len(cells)]):
             if header == "exit code" and not _markdown_exit_code_is_zero(cells[index]):
@@ -305,6 +310,23 @@ def _markdown_optional_skip_row_is_valid(cells: list[str], headers: list[str] | 
     return any(_markdown_cell_has_material(cells[index]) for index in notes_indexes)
 
 
+def _markdown_deferred_fpm_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
+    if headers is None:
+        return False
+    state_indexes = _markdown_state_indexes(headers, cells)
+    if not state_indexes:
+        return False
+    normalized_cells = [_normalize_gate_state(cell) for cell in cells]
+    if not all(normalized_cells[index] == "deferred" for index in state_indexes):
+        return False
+    notes_indexes = [
+        index
+        for index, header in enumerate(headers[: len(cells)])
+        if header == "notes"
+    ]
+    return any(_markdown_cell_has_material(cells[index]) for index in notes_indexes)
+
+
 def _markdown_green_state_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
     if headers is None:
         return False
@@ -323,6 +345,10 @@ def _markdown_green_state_row_is_valid(cells: list[str], headers: list[str] | No
     return bool(state_indexes) and all(
         normalized_cells[index] in MARKDOWN_GREEN_RESULT_STATES for index in state_indexes
     )
+
+
+def _markdown_fpm_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
+    return _markdown_deferred_fpm_row_is_valid(cells, headers) or _markdown_green_state_row_is_valid(cells, headers)
 
 
 def _markdown_table_evidence_state(lines: list[str], heading: str, *, report_path: Path) -> tuple[bool, bool]:
@@ -379,13 +405,46 @@ def _markdown_table_gate_state(lines: list[str], heading: str) -> tuple[bool, bo
     return has_rows, all_rows_valid
 
 
+def _markdown_table_fpm_state(lines: list[str], heading: str) -> tuple[bool, bool]:
+    in_section = False
+    headers: list[str] | None = None
+    has_rows = False
+    all_rows_valid = True
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            in_section = stripped == heading
+            headers = None
+            continue
+        if not in_section or not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if not cells or all(not cell for cell in cells):
+            continue
+        if _is_markdown_separator_row(cells):
+            continue
+        if _is_markdown_header_row(cells):
+            headers = [cell.strip().lower() for cell in cells]
+            continue
+        has_rows = True
+        if not _markdown_fpm_row_is_valid(cells, headers):
+            all_rows_valid = False
+    return has_rows, all_rows_valid
+
+
 def _markdown_verification_gate_has_command_evidence(lines: list[str], *, report_path: Path) -> bool:
     evidence_states = [
         _markdown_table_evidence_state(lines, "## Structured command evidence", report_path=report_path),
     ]
     states_with_rows = [all_rows_valid for has_rows, all_rows_valid in evidence_states if has_rows]
     checks_has_rows, checks_all_valid = _markdown_table_gate_state(lines, "## Checks executed by gate")
-    return bool(states_with_rows) and all(states_with_rows) and (not checks_has_rows or checks_all_valid)
+    fpm_has_rows, fpm_all_valid = _markdown_table_fpm_state(lines, "## Failure Path Matrix Coverage")
+    return (
+        bool(states_with_rows)
+        and all(states_with_rows)
+        and (not checks_has_rows or checks_all_valid)
+        and (not fpm_has_rows or fpm_all_valid)
+    )
 
 
 def _allows_placeholder_verification_refs(path: Path, data: dict) -> bool:
