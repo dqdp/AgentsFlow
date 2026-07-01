@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from .common import is_concrete_sha256, parse_json, parse_yaml, sha256_file, validate_against_schema
 from .external_reviewers import validate_external_review_provider
-from .review import validate_review_packet_artifact
+from .review import validate_review_packet_artifact, validate_reviewer_report_artifact
 
 
 BLOCKING_FINDING_SEVERITIES = {"P0", "P1"}
@@ -134,13 +134,6 @@ def _external_review_lite_request_schema(root: Path) -> dict:
     schema = parse_json(root / "schemas" / "external-review-lite-request.schema.json")
     if not isinstance(schema, dict):
         raise ValueError("schemas/external-review-lite-request.schema.json is not a mapping")
-    return schema
-
-
-def _reviewer_report_schema(root: Path) -> dict:
-    schema = parse_json(root / "schemas" / "reviewer-report.schema.json")
-    if not isinstance(schema, dict):
-        raise ValueError("schemas/reviewer-report.schema.json is not a mapping")
     return schema
 
 
@@ -848,7 +841,6 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
     warnings: list[str] = []
     stale_reviews: list[str] = []
     human_record_valid = False
-    reviewer_report_schema = _reviewer_report_schema(root)
     lite_invocation_schema = _external_review_lite_invocation_schema(root)
     lite_request_schema = _external_review_lite_request_schema(root)
     reviewer_reports: dict[str, dict[str, Any]] = {}
@@ -978,11 +970,7 @@ def evaluate_pr_merge_readiness_report(root: Path, report_path: Path) -> dict[st
             if not isinstance(loaded_report, dict):
                 blockers.append(f"reviewer_report_invalid:{review_id}")
             else:
-                report_errors = validate_against_schema(
-                    review_report_path,
-                    loaded_report,
-                    reviewer_report_schema,
-                )
+                report_errors = validate_reviewer_report_artifact(root, review_report_path)
                 if report_errors:
                     blockers.append(f"reviewer_report_invalid:{review_id}")
                 else:

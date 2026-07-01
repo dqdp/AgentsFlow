@@ -382,12 +382,8 @@ phases:
   purpose: Run read-only independent review after the verification gate, using a
     review packet that includes selected risk surfaces, Failure Path Matrix,
     latest green evidence, known blockers and evidence freshness.
-  actor_class: review_agent
   runs_after:
   - verification_gate
-  read_only: true
-  may_run_tests: false
-  may_modify_files: false
   skills:
   - reviewer-generalist
   scripts: []

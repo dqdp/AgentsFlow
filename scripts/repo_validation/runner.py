@@ -98,7 +98,8 @@ def _tracked_file_refs(root: Path) -> tuple[list[Path], list[str]]:
 
 
 def _is_agentsflow_local_run_artifact(rel: Path) -> bool:
-    return rel.parts[:2] == ("run-artifacts", "agentsflow")
+    parts = tuple(part.lower() for part in rel.parts)
+    return parts[:1] in {(".agentsflow",), ("run-artifacts",)} or parts[:3] == ("docs", "agentsflow", "runs")
 
 
 def _is_agentsflow_local_run_artifact_path(root: Path, path: Path) -> bool:
@@ -112,7 +113,7 @@ def _is_agentsflow_local_run_artifact_path(root: Path, path: Path) -> bool:
 def _validate_no_tracked_agentsflow_run_artifacts(refs: list[Path]) -> list[str]:
     return [
         (
-            f"tracked local AgentsFlow run artifact is not allowed: {rel.as_posix()} "
+            f"tracked local run artifact is not allowed: {rel.as_posix()} "
             "(promote curated examples under examples/ instead)"
         )
         for rel in refs
@@ -280,7 +281,14 @@ def validate_repository(
     }, tracked_files)):
         if review_packet.name in {'shared-content.json', 'shared-source.json'}:
             continue
-        errors.extend(validate_review_packet_artifact(root, review_packet, True))
+        errors.extend(
+            validate_review_packet_artifact(
+                root,
+                review_packet,
+                True,
+                require_green_verification_gate=True,
+            )
+        )
     for reviewer_report in root.glob('examples/**/Docs/agentsflow/runs/*/reviewer-report*.json'):
         errors.extend(validate_reviewer_report_artifact(root, reviewer_report))
     for probe_report in root.glob('examples/**/Docs/agentsflow/runs/*/evidence-probe-report*.json'):

@@ -172,6 +172,13 @@ python3 scripts/validate_repo.py --root .
 python3 -m pytest -q
 ```
 
+For a real PR readiness gate, validate the concrete run report as well as the
+repository baseline:
+
+```bash
+python3 scripts/validate_repo.py --root . --pr-merge-readiness-report <path>
+```
+
 Run the CI-safe external reviewer smoke test without calling live Claude:
 
 ```bash

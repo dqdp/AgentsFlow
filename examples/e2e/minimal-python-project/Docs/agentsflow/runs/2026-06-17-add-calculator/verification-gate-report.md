@@ -2,6 +2,8 @@
 
 Status: pass
 
+Material change id: 2026-06-17-add-calculator-green
+
 This is the green verification phase. It re-runs the behavior that failed in
 `red-capture-gate-report.md`.
 
@@ -11,3 +13,10 @@ This is the green verification phase. It re-runs the behavior that failed in
 |---|---|---|
 | unit_tests | pass | `.agentsflow/scripts/run_verification_gate.sh` runs `PYTHONPATH=src python3 -m pytest tests` |
 | behavior_binding_check | pass | `.agentsflow/scripts/run_verification_gate.sh` runs `python3 .agentsflow/upstream/scripts/bdd_binding_check.py --bindings Docs/agentsflow/runs/2026-06-17-add-calculator/behavior.bindings.yaml` |
+
+## Structured command evidence
+
+| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |
+|---|---:|---|---|---|---|
+| unit_tests | 0 | pass | `PYTHONPATH=src python3 -m pytest tests` passed |  | `logs/unit-tests.log` |
+| behavior_binding_check | 0 | pass | `bdd_binding_check.py` passed for `behavior.bindings.yaml` |  | `logs/behavior-binding-check.log` |

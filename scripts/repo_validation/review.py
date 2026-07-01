@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from .collect import collect_yaml_manifest_names
@@ -23,10 +24,12 @@ V0_2_UTILITY_WORKFLOWS = {
     'pr-merge-readiness',
 }
 V0_2_STANDARD_REVIEW_CONTROL_WORKFLOWS = {
+    'big-feature-contract-first',
     'project-initialization',
+    'review-only-fusion',
 }
 V0_2_REVIEW_CONTROL_WORKFLOWS = (
-    V0_2_SUPPORTED_TARGET_WORKFLOWS | V0_2_UTILITY_WORKFLOWS
+    V0_2_SUPPORTED_TARGET_WORKFLOWS | V0_2_UTILITY_WORKFLOWS | V0_2_STANDARD_REVIEW_CONTROL_WORKFLOWS
 )
 VERIFICATION_GATE_RESULT_STATES = {
     "pass",
@@ -60,6 +63,71 @@ STANDARD_REVIEW_CONTROL_LOCAL_REVIEW_CYCLE_KEYS = {
 STANDARD_REVIEW_CONTROL_TOP_LEVEL_GLUE_KEYS = {
     "fusion",
     "review_agent_permissions",
+}
+STANDARD_REVIEW_CONTROL_REVIEW_PHASE_GLUE_KEYS = {
+    "actor_class",
+    "default_permissions",
+    "explicit_tool_exceptions_allowed",
+    "may_modify_files",
+    "may_run_tests",
+    "read_only",
+    "review_agent_permissions",
+}
+STANDARD_REVIEW_CONTROL_FUSION_PHASE_GLUE_KEYS = {
+    "actor_class",
+    "may_launch_reviewers",
+    "may_request_additional_review",
+    "may_run_gates",
+    "role",
+}
+MARKDOWN_GREEN_RESULT_STATES = {"pass", "pass_with_notes"}
+MARKDOWN_NON_GREEN_RESULT_STATES = VERIFICATION_GATE_RESULT_STATES - GREEN_VERIFICATION_GATE_RESULT_STATES | {
+    "deferred",
+    "error",
+    "failed",
+    "failure",
+    "pass/fail/skip/blocked",
+    "skip",
+    "skipped",
+}
+MARKDOWN_EMPTY_EVIDENCE_VALUES = {
+    "",
+    "-",
+    "[]",
+    "`[]`",
+    "`null`",
+    "n/a",
+    "none",
+    "null",
+    "optional",
+    "tbd",
+    "todo",
+}
+JSON_PATH_EVIDENCE_KEYS = {
+    "artifact_path",
+    "artifact_paths",
+    "evidence_path",
+    "log_path",
+    "raw_log_path",
+}
+MARKDOWN_TABLE_HEADER_CELLS = {
+    "artifact paths",
+    "check",
+    "command / mechanism",
+    "command id",
+    "covered by",
+    "evidence",
+    "exit code",
+    "fpm id",
+    "instrument",
+    "notes",
+    "output summary",
+    "path class",
+    "raw log path",
+    "required",
+    "result",
+    "risk surface",
+    "status",
 }
 
 
@@ -98,6 +166,244 @@ def _strip_fragment(ref: object) -> str:
 def _is_placeholder_ref(ref: object) -> bool:
     text = str(ref)
     return ("<" in text and ">" in text) or "YYYY-MM-DD-task-slug" in text
+
+
+def _normalize_gate_state(value: object) -> str:
+    return str(value or "").strip().lower().replace("-", "_")
+
+
+def _is_markdown_separator_cell(cell: str) -> bool:
+    text = cell.strip()
+    if not text:
+        return False
+    text = text.strip(":")
+    return len(text) >= 3 and set(text) == {"-"}
+
+
+def _is_markdown_separator_row(cells: list[str]) -> bool:
+    nonempty = [cell for cell in cells if cell.strip()]
+    return bool(nonempty) and all(_is_markdown_separator_cell(cell) for cell in nonempty)
+
+
+def _is_markdown_header_row(cells: list[str]) -> bool:
+    normalized = {cell.strip().lower() for cell in cells if cell.strip()}
+    return bool(normalized) and normalized.issubset(MARKDOWN_TABLE_HEADER_CELLS)
+
+
+def _markdown_cell_has_material(cell: str) -> bool:
+    text = cell.strip()
+    if not text:
+        return False
+    normalized = text.lower()
+    normalized_unquoted = normalized.strip("`")
+    return normalized not in MARKDOWN_EMPTY_EVIDENCE_VALUES and normalized_unquoted not in MARKDOWN_EMPTY_EVIDENCE_VALUES
+
+
+def _markdown_exit_code_is_zero(cell: str) -> bool:
+    text = cell.strip()
+    if not text:
+        return False
+    try:
+        return int(text) == 0
+    except ValueError:
+        return False
+
+
+def _markdown_state_indexes(headers: list[str] | None, cells: list[str]) -> list[int]:
+    if headers:
+        indexes = [
+            index
+            for index, header in enumerate(headers[: len(cells)])
+            if header in {"result", "status"}
+        ]
+        if indexes:
+            return indexes
+    return [
+        index
+        for index, cell in enumerate(cells[1:], start=1)
+        if _normalize_gate_state(cell) in VERIFICATION_GATE_RESULT_STATES
+        or _normalize_gate_state(cell) in MARKDOWN_NON_GREEN_RESULT_STATES
+    ]
+
+
+def _markdown_green_evidence_row_is_valid(cells: list[str], headers: list[str] | None, *, report_path: Path) -> bool:
+    if headers is None:
+        return False
+    identity = cells[0].strip()
+    if not _markdown_cell_has_material(identity) or identity.lower() in MARKDOWN_TABLE_HEADER_CELLS:
+        return False
+
+    normalized_cells = [_normalize_gate_state(cell) for cell in cells]
+    if any(state in MARKDOWN_NON_GREEN_RESULT_STATES for state in normalized_cells):
+        return False
+
+    state_indexes = _markdown_state_indexes(headers, cells)
+    if not state_indexes:
+        return False
+    if any(normalized_cells[index] not in MARKDOWN_GREEN_RESULT_STATES for index in state_indexes):
+        return False
+
+    if "exit code" not in headers:
+        return False
+
+    has_file_backed_evidence = False
+    for index, header in enumerate(headers[: len(cells)]):
+        if header == "exit code" and not _markdown_exit_code_is_zero(cells[index]):
+            return False
+        if header in {"artifact paths", "raw log path"} and _markdown_cell_has_material(cells[index]):
+            if not _markdown_path_cell_has_existing_evidence(cells[index], report_path=report_path):
+                return False
+            has_file_backed_evidence = True
+    return has_file_backed_evidence
+
+
+def _markdown_optional_skip_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
+    if headers is None:
+        return False
+    required_indexes = [
+        index
+        for index, header in enumerate(headers[: len(cells)])
+        if header == "required"
+    ]
+    state_indexes = _markdown_state_indexes(headers, cells)
+    if not required_indexes or not state_indexes:
+        return False
+    required_values = {
+        cells[index].strip().lower()
+        for index in required_indexes
+        if index < len(cells)
+    }
+    if not (required_values & {"no", "false"}):
+        return False
+    normalized_cells = [_normalize_gate_state(cell) for cell in cells]
+    if not all(normalized_cells[index] in {"skip", "skipped"} for index in state_indexes):
+        return False
+    notes_indexes = [
+        index
+        for index, header in enumerate(headers[: len(cells)])
+        if header == "notes"
+    ]
+    return any(_markdown_cell_has_material(cells[index]) for index in notes_indexes)
+
+
+def _markdown_green_state_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
+    if headers is None:
+        return False
+    identity = cells[0].strip()
+    if not _markdown_cell_has_material(identity) or identity.lower() in MARKDOWN_TABLE_HEADER_CELLS:
+        return False
+
+    if _markdown_optional_skip_row_is_valid(cells, headers):
+        return True
+
+    normalized_cells = [_normalize_gate_state(cell) for cell in cells]
+    if any(state in MARKDOWN_NON_GREEN_RESULT_STATES for state in normalized_cells):
+        return False
+
+    state_indexes = _markdown_state_indexes(headers, cells)
+    return bool(state_indexes) and all(
+        normalized_cells[index] in MARKDOWN_GREEN_RESULT_STATES for index in state_indexes
+    )
+
+
+def _markdown_fpm_row_is_valid(cells: list[str], headers: list[str] | None) -> bool:
+    return _markdown_green_state_row_is_valid(cells, headers)
+
+
+def _markdown_table_evidence_state(lines: list[str], heading: str, *, report_path: Path) -> tuple[bool, bool]:
+    in_section = False
+    headers: list[str] | None = None
+    has_rows = False
+    all_rows_valid = True
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            in_section = stripped == heading
+            headers = None
+            continue
+        if not in_section or not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if not cells or all(not cell for cell in cells):
+            continue
+        if _is_markdown_separator_row(cells):
+            continue
+        if _is_markdown_header_row(cells):
+            headers = [cell.strip().lower() for cell in cells]
+            continue
+        has_rows = True
+        if not _markdown_green_evidence_row_is_valid(cells, headers, report_path=report_path):
+            all_rows_valid = False
+    return has_rows, all_rows_valid
+
+
+def _markdown_table_gate_state(lines: list[str], heading: str) -> tuple[bool, bool]:
+    in_section = False
+    headers: list[str] | None = None
+    has_rows = False
+    all_rows_valid = True
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            in_section = stripped == heading
+            headers = None
+            continue
+        if not in_section or not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if not cells or all(not cell for cell in cells):
+            continue
+        if _is_markdown_separator_row(cells):
+            continue
+        if _is_markdown_header_row(cells):
+            headers = [cell.strip().lower() for cell in cells]
+            continue
+        has_rows = True
+        if not _markdown_green_state_row_is_valid(cells, headers):
+            all_rows_valid = False
+    return has_rows, all_rows_valid
+
+
+def _markdown_table_fpm_state(lines: list[str], heading: str) -> tuple[bool, bool]:
+    in_section = False
+    headers: list[str] | None = None
+    has_rows = False
+    all_rows_valid = True
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            in_section = stripped == heading
+            headers = None
+            continue
+        if not in_section or not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if not cells or all(not cell for cell in cells):
+            continue
+        if _is_markdown_separator_row(cells):
+            continue
+        if _is_markdown_header_row(cells):
+            headers = [cell.strip().lower() for cell in cells]
+            continue
+        has_rows = True
+        if not _markdown_fpm_row_is_valid(cells, headers):
+            all_rows_valid = False
+    return has_rows, all_rows_valid
+
+
+def _markdown_verification_gate_has_command_evidence(lines: list[str], *, report_path: Path) -> bool:
+    evidence_states = [
+        _markdown_table_evidence_state(lines, "## Structured command evidence", report_path=report_path),
+    ]
+    states_with_rows = [all_rows_valid for has_rows, all_rows_valid in evidence_states if has_rows]
+    checks_has_rows, checks_all_valid = _markdown_table_gate_state(lines, "## Checks executed by gate")
+    fpm_has_rows, fpm_all_valid = _markdown_table_fpm_state(lines, "## Failure Path Matrix Coverage")
+    return (
+        bool(states_with_rows)
+        and all(states_with_rows)
+        and (not checks_has_rows or checks_all_valid)
+        and (not fpm_has_rows or fpm_all_valid)
+    )
 
 
 def _allows_placeholder_verification_refs(path: Path, data: dict) -> bool:
@@ -140,7 +446,11 @@ def _is_verification_gate_report_artifact(
             return False
         if require_green:
             status = _markdown_verification_gate_status(lines)
-            return first_line == "# Verification Gate Report" and status in GREEN_VERIFICATION_GATE_RESULT_STATES
+            return (
+                first_line == "# Verification Gate Report"
+                and status in GREEN_VERIFICATION_GATE_RESULT_STATES
+                and _markdown_verification_gate_has_command_evidence(lines, report_path=path)
+            )
         return first_line == "# Verification Gate Report"
     if path.suffix == ".json":
         try:
@@ -149,14 +459,24 @@ def _is_verification_gate_report_artifact(
             return False
         if not isinstance(data, dict):
             return False
-        result_state = data.get("result_state")
-        if require_green and result_state not in GREEN_VERIFICATION_GATE_RESULT_STATES:
+        kind = data.get("kind") or data.get("artifact_kind")
+        states = _json_present_state_values(data)
+        if require_green:
+            if not states or any(state not in GREEN_VERIFICATION_GATE_RESULT_STATES for state in states):
+                return False
+        check_rows = _json_verification_gate_check_rows(data)
+        if require_green and (
+            check_rows is None
+            or not check_rows
+            or any(not _json_verification_check_is_green(check, report_path=path) for check in check_rows)
+        ):
             return False
         return (
-            data.get("kind") == "verification_gate_report"
-            and result_state in VERIFICATION_GATE_RESULT_STATES
-            and isinstance(data.get("checks"), list)
-            and bool(data["checks"])
+            kind == "verification_gate_report"
+            and bool(states)
+            and all(state in VERIFICATION_GATE_RESULT_STATES for state in states)
+            and check_rows is not None
+            and bool(check_rows)
         )
     return False
 
@@ -165,8 +485,139 @@ def _markdown_verification_gate_status(lines: list[str]) -> str | None:
     for line in lines:
         stripped = line.strip()
         if stripped.lower().startswith("status:"):
-            return stripped.split(":", 1)[1].strip().replace("-", "_")
+            return _normalize_gate_state(stripped.split(":", 1)[1])
     return None
+
+
+def _markdown_verification_gate_material_change_id(lines: list[str]) -> str:
+    for line in lines:
+        stripped = line.strip().lstrip("-*").strip()
+        if stripped.lower().startswith("material change id:"):
+            return stripped.split(":", 1)[1].strip()
+    return ""
+
+
+def _json_verification_check_is_green(check: object, *, report_path: Path) -> bool:
+    if not isinstance(check, dict):
+        return False
+    if not str(check.get("id") or check.get("command_id") or check.get("instrument_id") or "").strip():
+        return False
+    states = _json_present_state_values(check)
+    if not states or any(state not in GREEN_VERIFICATION_GATE_RESULT_STATES for state in states):
+        return False
+    if "exit_code" not in check or not _json_exit_code_is_zero(check["exit_code"]):
+        return False
+    if not _json_verification_check_has_material_evidence(check, report_path=report_path):
+        return False
+    return True
+
+
+def _json_verification_gate_check_rows(data: dict) -> list[object] | None:
+    rows: list[object] = []
+    for key in ("checks", "commands"):
+        if key not in data:
+            continue
+        value = data.get(key)
+        if not isinstance(value, list):
+            return None
+        rows.extend(value)
+    return rows
+
+
+def _json_present_state_values(data: dict) -> list[str]:
+    return [
+        _normalize_gate_state(data.get(key))
+        for key in ("result", "status", "result_state")
+        if key in data
+    ]
+
+
+def _json_exit_code_is_zero(value: object) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return value == 0
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return False
+        try:
+            return int(text) == 0
+        except ValueError:
+            return False
+    return False
+
+
+def _json_verification_check_has_material_evidence(check: dict, *, report_path: Path) -> bool:
+    path_keys = [key for key in JSON_PATH_EVIDENCE_KEYS if key in check]
+    if path_keys:
+        material_path_values = [
+            check[key]
+            for key in path_keys
+            if _json_value_has_material(check[key])
+        ]
+        if material_path_values:
+            return all(_json_path_value_has_existing_evidence(value, report_path=report_path) for value in material_path_values)
+    return False
+
+
+def _json_value_has_material(value: object) -> bool:
+    if isinstance(value, str):
+        return _markdown_cell_has_material(value)
+    if isinstance(value, list):
+        return any(_json_value_has_material(item) for item in value)
+    if isinstance(value, dict):
+        return any(_json_value_has_material(item) for item in value.values())
+    return False
+
+
+def _json_material_strings(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value] if _markdown_cell_has_material(value) else []
+    if isinstance(value, list):
+        return [item for entry in value for item in _json_material_strings(entry)]
+    if isinstance(value, dict):
+        return [item for entry in value.values() for item in _json_material_strings(entry)]
+    return []
+
+
+def _json_path_value_has_existing_evidence(value: object, *, report_path: Path) -> bool:
+    refs = _json_material_strings(value)
+    return bool(refs) and all(_json_evidence_path_exists(ref, report_path=report_path) for ref in refs)
+
+
+def _json_evidence_path_exists(ref: str, *, report_path: Path) -> bool:
+    text = ref.strip().strip("`")
+    ref_path = Path(text)
+    if ref_path.is_absolute() or ".." in ref_path.parts:
+        return False
+    resolved = (report_path.parent / ref_path).resolve()
+    return resolved != report_path.resolve() and resolved.is_file()
+
+
+def _markdown_path_refs(cell: str) -> list[str]:
+    text = cell.strip()
+    quoted_refs = [ref.strip() for ref in re.findall(r"`([^`]+)`", text) if ref.strip()]
+    if quoted_refs:
+        return quoted_refs
+    return [part.strip() for part in re.split(r"[,;]", text) if part.strip()]
+
+
+def _markdown_path_cell_has_existing_evidence(cell: str, *, report_path: Path) -> bool:
+    refs = _markdown_path_refs(cell)
+    return bool(refs) and all(_json_evidence_path_exists(ref, report_path=report_path) for ref in refs)
+
+
+def _verification_gate_material_change_id(path: Path) -> str:
+    try:
+        if path.suffix == ".json":
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return str(data.get("material_change_id") or "").strip() if isinstance(data, dict) else ""
+        if path.suffix == ".md":
+            return _markdown_verification_gate_material_change_id(path.read_text(encoding="utf-8").splitlines())
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return ""
+    return ""
 
 
 def _resolve_verification_gate_report_ref(
@@ -324,6 +775,18 @@ def _validate_latest_green_gate_ref(
                 expected_label,
                 errors,
             )
+            freshness = data.get("evidence_freshness")
+            if require_green and isinstance(freshness, dict):
+                expected_material_change_id = str(
+                    freshness.get("material_change_id") or data.get("material_change_id") or ""
+                ).strip()
+                if expected_material_change_id:
+                    report_material_change_id = _verification_gate_material_change_id(expected_resolved)
+                    if report_material_change_id != expected_material_change_id:
+                        errors.append(
+                            f"{packet_path}: {expected_label} material_change_id must match "
+                            f"evidence_freshness.material_change_id"
+                        )
 
     freshness = data.get("evidence_freshness")
     if not isinstance(freshness, dict):
@@ -331,6 +794,7 @@ def _validate_latest_green_gate_ref(
     latest_green_gate = freshness.get("latest_green_gate")
     if not latest_green_gate:
         return
+    expected_material_change_id = str(freshness.get("material_change_id") or data.get("material_change_id") or "").strip()
 
     if expected_ref:
         if not _verification_gate_refs_match(
@@ -364,6 +828,13 @@ def _validate_latest_green_gate_ref(
                 "evidence_freshness.latest_green_gate",
                 errors,
             )
+            if require_green and expected_material_change_id:
+                report_material_change_id = _verification_gate_material_change_id(latest_resolved)
+                if report_material_change_id != expected_material_change_id:
+                    errors.append(
+                        f"{packet_path}: evidence_freshness.latest_green_gate material_change_id must match "
+                        f"evidence_freshness.material_change_id"
+                    )
 
 
 def _validate_failure_path_matrix_surface_coverage(path: Path, data: dict, errors: list[str]) -> None:
@@ -804,6 +1275,23 @@ def validate_standard_review_control_glue_guardrail(path: Path, data: dict) -> l
             f"{path}: top-level fields duplicate standard-review-control without override_reason: "
             f"{', '.join(duplicated_top_level_keys)}"
         )
+
+    for phase in data.get("phases", []) or []:
+        if not isinstance(phase, dict):
+            continue
+        phase_id = str(phase.get("id") or phase.get("name") or "<unnamed>")
+        if _has_override_reason(phase):
+            continue
+        duplicated_phase_keys: set[str] = set()
+        if phase.get("kind") == "review":
+            duplicated_phase_keys |= set(str(key) for key in phase) & STANDARD_REVIEW_CONTROL_REVIEW_PHASE_GLUE_KEYS
+        if phase.get("kind") == "fusion":
+            duplicated_phase_keys |= set(str(key) for key in phase) & STANDARD_REVIEW_CONTROL_FUSION_PHASE_GLUE_KEYS
+        if duplicated_phase_keys:
+            errors.append(
+                f"{path}: phase {phase_id} duplicates standard-review-control without override_reason: "
+                f"{', '.join(sorted(duplicated_phase_keys))}"
+            )
 
     return errors
 

@@ -582,7 +582,16 @@ def prepare_complete_evidence(root: Path) -> None:
             {
                 "kind": "verification_gate_report",
                 "result_state": "pass",
-                "checks": [{"id": "repo-validation", "status": "pass"}],
+                "material_change_id": "pr-merge-readiness-example-change",
+                "checks": [
+                    {
+                        "id": "repo-validation",
+                        "command": "python3 scripts/validate_repo.py --root .",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "raw_log_path": "evidence/repo-validation.log",
+                    }
+                ],
             },
             indent=2,
         )
@@ -1168,6 +1177,24 @@ def test_review_packet_failed_green_gate_reference_blocks_readiness(tmp_path: Pa
     assert "review_packet_invalid:generalist-a" in result["blockers"]
 
 
+def test_review_packet_pass_gate_with_failed_check_blocks_readiness(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    prepare_complete_evidence(tmp_path)
+    gate_path = tmp_path / "verification-gate-report.json"
+    gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    gate["result_state"] = "pass"
+    gate["checks"] = [{"id": "repo-validation", "status": "fail", "exit_code": 1}]
+    gate_path.write_text(json.dumps(gate, indent=2) + "\n", encoding="utf-8")
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "review_packet_invalid:generalist-a" in result["blockers"]
+
+
 def test_review_packet_failed_markdown_green_gate_reference_blocks_readiness(
     tmp_path: Path,
 ) -> None:
@@ -1607,6 +1634,29 @@ def test_malformed_reviewer_report_blocks_readiness(tmp_path: Path) -> None:
         json.dumps({"summary": "missing reviewer and findings"}) + "\n",
         encoding="utf-8",
     )
+    path = write_report(tmp_path, report)
+
+    result = load_evaluator()(tmp_path, path)
+
+    assert result["state"] == "blocked_missing_evidence"
+    assert result["accepted"] is False
+    assert "reviewer_report_invalid:generalist-a" in result["blockers"]
+
+
+def test_stale_reviewer_report_normalization_blocks_readiness(tmp_path: Path) -> None:
+    report = complete_report()
+    report["status"] = "blocked_missing_evidence"
+    prepare_complete_evidence(tmp_path)
+    raw_path = tmp_path / "reviewer-report.generalist-a.raw.md"
+    raw_path.write_text("Original raw reviewer output.\n", encoding="utf-8")
+    report_path = tmp_path / "reviewer-report.generalist-a.json"
+    reviewer_report = json.loads(report_path.read_text(encoding="utf-8"))
+    reviewer_report["normalization"] = {
+        "source_path": raw_path.name,
+        "source_hash": file_sha(raw_path),
+    }
+    report_path.write_text(json.dumps(reviewer_report, indent=2) + "\n", encoding="utf-8")
+    raw_path.write_text("Mutated raw reviewer output.\n", encoding="utf-8")
     path = write_report(tmp_path, report)
 
     result = load_evaluator()(tmp_path, path)

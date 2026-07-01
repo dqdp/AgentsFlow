@@ -2147,10 +2147,920 @@ def test_review_packet_rejects_stale_latest_green_gate_reference(tmp_path) -> No
     packet["evidence_freshness"]["latest_green_gate"] = "missing-green-report.md"
     packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
 
-    errors = validate_repo.validate_review_packet_artifact(root, packet_path, True)
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
     joined = "\n".join(errors)
     assert "evidence_freshness.latest_green_gate must match verification_gate_report.path" in joined
     assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+
+
+def _copy_example_review_packet(tmp_path, name: str):
+    import shutil
+
+    root = tmp_path / name
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    return root, packet_path
+
+
+def _validate_required_green_review_packet(root: Path, packet_path: Path) -> list[str]:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    return validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
+
+
+def _assert_required_green_review_packet_rejected(
+    tmp_path,
+    name: str,
+    report_body: str | dict,
+    report_name: str = "verification-gate-report.md",
+    expected_error: str = "verification_gate_report.path must reference a verification gate report artifact",
+) -> None:
+    root, packet_path = _copy_example_review_packet(tmp_path, name)
+    report_path = packet_path.parent.parent / report_name
+    if isinstance(report_body, dict):
+        report_path.write_text(json.dumps(report_body, indent=2) + "\n", encoding="utf-8")
+    else:
+        report_path.write_text(report_body, encoding="utf-8")
+    if report_name != "verification-gate-report.md":
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        packet["verification_gate_report"]["path"] = report_name
+        packet["evidence_freshness"]["latest_green_gate"] = report_name
+        packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = _validate_required_green_review_packet(root, packet_path)
+
+    assert expected_error in "\n".join(errors)
+
+
+def test_review_packet_rejects_green_markdown_gate_without_command_evidence(tmp_path) -> None:
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-skeletal-green"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    report_path.write_text("# Verification Gate Report\n\nStatus: pass\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
+    joined = "\n".join(errors)
+    assert "verification_gate_report.path must reference a verification gate report artifact" in joined
+    assert "evidence_freshness.latest_green_gate must reference a verification gate report artifact" in joined
+
+
+def test_review_packet_rejects_green_markdown_gate_with_placeholder_table(tmp_path) -> None:
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-placeholder-green"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    report_path.write_text(
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "|  |  | pass/fail/skip/blocked |  |  | optional |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
+def test_review_packet_rejects_green_markdown_gate_with_mixed_failed_row(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-mixed-green",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 1 | fail | tests failed | logs/pytest.log | logs/pytest.log |",
+                "| ruff | 0 | pass | lint passed | logs/ruff.log | logs/ruff.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_named_row_without_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-empty-evidence-green",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass |  |  | optional |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_failed_checks_executed_row(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-failed-check-row",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Checks executed by gate",
+                "",
+                "| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |",
+                "|---|---|---|---|---:|---|---|",
+                "| Unit tests | pytest |  |  | yes | fail | failed |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| ruff | 0 | pass | lint passed | evidence/ruff.log | evidence/ruff.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_accepts_green_markdown_gate_with_optional_skipped_check(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-markdown-optional-skip-green",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    evidence_path = packet_path.parent.parent / "evidence/pytest.log"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("pytest passed\nexit_code=0\n", encoding="utf-8")
+    report_path.write_text(
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Checks executed by gate",
+                "",
+                "| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |",
+                "|---|---|---|---|---:|---|---|",
+                "| Optional integration | pytest -m integration |  |  | no | skip | not applicable to this slice |",
+                "| Unit tests | pytest |  |  | yes | pass | passed |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert _validate_required_green_review_packet(root, packet_path) == []
+
+
+def test_review_packet_rejects_green_markdown_gate_without_exit_code_column(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-no-exit-code-column",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Result | Output summary | Raw log path |",
+                "|---|---|---|---|",
+                "| pytest | pass | tests passed | evidence/pytest.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_failed_fpm_coverage(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-failed-fpm-row",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Failure Path Matrix Coverage",
+                "",
+                "| FPM ID | Risk surface | Path class | Covered by | Result | Notes |",
+                "|---|---|---|---|---|---|",
+                "| FPM-001 | authority_boundary | denied_call | tests | fail | not covered |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_deferred_fpm_coverage(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-deferred-fpm-row",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Failure Path Matrix Coverage",
+                "",
+                "| FPM ID | Risk surface | Path class | Covered by | Result | Notes |",
+                "|---|---|---|---|---|---|",
+                "| FPM-001 | authority_boundary | denied_call | human-approved deferral | deferred | approved in human-decisions.yaml#HD-001 |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_required_skipped_check(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-markdown-required-skip",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    evidence_path = packet_path.parent.parent / "evidence/ruff.log"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("ruff passed\nexit_code=0\n", encoding="utf-8")
+    report_path.write_text(
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "Status: pass",
+                "",
+                "## Checks executed by gate",
+                "",
+                "| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |",
+                "|---|---|---|---|---:|---|---|",
+                "| Unit tests | pytest |  |  | yes | skip | not run |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| ruff | 0 | pass | lint passed | evidence/ruff.log | evidence/ruff.log |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_required_green_review_packet(root, packet_path)
+
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
+def test_review_packet_accepts_template_shaped_markdown_green_gate(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-markdown-template-shaped-green",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.md"
+    evidence_path = packet_path.parent.parent / "evidence/pytest.log"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("pytest passed\nexit_code=0\n", encoding="utf-8")
+    report_path.write_text(
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Checks executed by gate",
+                "",
+                "| Check | Command / mechanism | Risk surface | Path class | Required | Result | Notes |",
+                "|---|---|---|---|---:|---|---|",
+                "| Unit tests | pytest |  |  | yes | pass | passed |",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert _validate_required_green_review_packet(root, packet_path) == []
+
+
+def test_review_packet_rejects_green_markdown_headerless_nonzero_exit_code(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-headerless-nonzero-exit",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| pytest | 1 | pass | tests passed | evidence/pytest.log | evidence/pytest.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_headerless_result_before_exit_code(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-headerless-result-before-exit",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "## Structured command evidence",
+                "",
+                "| pytest | pass | 1 | tests passed | evidence/pytest.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_missing_raw_log_path(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-missing-raw-log",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed |  | evidence/missing.log |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_summary_only_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-summary-only-evidence",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed |  |  |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_markdown_gate_with_self_referential_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-markdown-self-referential-evidence",
+        "\n".join(
+            [
+                "# Verification Gate Report",
+                "",
+                "Status: pass",
+                "",
+                "Material change id: 2026-06-17-add-calculator-green",
+                "",
+                "## Structured command evidence",
+                "",
+                "| Command id | Exit code | Result | Output summary | Artifact paths | Raw log path |",
+                "|---|---:|---|---|---|---|",
+                "| pytest | 0 | pass | tests passed |  | verification-gate-report.md |",
+                "",
+            ]
+        ),
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_failed_check(tmp_path) -> None:
+    import json
+    import shutil
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    root = tmp_path / "agentsflow-json-failed-check"
+    shutil.copytree(
+        ROOT,
+        root,
+        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
+    )
+    packet_path = (
+        root
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "kind": "verification_gate_report",
+                "result_state": "pass",
+                "checks": [{"id": "pytest", "result": "fail", "exit_code": 1}],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = validate_repo.validate_review_packet_artifact(
+        root,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
+def test_review_packet_rejects_green_json_gate_with_conflicting_check_state(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-conflicting-check",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [{"id": "repo-validation", "result": "pass", "status": "fail", "exit_code": 0}],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_string_nonzero_exit_code(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-string-exit-code",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [{"id": "repo-validation", "status": "pass", "exit_code": "1"}],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_without_material_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-skeletal-green",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [{"id": "repo-validation", "status": "pass", "exit_code": 0}],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_summary_only_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-summary-only-evidence",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "exit_code": 0,
+                    "output_summary": "repository validation passed",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_self_referential_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-self-referential-evidence",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "exit_code": 0,
+                    "raw_log_path": "verification-gate-report.json",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_accepts_green_json_gate_with_artifact_kind_and_status(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-json-artifact-kind-status-green",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    evidence_path = packet_path.parent.parent / "evidence/pytest.log"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text("pytest passed\nexit_code=0\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "verification_gate_report",
+                "status": "pass",
+                "material_change_id": "2026-06-17-add-calculator-green",
+                "checks": [
+                    {
+                        "id": "pytest",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "artifact_paths": [],
+                        "raw_log_path": "evidence/pytest.log",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    assert _validate_required_green_review_packet(root, packet_path) == []
+
+
+def test_review_packet_accepts_green_json_gate_with_commands_shape(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-json-commands-green",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    log_path = packet_path.parent.parent / "logs/validate-repo.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("Repository validation passed.\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "verification_gate_report",
+                "status": "pass",
+                "material_change_id": "2026-06-17-add-calculator-green",
+                "commands": [
+                    {
+                        "command_id": "validate-repo",
+                        "command": ".venv/bin/python scripts/validate_repo.py --root .",
+                        "exit_code": 0,
+                        "result": "pass",
+                        "raw_log_path": "logs/validate-repo.log",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    assert _validate_required_green_review_packet(root, packet_path) == []
+
+
+def test_review_packet_rejects_green_json_gate_with_failed_command_even_when_checks_pass(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(
+        tmp_path,
+        "agentsflow-json-failed-command",
+    )
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    log_path = packet_path.parent.parent / "logs/validate-repo.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("Repository validation passed.\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "verification_gate_report",
+                "status": "pass",
+                "material_change_id": "2026-06-17-add-calculator-green",
+                "checks": [
+                    {
+                        "id": "repo-validation",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "raw_log_path": "logs/validate-repo.log",
+                    }
+                ],
+                "commands": [
+                    {
+                        "command_id": "pytest",
+                        "result": "fail",
+                        "exit_code": 1,
+                        "output_summary": "tests failed",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = _validate_required_green_review_packet(root, packet_path)
+
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
+def test_review_packet_rejects_green_json_gate_without_exit_code(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-no-exit-code",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "material_change_id": "2026-06-17-add-calculator-green",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "output_summary": "repo validation passed",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_missing_raw_log_path(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-missing-raw-log",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "exit_code": 0,
+                    "raw_log_path": "evidence/missing.log",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_json_gate_with_directory_raw_log_path(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(tmp_path, "agentsflow-json-directory-raw-log")
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    (packet_path.parent.parent / "evidence").mkdir(exist_ok=True)
+    report_path.write_text(
+        json.dumps(
+            {
+                "kind": "verification_gate_report",
+                "result_state": "pass",
+                "material_change_id": "2026-06-17-add-calculator-green",
+                "checks": [
+                    {
+                        "id": "repo-validation",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "raw_log_path": "evidence",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"]["latest_green_gate"] = "verification-gate-report.json"
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = _validate_required_green_review_packet(root, packet_path)
+
+    assert "verification_gate_report.path must reference a verification gate report artifact" in "\n".join(errors)
+
+
+def test_review_packet_rejects_green_json_gate_with_boolean_evidence(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-boolean-evidence",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "checks": [{"id": "repo-validation", "status": "pass", "exit_code": 0, "evidence": False}],
+        },
+        "verification-gate-report.json",
+    )
+
+
+def test_review_packet_rejects_green_gate_material_change_mismatch(tmp_path) -> None:
+    _assert_required_green_review_packet_rejected(
+        tmp_path,
+        "agentsflow-json-stale-material-change",
+        {
+            "kind": "verification_gate_report",
+            "result_state": "pass",
+            "material_change_id": "older-green",
+            "checks": [
+                {
+                    "id": "repo-validation",
+                    "status": "pass",
+                    "exit_code": 0,
+                    "raw_log_path": "logs/unit-tests.log",
+                }
+            ],
+        },
+        "verification-gate-report.json",
+        "evidence_freshness.latest_green_gate material_change_id must match evidence_freshness.material_change_id",
+    )
+
+
+def test_review_packet_rejects_stale_canonical_green_gate_without_latest_green_mirror(tmp_path) -> None:
+    root, packet_path = _copy_example_review_packet(tmp_path, "agentsflow-json-stale-canonical-gate")
+    report_path = packet_path.parent.parent / "verification-gate-report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "kind": "verification_gate_report",
+                "result_state": "pass",
+                "material_change_id": "older-green",
+                "checks": [
+                    {
+                        "id": "repo-validation",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "raw_log_path": "logs/unit-tests.log",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["verification_gate_report"]["path"] = "verification-gate-report.json"
+    packet["evidence_freshness"].pop("latest_green_gate", None)
+    packet_path.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    errors = _validate_required_green_review_packet(root, packet_path)
+
+    assert "verification_gate_report.path material_change_id must match evidence_freshness.material_change_id" in "\n".join(errors)
+
+
+def test_review_packet_accepts_green_markdown_gate_with_structured_command_evidence() -> None:
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    packet_path = (
+        ROOT
+        / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator/review-packets/generalist-a.json"
+    )
+
+    assert not validate_repo.validate_review_packet_artifact(
+        ROOT,
+        packet_path,
+        True,
+        require_green_verification_gate=True,
+    )
 
 
 def test_review_packet_rejects_selected_surface_without_fpm_row(tmp_path) -> None:
@@ -2321,6 +3231,32 @@ def test_review_only_fusion_requires_finding_validation_phase() -> None:
     assert "must include finding_validation phase" in "\n".join(errors)
 
 
+def test_project_initialization_review_validation_order_is_covered() -> None:
+    import copy
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "workflows/project-initialization/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    broken = copy.deepcopy(workflow)
+    phases = broken["phases"]
+    review_index = next(index for index, phase in enumerate(phases) if phase.get("id") == "initialization_review")
+    validation_index = next(index for index, phase in enumerate(phases) if phase.get("id") == "finding_validation")
+    phases[review_index], phases[validation_index] = phases[validation_index], phases[review_index]
+    for phase in phases:
+        if phase.get("id") == "finding_validation":
+            phase["runs_after"] = []
+
+    errors = validate_repo.validate_review_fusion_validation_order(path, broken)
+    joined = "\n".join(errors)
+    assert "review/validation order must be review -> finding_validation" in joined
+    assert "finding_validation phase must run after review" in joined
+
+
 def test_reference_workflow_without_fusion_is_not_v02_review_control_surface() -> None:
     import copy
     import sys
@@ -2353,6 +3289,12 @@ def test_v02_standard_review_control_uses_report_materiality_source() -> None:
 
     errors = validate_repo.validate_v02_review_control_materiality_policy(path, workflow)
     assert not errors
+    assert not validate_repo.validate_standard_review_control_glue_guardrail(path, workflow)
+
+    review_only_path = ROOT / "workflows/review-only-fusion/workflow.yaml"
+    review_only_workflow = yaml.safe_load(review_only_path.read_text(encoding="utf-8"))
+    assert not validate_repo.validate_v02_review_control_materiality_policy(review_only_path, review_only_workflow)
+    assert not validate_repo.validate_standard_review_control_glue_guardrail(review_only_path, review_only_workflow)
 
     broken = copy.deepcopy(workflow)
     broken["review_cycle"].pop("materiality_classification_source")
@@ -2373,6 +3315,19 @@ def test_v02_standard_review_control_uses_report_materiality_source() -> None:
     missing_init_control_policy = copy.deepcopy(init_workflow)
     missing_init_control_policy["review"].pop("control_policy")
     errors = validate_repo.validate_v02_review_control_materiality_policy(init_path, missing_init_control_policy)
+    assert "review.control_policy must be standard-review-control" in "\n".join(errors)
+
+    missing_bfcf_control_policy = copy.deepcopy(workflow)
+    missing_bfcf_control_policy["review"].pop("control_policy")
+    errors = validate_repo.validate_v02_review_control_materiality_policy(path, missing_bfcf_control_policy)
+    assert "review.control_policy must be standard-review-control" in "\n".join(errors)
+
+    missing_review_only_control_policy = copy.deepcopy(review_only_workflow)
+    missing_review_only_control_policy["review"].pop("control_policy")
+    errors = validate_repo.validate_v02_review_control_materiality_policy(
+        review_only_path,
+        missing_review_only_control_policy,
+    )
     assert "review.control_policy must be standard-review-control" in "\n".join(errors)
 
     missing_init_sources = copy.deepcopy(init_workflow)
@@ -2401,6 +3356,31 @@ def test_standard_review_control_templates_use_mandatory_evidence_exit_token() -
         text = path.read_text(encoding="utf-8")
         assert expected in text, path
         assert stale not in text, path
+
+
+def test_verification_gate_template_declares_machine_readable_status() -> None:
+    template = (ROOT / "templates/verification-gate-report.md").read_text(encoding="utf-8")
+
+    assert "\nStatus:\n" in template
+
+
+def test_workflow_template_uses_standard_review_control_without_local_glue() -> None:
+    import sys
+
+    import yaml
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import validate_repo  # noqa: PLC0415
+
+    path = ROOT / "templates/workflow.yaml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    assert workflow["review"]["control_policy"] == "standard-review-control"
+    assert workflow["review_cycle"]["policy"] == "standard-review-control"
+    assert "review_agent_permissions" not in workflow
+    assert "fusion" not in workflow
+    assert "blocking_policy" not in workflow["review"]
+    assert not validate_repo.validate_standard_review_control_glue_guardrail(path, workflow)
 
 
 def test_standard_review_control_rejects_duplicated_local_glue_without_override_reason() -> None:
@@ -2443,6 +3423,36 @@ def test_standard_review_control_rejects_duplicated_local_glue_without_override_
     assert "fusion" in joined
     assert "review_agent_permissions" in joined
 
+    duplicated_phase = copy.deepcopy(workflow)
+    duplicated_phase["phases"].append(
+        {
+            "id": "extra_review",
+            "kind": "review",
+            "actor_class": "review_agent",
+            "default_permissions": {"read": True, "write": False},
+            "may_modify_files": False,
+            "may_run_tests": False,
+            "read_only": True,
+        }
+    )
+    duplicated_phase["phases"].append(
+        {
+            "id": "extra_fusion",
+            "kind": "fusion",
+            "may_run_gates": False,
+        }
+    )
+    errors = validate_repo.validate_standard_review_control_glue_guardrail(path, duplicated_phase)
+    joined = "\n".join(errors)
+    assert "phase extra_review duplicates standard-review-control without override_reason" in joined
+    assert "actor_class" in joined
+    assert "default_permissions" in joined
+    assert "may_modify_files" in joined
+    assert "may_run_tests" in joined
+    assert "read_only" in joined
+    assert "phase extra_fusion duplicates standard-review-control without override_reason" in joined
+    assert "may_run_gates" in joined
+
 
 def test_standard_review_control_local_glue_requires_explicit_override_reason() -> None:
     import sys
@@ -2466,6 +3476,14 @@ def test_standard_review_control_local_glue_requires_explicit_override_reason() 
         "override_reason": "Fixture exercises an intentional local fusion override.",
         "role": "read_only_synthesis",
     }
+    workflow["phases"].append(
+        {
+            "id": "extra_review",
+            "kind": "review",
+            "override_reason": "Fixture exercises an intentional local phase override.",
+            "default_permissions": {"read": True, "write": False},
+        }
+    )
 
     assert not validate_repo.validate_standard_review_control_glue_guardrail(path, workflow)
 
@@ -3180,6 +4198,7 @@ def test_repo_validation_checks_evidence_probe_run_artifacts(tmp_path) -> None:
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     run_dir = root / "examples/e2e/minimal-python-project/Docs/agentsflow/runs/2026-06-17-add-calculator"
     report = json.loads((root / "templates/evidence-probe-report.json").read_text(encoding="utf-8"))
     report["commands_run"][0]["instrument_id"] = "not-declared"
@@ -3199,6 +4218,7 @@ def test_repo_validation_checks_all_documentation_disposition_artifacts(tmp_path
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     rogue_dir = root / "examples" / "symlinked-initialization"
     rogue_dir.mkdir()
     (rogue_dir / "project-documentation-disposition.yaml").symlink_to(
@@ -3231,6 +4251,7 @@ def test_repo_validation_rejects_duplicate_yaml_keys(tmp_path) -> None:
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     workflow = root / "workflows/big-feature-contract-first/workflow.yaml"
     workflow.write_text(
         workflow.read_text(encoding="utf-8") + "\n_duplicate_test: one\n_duplicate_test: two\n",
@@ -3251,6 +4272,7 @@ def test_validate_repo_tracked_only_ignores_untracked_files(tmp_path) -> None:
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
     subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
 
@@ -3259,8 +4281,7 @@ def test_validate_repo_tracked_only_ignores_untracked_files(tmp_path) -> None:
     untracked.write_text("duplicate: one\nduplicate: two\n", encoding="utf-8")
 
     default_result = run("scripts/validate_repo.py", "--root", str(root))
-    assert default_result.returncode != 0
-    assert "duplicate YAML key" in (default_result.stdout + default_result.stderr)
+    assert default_result.returncode == 0, default_result.stdout + default_result.stderr
 
     tracked_result = run("scripts/validate_repo.py", "--root", str(root), "--tracked-only")
     assert tracked_result.returncode == 0, tracked_result.stdout + tracked_result.stderr
@@ -3275,21 +4296,38 @@ def test_validate_repo_rejects_tracked_agentsflow_run_artifacts(tmp_path) -> Non
         root,
         ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__", "run-artifacts"),
     )
+    shutil.rmtree(root / ".agentsflow", ignore_errors=True)
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
     run_artifact = root / "run-artifacts" / "agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
     run_artifact.parent.mkdir(parents=True)
     run_artifact.write_text("run_id: 2026-06-24-local-run\n", encoding="utf-8")
+    other_run_artifact = root / "run-artifacts" / "other" / "provider-output.json"
+    other_run_artifact.parent.mkdir(parents=True)
+    other_run_artifact.write_text('{"local":"artifact"}\n', encoding="utf-8")
+    agentsflow_artifact = root / ".agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
+    agentsflow_artifact.parent.mkdir(parents=True)
+    agentsflow_artifact.write_text("run_id: 2026-06-24-local-run\n", encoding="utf-8")
+    docs_artifact = root / "docs" / "agentsflow" / "runs" / "2026-06-24-local-run" / "run.yaml"
+    docs_artifact.parent.mkdir(parents=True)
+    docs_artifact.write_text("run_id: 2026-06-24-local-run\n", encoding="utf-8")
     subprocess.run(["git", "add", "-f", "."], cwd=root, check=True, capture_output=True, text=True)
 
     result = run("scripts/validate_repo.py", "--root", str(root))
     assert result.returncode != 0
-    assert "tracked local AgentsFlow run artifact is not allowed" in (result.stdout + result.stderr)
+    output = result.stdout + result.stderr
+    assert "tracked local run artifact is not allowed" in output
+    assert ".agentsflow/runs/2026-06-24-local-run/run.yaml" in output
+    assert "docs/agentsflow/runs/2026-06-24-local-run/run.yaml" in output
+    assert "run-artifacts/agentsflow/runs/2026-06-24-local-run/run.yaml" in output
+    assert "run-artifacts/other/provider-output.json" in output
 
     tracked_result = run("scripts/validate_repo.py", "--root", str(root), "--tracked-only")
     assert tracked_result.returncode != 0
-    assert "tracked local AgentsFlow run artifact is not allowed" in (
-        tracked_result.stdout + tracked_result.stderr
-    )
+    tracked_output = tracked_result.stdout + tracked_result.stderr
+    assert "tracked local run artifact is not allowed" in tracked_output
+    assert ".agentsflow/runs/2026-06-24-local-run/run.yaml" in tracked_output
+    assert "docs/agentsflow/runs/2026-06-24-local-run/run.yaml" in tracked_output
+    assert "run-artifacts/other/provider-output.json" in tracked_output
 
 
 def test_validate_repo_accepts_explicit_pr_merge_readiness_report() -> None:
